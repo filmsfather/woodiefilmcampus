@@ -1,133 +1,138 @@
 import Link from "next/link"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Users, Shield, GraduationCap, BookOpen, Eye, Github } from "lucide-react"
+import { Shield, Users, GraduationCap, BookOpen, LogIn } from "lucide-react"
 
 export default function Home() {
-  const features = [
+  const roles = [
     {
-      title: "원장 대시보드",
-      description: "모든 권한 보유, 다른 대시보드 이동 가능",
+      title: "원장",
+      description: "캠퍼스 전체 관리를 위한 핵심 지표와 사용자 권한 조정",
       icon: Shield,
-      color: "bg-purple-100 text-purple-800"
+      badgeClassName: "bg-purple-100 text-purple-800",
     },
     {
-      title: "실장 대시보드", 
-      description: "가입 권한 관리, 역할 부여/해제, 반 관리",
+      title: "실장",
+      description: "회원 가입 승인, 역할 배정과 반 편성을 빠르게 처리",
       icon: Users,
-      color: "bg-blue-100 text-blue-800"
+      badgeClassName: "bg-blue-100 text-blue-800",
     },
     {
-      title: "선생님 대시보드",
-      description: "추후 업데이트 예정",
+      title: "선생님",
+      description: "수업 일정과 학생 관리 기능을 중심으로 구성",
       icon: GraduationCap,
-      color: "bg-green-100 text-green-800"
+      badgeClassName: "bg-green-100 text-green-800",
     },
     {
-      title: "학생 대시보드",
-      description: "모바일 위주, 추후 업데이트 예정", 
+      title: "학생",
+      description: "모바일 최적화된 학습 현황과 과제 확인",
       icon: BookOpen,
-      color: "bg-yellow-100 text-yellow-800"
-    }
+      badgeClassName: "bg-yellow-100 text-yellow-800",
+    },
   ]
 
-  const techStack = [
-    { name: "Next.js 15", description: "React Framework" },
-    { name: "Supabase", description: "Backend & Auth" },
-    { name: "Tailwind CSS", description: "Styling" },
-    { name: "shadcn/ui", description: "UI Components" }
+  const steps = [
+    {
+      title: "시작 페이지",
+      description: "Woodie Film Campus 소개와 이용 안내",
+    },
+    {
+      title: "로그인",
+      description: "Supabase 기반 인증으로 본인 확인",
+    },
+    {
+      title: "역할별 대시보드",
+      description: "부여된 권한에 맞는 화면으로 자동 이동",
+    },
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Hero Section */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-16">
-          <h1 className="text-5xl font-bold text-gray-900 mb-6">
-            학습관리 플랫폼
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <header className="border-b bg-white">
+        <div className="container mx-auto max-w-6xl px-6 py-20 text-center">
+          <Badge variant="secondary" className="mb-6 inline-flex items-center gap-2 text-base">
+            <LogIn className="h-4 w-4" /> Woodie Film Campus
+          </Badge>
+          <h1 className="text-4xl font-bold sm:text-5xl">
+            역할 기반 학습관리 플랫폼
           </h1>
-          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
-            권한별 대시보드를 제공하는 현대적인 학습관리 시스템
+          <p className="mt-4 text-lg text-slate-600 sm:text-xl">
+            로그인 한 번으로 권한에 맞는 대시보드를 바로 만나보세요.
           </p>
-          <div className="space-x-4">
-            <Button asChild size="lg">
-              <Link href="/demo">
-                <Eye className="mr-2 h-5 w-5" />
-                컴포넌트 데모 보기
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link href="/login">
+                로그인으로 이동
               </Link>
             </Button>
-            <Button variant="outline" size="lg">
-              <Github className="mr-2 h-5 w-5" />
-              GitHub
-            </Button>
+            <span className="text-sm text-slate-500">
+              계정이 없으면 관리자에게 권한을 요청해주세요.
+            </span>
           </div>
         </div>
+      </header>
 
-        {/* Features */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">
-            권한별 대시보드
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <Card key={index} className="hover:shadow-lg transition-shadow">
-                <CardHeader className="text-center">
-                  <feature.icon className="h-12 w-12 mx-auto mb-4 text-gray-600" />
-                  <CardTitle className="text-lg">{feature.title}</CardTitle>
+      <main className="container mx-auto max-w-6xl space-y-16 px-6 py-16">
+        <section className="grid gap-6 md:grid-cols-3">
+          {steps.map((step, index) => (
+            <Card key={step.title} className="h-full border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-lg font-semibold">
+                  {index + 1}. {step.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-slate-600">{step.description}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+
+        <section>
+          <div className="mb-8 text-center">
+            <h2 className="text-3xl font-semibold">권한별 대시보드 구성</h2>
+            <p className="mt-2 text-slate-600">
+              로그인 시 부여된 역할에 맞춰 자동으로 대시보드가 열립니다.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2">
+            {roles.map((role) => (
+              <Card key={role.title} className="h-full border-slate-200">
+                <CardHeader className="items-center text-center">
+                  <role.icon className="mb-4 h-12 w-12 text-slate-500" />
+                  <CardTitle className="text-xl">{role.title}</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center">
-                  <Badge className={`${feature.color} mb-3`}>
-                    {feature.title.split(" ")[0]}
-                  </Badge>
-                  <p className="text-sm text-gray-600">
-                    {feature.description}
-                  </p>
+                  <Badge className={`${role.badgeClassName} mb-3`}>{role.title}</Badge>
+                  <p className="text-sm text-slate-600">{role.description}</p>
                 </CardContent>
               </Card>
             ))}
           </div>
-        </div>
+        </section>
 
-        {/* Tech Stack */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center text-gray-900 mb-8">
-            기술 스택
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-2xl mx-auto">
-            {techStack.map((tech, index) => (
-              <Card key={index} className="text-center p-4">
-                <CardContent className="pt-2">
-                  <div className="font-semibold text-gray-900">{tech.name}</div>
-                  <div className="text-sm text-gray-600">{tech.description}</div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
+        <section>
+          <Card className="border-slate-200 bg-slate-900 text-slate-50">
+            <CardContent className="flex flex-col items-center gap-4 p-8 text-center sm:flex-row sm:justify-between sm:text-left">
+              <div>
+                <h3 className="text-2xl font-semibold">지금 바로 로그인하고 캠퍼스를 관리하세요.</h3>
+                <p className="mt-2 text-slate-200">
+                  Supabase 인증을 통해 안전하게 접속하고, 필요한 기능에 바로 접근할 수 있습니다.
+                </p>
+              </div>
+              <Button asChild size="lg" variant="secondary" className="w-full sm:w-auto">
+                <Link href="/login">로그인</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </section>
+      </main>
 
-        {/* CTA Section */}
-        <Card className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-          <CardContent className="text-center p-8">
-            <h3 className="text-2xl font-bold mb-4">컴포넌트 데모 체험하기</h3>
-            <p className="mb-6 opacity-90">
-              실제 구현된 컴포넌트들을 미리 체험해보세요
-            </p>
-            <Button asChild size="lg" variant="secondary">
-              <Link href="/demo">
-                데모 페이지로 이동
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-gray-900 text-white py-8">
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-400">
-            © 2024 학습관리 플랫폼. Next.js + Supabase + shadcn/ui로 제작
-          </p>
+      <footer className="border-t bg-white">
+        <div className="container mx-auto max-w-6xl px-6 py-6 text-center text-sm text-slate-500">
+          © {new Date().getFullYear()} Woodie Film Campus. 모든 권한이 예약되어 있습니다.
         </div>
       </footer>
     </div>

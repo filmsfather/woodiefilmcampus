@@ -16,7 +16,7 @@
 - Tailwind 클래스는 레이아웃 → 간격 → 색상 순으로 정리하고, `class-variance-authority`로 변형을 재사용하며 공통 헬퍼는 `src/lib`로 끌어올리세요.
 
 ## 테스트 가이드라인
-- 별도의 테스트 러너는 아직 도입되지 않았습니다. 현재는 `npm run lint`와 주요 플로우(`/demo`, 인증)` 수동 점검이 최소 요구사항입니다.
+- 별도의 테스트 러너는 아직 도입되지 않았습니다. 현재는 `npm run lint`와 주요 플로우(로그인, 역할별 대시보드, 인증) 수동 점검이 최소 요구사항입니다.
 - 테스트를 추가할 때는 React Testing Library를 선호하고, 사용자 여정은 Playwright로 작성하며 파일명은 `*.test.tsx` 형식을 따르세요.
 - Supabase 인증 미들웨어(`src/middleware.ts`)와 핵심 대시보드를 우선 검증하고, 새 스크립트는 `package.json`에 기록하세요.
 

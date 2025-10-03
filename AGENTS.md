@@ -16,7 +16,7 @@
 - Group Tailwind classes by layout → spacing → color, reuse variants through `class-variance-authority`, and surface helper functions via `src/lib`.
 
 ## Testing Guidelines
-- A dedicated test runner is not wired up yet; treat `npm run lint` plus manual validation of key flows (`/demo`, auth) as the current minimum.
+- A dedicated test runner is not wired up yet; treat `npm run lint` plus manual validation of key flows (login, role dashboards, auth) as the current minimum.
 - When introducing tests, prefer React Testing Library for components and Playwright for flows, naming files `*.test.tsx` under `src/__tests__` or next to the module.
 - Target coverage for Supabase auth handling (`src/middleware.ts`) and critical dashboards first, and document new scripts in `package.json`.
 
