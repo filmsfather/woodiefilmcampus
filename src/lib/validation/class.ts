@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
 const uuidField = z
-  .string({ required_error: 'ID가 필요합니다.' })
+  .string()
+  .min(1, { message: 'ID가 필요합니다.' })
   .uuid('유효한 ID 형식이 아닙니다.')
 
 const descriptionField = z
@@ -17,16 +18,16 @@ const descriptionField = z
   })
 
 const teacherIdsField = z
-  .array(uuidField, { invalid_type_error: '담당 교사를 선택해주세요.' })
-  .min(1, '담당 교사를 최소 1명 선택해주세요.')
+  .array(uuidField)
+  .min(1, { message: '담당 교사를 최소 1명 선택해주세요.' })
 
 const studentIdsField = z.array(uuidField).optional().transform((value) => value ?? [])
 
 const baseClassSchema = z.object({
   name: z
-    .string({ required_error: '반 이름을 입력해주세요.' })
+    .string()
     .trim()
-    .min(1, '반 이름을 입력해주세요.'),
+    .min(1, { message: '반 이름을 입력해주세요.' }),
   description: descriptionField,
   homeroomTeacherId: uuidField,
   teacherIds: teacherIdsField,
@@ -41,4 +42,3 @@ export const updateClassSchema = baseClassSchema.extend({
 
 export type CreateClassInput = z.infer<typeof createClassSchema>
 export type UpdateClassInput = z.infer<typeof updateClassSchema>
-

@@ -11,15 +11,9 @@ import {
   type CreateClassInput,
 } from '@/lib/validation/class'
 
+import type { ActionState } from './action-state'
+
 const MANAGER_CLASSES_PATH = '/dashboard/manager/classes'
-
-export interface ActionState {
-  status: 'idle' | 'success' | 'error'
-  message?: string
-  fieldErrors?: Record<string, string[]>
-}
-
-export const initialActionState: ActionState = { status: 'idle' }
 
 function collectIds(formData: FormData, key: string) {
   return formData

@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 
-import { createClassAction, updateClassAction, initialActionState } from '@/app/dashboard/manager/classes/actions'
+import { createClassAction, updateClassAction } from '@/app/dashboard/manager/classes/actions'
+import { initialActionState } from '@/app/dashboard/manager/classes/action-state'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -215,4 +216,3 @@ export function ClassEditor({
     </div>
   )
 }
-
