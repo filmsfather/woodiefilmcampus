@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   student_phone text,
   parent_phone text,
   academic_record text,
+  status text NOT NULL DEFAULT 'pending',
   class_id uuid,
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
@@ -51,6 +52,14 @@ BEGIN
     WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'academic_record'
   ) THEN
     ALTER TABLE public.profiles ADD COLUMN academic_record text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'status'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN status text NOT NULL DEFAULT 'pending';
+    UPDATE public.profiles SET status = 'approved';
   END IF;
 END $$;
 
@@ -122,7 +131,7 @@ END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role, name, student_phone, parent_phone, academic_record)
+  INSERT INTO public.profiles (id, email, role, name, student_phone, parent_phone, academic_record, status)
   VALUES (
     NEW.id,
     NEW.email,
@@ -130,7 +139,8 @@ BEGIN
     COALESCE(NULLIF(NEW.raw_user_meta_data->>'name', ''), NEW.email),
     NULLIF(NEW.raw_user_meta_data->>'student_phone', ''),
     NULLIF(NEW.raw_user_meta_data->>'parent_phone', ''),
-    NULLIF(NEW.raw_user_meta_data->>'academic_record', '')
+    NULLIF(NEW.raw_user_meta_data->>'academic_record', ''),
+    'pending'
   )
   ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,
@@ -138,6 +148,7 @@ BEGIN
         student_phone = COALESCE(EXCLUDED.student_phone, public.profiles.student_phone),
         parent_phone = COALESCE(EXCLUDED.parent_phone, public.profiles.parent_phone),
         academic_record = COALESCE(EXCLUDED.academic_record, public.profiles.academic_record),
+        status = COALESCE(public.profiles.status, EXCLUDED.status),
         updated_at = timezone('utc'::text, now());
   RETURN NEW;
 END;
@@ -166,7 +177,15 @@ DROP POLICY IF EXISTS "프로필_본인_조회" ON public.profiles;
 CREATE POLICY "프로필_본인_조회"
   ON public.profiles
   FOR SELECT
-  USING (id = auth.uid());
+  USING (
+    id = auth.uid()
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles AS mgr
+      WHERE mgr.id = auth.uid()
+        AND mgr.role IN ('manager', 'principal')
+    )
+  );
 
 DROP POLICY IF EXISTS "프로필_본인_수정" ON public.profiles;
 CREATE POLICY "프로필_본인_수정"

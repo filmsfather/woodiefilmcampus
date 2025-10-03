@@ -30,7 +30,7 @@ export async function getAuthContext(): Promise<AuthContext> {
 
   const { data: profile, error } = await supabase
     .from('profiles')
-    .select('id, email, role, name, student_phone, parent_phone, academic_record, class_id, created_at, updated_at')
+    .select('id, email, role, status, name, student_phone, parent_phone, academic_record, class_id, created_at, updated_at')
     .eq('id', session.user.id)
     .maybeSingle()
 
@@ -58,6 +58,10 @@ export async function requireAuthForDashboard(targetRole?: UserRole) {
     redirect('/login')
   }
 
+  if (profile.status !== 'approved') {
+    redirect('/pending-approval')
+  }
+
   if (targetRole && targetRole !== profile.role && profile.role !== 'principal') {
     redirect(resolveDashboardPath(profile.role))
   }
@@ -68,7 +72,15 @@ export async function requireAuthForDashboard(targetRole?: UserRole) {
 export async function redirectAuthenticatedUser() {
   const { profile } = await getAuthContext()
 
-  if (profile?.role) {
+  if (!profile) {
+    return
+  }
+
+  if (profile.status !== 'approved') {
+    redirect('/pending-approval')
+  }
+
+  if (profile.role) {
     redirect(resolveDashboardPath(profile.role))
   }
 }

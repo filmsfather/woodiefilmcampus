@@ -7,10 +7,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export type UserRole = 'principal' | 'manager' | 'teacher' | 'student'
 
+export type ProfileStatus = 'pending' | 'approved' | 'rejected'
+
 export interface UserProfile {
   id: string
   email: string
   role: UserRole
+  status: ProfileStatus
   name?: string
   student_phone?: string | null
   parent_phone?: string | null
