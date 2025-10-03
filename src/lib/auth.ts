@@ -13,6 +13,10 @@ function isUserRole(value: string): value is UserRole {
   return ['principal', 'manager', 'teacher', 'student'].includes(value)
 }
 
+function isApprovedStatus(value: string | null | undefined) {
+  return typeof value === 'string' && value.trim().toLowerCase() === 'approved'
+}
+
 export function resolveDashboardPath(role: UserRole) {
   return `/dashboard/${role}`
 }
@@ -41,6 +45,12 @@ export async function getAuthContext(): Promise<AuthContext> {
     }
   }
 
+  console.log('[auth] profile status debug', {
+    email: profile.email,
+    status: profile.status,
+    role: profile.role,
+  })
+
   return {
     session,
     profile: { ...profile, role: profile.role },
@@ -58,7 +68,7 @@ export async function requireAuthForDashboard(targetRole?: UserRole) {
     redirect('/login')
   }
 
-  if (profile.status !== 'approved') {
+  if (!isApprovedStatus(profile.status)) {
     redirect('/pending-approval')
   }
 
@@ -76,7 +86,7 @@ export async function redirectAuthenticatedUser() {
     return
   }
 
-  if (profile.status !== 'approved') {
+  if (!isApprovedStatus(profile.status)) {
     redirect('/pending-approval')
   }
 
