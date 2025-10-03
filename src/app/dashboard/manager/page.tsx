@@ -1,4 +1,5 @@
 import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
+import { ManagerQuickLinks } from '@/components/dashboard/manager/ManagerQuickLinks'
 import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStatsOverview'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -35,6 +36,8 @@ export default async function ManagerDashboardPage() {
       </div>
 
       <ManagerStatsOverview pendingCount={pendingCount} approvedCount={approvedCount ?? 0} />
+
+      <ManagerQuickLinks />
 
       <PendingApprovalList students={pendingStudents} />
     </section>

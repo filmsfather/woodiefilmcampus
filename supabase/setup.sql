@@ -227,6 +227,24 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION public.can_manage_profiles(uid uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.profiles p
+    WHERE p.id = uid
+      AND p.role IN ('manager', 'principal')
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.can_manage_profiles(uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.can_manage_profiles(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_manage_profiles(uuid) TO service_role;
+
 -- auth.users 삽입 시 트리거 연결
 DO $$
 BEGIN
@@ -254,12 +272,7 @@ CREATE POLICY "프로필_본인_조회"
   FOR SELECT
   USING (
     id = auth.uid()
-    OR EXISTS (
-      SELECT 1
-      FROM public.profiles AS mgr
-      WHERE mgr.id = auth.uid()
-        AND mgr.role IN ('manager', 'principal')
-    )
+    OR public.can_manage_profiles(auth.uid())
   );
 
 DROP POLICY IF EXISTS "프로필_본인_수정" ON public.profiles;
@@ -284,12 +297,7 @@ CREATE POLICY "반_교사_조회"
   TO authenticated
   USING (
     teacher_id = auth.uid()
-    OR EXISTS (
-      SELECT 1
-      FROM public.profiles AS mgr
-      WHERE mgr.id = auth.uid()
-        AND mgr.role IN ('manager', 'principal')
-    )
+    OR public.can_manage_profiles(auth.uid())
     OR EXISTS (
       SELECT 1
       FROM public.class_students AS cs
@@ -305,12 +313,7 @@ CREATE POLICY "반_학생_조회"
   TO authenticated
   USING (
     student_id = auth.uid()
-    OR EXISTS (
-      SELECT 1
-      FROM public.profiles AS mgr
-      WHERE mgr.id = auth.uid()
-        AND mgr.role IN ('manager', 'principal')
-    )
+    OR public.can_manage_profiles(auth.uid())
     OR EXISTS (
       SELECT 1
       FROM public.class_teachers AS ct
