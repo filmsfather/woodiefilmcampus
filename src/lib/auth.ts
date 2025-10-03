@@ -58,7 +58,7 @@ export async function requireAuthForDashboard(targetRole?: UserRole) {
     redirect('/login')
   }
 
-  if (targetRole && targetRole !== profile.role) {
+  if (targetRole && targetRole !== profile.role && profile.role !== 'principal') {
     redirect(resolveDashboardPath(profile.role))
   }
 
