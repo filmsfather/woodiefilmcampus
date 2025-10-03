@@ -24,18 +24,25 @@ export function resolveDashboardPath(role: UserRole) {
 export async function getAuthContext(): Promise<AuthContext> {
   const supabase = createServerSupabase()
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: userData, error: userError } = await supabase.auth.getUser()
+
+  if (userError || !userData.user) {
+    return { session: null, profile: null }
+  }
+
+  const { data: sessionData } = await supabase.auth.getSession()
+  const session = sessionData?.session ?? null
 
   if (!session) {
     return { session: null, profile: null }
   }
 
+  const userId = userData.user.id
+
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('id, email, role, status, name, student_phone, parent_phone, academic_record, class_id, created_at, updated_at')
-    .eq('id', session.user.id)
+    .eq('id', userId)
     .maybeSingle()
 
   if (!profile || error || !isUserRole(profile.role)) {
