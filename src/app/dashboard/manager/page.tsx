@@ -1,7 +1,5 @@
-import { UserPlus, Users } from 'lucide-react'
-
 import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
-import { StatsCard } from '@/components/dashboard/StatsCard'
+import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStatsOverview'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
 
@@ -36,20 +34,7 @@ export default async function ManagerDashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <StatsCard
-          title="가입 대기 인원"
-          value={pendingCount}
-          description="승인 처리되지 않은 가입 요청"
-          icon={UserPlus}
-        />
-        <StatsCard
-          title="승인된 구성원"
-          value={approvedCount ?? 0}
-          description="학원 구성원으로 승인된 계정"
-          icon={Users}
-        />
-      </div>
+      <ManagerStatsOverview pendingCount={pendingCount} approvedCount={approvedCount ?? 0} />
 
       <PendingApprovalList students={pendingStudents} />
     </section>
