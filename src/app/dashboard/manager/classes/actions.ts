@@ -267,13 +267,16 @@ export async function deleteClassAction(classId: string): Promise<ActionState> {
     return makeErrorState('반을 삭제할 권한이 없습니다.')
   }
 
-  const parsedId = z
-    .string({ required_error: '삭제할 반 ID가 필요합니다.' })
-    .uuid('유효한 반 ID가 아닙니다.')
-    .safeParse(classId)
+  const trimmedId = classId?.trim()
+
+  if (!trimmedId) {
+    return makeErrorState('삭제할 반 ID가 필요합니다.')
+  }
+
+  const parsedId = z.string().uuid().safeParse(trimmedId)
 
   if (!parsedId.success) {
-    return makeErrorState('잘못된 요청입니다.')
+    return makeErrorState('유효한 반 ID가 아닙니다.')
   }
 
   try {
