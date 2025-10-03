@@ -16,6 +16,10 @@ export function AuthForm() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [studentName, setStudentName] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [parentPhoneNumber, setParentPhoneNumber] = useState('')
+  const [academicRecord, setAcademicRecord] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -27,9 +31,27 @@ export function AuthForm() {
 
     try {
       if (isSignUp) {
+        const trimmedName = studentName.trim()
+        const trimmedPhone = phoneNumber.trim()
+        const trimmedAcademicRecord = academicRecord.trim()
+        const trimmedParentPhone = parentPhoneNumber.trim()
+
+        if (!trimmedName || !trimmedPhone || !trimmedAcademicRecord) {
+          setMessage('필수 정보를 모두 입력해주세요.')
+          return
+        }
+
         const { error } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              name: trimmedName,
+              student_phone: trimmedPhone,
+              parent_phone: trimmedParentPhone || null,
+              academic_record: trimmedAcademicRecord,
+            },
+          },
         })
         if (error) throw error
         setMessage('회원가입이 완료되었습니다. 이메일을 확인해주세요.')
@@ -81,6 +103,53 @@ export function AuthForm() {
               autoComplete={isSignUp ? 'new-password' : 'current-password'}
             />
           </div>
+          {isSignUp && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="student-name">학생 이름</Label>
+                <Input
+                  id="student-name"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  required
+                  autoComplete="name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phone-number">핸드폰 번호</Label>
+                <Input
+                  id="phone-number"
+                  type="tel"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  required
+                  autoComplete="tel"
+                  placeholder="010-1234-5678"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="parent-phone-number">부모님 번호 (선택)</Label>
+                <Input
+                  id="parent-phone-number"
+                  type="tel"
+                  value={parentPhoneNumber}
+                  onChange={(e) => setParentPhoneNumber(e.target.value)}
+                  autoComplete="tel"
+                  placeholder="010-0000-0000"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="academic-record">내신 성적 또는 검정고시</Label>
+                <Input
+                  id="academic-record"
+                  value={academicRecord}
+                  onChange={(e) => setAcademicRecord(e.target.value)}
+                  required
+                  placeholder="예: 2.3 / 검정고시"
+                />
+              </div>
+            </>
+          )}
           {message && (
             <Alert>
               <AlertDescription>{message}</AlertDescription>
@@ -96,6 +165,10 @@ export function AuthForm() {
             onClick={() => {
               setIsSignUp(!isSignUp)
               setMessage('')
+              setStudentName('')
+              setPhoneNumber('')
+              setParentPhoneNumber('')
+              setAcademicRecord('')
             }}
           >
             {isSignUp ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입'}

@@ -21,10 +21,38 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   email text NOT NULL UNIQUE,
   role public.user_role NOT NULL DEFAULT 'student',
   name text,
+  student_phone text,
+  parent_phone text,
+  academic_record text,
   class_id uuid,
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
 );
+
+-- 기존 profiles 테이블에 신규 컬럼이 없다면 추가
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'student_phone'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN student_phone text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'parent_phone'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN parent_phone text;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'profiles' AND column_name = 'academic_record'
+  ) THEN
+    ALTER TABLE public.profiles ADD COLUMN academic_record text;
+  END IF;
+END $$;
 
 -- 3. 반(classes) 테이블
 CREATE TABLE IF NOT EXISTS public.classes (
@@ -94,11 +122,22 @@ END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, role, name)
-  VALUES (NEW.id, NEW.email, 'student', COALESCE(NEW.raw_user_meta_data->>'name', NEW.email))
+  INSERT INTO public.profiles (id, email, role, name, student_phone, parent_phone, academic_record)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    'student',
+    COALESCE(NULLIF(NEW.raw_user_meta_data->>'name', ''), NEW.email),
+    NULLIF(NEW.raw_user_meta_data->>'student_phone', ''),
+    NULLIF(NEW.raw_user_meta_data->>'parent_phone', ''),
+    NULLIF(NEW.raw_user_meta_data->>'academic_record', '')
+  )
   ON CONFLICT (id) DO UPDATE
     SET email = EXCLUDED.email,
         name = COALESCE(EXCLUDED.name, public.profiles.name),
+        student_phone = COALESCE(EXCLUDED.student_phone, public.profiles.student_phone),
+        parent_phone = COALESCE(EXCLUDED.parent_phone, public.profiles.parent_phone),
+        academic_record = COALESCE(EXCLUDED.academic_record, public.profiles.academic_record),
         updated_at = timezone('utc'::text, now());
   RETURN NEW;
 END;
