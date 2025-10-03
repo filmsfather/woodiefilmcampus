@@ -50,7 +50,7 @@ export default async function ManagerClassesPage({
   const searchValue = Array.isArray(searchParam) ? searchParam[0] ?? '' : searchParam ?? ''
   const normalizedSearch = normalizeSearchValue(searchValue)
 
-  const { data: classRows = [], error: classError } = await supabase
+  const { data: classRowsData, error: classError } = await supabase
     .from('classes')
     .select('id, name, description, homeroom_teacher_id, created_at, updated_at')
     .order('name', { ascending: true })
@@ -59,12 +59,13 @@ export default async function ManagerClassesPage({
     console.error('Failed to load classes', classError)
   }
 
+  const classRows = classRowsData ?? []
   const classIds = classRows.map((row) => row.id)
 
   let classTeacherRows: Array<{ class_id: string; teacher_id: string; is_homeroom: boolean | null }> = []
 
   if (classIds.length > 0) {
-    const { data: teacherRows = [], error: classTeacherError } = await supabase
+    const { data: teacherRowsData, error: classTeacherError } = await supabase
       .from('class_teachers')
       .select('class_id, teacher_id, is_homeroom')
       .in('class_id', classIds)
@@ -73,13 +74,13 @@ export default async function ManagerClassesPage({
       console.error('Failed to load class teacher assignments', classTeacherError)
     }
 
-    classTeacherRows = teacherRows
+    classTeacherRows = teacherRowsData ?? []
   }
 
   let classStudentRows: Array<{ class_id: string; student_id: string }> = []
 
   if (classIds.length > 0) {
-    const { data: studentRows = [], error: classStudentError } = await supabase
+    const { data: studentRowsData, error: classStudentError } = await supabase
       .from('class_students')
       .select('class_id, student_id')
       .in('class_id', classIds)
@@ -88,7 +89,7 @@ export default async function ManagerClassesPage({
       console.error('Failed to load class student assignments', classStudentError)
     }
 
-    classStudentRows = studentRows
+    classStudentRows = studentRowsData ?? []
   }
 
   const [teacherProfilesResult, studentProfilesResult] = await Promise.all([
@@ -212,4 +213,3 @@ export default async function ManagerClassesPage({
     </section>
   )
 }
-
