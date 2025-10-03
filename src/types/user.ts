@@ -20,7 +20,7 @@ export interface Class {
   id: string
   name: string
   description?: string
-  teacher_id?: string
+  homeroom_teacher_id?: string
   created_at: string
   updated_at: string
 }

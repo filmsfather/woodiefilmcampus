@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS public.classes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL,
   description text,
-  teacher_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  homeroom_teacher_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
 );
@@ -79,13 +79,68 @@ ALTER TABLE public.classes
 ALTER TABLE public.classes
   ALTER COLUMN updated_at SET DEFAULT timezone('utc'::text, now());
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'classes'
+      AND column_name = 'teacher_id'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'classes'
+      AND column_name = 'homeroom_teacher_id'
+  ) THEN
+    ALTER TABLE public.classes
+      RENAME COLUMN teacher_id TO homeroom_teacher_id;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.class_teachers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+  teacher_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  is_homeroom boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'class_teachers_class_teacher_key'
+  ) THEN
+    ALTER TABLE public.class_teachers
+      ADD CONSTRAINT class_teachers_class_teacher_key UNIQUE (class_id, teacher_id);
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.class_students (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  created_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamptz NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'class_students_class_student_key'
+  ) THEN
+    ALTER TABLE public.class_students
+      ADD CONSTRAINT class_students_class_student_key UNIQUE (class_id, student_id);
+  END IF;
+END $$;
+
 -- class_id 외래 키 지정 (profiles/class 연동)
 DO $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_constraint WHERE conname = 'profiles_class_id_fkey'
   ) THEN
-    ALTER TABLE public.profiles
+  ALTER TABLE public.profiles
       ADD CONSTRAINT profiles_class_id_fkey
       FOREIGN KEY (class_id)
       REFERENCES public.classes(id)
@@ -122,6 +177,24 @@ BEGIN
   ) THEN
     CREATE TRIGGER classes_set_updated_at
       BEFORE UPDATE ON public.classes
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'class_teachers_set_updated_at'
+  ) THEN
+    CREATE TRIGGER class_teachers_set_updated_at
+      BEFORE UPDATE ON public.class_teachers
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'class_students_set_updated_at'
+  ) THEN
+    CREATE TRIGGER class_students_set_updated_at
+      BEFORE UPDATE ON public.class_students
       FOR EACH ROW
       EXECUTE FUNCTION public.set_current_timestamp_updated_at();
   END IF;
@@ -170,6 +243,8 @@ END $$;
 -- 6. RLS 활성화
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_teachers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.class_students ENABLE ROW LEVEL SECURITY;
 
 -- 7. RLS 정책
 -- 본인 프로필만 읽고 수정 가능
@@ -202,12 +277,59 @@ CREATE POLICY "클래스_전체_열람"
   TO authenticated
   USING (TRUE);
 
+DROP POLICY IF EXISTS "반_교사_조회" ON public.class_teachers;
+CREATE POLICY "반_교사_조회"
+  ON public.class_teachers
+  FOR SELECT
+  TO authenticated
+  USING (
+    teacher_id = auth.uid()
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles AS mgr
+      WHERE mgr.id = auth.uid()
+        AND mgr.role IN ('manager', 'principal')
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.class_students AS cs
+      WHERE cs.class_id = class_teachers.class_id
+        AND cs.student_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "반_학생_조회" ON public.class_students;
+CREATE POLICY "반_학생_조회"
+  ON public.class_students
+  FOR SELECT
+  TO authenticated
+  USING (
+    student_id = auth.uid()
+    OR EXISTS (
+      SELECT 1
+      FROM public.profiles AS mgr
+      WHERE mgr.id = auth.uid()
+        AND mgr.role IN ('manager', 'principal')
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM public.class_teachers AS ct
+      WHERE ct.class_id = class_students.class_id
+        AND ct.teacher_id = auth.uid()
+    )
+  );
+
 -- 반 데이터 작성/수정은 서비스 롤 또는 향후 관리자 흐름용으로 별도 키 사용
 -- (정책 미지정 상태 → 기본적으로 막혀 있음)
 
 -- 8. 인덱스 및 정합성 관리
 CREATE INDEX IF NOT EXISTS profiles_role_idx ON public.profiles(role);
-CREATE INDEX IF NOT EXISTS classes_teacher_id_idx ON public.classes(teacher_id);
+DROP INDEX IF EXISTS classes_teacher_id_idx;
+CREATE INDEX IF NOT EXISTS classes_homeroom_teacher_id_idx ON public.classes(homeroom_teacher_id);
+CREATE INDEX IF NOT EXISTS class_teachers_class_idx ON public.class_teachers(class_id);
+CREATE INDEX IF NOT EXISTS class_teachers_teacher_idx ON public.class_teachers(teacher_id);
+CREATE INDEX IF NOT EXISTS class_students_class_idx ON public.class_students(class_id);
+CREATE INDEX IF NOT EXISTS class_students_student_idx ON public.class_students(student_id);
 
 commit;
 

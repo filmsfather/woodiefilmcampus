@@ -2,27 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { getAuthContext } from '@/lib/auth'
+import { ensureManagerProfile } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
-
-const ADMIN_ROLES = new Set(['manager', 'principal'])
-
-async function ensureManager() {
-  const { profile } = await getAuthContext()
-
-  if (!profile || !ADMIN_ROLES.has(profile.role)) {
-    return null
-  }
-
-  return profile
-}
 
 export async function approveStudent(profileId: string) {
   if (!profileId) {
     return { error: '잘못된 요청입니다.' }
   }
 
-  const canManage = await ensureManager()
+  const canManage = await ensureManagerProfile()
 
   if (!canManage) {
     return { error: '승인 권한이 없습니다.' }
@@ -60,7 +48,7 @@ export async function removePendingUser(profileId: string) {
     return { error: '잘못된 요청입니다.' }
   }
 
-  const canManage = await ensureManager()
+  const canManage = await ensureManagerProfile()
 
   if (!canManage) {
     return { error: '삭제 권한이 없습니다.' }
