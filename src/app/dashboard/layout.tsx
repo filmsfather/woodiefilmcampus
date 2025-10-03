@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 
+import { PrincipalRoleMenu } from '@/components/dashboard/PrincipalRoleMenu'
 import { SignOutButton } from '@/components/dashboard/SignOutButton'
 import { Badge } from '@/components/ui/badge'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -33,7 +34,12 @@ export default async function DashboardLayout({
               </div>
             )}
           </div>
-          <SignOutButton />
+          <div className="flex items-center gap-3">
+            {profile?.role === 'principal' && (
+              <PrincipalRoleMenu currentRole={profile.role} />
+            )}
+            <SignOutButton />
+          </div>
         </div>
       </header>
       <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
