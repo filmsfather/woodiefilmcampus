@@ -28,7 +28,7 @@ const filmFiltersSchema = z.object({
 
 const workbookConfigSchema = z.object({
   srs: z.object({ allowMultipleCorrect: z.boolean() }).optional(),
-  pdf: z.object({ instructions: z.string() }).optional(),
+  pdf: z.object({ instructions: z.string().optional() }).optional(),
   writing: z
     .object({
       instructions: z.string().optional(),
@@ -450,15 +450,24 @@ export async function deleteWorkbook(workbookId: string) {
 
       attachmentEntries = (mediaRows ?? [])
         .map((row) => {
-          const asset = row.media_assets
-          if (!asset) {
+          const asset = row.media_assets as
+            | {
+                id: string
+                bucket: string | null
+                path: string | null
+              }
+            | Array<{ id: string; bucket: string | null; path: string | null }>
+            | null
+
+          const record = Array.isArray(asset) ? asset[0] : asset
+          if (!record || !record.path) {
             return null
           }
 
-          attachmentIds.push(asset.id)
+          attachmentIds.push(record.id)
           return {
-            bucket: asset.bucket ?? 'workbook-assets',
-            path: asset.path,
+            bucket: record.bucket ?? 'workbook-assets',
+            path: record.path,
           }
         })
         .filter((entry): entry is StorageRemovalEntry => !!entry)
@@ -635,7 +644,27 @@ export async function duplicateWorkbook(workbookId: string) {
       }
 
       for (const attachment of originalItem.workbook_item_media ?? []) {
-        const asset = attachment.media_assets
+        const rawAsset = attachment.media_assets as
+          | {
+              id: string
+              bucket: string | null
+              path: string | null
+              mime_type: string | null
+              size: number | null
+              metadata: Record<string, unknown> | null
+            }
+          | Array<{
+              id: string
+              bucket: string | null
+              path: string | null
+              mime_type: string | null
+              size: number | null
+              metadata: Record<string, unknown> | null
+            }>
+          | null
+
+        const asset = Array.isArray(rawAsset) ? rawAsset[0] : rawAsset
+
         if (!asset?.path) {
           continue
         }

@@ -21,19 +21,17 @@ export const WORKBOOK_TYPE_DESCRIPTIONS: Record<(typeof WORKBOOK_TYPES)[number],
 
 const optionalTrimmedString = z
   .string()
+  .trim()
   .optional()
   .transform((value) => {
     if (!value) {
       return ''
     }
 
-    const trimmed = value.trim()
-    return trimmed
+    return value
   })
 
-const requiredTrimmedString = z
-  .string()
-  .transform((value) => value.trim())
+const requiredTrimmedString = z.string().trim()
 
 const numericStringOptional = z
   .string()
@@ -99,7 +97,7 @@ const writingSettingsSchema = z.object({
 
 const filmSettingsSchema = z.object({
   noteCount: z
-    .number({ invalid_type_error: '감상 노트 개수를 입력해주세요.' })
+    .number()
     .int('정수를 입력해주세요.')
     .min(1, { message: '최소 1개 이상 지정해주세요.' })
     .max(5, { message: '최대 5개까지 지정할 수 있습니다.' }),
@@ -119,12 +117,8 @@ export const workbookFormSchema = z
     title: requiredTrimmedString
       .min(1, { message: '문제집 제목을 입력해주세요.' })
       .max(120, { message: '제목은 120자 이내로 입력해주세요.' }),
-    subject: z.enum(WORKBOOK_SUBJECTS, {
-      errorMap: () => ({ message: '과목을 선택해주세요.' }),
-    }),
-    type: z.enum(WORKBOOK_TYPES, {
-      errorMap: () => ({ message: '유형을 선택해주세요.' }),
-    }),
+    subject: z.enum(WORKBOOK_SUBJECTS),
+    type: z.enum(WORKBOOK_TYPES),
     weekLabel: optionalTrimmedString,
     tagsInput: optionalTrimmedString,
     description: optionalTrimmedString,

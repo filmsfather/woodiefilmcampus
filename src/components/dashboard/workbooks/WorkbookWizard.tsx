@@ -9,6 +9,8 @@ import {
   useFieldArray,
   useForm,
   useWatch,
+  type Resolver,
+  type FieldPath,
 } from 'react-hook-form'
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import Image from 'next/image'
@@ -39,6 +41,7 @@ import {
   workbookFormSchema,
   type WorkbookFormValues,
   type WorkbookItemFormValues,
+  type WorkbookChoiceFormValues,
   type NormalizedWorkbookAssetPayload,
 } from '@/lib/validation/workbook'
 import { createClient as createBrowserSupabase } from '@/lib/supabase/client'
@@ -149,7 +152,7 @@ const defaultValues: WorkbookFormValues = {
 
 export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   const form = useForm<WorkbookFormValues>({
-    resolver: zodResolver(workbookFormSchema),
+    resolver: zodResolver(workbookFormSchema) as Resolver<WorkbookFormValues>,
     defaultValues,
     mode: 'onBlur',
   })
@@ -184,6 +187,22 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   const watchedValues = watch()
   const selectedType = watch('type')
   const allowMultipleCorrect = watch('srsSettings.allowMultipleCorrect')
+
+  const attachmentsForPreview = useMemo<NormalizedWorkbookAssetPayload[]>(
+    () =>
+      fields.flatMap((field, index) =>
+        (assetState[field.id] ?? []).map((asset, order) => ({
+          bucket: asset.bucket,
+          path: asset.path,
+          mimeType: asset.mimeType,
+          size: asset.size,
+          name: asset.name,
+          itemPosition: index + 1,
+          order,
+        }))
+      ),
+    [assetState, fields]
+  )
 
   const normalizedPreview = useMemo(
     () => buildNormalizedWorkbookPayload(watchedValues, { assets: attachmentsForPreview }),
@@ -323,25 +342,9 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     remove(index)
   }
 
-  const attachmentsForPreview = useMemo<NormalizedWorkbookAssetPayload[]>(
-    () =>
-      fields.flatMap((field, index) =>
-        (assetState[field.id] ?? []).map((asset, order) => ({
-          bucket: asset.bucket,
-          path: asset.path,
-          mimeType: asset.mimeType,
-          size: asset.size,
-          name: asset.name,
-          itemPosition: index + 1,
-          order,
-        }))
-      ),
-    [assetState, fields]
-  )
-
   const handleNext = async () => {
     const currentFields = stepFieldMap[currentStep.id]
-    const isValid = await form.trigger(currentFields, { shouldFocus: true })
+    const isValid = await form.trigger(currentFields as FieldPath<WorkbookFormValues>[], { shouldFocus: true })
 
     if (!isValid) {
       return
@@ -759,7 +762,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                           </SelectContent>
                         </Select>
                         <FormDescription>
-                          {WORKBOOK_TYPE_DESCRIPTIONS[field.value]}
+                          {WORKBOOK_TYPE_DESCRIPTIONS[field.value as keyof typeof WORKBOOK_TYPE_DESCRIPTIONS]}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1161,7 +1164,7 @@ function SrsChoicesEditor({
                           const checked = event.target.checked
 
                           if (!allowMultipleCorrect && checked) {
-                            (choices ?? []).forEach((_choice, idx) => {
+                            (choices ?? []).forEach((_: WorkbookChoiceFormValues, idx: number) => {
                               if (idx !== choiceIndex && choices?.[idx]?.isCorrect) {
                                 setValue(`items.${itemIndex}.choices.${idx}.isCorrect`, false, {
                                   shouldDirty: true,

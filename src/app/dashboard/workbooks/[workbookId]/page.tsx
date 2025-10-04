@@ -100,7 +100,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
           </div>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
             {workbook.week_label && <span className="rounded bg-slate-100 px-2 py-1">{workbook.week_label}</span>}
-            {(workbook.tags ?? []).map((tag) => (
+            {(workbook.tags ?? []).map((tag: string) => (
               <span key={tag} className="rounded bg-slate-100 px-2 py-1">#{tag}</span>
             ))}
           </div>
@@ -176,7 +176,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
                   .filter(([, value]) => Boolean(value))
                   .map(([key, value]) => (
                     <span key={key} className="rounded bg-slate-100 px-2 py-1 text-slate-600">
-                      {key}: {value}
+                      {key}: {String(value)}
                     </span>
                   ))}
               </div>
