@@ -158,7 +158,6 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     resolver: zodResolver(workbookFormSchema) as Resolver<WorkbookFormValues>,
     defaultValues,
     mode: 'onBlur',
-    shouldUnregister: true,
   })
   const [stepIndex, setStepIndex] = useState(0)
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
