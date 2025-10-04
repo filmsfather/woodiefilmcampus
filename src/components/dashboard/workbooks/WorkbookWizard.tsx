@@ -158,6 +158,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     resolver: zodResolver(workbookFormSchema) as Resolver<WorkbookFormValues>,
     defaultValues,
     mode: 'onBlur',
+    shouldUnregister: true,
   })
   const [stepIndex, setStepIndex] = useState(0)
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
@@ -169,7 +170,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   const [successWorkbookId, setSuccessWorkbookId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
-  const { control, watch, setValue, formState } = form
+  const { control, watch, setValue, unregister, formState } = form
   const { fields, append, remove } = useFieldArray({
     control,
     name: 'items',
@@ -204,18 +205,15 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
           )
         }
       })
-    } else {
-      itemsValues.forEach((item, index) => {
-        if (item.choices) {
-          setValue(
-            `items.${index}.choices` as FieldPath<WorkbookFormValues>,
-            undefined as unknown as WorkbookFormValues['items'][number]['choices'],
-            { shouldDirty: false, shouldValidate: true }
-          )
-        }
-      })
+      return
     }
-  }, [selectedType, watchedValues.items, setValue])
+
+    itemsValues.forEach((item, index) => {
+      if (item.choices && item.choices.length > 0) {
+        unregister(`items.${index}.choices` as FieldPath<WorkbookFormValues>)
+      }
+    })
+  }, [selectedType, watchedValues.items, setValue, unregister])
 
   const currentStep = steps[stepIndex]
 
