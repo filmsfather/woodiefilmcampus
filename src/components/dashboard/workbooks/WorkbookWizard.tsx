@@ -264,8 +264,10 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
         continue
       }
 
-      const sanitizedName = file.name.replace(/\s+/g, '_')
-      const tempPath = `pending/${ownerSegment}/${crypto.randomUUID()}-${sanitizedName}`
+      const ext = file.name.includes('.') ? file.name.split('.').pop() ?? '' : ''
+      const safeBase = `${Date.now()}-${crypto.randomUUID()}`
+      const safeName = ext ? `${safeBase}.${ext.toLowerCase()}` : safeBase
+      const tempPath = `pending/${ownerSegment}/${safeName}`
 
       const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(tempPath, file, {
         cacheControl: '3600',

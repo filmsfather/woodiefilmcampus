@@ -265,7 +265,8 @@ export async function createWorkbook(input: CreateWorkbookInput) {
         continue
       }
 
-      const targetPath = `workbooks/${workbook.id}/items/${itemId}/${randomUUID()}-${asset.name}`
+      const sourceFileName = asset.path.split('/').pop() ?? `${randomUUID()}-asset`
+      const targetPath = `workbooks/${workbook.id}/items/${itemId}/${randomUUID()}-${sourceFileName}`
 
       const { error: moveError } = await supabase.storage.from(asset.bucket).move(asset.path, targetPath)
 
