@@ -82,35 +82,45 @@ export const workbookItemSchema = z.object({
   choices: z.array(workbookChoiceSchema).optional(),
 })
 
-const srsSettingsSchema = z.object({
-  allowMultipleCorrect: z.boolean(),
-})
+const srsSettingsSchema = z
+  .object({
+    allowMultipleCorrect: z.boolean(),
+  })
+  .default({ allowMultipleCorrect: true })
 
-const pdfSettingsSchema = z.object({
-  instructions: optionalTrimmedString,
-})
+const pdfSettingsSchema = z
+  .object({
+    instructions: optionalTrimmedString,
+  })
+  .default({ instructions: '' })
 
-const writingSettingsSchema = z.object({
-  instructions: optionalTrimmedString,
-  maxCharacters: numericStringOptional,
-})
+const writingSettingsSchema = z
+  .object({
+    instructions: optionalTrimmedString,
+    maxCharacters: numericStringOptional,
+  })
+  .default({ instructions: '', maxCharacters: '' })
 
-const filmSettingsSchema = z.object({
-  noteCount: z
-    .number()
-    .int('정수를 입력해주세요.')
-    .min(1, { message: '최소 1개 이상 지정해주세요.' })
-    .max(5, { message: '최대 5개까지 지정할 수 있습니다.' }),
-  country: optionalTrimmedString,
-  director: optionalTrimmedString,
-  genre: optionalTrimmedString,
-  subgenre: optionalTrimmedString,
-})
+const filmSettingsSchema = z
+  .object({
+    noteCount: z
+      .number()
+      .int('정수를 입력해주세요.')
+      .min(1, { message: '최소 1개 이상 지정해주세요.' })
+      .max(5, { message: '최대 5개까지 지정할 수 있습니다.' }),
+    country: optionalTrimmedString,
+    director: optionalTrimmedString,
+    genre: optionalTrimmedString,
+    subgenre: optionalTrimmedString,
+  })
+  .default({ noteCount: 1, country: '', director: '', genre: '', subgenre: '' })
 
-const lectureSettingsSchema = z.object({
-  youtubeUrl: urlStringOptional,
-  instructions: optionalTrimmedString,
-})
+const lectureSettingsSchema = z
+  .object({
+    youtubeUrl: urlStringOptional,
+    instructions: optionalTrimmedString,
+  })
+  .default({ youtubeUrl: '', instructions: '' })
 
 export const workbookFormSchema = z
   .object({
@@ -306,20 +316,20 @@ export function buildNormalizedWorkbookPayload(
   switch (values.type) {
     case 'srs': {
       config.srs = {
-        allowMultipleCorrect: values.srsSettings.allowMultipleCorrect,
+        allowMultipleCorrect: values.srsSettings?.allowMultipleCorrect ?? true,
       }
       break
     }
     case 'pdf': {
-      const instructions = normalizeString(values.pdfSettings.instructions)
+      const instructions = normalizeString(values.pdfSettings?.instructions)
       if (instructions) {
         config.pdf = { instructions }
       }
       break
     }
     case 'writing': {
-      const instructions = normalizeString(values.writingSettings.instructions)
-      const maxCharacters = values.writingSettings.maxCharacters
+      const instructions = normalizeString(values.writingSettings?.instructions)
+      const maxCharacters = values.writingSettings?.maxCharacters
         ? Number(values.writingSettings.maxCharacters)
         : undefined
       config.writing = {
@@ -330,19 +340,19 @@ export function buildNormalizedWorkbookPayload(
     }
     case 'film': {
       config.film = {
-        noteCount: values.filmSettings.noteCount,
+        noteCount: values.filmSettings?.noteCount ?? 1,
         filters: {
-          country: normalizeString(values.filmSettings.country),
-          director: normalizeString(values.filmSettings.director),
-          genre: normalizeString(values.filmSettings.genre),
-          subgenre: normalizeString(values.filmSettings.subgenre),
+          country: normalizeString(values.filmSettings?.country),
+          director: normalizeString(values.filmSettings?.director),
+          genre: normalizeString(values.filmSettings?.genre),
+          subgenre: normalizeString(values.filmSettings?.subgenre),
         },
       }
       break
     }
     case 'lecture': {
-      const youtubeUrl = normalizeString(values.lectureSettings.youtubeUrl)
-      const instructions = normalizeString(values.lectureSettings.instructions)
+      const youtubeUrl = normalizeString(values.lectureSettings?.youtubeUrl)
+      const instructions = normalizeString(values.lectureSettings?.instructions)
       config.lecture = {
         ...(youtubeUrl ? { youtubeUrl } : {}),
         ...(instructions ? { instructions } : {}),
@@ -419,20 +429,20 @@ export function buildWorkbookMetadataPayload(values: WorkbookMetadataFormValues)
   switch (values.type) {
     case 'srs': {
       config.srs = {
-        allowMultipleCorrect: values.srsSettings.allowMultipleCorrect,
+        allowMultipleCorrect: values.srsSettings?.allowMultipleCorrect ?? true,
       }
       break
     }
     case 'pdf': {
-      const instructions = normalizeString(values.pdfSettings.instructions)
+      const instructions = normalizeString(values.pdfSettings?.instructions)
       if (instructions) {
         config.pdf = { instructions }
       }
       break
     }
     case 'writing': {
-      const instructions = normalizeString(values.writingSettings.instructions)
-      const maxCharacters = values.writingSettings.maxCharacters
+      const instructions = normalizeString(values.writingSettings?.instructions)
+      const maxCharacters = values.writingSettings?.maxCharacters
         ? Number(values.writingSettings.maxCharacters)
         : undefined
       config.writing = {
@@ -443,19 +453,19 @@ export function buildWorkbookMetadataPayload(values: WorkbookMetadataFormValues)
     }
     case 'film': {
       config.film = {
-        noteCount: values.filmSettings.noteCount,
+        noteCount: values.filmSettings?.noteCount ?? 1,
         filters: {
-          country: normalizeString(values.filmSettings.country),
-          director: normalizeString(values.filmSettings.director),
-          genre: normalizeString(values.filmSettings.genre),
-          subgenre: normalizeString(values.filmSettings.subgenre),
+          country: normalizeString(values.filmSettings?.country),
+          director: normalizeString(values.filmSettings?.director),
+          genre: normalizeString(values.filmSettings?.genre),
+          subgenre: normalizeString(values.filmSettings?.subgenre),
         },
       }
       break
     }
     case 'lecture': {
-      const youtubeUrl = normalizeString(values.lectureSettings.youtubeUrl)
-      const instructions = normalizeString(values.lectureSettings.instructions)
+      const youtubeUrl = normalizeString(values.lectureSettings?.youtubeUrl)
+      const instructions = normalizeString(values.lectureSettings?.instructions)
       config.lecture = {
         ...(youtubeUrl ? { youtubeUrl } : {}),
         ...(instructions ? { instructions } : {}),
