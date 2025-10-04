@@ -245,6 +245,42 @@ REVOKE ALL ON FUNCTION public.can_manage_profiles(uuid) FROM public;
 GRANT EXECUTE ON FUNCTION public.can_manage_profiles(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.can_manage_profiles(uuid) TO service_role;
 
+CREATE OR REPLACE FUNCTION public.is_student_in_class(student uuid, class uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.class_students cs
+    WHERE cs.student_id = student
+      AND cs.class_id = class
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_student_in_class(uuid, uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.is_student_in_class(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_student_in_class(uuid, uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.is_teacher_in_class(teacher uuid, class uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.class_teachers ct
+    WHERE ct.teacher_id = teacher
+      AND ct.class_id = class
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.is_teacher_in_class(uuid, uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.is_teacher_in_class(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.is_teacher_in_class(uuid, uuid) TO service_role;
+
 -- auth.users 삽입 시 트리거 연결
 DO $$
 BEGIN
@@ -298,12 +334,7 @@ CREATE POLICY "반_교사_조회"
   USING (
     teacher_id = auth.uid()
     OR public.can_manage_profiles(auth.uid())
-    OR EXISTS (
-      SELECT 1
-      FROM public.class_students AS cs
-      WHERE cs.class_id = class_teachers.class_id
-        AND cs.student_id = auth.uid()
-    )
+    OR public.is_student_in_class(auth.uid(), class_teachers.class_id)
   );
 
 DROP POLICY IF EXISTS "반_학생_조회" ON public.class_students;
@@ -314,12 +345,7 @@ CREATE POLICY "반_학생_조회"
   USING (
     student_id = auth.uid()
     OR public.can_manage_profiles(auth.uid())
-    OR EXISTS (
-      SELECT 1
-      FROM public.class_teachers AS ct
-      WHERE ct.class_id = class_students.class_id
-        AND ct.teacher_id = auth.uid()
-    )
+    OR public.is_teacher_in_class(auth.uid(), class_students.class_id)
   );
 
 -- 반 데이터 작성/수정은 서비스 롤 또는 향후 관리자 흐름용으로 별도 키 사용

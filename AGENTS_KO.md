@@ -16,6 +16,12 @@
 - Tailwind 클래스는 레이아웃 → 간격 → 색상 순으로 정리하고, `class-variance-authority`로 변형을 재사용하며 공통 헬퍼는 `src/lib`로 끌어올리세요.
 
 ## 테스트 가이드라인
+
+## 인증 및 승인 플로우 메모
+- Supabase `profiles` 테이블에 학생/학부모 연락처와 `status` 컬럼이 추가되었습니다. 신규 가입자는 `pending` 상태로 `/pending-approval` 페이지에 머무르며 승인 후에만 대시보드에 접근할 수 있습니다.
+- 실장과 원장은 `/dashboard/manager`에서 대기 중 사용자를 승인·삭제할 수 있으며, 해당 서버 액션은 `SUPABASE_SERVICE_ROLE_KEY` 환경 변수가 설정되어 있어야 동작합니다.
+- 스키마를 변경한 뒤에는 `supabase/setup.sql`을 다시 실행해 `public.can_manage_profiles` 함수와 갱신된 RLS 정책이 Supabase에 반영되었는지 확인하세요.
+
 - 별도의 테스트 러너는 아직 도입되지 않았습니다. 현재는 `npm run lint`와 주요 플로우(로그인, 역할별 대시보드, 인증) 수동 점검이 최소 요구사항입니다.
 - 테스트를 추가할 때는 React Testing Library를 선호하고, 사용자 여정은 Playwright로 작성하며 파일명은 `*.test.tsx` 형식을 따르세요.
 - Supabase 인증 미들웨어(`src/middleware.ts`)와 핵심 대시보드를 우선 검증하고, 새 스크립트는 `package.json`에 기록하세요.
@@ -26,6 +32,11 @@
 - 수동 검증 결과(개발 서버 기동, 린트 통과)와 환경 변수 변경 사항을 체크리스트로 공유하세요.
 
 ## 보안 및 구성 팁
-- Supabase 자격 증명은 `.env.local`에 보관하고(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) 저장소에는 커밋하지 마세요.
+- Supabase 자격 증명은 `.env.local`에 보관하고(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) 저장소에는 커밋하지 마세요.
 - 에지 미들웨어가 인증 쿠키를 재발급하므로 변경 후 비로그인/로그인 모두에서 내비게이션을 다시 확인하세요.
 - `components.json`을 수정할 때는 추가된 shadcn 컴포넌트를 검토해 불필요한 번들 증가를 막으세요.
+
+## 최근 구현 내용
+- 실장 대시보드에 반 관리 카드가 추가되어 `/dashboard/manager/classes`에서 반 생성·수정·삭제와 교사/학생 배정을 서버 액션 + Zod 검증으로 처리할 수 있습니다.
+- Supabase 스키마(`supabase/setup.sql`)에 `class_teachers`, `class_students`, `public.can_manage_profiles` 함수와 갱신된 RLS 정책이 포함되었으니 변경 후 스크립트를 다시 적용하세요.
+- 관리자 권한 확인 헬퍼(`src/lib/authz.ts`)와 액션 상태/검증 스키마(`src/app/dashboard/manager/classes/action-state.ts`, `src/lib/validation/class.ts`)가 서버·클라이언트 흐름을 일관되게 유지합니다.

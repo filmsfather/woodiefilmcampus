@@ -24,23 +24,17 @@
 - DateUtil과 스토리지 UX 시나리오에 대한 팀 합의 확보.
 
 ## Phase 1 — 데이터 모델링 & 백엔드 기반
-- 새로운 테이블 및 관계 설계(초안):
-  - `workbooks(id, teacher_id, title, subject, week_label, type, tags[], created_at, updated_at)`
-  - `workbook_items(id, workbook_id, order, prompt, media_asset_ids[], answer_type, explanation, srs_settings)`
-  - `workbook_item_choices(id, item_id, label, content, is_correct)` — SRS 다중 정답 지원.
-  - `assignments(id, workbook_id, assigned_by, due_at, target_scope, created_at)`
-  - `assignment_targets(id, assignment_id, class_id, student_id)` — 반/개인 배정.
-  - `student_tasks(id, assignment_id, student_id, status, completion_at, progress_meta)`
-  - `student_task_items(id, student_task_id, item_id, streak, next_review_at, last_result, completed_at)` — SRS 진행 기록.
-  - `task_submissions(id, student_task_id, item_id, type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at)`
-  - `print_requests(id, assignment_id, student_task_id, teacher_id, desired_date, period, copies, color_mode, status)`
-  - `media_assets(id, owner_id, scope, path, bucket, mime_type, size, metadata, created_at)`
-- 뷰 & 함수:
-  - 완료율 계산 뷰 `student_task_completion_view` → 교사용 대시보드에서 활용.
-  - `rpc(mark_student_task_item)` — SRS 정답 처리 시 streak/next_review_at 자동 갱신.
-  - `rpc(get_server_time)` — 클라이언트 오프셋 계산용.
-- RLS 정책 정의: 교사/학생 권한별 SELECT/INSERT/UPDATE 제어, Admin 범위 조정.
-- Supabase 마이그레이션 스크립트 작성(`supabase/migrations/...`), 로컬 실행으로 검증.
+- **완료**: 워크북/과제/학생 진행 관련 테이블 및 인덱스를 `supabase/migrations/workbook_schema.sql`로 분리 생성.
+  - `workbooks`, `workbook_items`, `workbook_item_choices`, `workbook_item_media`
+  - `media_assets`
+  - `assignments`, `assignment_targets`
+  - `student_tasks`, `student_task_items`, `task_submissions`
+  - `print_requests`
+- **완료**: `src/lib/date-util.ts`에 서버/클라이언트 UTC 기준 공통 유틸 구현.
+- **완료**: `src/app/layout.tsx` + `ClientClockInitializer`로 서버 시각 전달 및 클라이언트 오프셋 초기화.
+- **완료**: 완료율 뷰 `student_task_completion_view`, `get_server_time`, `mark_student_task_item` RPC 작성 및 권한 부여.
+- **완료**: 신규 테이블 전체에 대한 RLS 정책 정의 및 활성화.
+- **완료**: 마이그레이션 적용/검증 절차를 `docs/migration-checklist.md`로 정리.
 
 ## Phase 2 — 워크북 생성(교사)
 - UI: `src/app/dashboard/workbooks/new` 페이지 생성, 다단계 폼(기본 정보 → 문항 구성 → 미리보기 → 저장).
@@ -52,6 +46,13 @@
 - 업로드: Supabase Storage multipart 업로드 → 성공 시 `media_assets`에 기록.
 - API: `POST /api/workbooks`(server action 또는 Route Handler)에서 트랜잭션 처리.
 - 저장 후 워크북 목록 페이지에 신규 카드 표시, 태그/주차 필터 기본 구현.
+- **진행중**: `WorkbookWizard`(기본 정보/문항/검토 단계) 스캐폴드와 `workbookFormSchema` 검증, 미리보기 구조, 유형별 옵션(SRS 보기/복수 정답, PDF 안내, 서술/감상/강의 설정)을 구성.
+  - 서버 액션 `createWorkbook`으로 Supabase 연동(워크북/문항/보기 저장)까지 연결 완료.
+  - `/dashboard/workbooks` 페이지에서 기본 목록/요약 UI 및 과목/유형/검색 필터 구현.
+  - 상세 페이지에서 유형별 설정/문항/SRS 보기 + 첨부 자산(스토리지 signed URL) 렌더링 지원.
+  - 워크북 복제/삭제 서버 액션 추가 및 상세 페이지에서 버튼으로 연동.
+  - 워크북 생성 시 첨부 파일 업로드(임시 → 최종 이동) 및 실패 시 롤백 처리까지 연동.
+  - 상세/필터 UX 요구사항(`docs/workbook-detail-plan.md`), 자산 업로드 전략(`docs/workbook-storage-plan.md`) 정리 완료. 후속으로 워크북 편집 시 첨부 교체/삭제, PDF 템플릿 업로드 UX 개선 예정.
 
 ## Phase 3 — 과제 출제(Assign)
 - UI: `src/app/dashboard/assignments/new` — 반/학생 선택, 워크북 필터(과목/주차/제목), 마감일 DateUtil 사용.
@@ -99,4 +100,3 @@
 - 예약 기능: DateUtil과 동일한 오프셋 관리로 예약 시작/종료 로직을 재사용.
 - 알림 시스템: assignment 생성 시 webhook/notification queue로 확장할 수 있도록 이벤트 발행 포인트 마련.
 - 분석 지표: 향후 학생 학습 리포트 작성을 위해 `student_task_items` 로그 테이블(정답 여부, 소요시간)을 추가하는 방안 검토.
-

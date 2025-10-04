@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import DateUtil from '@/lib/date-util'
 
 export interface PendingStudentProfile {
   id: string
@@ -75,7 +76,9 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
 
   const formatDateTime = (value: string) => {
     try {
-      return new Date(value).toLocaleString('ko-KR', {
+      return DateUtil.formatForDisplay(value, {
+        locale: 'ko-KR',
+        timeZone: 'Asia/Seoul',
         year: 'numeric',
         month: 'short',
         day: 'numeric',

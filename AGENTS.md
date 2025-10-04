@@ -16,6 +16,12 @@
 - Group Tailwind classes by layout → spacing → color, reuse variants through `class-variance-authority`, and surface helper functions via `src/lib`.
 
 ## Testing Guidelines
+
+## Auth & Approval Flow Notes
+- Supabase `profiles` now stores student/parent contact fields plus a `status` column; new accounts stay `pending` and are redirected to `/pending-approval` until approved.
+- Managers and principals handle approvals/removals from `/dashboard/manager`; the server actions require the `SUPABASE_SERVICE_ROLE_KEY` environment variable.
+- After updating the schema rerun `supabase/setup.sql` so the `public.can_manage_profiles` helper and revised RLS policies exist in Supabase.
+
 - A dedicated test runner is not wired up yet; treat `npm run lint` plus manual validation of key flows (login, role dashboards, auth) as the current minimum.
 - When introducing tests, prefer React Testing Library for components and Playwright for flows, naming files `*.test.tsx` under `src/__tests__` or next to the module.
 - Target coverage for Supabase auth handling (`src/middleware.ts`) and critical dashboards first, and document new scripts in `package.json`.
@@ -26,6 +32,11 @@
 - Include screenshots or brief screen captures for UI changes, list manual checks (dev build, lint), and call out required environment variable updates.
 
 ## Security & Configuration Tips
-- Store Supabase credentials in `.env.local` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) and never commit secrets.
+- Store Supabase credentials in `.env.local` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) and never commit secrets.
 - The edge middleware caches auth cookies; after touching it, verify both anonymous and authenticated navigation in dev.
 - Audit third-party shadcn imports when updating `components.json` to keep unused components out of the bundle.
+
+## Recent Feature Additions
+- Manager dashboard now links to `/dashboard/manager/classes`, a full CRUD surface for class creation, teacher/student assignments, and search/filtering powered by server actions and Zod validation.
+- Supabase schema (`supabase/setup.sql`) introduces `class_teachers`, `class_students`, and the `public.can_manage_profiles` helper with updated RLS policies—rerun the script after pulling to sync these changes.
+- Shared manager authorization logic lives in `src/lib/authz.ts`, and action state helpers/validation schemas (`src/app/dashboard/manager/classes/action-state.ts`, `src/lib/validation/class.ts`) keep server/client flows aligned.

@@ -1,17 +1,18 @@
 'use client'
 
+import Link from 'next/link'
+
 import { DashboardCard } from '../DashboardCard'
 import { StatsCard } from '../StatsCard'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { 
-  BookOpen, 
-  Users, 
-  CheckCircle, 
+import {
+  BookOpen,
+  Users,
   Clock,
   FileText,
   MessageSquare,
-  BarChart3
+  BarChart3,
 } from 'lucide-react'
 
 export function TeacherDashboard() {
@@ -130,7 +131,10 @@ export function TeacherDashboard() {
           icon={FileText}
         >
           <div className="space-y-2">
-            <Button className="w-full">새 과제 만들기</Button>
+           <Button className="w-full">새 과제 만들기</Button>
+            <Button className="w-full" variant="outline" asChild>
+              <Link href="/dashboard/workbooks/new">문제집 만들기</Link>
+            </Button>
             <Button className="w-full" variant="outline">과제 목록</Button>
             <Button className="w-full" variant="outline">채점하기</Button>
           </div>

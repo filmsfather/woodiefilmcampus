@@ -3,6 +3,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import DateUtil from "@/lib/date-util"
 import { Shield, Users, GraduationCap, BookOpen, LogIn } from "lucide-react"
 
 export default function Home() {
@@ -132,7 +133,7 @@ export default function Home() {
 
       <footer className="border-t bg-white">
         <div className="container mx-auto max-w-6xl px-6 py-6 text-center text-sm text-slate-500">
-          © {new Date().getFullYear()} Woodie Film Campus. 모든 권한이 예약되어 있습니다.
+          © {DateUtil.nowUTC().getUTCFullYear()} Woodie Film Campus. 모든 권한이 예약되어 있습니다.
         </div>
       </footer>
     </div>
