@@ -82,28 +82,19 @@ export default async function AssignmentCreatePage() {
   }
 
   const teacherId = profile.id
+  const isPrincipal = profile.role === 'principal'
 
-  const [workbookResponse, classTeacherResponse] = await Promise.all([
-    supabase
-      .from('workbooks')
-      .select('id, title, subject, type, week_label, tags, updated_at, workbook_items(count)')
-      .eq('teacher_id', teacherId)
-      .order('updated_at', { ascending: false }),
-    supabase
-      .from('class_teachers')
-      .select('class_id, classes(id, name, description)')
-      .eq('teacher_id', teacherId),
-  ])
+  const { data: workbookData, error: workbookError } = await supabase
+    .from('workbooks')
+    .select('id, title, subject, type, week_label, tags, updated_at, workbook_items(count)')
+    .eq('teacher_id', teacherId)
+    .order('updated_at', { ascending: false })
 
-  if (workbookResponse.error) {
-    console.error('[assignments/new] failed to load workbooks', workbookResponse.error)
+  if (workbookError) {
+    console.error('[assignments/new] failed to load workbooks', workbookError)
   }
 
-  if (classTeacherResponse.error) {
-    console.error('[assignments/new] failed to load class assignments', classTeacherResponse.error)
-  }
-
-  const workbookRows = (workbookResponse.data ?? []) as WorkbookRow[]
+  const workbookRows = (workbookData ?? []) as WorkbookRow[]
   const workbookSummaries: AssignmentWorkbookSummary[] = workbookRows.map((row) => ({
     id: row.id,
     title: row.title,
@@ -118,19 +109,53 @@ export default async function AssignmentCreatePage() {
   const classInfoMap = new Map<string, { name: string; description: string | null }>()
   const classIdSet = new Set<string>()
 
-  const classTeacherRows = (classTeacherResponse.data ?? []) as ClassTeacherRow[]
-  for (const row of classTeacherRows) {
-    const classRecord = Array.isArray(row.classes) ? row.classes[0] : row.classes
-    const classId = typeof row.class_id === 'string' && row.class_id.length > 0 ? row.class_id : classRecord?.id
-    if (!classId) {
-      continue
+  if (isPrincipal) {
+    const { data: classRows, error: classesError } = await supabase
+      .from('classes')
+      .select('id, name, description')
+      .order('name', { ascending: true })
+
+    if (classesError) {
+      console.error('[assignments/new] failed to load classes for principal', classesError)
     }
-    classIdSet.add(classId)
-    if (!classInfoMap.has(classId)) {
-      classInfoMap.set(classId, {
-        name: classRecord?.name ?? '이름 미정',
-        description: classRecord?.description ?? null,
-      })
+
+    classRows?.forEach((row) => {
+      if (!row?.id) {
+        return
+      }
+      classIdSet.add(row.id)
+      if (!classInfoMap.has(row.id)) {
+        classInfoMap.set(row.id, {
+          name: row.name ?? '이름 미정',
+          description: row.description ?? null,
+        })
+      }
+    })
+  } else {
+    const { data: classTeacherData, error: classTeacherError } = await supabase
+      .from('class_teachers')
+      .select('class_id, classes(id, name, description)')
+      .eq('teacher_id', teacherId)
+
+    if (classTeacherError) {
+      console.error('[assignments/new] failed to load class assignments', classTeacherError)
+    }
+
+    const classTeacherRows = (classTeacherData ?? []) as ClassTeacherRow[]
+    for (const row of classTeacherRows) {
+      const classRecord = Array.isArray(row.classes) ? row.classes[0] : row.classes
+      const classId =
+        typeof row.class_id === 'string' && row.class_id.length > 0 ? row.class_id : classRecord?.id
+      if (!classId) {
+        continue
+      }
+      classIdSet.add(classId)
+      if (!classInfoMap.has(classId)) {
+        classInfoMap.set(classId, {
+          name: classRecord?.name ?? '이름 미정',
+          description: classRecord?.description ?? null,
+        })
+      }
     }
   }
 

@@ -95,7 +95,9 @@ export async function createAssignment(input: CreateAssignmentInput) {
   const supabase = createServerSupabase()
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  const canAssignRoles = new Set(['teacher', 'principal'])
+
+  if (!profile || !canAssignRoles.has(profile.role)) {
     return { error: '과제를 생성할 권한이 없습니다.' }
   }
 
@@ -111,21 +113,44 @@ export async function createAssignment(input: CreateAssignmentInput) {
       return { error: '문제집 정보를 불러오지 못했습니다.' }
     }
 
-    if (!workbook || workbook.teacher_id !== profile.id) {
+    if (!workbook || (profile.role !== 'principal' && workbook.teacher_id !== profile.id)) {
       return { error: '해당 문제집에 접근할 수 없습니다.' }
     }
 
-    const { data: teacherClasses, error: teacherClassesError } = await supabase
-      .from('class_teachers')
-      .select('class_id')
-      .eq('teacher_id', profile.id)
+    const accessibleClassIds = new Set<string>()
 
-    if (teacherClassesError) {
-      console.error('[createAssignment] failed to load class assignments', teacherClassesError)
-      return { error: '반 정보를 불러오지 못했습니다.' }
+    if (profile.role === 'principal') {
+      const { data: allClasses, error: allClassesError } = await supabase
+        .from('classes')
+        .select('id')
+
+      if (allClassesError) {
+        console.error('[createAssignment] failed to load classes for principal', allClassesError)
+        return { error: '반 정보를 불러오지 못했습니다.' }
+      }
+
+      allClasses?.forEach((row) => {
+        if (row?.id) {
+          accessibleClassIds.add(row.id)
+        }
+      })
+    } else {
+      const { data: teacherClasses, error: teacherClassesError } = await supabase
+        .from('class_teachers')
+        .select('class_id')
+        .eq('teacher_id', profile.id)
+
+      if (teacherClassesError) {
+        console.error('[createAssignment] failed to load class assignments', teacherClassesError)
+        return { error: '반 정보를 불러오지 못했습니다.' }
+      }
+
+      teacherClasses?.forEach((row) => {
+        if (row?.class_id) {
+          accessibleClassIds.add(row.class_id)
+        }
+      })
     }
-
-    const accessibleClassIds = new Set((teacherClasses ?? []).map((row) => row.class_id))
 
     const invalidClassId = targetClassIds.find((classId) => !accessibleClassIds.has(classId))
 
@@ -135,7 +160,18 @@ export async function createAssignment(input: CreateAssignmentInput) {
 
     let classStudents: Array<{ class_id: string; student_id: string }> = []
 
-    if (accessibleClassIds.size > 0) {
+    if (profile.role === 'principal') {
+      const { data: allClassStudents, error: allClassStudentsError } = await supabase
+        .from('class_students')
+        .select('class_id, student_id')
+
+      if (allClassStudentsError) {
+        console.error('[createAssignment] failed to load all class students', allClassStudentsError)
+        return { error: '반 학생 정보를 불러오지 못했습니다.' }
+      }
+
+      classStudents = allClassStudents ?? []
+    } else if (accessibleClassIds.size > 0) {
       const { data: classStudentRows, error: classStudentsError } = await supabase
         .from('class_students')
         .select('class_id, student_id')
