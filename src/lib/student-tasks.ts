@@ -1,5 +1,8 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
+
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type {
   StudentTaskAssignmentSummary,
   StudentTaskDetail,
@@ -326,7 +329,7 @@ function mapDetail(
 }
 
 async function loadWorkbookSummaries(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: SupabaseClient,
   workbookIds: string[]
 ): Promise<Map<string, StudentTaskWorkbookSummary>> {
   const lookup = new Map<string, StudentTaskWorkbookSummary>()
@@ -368,7 +371,6 @@ function collectAssignmentIds(rows: StudentTaskRow[]): string[] {
 }
 
 async function loadAssignmentSummaries(
-  supabase: ReturnType<typeof createServerSupabase>,
   assignmentIds: string[]
 ): Promise<Map<string, StudentTaskAssignmentSummary>> {
   const lookup = new Map<string, StudentTaskAssignmentSummary>()
@@ -377,7 +379,9 @@ async function loadAssignmentSummaries(
     return lookup
   }
 
-  const { data, error } = await supabase
+  const adminClient = createAdminClient()
+
+  const { data, error } = await adminClient
     .from('assignments')
     .select('id, due_at, created_at, target_scope, workbook_id')
     .in('id', assignmentIds)
@@ -394,7 +398,7 @@ async function loadAssignmentSummaries(
       workbookIdSet.add(row.workbook_id)
     }
   }
-  const workbookLookup = await loadWorkbookSummaries(supabase, Array.from(workbookIdSet))
+  const workbookLookup = await loadWorkbookSummaries(adminClient, Array.from(workbookIdSet))
 
   for (const row of rows) {
     if (!row?.id) {
@@ -424,7 +428,6 @@ export async function fetchStudentTaskSummaries(studentId: string): Promise<Stud
 
   const rows = (data ?? []) as StudentTaskRow[]
   const assignmentLookup = await loadAssignmentSummaries(
-    supabase,
     collectAssignmentIds(rows)
   )
 
@@ -465,7 +468,6 @@ export async function fetchStudentTaskDetail(
 
   const row = data as StudentTaskRow
   const assignmentLookup = await loadAssignmentSummaries(
-    supabase,
     collectAssignmentIds([row])
   )
 
