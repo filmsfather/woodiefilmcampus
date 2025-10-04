@@ -1132,6 +1132,15 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
             </div>
           )}
 
+          {currentStep.id === 'review' && Object.keys(formState.errors).length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-700">
+              <p className="mb-2 font-semibold">검증 오류 디버그 정보</p>
+              <pre className="whitespace-pre-wrap break-words">
+                {JSON.stringify(formState.errors, null, 2)}
+              </pre>
+            </div>
+          )}
+
           <div className="flex justify-between">
             <Button type="button" variant="outline" onClick={handlePrevious} disabled={stepIndex === 0}>
               <ChevronLeft className="mr-2 size-4" /> 이전 단계
