@@ -3,22 +3,12 @@
 
 begin;
 
--- 1. 버킷 생성 (없을 때만)
-do $$
-begin
-  if not exists (select 1 from storage.buckets where id = 'workbook-assets') then
-    perform storage.create_bucket(
-      id => 'workbook-assets',
-      bucket_name => 'workbook-assets',
-      configuration => jsonb_build_object(
-        'public', false,
-        'file_size_limit', 5 * 1024 * 1024,
-        'cache_control', '3600'
-      )
-    );
-  end if;
-end
-$$;
+-- 1. 버킷 생성 또는 업데이트
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('workbook-assets', 'workbook-assets', false, 5 * 1024 * 1024)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit;
 
 -- 2. 기존 정책 제거
 drop policy if exists "workbook-assets-teacher-read" on storage.objects;
