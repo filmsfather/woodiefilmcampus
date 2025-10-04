@@ -208,9 +208,16 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     }
 
     itemsValues.forEach((item, index) => {
-      if (item.choices && item.choices.length > 0) {
-        unregister(`items.${index}.choices` as FieldPath<WorkbookFormValues>)
+      if (!item?.choices || item.choices.length === 0) {
+        return
       }
+
+      const path = `items.${index}.choices` as FieldPath<WorkbookFormValues>
+      setValue(path, undefined as unknown as WorkbookFormValues['items'][number]['choices'], {
+        shouldDirty: false,
+        shouldValidate: true,
+      })
+      unregister(path)
     })
   }, [selectedType, watchedValues.items, setValue, unregister])
 
