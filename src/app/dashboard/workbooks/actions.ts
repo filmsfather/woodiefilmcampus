@@ -388,30 +388,29 @@ export async function createWorkbook(input: CreateWorkbookInput) {
       deletePath(tempRemovalMap, asset.bucket, asset.path)
       addPath(finalRemovalMap, asset.bucket, targetPath)
 
-      const { data: mediaAsset, error: mediaError } = await supabase
-        .from('media_assets')
-        .insert({
-          owner_id: profile.id,
-          scope: 'workbook_item',
-          bucket: asset.bucket,
-          path: targetPath,
-          mime_type: asset.mimeType ?? null,
-          size: asset.size,
-          metadata: { original_name: asset.name },
-        })
-        .select('id')
-        .maybeSingle()
+      const mediaAssetId = randomUUID()
 
-      if (mediaError || !mediaAsset) {
+      const { error: mediaError } = await supabase.from('media_assets').insert({
+        id: mediaAssetId,
+        owner_id: profile.id,
+        scope: 'workbook_item',
+        bucket: asset.bucket,
+        path: targetPath,
+        mime_type: asset.mimeType ?? null,
+        size: asset.size,
+        metadata: { original_name: asset.name },
+      })
+
+      if (mediaError) {
         console.error('[createWorkbook] media asset insert error', mediaError)
         return await failAndCleanup('첨부 파일 저장 중 오류가 발생했습니다.', true)
       }
 
-      insertedAssetIds.push(mediaAsset.id)
+      insertedAssetIds.push(mediaAssetId)
 
       itemMediaRows.push({
         item_id: itemId,
-        asset_id: mediaAsset.id,
+        asset_id: mediaAssetId,
         position: asset.order,
       })
     }
