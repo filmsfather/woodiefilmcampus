@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 const uuidSchema = z
   .string()
@@ -94,6 +95,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
 
   const supabase = createServerSupabase()
   const { profile } = await getAuthContext()
+  const writeClient = profile?.role === 'principal' ? createAdminClient() : supabase
 
   const canAssignRoles = new Set(['teacher', 'principal'])
 
@@ -230,7 +232,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
 
     const targetScope = deriveTargetScope(targetClassIds.length, targetStudentIds.length)
 
-    const { data: assignment, error: assignmentError } = await supabase
+    const { data: assignment, error: assignmentError } = await writeClient
       .from('assignments')
       .insert({
         workbook_id: workbookId,
@@ -265,14 +267,14 @@ export async function createAssignment(input: CreateAssignmentInput) {
     let insertedTargetIds: string[] = []
 
     if (targetRows.length > 0) {
-      const { data: insertedTargets, error: targetsError } = await supabase
+      const { data: insertedTargets, error: targetsError } = await writeClient
         .from('assignment_targets')
         .insert(targetRows)
         .select('id')
 
       if (targetsError) {
         console.error('[createAssignment] failed to insert assignment targets', targetsError)
-        await supabase.from('assignments').delete().eq('id', assignmentId)
+        await writeClient.from('assignments').delete().eq('id', assignmentId)
         return { error: '과제 대상 저장 중 오류가 발생했습니다.' }
       }
 
@@ -284,7 +286,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
       student_id: studentId,
     }))
 
-    const { data: insertedTasks, error: tasksError } = await supabase
+    const { data: insertedTasks, error: tasksError } = await writeClient
       .from('student_tasks')
       .insert(taskRows)
       .select('id')
@@ -293,19 +295,19 @@ export async function createAssignment(input: CreateAssignmentInput) {
       console.error('[createAssignment] failed to insert student tasks', tasksError)
 
       if (insertedTargetIds.length > 0) {
-        await supabase.from('assignment_targets').delete().in('id', insertedTargetIds)
+        await writeClient.from('assignment_targets').delete().in('id', insertedTargetIds)
       }
 
-      await supabase.from('assignments').delete().eq('id', assignmentId)
+      await writeClient.from('assignments').delete().eq('id', assignmentId)
 
       return { error: '학생 과제 생성 중 오류가 발생했습니다.' }
     }
 
     if (!insertedTasks || insertedTasks.length === 0) {
       if (insertedTargetIds.length > 0) {
-        await supabase.from('assignment_targets').delete().in('id', insertedTargetIds)
+        await writeClient.from('assignment_targets').delete().in('id', insertedTargetIds)
       }
-      await supabase.from('assignments').delete().eq('id', assignmentId)
+      await writeClient.from('assignments').delete().eq('id', assignmentId)
       return { error: '학생 과제가 생성되지 않았습니다. 다시 시도해주세요.' }
     }
 
