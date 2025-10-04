@@ -72,7 +72,7 @@ const urlStringOptional = z
   }, { message: '유효한 URL을 입력해주세요.' })
 
 const workbookChoiceSchema = z.object({
-  content: requiredTrimmedString.min(1, { message: '보기 내용을 입력해주세요.' }),
+  content: requiredTrimmedString,
   isCorrect: z.boolean(),
 })
 
@@ -133,14 +133,25 @@ export const workbookFormSchema = z
     if (values.type === 'srs') {
       values.items.forEach((item, index) => {
         const choices = item.choices ?? []
+        const filledChoices = choices.filter((choice) => choice.content.length > 0)
 
-        if (choices.length < 2) {
+        if (filledChoices.length < 2) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: '보기는 최소 2개 이상 입력해주세요.',
             path: ['items', index, 'choices'],
           })
         }
+
+        choices.forEach((choice, choiceIndex) => {
+          if (choice.content.length === 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '보기 내용을 입력해주세요.',
+              path: ['items', index, 'choices', choiceIndex, 'content'],
+            })
+          }
+        })
 
         const correctCount = choices.filter((choice) => choice.isCorrect).length
 
