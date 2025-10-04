@@ -49,6 +49,8 @@ const workbookConfigSchema = z.object({
     .optional(),
 })
 
+const MAX_ASSET_FILE_SIZE = 5 * 1024 * 1024 // 5MB, 버킷 제한과 동일하게 유지
+
 const workbookAssetSchema = z.object({
   bucket: z.string().min(1),
   path: z.string().min(1),
@@ -73,6 +75,37 @@ const createWorkbookInputSchema = z.object({
 
 export type CreateWorkbookInput = z.infer<typeof createWorkbookInputSchema>
 
+const updateWorkbookInputSchema = z.object({
+  workbookId: z.string().uuid('유효한 문제집 ID가 아닙니다.'),
+  title: z.string().min(1),
+  subject: z.enum(WORKBOOK_SUBJECTS),
+  weekLabel: z.string().optional(),
+  tags: z.array(z.string()),
+  description: z.string().optional(),
+  config: workbookConfigSchema,
+})
+
+export type UpdateWorkbookInput = z.infer<typeof updateWorkbookInputSchema>
+
+const srsChoiceUpdateSchema = z.object({
+  content: z.string().min(1),
+  isCorrect: z.boolean(),
+})
+
+const workbookItemUpdateSchema = z.object({
+  id: z.string().uuid('유효한 문항 ID가 아닙니다.'),
+  prompt: z.string().min(1),
+  explanation: z.string().optional(),
+  choices: z.array(srsChoiceUpdateSchema).optional(),
+})
+
+const updateWorkbookItemsInputSchema = z.object({
+  workbookId: z.string().uuid('유효한 문제집 ID가 아닙니다.'),
+  items: z.array(workbookItemUpdateSchema).min(1),
+})
+
+export type UpdateWorkbookItemsInput = z.infer<typeof updateWorkbookItemsInputSchema>
+
 export async function createWorkbook(input: CreateWorkbookInput) {
   const parseResult = createWorkbookInputSchema.safeParse(input)
 
@@ -95,6 +128,38 @@ export async function createWorkbook(input: CreateWorkbookInput) {
     await removeStoragePaths(supabase, assets.map((asset) => ({ bucket: asset.bucket, path: asset.path })))
     return {
       error: '문제집을 생성할 권한이 없습니다.',
+    }
+  }
+
+  const isAllowedMimeType = (mimeType?: string | null) => {
+    if (!mimeType) {
+      return false
+    }
+    if (mimeType.startsWith('image/')) {
+      return true
+    }
+    return mimeType === 'application/pdf'
+  }
+
+  const maxItemPosition = payload.items.length
+
+  for (const asset of assets) {
+    const sizeExceeded = asset.size > MAX_ASSET_FILE_SIZE
+    const invalidMime = !isAllowedMimeType(asset.mimeType)
+    const invalidPosition = asset.itemPosition < 1 || asset.itemPosition > maxItemPosition
+
+    if (sizeExceeded || invalidMime || invalidPosition) {
+      await removeStoragePaths(supabase, assets.map(({ bucket, path }) => ({ bucket, path })))
+
+      if (invalidPosition) {
+        return { error: '첨부 파일이 잘못된 문항에 연결됐습니다. 다시 시도해주세요.' }
+      }
+
+      if (sizeExceeded) {
+        return { error: '첨부 파일 용량은 최대 5MB까지 지원합니다.' }
+      }
+
+      return { error: '지원하지 않는 파일 형식입니다. 이미지 또는 PDF 파일만 업로드해주세요.' }
     }
   }
 
@@ -336,6 +401,277 @@ export async function createWorkbook(input: CreateWorkbookInput) {
     return {
       error: '문제집 생성 중 예상치 못한 오류가 발생했습니다.',
     }
+  }
+}
+
+export async function updateWorkbook(input: UpdateWorkbookInput) {
+  const parseResult = updateWorkbookInputSchema.safeParse(input)
+
+  if (!parseResult.success) {
+    const firstIssue = parseResult.error.issues[0]
+    return {
+      error: firstIssue?.message ?? '입력 값을 확인해주세요.',
+    }
+  }
+
+  const payload = parseResult.data
+
+  const supabase = createServerSupabase()
+  const { profile } = await getAuthContext()
+
+  const allowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !allowedRoles.has(profile.role)) {
+    return {
+      error: '문제집을 수정할 권한이 없습니다.',
+    }
+  }
+
+  const { data: workbook, error: fetchError } = await supabase
+    .from('workbooks')
+    .select('id, teacher_id, type')
+    .eq('id', payload.workbookId)
+    .maybeSingle()
+
+  if (fetchError) {
+    console.error('[updateWorkbook] fetch error', fetchError)
+    return {
+      error: '문제집 정보를 불러오지 못했습니다.',
+    }
+  }
+
+  if (!workbook || workbook.teacher_id !== profile.id) {
+    return {
+      error: '수정할 문제집을 찾을 수 없습니다.',
+    }
+  }
+
+  const workbookConfig: Record<string, unknown> = {}
+
+  switch (workbook.type) {
+    case 'srs':
+      if (payload.config.srs) {
+        workbookConfig.srs = payload.config.srs
+      }
+      break
+    case 'pdf':
+      if (payload.config.pdf?.instructions) {
+        workbookConfig.pdf = payload.config.pdf
+      }
+      break
+    case 'writing':
+      if (payload.config.writing && (payload.config.writing.instructions || payload.config.writing.maxCharacters)) {
+        workbookConfig.writing = payload.config.writing
+      }
+      break
+    case 'film':
+      if (payload.config.film) {
+        workbookConfig.film = {
+          noteCount: payload.config.film.noteCount,
+          filters: payload.config.film.filters ?? {},
+        }
+      }
+      break
+    case 'lecture':
+      if (payload.config.lecture && (payload.config.lecture.youtubeUrl || payload.config.lecture.instructions)) {
+        workbookConfig.lecture = payload.config.lecture
+      }
+      break
+    default:
+      break
+  }
+
+  const { error: updateError } = await supabase
+    .from('workbooks')
+    .update({
+      title: payload.title,
+      subject: payload.subject,
+      week_label: payload.weekLabel ?? null,
+      tags: payload.tags,
+      description: payload.description ?? null,
+      config: workbookConfig,
+    })
+    .eq('id', payload.workbookId)
+    .eq('teacher_id', profile.id)
+
+  if (updateError) {
+    console.error('[updateWorkbook] update error', updateError)
+    return {
+      error: '문제집 수정 중 오류가 발생했습니다.',
+    }
+  }
+
+  const targetsToRevalidate = [
+    '/dashboard/workbooks',
+    `/dashboard/workbooks/${payload.workbookId}`,
+    '/dashboard/teacher',
+  ]
+  targetsToRevalidate.forEach((path) => revalidatePath(path))
+
+  return {
+    success: true as const,
+  }
+}
+
+export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
+  const parseResult = updateWorkbookItemsInputSchema.safeParse(input)
+
+  if (!parseResult.success) {
+    const firstIssue = parseResult.error.issues[0]
+    return {
+      error: firstIssue?.message ?? '입력 값을 확인해주세요.',
+    }
+  }
+
+  const payload = parseResult.data
+
+  const supabase = createServerSupabase()
+  const { profile } = await getAuthContext()
+
+  const allowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !allowedRoles.has(profile.role)) {
+    return {
+      error: '문항을 수정할 권한이 없습니다.',
+    }
+  }
+
+  const { data: workbook, error: fetchWorkbookError } = await supabase
+    .from('workbooks')
+    .select('id, teacher_id, type, config')
+    .eq('id', payload.workbookId)
+    .maybeSingle()
+
+  if (fetchWorkbookError) {
+    console.error('[updateWorkbookItems] fetch workbook error', fetchWorkbookError)
+    return {
+      error: '문제집 정보를 불러오지 못했습니다.',
+    }
+  }
+
+  if (!workbook || workbook.teacher_id !== profile.id) {
+    return {
+      error: '수정할 문제집을 찾을 수 없습니다.',
+    }
+  }
+
+  const { data: existingItems, error: fetchItemsError } = await supabase
+    .from('workbook_items')
+    .select('id')
+    .eq('workbook_id', payload.workbookId)
+
+  if (fetchItemsError) {
+    console.error('[updateWorkbookItems] fetch items error', fetchItemsError)
+    return {
+      error: '문항 정보를 불러오지 못했습니다.',
+    }
+  }
+
+  const existingItemIds = new Set((existingItems ?? []).map((item) => item.id))
+
+  for (const item of payload.items) {
+    if (!existingItemIds.has(item.id)) {
+      return {
+        error: '존재하지 않는 문항이 포함되어 있습니다.',
+      }
+    }
+  }
+
+  const isSrsWorkbook = workbook.type === 'srs'
+  const allowMultipleCorrect = Boolean(workbook.config?.srs?.allowMultipleCorrect)
+
+  if (isSrsWorkbook) {
+    for (const item of payload.items) {
+      const choices = item.choices ?? []
+      if (choices.length < 2) {
+        return {
+          error: 'SRS 문항은 최소 2개 이상의 보기가 필요합니다.',
+        }
+      }
+
+      const correctCount = choices.filter((choice) => choice.isCorrect).length
+      if (correctCount === 0) {
+        return {
+          error: 'SRS 문항의 정답을 최소 1개 이상 선택해주세요.',
+        }
+      }
+
+      if (!allowMultipleCorrect && correctCount > 1) {
+        return {
+          error: '단일 정답 모드에서는 하나의 정답만 설정할 수 있습니다.',
+        }
+      }
+    }
+  }
+
+  try {
+    for (const item of payload.items) {
+      const { error: updateItemError } = await supabase
+        .from('workbook_items')
+        .update({
+          prompt: item.prompt,
+          explanation: item.explanation ?? null,
+        })
+        .eq('id', item.id)
+        .eq('workbook_id', payload.workbookId)
+
+      if (updateItemError) {
+        console.error('[updateWorkbookItems] update item error', updateItemError)
+        return {
+          error: '문항 수정 중 오류가 발생했습니다.',
+        }
+      }
+
+      if (isSrsWorkbook) {
+        const choices = item.choices ?? []
+
+        const { error: deleteChoicesError } = await supabase
+          .from('workbook_item_choices')
+          .delete()
+          .eq('item_id', item.id)
+
+        if (deleteChoicesError) {
+          console.error('[updateWorkbookItems] delete choices error', deleteChoicesError)
+          return {
+            error: '기존 보기 삭제 중 오류가 발생했습니다.',
+          }
+        }
+
+        const choiceRows = choices.map((choice, index) => ({
+          item_id: item.id,
+          label: String.fromCharCode(65 + index),
+          content: choice.content,
+          is_correct: choice.isCorrect,
+        }))
+
+        const { error: insertChoicesError } = await supabase
+          .from('workbook_item_choices')
+          .insert(choiceRows)
+
+        if (insertChoicesError) {
+          console.error('[updateWorkbookItems] insert choices error', insertChoicesError)
+          return {
+            error: '새 보기 저장 중 오류가 발생했습니다.',
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[updateWorkbookItems] unexpected error', error)
+    return {
+      error: '문항 수정 중 예상치 못한 오류가 발생했습니다.',
+    }
+  }
+
+  const targetsToRevalidate = [
+    '/dashboard/workbooks',
+    `/dashboard/workbooks/${payload.workbookId}`,
+    `/dashboard/workbooks/${payload.workbookId}/edit`,
+  ]
+  targetsToRevalidate.forEach((path) => revalidatePath(path))
+
+  return {
+    success: true as const,
   }
 }
 

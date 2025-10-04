@@ -1,0 +1,181 @@
+import type { Metadata } from 'next'
+import Link from 'next/link'
+import { notFound } from 'next/navigation'
+
+import WorkbookMetadataForm from '@/components/dashboard/workbooks/WorkbookMetadataForm'
+import WorkbookItemsEditor, {
+  type WorkbookItemsEditorItem,
+} from '@/components/dashboard/workbooks/WorkbookItemsEditor'
+import { Button } from '@/components/ui/button'
+import { requireAuthForDashboard } from '@/lib/auth'
+import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import {
+  WORKBOOK_TITLES,
+  type WorkbookMetadataFormValues,
+} from '@/lib/validation/workbook'
+
+type WorkbookConfig = {
+  srs?: {
+    allowMultipleCorrect?: boolean
+  }
+  pdf?: {
+    instructions?: string
+  }
+  writing?: {
+    instructions?: string
+    maxCharacters?: number
+  }
+  film?: {
+    noteCount?: number
+    filters?: {
+      country?: string
+      director?: string
+      genre?: string
+      subgenre?: string
+    }
+  }
+  lecture?: {
+    youtubeUrl?: string
+    instructions?: string
+  }
+}
+
+export const metadata: Metadata = {
+  title: '문제집 편집 | Woodie Film Campus',
+  description: '생성된 문제집의 기본 정보를 수정하세요.',
+}
+
+interface WorkbookEditPageProps {
+  params: {
+    workbookId: string
+  }
+}
+
+export default async function WorkbookEditPage({ params }: WorkbookEditPageProps) {
+  const { profile } = await requireAuthForDashboard('teacher')
+  const supabase = createServerSupabase()
+
+  const { data: workbook, error } = await supabase
+    .from('workbooks')
+    .select(
+      `id, title, subject, type, week_label, tags, description, config,
+       workbook_items(id, position, prompt, explanation,
+        workbook_item_choices(content, is_correct)
+      )`
+    )
+    .eq('id', params.workbookId)
+    .eq('teacher_id', profile?.id ?? '')
+    .maybeSingle()
+
+  if (error) {
+    console.error('[workbooks/edit] fetch error', error)
+  }
+
+  if (!workbook) {
+    notFound()
+  }
+
+  const formDefaults = buildMetadataFormDefaults(workbook)
+
+  const itemsForEditor: WorkbookItemsEditorItem[] = [...(workbook.workbook_items ?? [])]
+    .sort((a, b) => a.position - b.position)
+    .map((item) => ({
+      id: item.id,
+      position: item.position,
+      prompt: item.prompt,
+      explanation: item.explanation,
+      choices:
+        workbook.type === 'srs'
+          ? (item.workbook_item_choices ?? []).map((choice) => ({
+              content: choice.content,
+              isCorrect: choice.is_correct,
+            }))
+          : undefined,
+    }))
+
+  const allowMultipleCorrect = Boolean(workbook.config?.srs?.allowMultipleCorrect)
+
+  return (
+    <section className="space-y-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold text-slate-900">문제집 편집</h1>
+          <p className="text-sm text-slate-600">
+            {workbook.title} · {WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}
+          </p>
+        </div>
+        <Button asChild variant="outline">
+          <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
+        </Button>
+      </div>
+
+      <div className="space-y-6">
+        <WorkbookMetadataForm workbookId={workbook.id} defaultValues={formDefaults} />
+        <WorkbookItemsEditor
+          workbookId={workbook.id}
+          workbookType={workbook.type as 'srs' | 'pdf' | 'writing' | 'film' | 'lecture'}
+          allowMultipleCorrect={allowMultipleCorrect}
+          items={itemsForEditor}
+        />
+      </div>
+    </section>
+  )
+}
+
+type WorkbookRecord = {
+  id: string
+  title: string
+  subject: string
+  type: string
+  week_label: string | null
+  tags: string[] | null
+  description: string | null
+  config: WorkbookConfig | null
+  workbook_items?: Array<{
+    id: string
+    position: number
+    prompt: string
+    explanation: string | null
+    workbook_item_choices?: Array<{
+      content: string
+      is_correct: boolean
+    }>
+  }>
+}
+
+const buildMetadataFormDefaults = (workbook: WorkbookRecord): WorkbookMetadataFormValues => {
+  const config = workbook.config ?? {}
+  const filmConfig = config.film ?? {}
+  const filmFilters = filmConfig.filters ?? {}
+  const writingConfig = config.writing ?? {}
+
+  return {
+    title: workbook.title,
+    subject: workbook.subject as WorkbookMetadataFormValues['subject'],
+    type: workbook.type as WorkbookMetadataFormValues['type'],
+    weekLabel: workbook.week_label ?? '',
+    tagsInput: (workbook.tags ?? []).join(', '),
+    description: workbook.description ?? '',
+    srsSettings: {
+      allowMultipleCorrect: config.srs?.allowMultipleCorrect ?? true,
+    },
+    pdfSettings: {
+      instructions: config.pdf?.instructions ?? '',
+    },
+    writingSettings: {
+      instructions: writingConfig.instructions ?? '',
+      maxCharacters: writingConfig.maxCharacters ? String(writingConfig.maxCharacters) : '',
+    },
+    filmSettings: {
+      noteCount: typeof filmConfig.noteCount === 'number' ? filmConfig.noteCount : 1,
+      country: filmFilters.country ?? '',
+      director: filmFilters.director ?? '',
+      genre: filmFilters.genre ?? '',
+      subgenre: filmFilters.subgenre ?? '',
+    },
+    lectureSettings: {
+      youtubeUrl: config.lecture?.youtubeUrl ?? '',
+      instructions: config.lecture?.instructions ?? '',
+    },
+  }
+}

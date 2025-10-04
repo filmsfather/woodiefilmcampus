@@ -14,6 +14,7 @@ import {
 } from 'react-hook-form'
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import Image from 'next/image'
+import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -162,6 +163,8 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   const supabase = useMemo(() => createBrowserSupabase(), [])
   const [assetState, setAssetState] = useState<Record<string, UploadedAsset[]>>({})
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [successWorkbookId, setSuccessWorkbookId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
 
   const { control, watch, setValue, formState } = form
@@ -352,11 +355,15 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
       return
     }
 
+    setServerError(null)
+    setSuccessWorkbookId(null)
     setSubmitState('idle')
     setStepIndex((index) => Math.min(index + 1, steps.length - 1))
   }
 
   const handlePrevious = () => {
+    setServerError(null)
+    setSuccessWorkbookId(null)
     setSubmitState('idle')
     setStepIndex((index) => Math.max(index - 1, 0))
   }
@@ -369,6 +376,9 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     const attachmentPayload = attachmentsForPreview
     const payload = buildNormalizedWorkbookPayload(values, { assets: attachmentPayload })
 
+    setServerError(null)
+    setSuccessWorkbookId(null)
+
     startTransition(async () => {
       setSubmitState('idle')
       const result = await createWorkbook(payload)
@@ -377,14 +387,16 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
         Object.values(assetState).forEach((assets) => assets.forEach(revokeAssetPreview))
         setAssetState({})
         setSubmitState('error')
-        setUploadError(result.error)
+        setServerError(result.error)
         return
       }
 
+      setSuccessWorkbookId(result?.workbookId ?? null)
       setSubmitState('success')
       setStepIndex(0)
       Object.values(assetState).forEach((assets) => assets.forEach(revokeAssetPreview))
       setUploadError(null)
+      setServerError(null)
       form.reset(defaultValues)
       setAssetState({})
     })
@@ -1063,14 +1075,28 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
           )}
 
           {submitState === 'success' && (
-            <div className="flex items-center gap-2 rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
-              <Check className="size-4" /> 문제집을 임시로 저장했습니다. 실제 저장 기능은 추후 API 연동 시 활성화됩니다.
+            <div className="space-y-2 rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
+              <div className="flex items-center gap-2">
+                <Check className="size-4" /> 문제집을 정상적으로 저장했습니다.
+              </div>
+              {successWorkbookId && (
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm" variant="outline" className="bg-white text-green-700 hover:bg-white">
+                    <Link href={`/dashboard/workbooks/${successWorkbookId}`}>상세 보기</Link>
+                  </Button>
+                  <Button asChild size="sm" className="bg-green-600 text-white hover:bg-green-600/90">
+                    <Link href={`/dashboard/assignments/new?workbookId=${successWorkbookId}`}>
+                      바로 출제하기
+                    </Link>
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
           {submitState === 'error' && (
             <div className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-              <AlertCircle className="size-4" /> 저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.
+              <AlertCircle className="size-4" /> {serverError ?? '저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'}
             </div>
           )}
 

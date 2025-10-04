@@ -178,6 +178,24 @@ export type WorkbookFormValues = z.infer<typeof workbookFormSchema>
 export type WorkbookItemFormValues = z.infer<typeof workbookItemSchema>
 export type WorkbookChoiceFormValues = z.infer<typeof workbookChoiceSchema>
 
+export const workbookMetadataFormSchema = z.object({
+  title: requiredTrimmedString
+    .min(1, { message: '문제집 제목을 입력해주세요.' })
+    .max(120, { message: '제목은 120자 이내로 입력해주세요.' }),
+  subject: z.enum(WORKBOOK_SUBJECTS),
+  type: z.enum(WORKBOOK_TYPES),
+  weekLabel: optionalTrimmedString,
+  tagsInput: optionalTrimmedString,
+  description: optionalTrimmedString,
+  srsSettings: srsSettingsSchema,
+  pdfSettings: pdfSettingsSchema,
+  writingSettings: writingSettingsSchema,
+  filmSettings: filmSettingsSchema,
+  lectureSettings: lectureSettingsSchema,
+})
+
+export type WorkbookMetadataFormValues = z.input<typeof workbookMetadataFormSchema>
+
 export function parseTagsInput(tagsInput: string | undefined | null): string[] {
   if (!tagsInput) {
     return []
@@ -369,5 +387,81 @@ export function buildNormalizedWorkbookPayload(
     config,
     items: normalizedItems,
     assets: normalizedAssets,
+  }
+}
+
+export interface WorkbookMetadataPayload {
+  title: string
+  subject: (typeof WORKBOOK_SUBJECTS)[number]
+  type: (typeof WORKBOOK_TYPES)[number]
+  weekLabel?: string
+  tags: string[]
+  description?: string
+  config: NormalizedWorkbookPayload['config']
+}
+
+export function buildWorkbookMetadataPayload(values: WorkbookMetadataFormValues): WorkbookMetadataPayload {
+  const tags = parseTagsInput(values.tagsInput)
+
+  const config: WorkbookMetadataPayload['config'] = {}
+
+  switch (values.type) {
+    case 'srs': {
+      config.srs = {
+        allowMultipleCorrect: values.srsSettings.allowMultipleCorrect,
+      }
+      break
+    }
+    case 'pdf': {
+      const instructions = normalizeString(values.pdfSettings.instructions)
+      if (instructions) {
+        config.pdf = { instructions }
+      }
+      break
+    }
+    case 'writing': {
+      const instructions = normalizeString(values.writingSettings.instructions)
+      const maxCharacters = values.writingSettings.maxCharacters
+        ? Number(values.writingSettings.maxCharacters)
+        : undefined
+      config.writing = {
+        ...(instructions ? { instructions } : {}),
+        ...(maxCharacters && maxCharacters > 0 ? { maxCharacters } : {}),
+      }
+      break
+    }
+    case 'film': {
+      config.film = {
+        noteCount: values.filmSettings.noteCount,
+        filters: {
+          country: normalizeString(values.filmSettings.country),
+          director: normalizeString(values.filmSettings.director),
+          genre: normalizeString(values.filmSettings.genre),
+          subgenre: normalizeString(values.filmSettings.subgenre),
+        },
+      }
+      break
+    }
+    case 'lecture': {
+      const youtubeUrl = normalizeString(values.lectureSettings.youtubeUrl)
+      const instructions = normalizeString(values.lectureSettings.instructions)
+      config.lecture = {
+        ...(youtubeUrl ? { youtubeUrl } : {}),
+        ...(instructions ? { instructions } : {}),
+      }
+      break
+    }
+    default:
+      break
+  }
+
+  return {
+    title: values.title.trim(),
+    subject: values.subject,
+    type: values.type,
+    weekLabel: normalizeString(values.weekLabel),
+    tags,
+    description: normalizeString(values.description),
+    config,
   }
 }
