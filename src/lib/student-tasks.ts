@@ -447,13 +447,7 @@ export async function fetchStudentTaskDetail(
            workbook_item_choices(id, label, content, is_correct),
            workbook_item_short_fields(id, label, answer, position),
            workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))
-         ),
-         submissions:task_submissions(
-           id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at
          )
-       ),
-       task_level_submissions:task_submissions(
-         id, item_id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at
        )`
     )
     .eq('id', studentTaskId)
@@ -475,5 +469,44 @@ export async function fetchStudentTaskDetail(
     collectAssignmentIds([row])
   )
 
-  return mapDetail(row, assignmentLookup)
+  const { data: submissionRows, error: submissionError } = await supabase
+    .from('task_submissions')
+    .select(
+      'id, student_task_id, item_id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at'
+    )
+    .eq('student_task_id', row.id)
+
+  if (submissionError) {
+    console.error('[student-tasks] failed to fetch task submissions', submissionError)
+    throw new Error('학생 과제 제출 정보를 불러오지 못했습니다.')
+  }
+
+  const itemSubmissionMap = new Map<string, StudentTaskSubmissionRow[]>()
+  const taskLevelSubmissions: TaskSubmissionRow[] = []
+
+  for (const submission of (submissionRows ?? []) as TaskSubmissionRow[]) {
+    if (submission.item_id) {
+      const list = itemSubmissionMap.get(submission.item_id) ?? []
+      list.push(submission)
+      itemSubmissionMap.set(submission.item_id, list)
+    } else {
+      taskLevelSubmissions.push(submission)
+    }
+  }
+
+  const enrichedItems = (row.student_task_items ?? []).map((item) => {
+    const workbookItemId = pickFirst(item.item)?.id ?? null
+    return {
+      ...item,
+      submissions: workbookItemId ? itemSubmissionMap.get(workbookItemId) ?? [] : [],
+    }
+  })
+
+  const enrichedRow: StudentTaskRow = {
+    ...row,
+    student_task_items: enrichedItems,
+    task_level_submissions: taskLevelSubmissions,
+  }
+
+  return mapDetail(enrichedRow, assignmentLookup)
 }
