@@ -59,8 +59,9 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
     .from('workbooks')
     .select(
       `id, title, subject, type, week_label, tags, description, config,
-       workbook_items(id, position, prompt, explanation,
-        workbook_item_choices(content, is_correct)
+       workbook_items(id, position, prompt, explanation, answer_type,
+        workbook_item_choices(content, is_correct),
+        workbook_item_short_fields(label, answer, position)
       )`
     )
     .eq('id', params.workbookId)
@@ -85,11 +86,21 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
       prompt: item.prompt,
       explanation: item.explanation,
       choices:
-        workbook.type === 'srs'
+        workbook.type === 'srs' && item.answer_type === 'multiple_choice'
           ? (item.workbook_item_choices ?? []).map((choice) => ({
               content: choice.content,
               isCorrect: choice.is_correct,
             }))
+          : undefined,
+      answerType: workbook.type === 'srs' ? (item.answer_type ?? 'multiple_choice') : undefined,
+      shortFields:
+        workbook.type === 'srs' && item.answer_type === 'short_answer'
+          ? (item.workbook_item_short_fields ?? [])
+              .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+              .map((field) => ({
+                label: field?.label ?? '',
+                answer: field?.answer ?? '',
+              }))
           : undefined,
     }))
 
@@ -140,6 +151,12 @@ type WorkbookRecord = {
       content: string
       is_correct: boolean
     }>
+    workbook_item_short_fields?: Array<{
+      label?: string | null
+      answer?: string | null
+      position?: number | null
+    }>
+    answer_type?: string | null
   }>
 }
 

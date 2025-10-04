@@ -43,6 +43,7 @@ import {
   type WorkbookFormValues,
   type WorkbookItemFormValues,
   type WorkbookChoiceFormValues,
+  type SrsAnswerType,
   type NormalizedWorkbookAssetPayload,
 } from '@/lib/validation/workbook'
 import { createClient as createBrowserSupabase } from '@/lib/supabase/client'
@@ -114,11 +115,20 @@ const createEmptyChoice = () => ({
   isCorrect: false,
 })
 
+const createEmptyShortField = () => ({
+  label: '',
+  answer: '',
+})
+
 const createEmptyItem = (withChoices: boolean) => ({
   prompt: '',
   explanation: '',
   ...(withChoices
-    ? { choices: [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()] }
+    ? {
+        answerType: 'multiple_choice' as SrsAnswerType,
+        choices: [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()],
+        shortFields: [],
+      }
     : {}),
 })
 
@@ -196,28 +206,87 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
 
     if (selectedType === 'srs') {
       itemsValues.forEach((item, index) => {
-        if (!item.choices || item.choices.length === 0) {
+        const answerType = (item?.answerType as SrsAnswerType | undefined) ?? 'multiple_choice'
+
+        if (!item?.answerType) {
           setValue(
-            `items.${index}.choices` as FieldPath<WorkbookFormValues>,
-            [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()] as unknown as WorkbookFormValues['items'][number]['choices'],
+            `items.${index}.answerType` as FieldPath<WorkbookFormValues>,
+            answerType as unknown as WorkbookFormValues['items'][number]['answerType'],
             { shouldDirty: false }
           )
+        }
+
+        if (answerType === 'multiple_choice') {
+          if (!item?.choices || item.choices.length === 0) {
+            setValue(
+              `items.${index}.choices` as FieldPath<WorkbookFormValues>,
+              [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()] as unknown as WorkbookFormValues['items'][number]['choices'],
+              { shouldDirty: false }
+            )
+          }
+
+          if (item?.shortFields && item.shortFields.length > 0) {
+            const path = `items.${index}.shortFields` as FieldPath<WorkbookFormValues>
+            setValue(
+              path,
+              undefined as unknown as WorkbookFormValues['items'][number]['shortFields'],
+              { shouldDirty: false, shouldValidate: false }
+            )
+            unregister(path)
+          }
+        } else {
+          if (!item?.shortFields || item.shortFields.length === 0) {
+            setValue(
+              `items.${index}.shortFields` as FieldPath<WorkbookFormValues>,
+              [createEmptyShortField()] as unknown as WorkbookFormValues['items'][number]['shortFields'],
+              { shouldDirty: false }
+            )
+          }
+
+          if (item?.choices && item.choices.length > 0) {
+            const path = `items.${index}.choices` as FieldPath<WorkbookFormValues>
+            setValue(
+              path,
+              undefined as unknown as WorkbookFormValues['items'][number]['choices'],
+              { shouldDirty: false, shouldValidate: false }
+            )
+            unregister(path)
+          }
         }
       })
       return
     }
 
     itemsValues.forEach((item, index) => {
-      if (!item?.choices || item.choices.length === 0) {
-        return
+      if (item?.answerType) {
+        const path = `items.${index}.answerType` as FieldPath<WorkbookFormValues>
+        setValue(
+          path,
+          undefined as unknown as WorkbookFormValues['items'][number]['answerType'],
+          { shouldDirty: false, shouldValidate: false }
+        )
+        unregister(path)
       }
 
-      const path = `items.${index}.choices` as FieldPath<WorkbookFormValues>
-      setValue(path, undefined as unknown as WorkbookFormValues['items'][number]['choices'], {
-        shouldDirty: false,
-        shouldValidate: true,
-      })
-      unregister(path)
+      if (item?.choices && item.choices.length > 0) {
+        const path = `items.${index}.choices` as FieldPath<WorkbookFormValues>
+        setValue(
+          path,
+          undefined as unknown as WorkbookFormValues['items'][number]['choices'],
+          { shouldDirty: false, shouldValidate: false }
+        )
+        unregister(path)
+      }
+
+      if (item?.shortFields && item.shortFields.length > 0) {
+        const path = `items.${index}.shortFields` as FieldPath<WorkbookFormValues>
+        setValue(
+          path,
+          undefined as unknown as WorkbookFormValues['items'][number]['shortFields'],
+          { shouldDirty: false, shouldValidate: false }
+        )
+        unregister(path)
+      }
     })
   }, [selectedType, watchedValues.items, setValue, unregister])
 
@@ -878,119 +947,196 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
-                {fields.map((field, index) => (
-                  <Card key={field.id} className="border-slate-200">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                      <CardTitle className="text-base font-semibold">문항 {index + 1}</CardTitle>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => handleRemoveItem(index)}
-                        disabled={fields.length === 1 || isSubmitting || isUploading}
-                      >
-                        <Trash2 className="mr-1 size-4" /> 삭제
-                      </Button>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.prompt`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>문항 내용</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                rows={5}
-                                placeholder="문항에 대한 질문 또는 설명을 입력하세요."
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                {fields.map((field, index) => {
+                  const answerType: SrsAnswerType =
+                    ((watchedValues.items ?? [])[index]?.answerType as SrsAnswerType | undefined) ?? 'multiple_choice'
+                  const choicesPath = `items.${index}.choices` as FieldPath<WorkbookFormValues>
+                  const shortFieldsPath = `items.${index}.shortFields` as FieldPath<WorkbookFormValues>
 
-                      <FormField
-                        control={form.control}
-                        name={`items.${index}.explanation`}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>해설 / 참고 (선택)</FormLabel>
-                            <FormControl>
-                              <Textarea rows={3} placeholder="정답 해설 또는 참고사항" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      {selectedType === 'srs' && (
-                        <SrsChoicesEditor
-                          control={control}
-                          itemIndex={index}
-                          allowMultipleCorrect={allowMultipleCorrect}
-                          setValue={setValue}
-                          errors={formState.errors}
+                  return (
+                    <Card key={field.id} className="border-slate-200">
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle className="text-base font-semibold">문항 {index + 1}</CardTitle>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => handleRemoveItem(index)}
+                          disabled={fields.length === 1 || isSubmitting || isUploading}
+                        >
+                          <Trash2 className="mr-1 size-4" /> 삭제
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.prompt`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>문항 내용</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  rows={5}
+                                  placeholder="문항에 대한 질문 또는 설명을 입력하세요."
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                      )}
 
-                      <div className="space-y-2">
-                        <FormLabel>첨부 파일</FormLabel>
-                        <Input
-                          type="file"
-                          multiple
-                          accept="image/*,application/pdf"
-                          disabled={isSubmitting || isUploading}
-                          onChange={(event) => handleFileInputChange(field.id, event)}
+                        <FormField
+                          control={form.control}
+                          name={`items.${index}.explanation`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>해설 / 참고 (선택)</FormLabel>
+                              <FormControl>
+                                <Textarea rows={3} placeholder="정답 해설 또는 참고사항" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                        <p className="text-xs text-slate-500">이미지 또는 PDF 파일을 최대 5MB까지 업로드할 수 있습니다.</p>
-                        {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
-                        {(assetState[field.id]?.length ?? 0) > 0 && (
-                          <div className="flex flex-wrap gap-3">
-                            {assetState[field.id]?.map((asset) => (
-                              <div
-                                key={asset.id}
-                                className="flex w-40 flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"
-                              >
-                                {asset.previewUrl ? (
-                                  <Image
-                                    src={asset.previewUrl}
-                                    alt={asset.name}
-                                    width={160}
-                                    height={120}
-                                    className="h-24 w-full rounded object-cover"
-                                    unoptimized
-                                  />
-                                ) : (
-                                  <span className="truncate">{asset.name}</span>
-                                )}
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="truncate">
-                                    {asset.name}
-                                    <br />
-                                    {formatFileSize(asset.size)}
-                                  </span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleRemoveAsset(field.id, asset.id)}
-                                    disabled={isSubmitting || isUploading}
-                                    aria-label={`${asset.name} 삭제`}
+
+                        {selectedType === 'srs' && (
+                          <div className="space-y-4">
+                            <FormField
+                              control={form.control}
+                              name={`items.${index}.answerType`}
+                              render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel>답안 유형</FormLabel>
+                                  <Select
+                                    value={(field.value as SrsAnswerType | undefined) ?? answerType}
+                                    onValueChange={(value) => {
+                                      const nextValue = value as SrsAnswerType
+                                      field.onChange(nextValue)
+
+                                      if (nextValue === 'multiple_choice') {
+                                        const currentChoices = (watchedValues.items ?? [])[index]?.choices
+                                        if (!currentChoices || currentChoices.length === 0) {
+                                          setValue(
+                                            choicesPath,
+                                            [
+                                              createEmptyChoice(),
+                                              createEmptyChoice(),
+                                              createEmptyChoice(),
+                                              createEmptyChoice(),
+                                            ] as unknown as WorkbookFormValues['items'][number]['choices'],
+                                            { shouldDirty: true, shouldValidate: true }
+                                          )
+                                        }
+
+                                        setValue(shortFieldsPath, undefined)
+                                        unregister(shortFieldsPath)
+                                      } else {
+                                        const currentShortFields = (watchedValues.items ?? [])[index]?.shortFields
+                                        if (!currentShortFields || currentShortFields.length === 0) {
+                                          setValue(
+                                            shortFieldsPath,
+                                            [createEmptyShortField()] as unknown as WorkbookFormValues['items'][number]['shortFields'],
+                                            { shouldDirty: true, shouldValidate: true }
+                                          )
+                                        }
+
+                                        setValue(choicesPath, undefined)
+                                        unregister(choicesPath)
+                                      }
+                                    }}
                                   >
-                                    <Trash2 className="size-4 text-destructive" />
-                                  </Button>
-                                </div>
-                              </div>
-                            ))}
+                                    <FormControl>
+                                      <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="답안 유형 선택" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="multiple_choice">다지선다</SelectItem>
+                                      <SelectItem value="short_answer">단답형</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormDescription>문항별로 답안 유형을 설정하세요.</FormDescription>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+
+                            {answerType === 'multiple_choice' ? (
+                              <SrsChoicesEditor
+                                control={control}
+                                itemIndex={index}
+                                allowMultipleCorrect={allowMultipleCorrect}
+                                setValue={setValue}
+                                errors={formState.errors}
+                              />
+                            ) : (
+                              <SrsShortFieldsEditor
+                                control={control}
+                                itemIndex={index}
+                                errors={formState.errors}
+                              />
+                            )}
                           </div>
                         )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+
+                        <div className="space-y-2">
+                          <FormLabel>첨부 파일</FormLabel>
+                          <Input
+                            type="file"
+                            multiple
+                            accept="image/*,application/pdf"
+                            disabled={isSubmitting || isUploading}
+                            onChange={(event) => handleFileInputChange(field.id, event)}
+                          />
+                          <p className="text-xs text-slate-500">이미지 또는 PDF 파일을 최대 5MB까지 업로드할 수 있습니다.</p>
+                          {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+                          {(assetState[field.id]?.length ?? 0) > 0 && (
+                            <div className="flex flex-wrap gap-3">
+                              {assetState[field.id]?.map((asset) => (
+                                <div
+                                  key={asset.id}
+                                  className="flex w-40 flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"
+                                >
+                                  {asset.previewUrl ? (
+                                    <Image
+                                      src={asset.previewUrl}
+                                      alt={asset.name}
+                                      width={160}
+                                      height={120}
+                                      className="h-24 w-full rounded object-cover"
+                                      unoptimized
+                                    />
+                                  ) : (
+                                    <span className="truncate">{asset.name}</span>
+                                  )}
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="truncate">
+                                      {asset.name}
+                                      <br />
+                                      {formatFileSize(asset.size)}
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleRemoveAsset(field.id, asset.id)}
+                                      disabled={isSubmitting || isUploading}
+                                      aria-label={`${asset.name} 삭제`}
+                                    >
+                                      <Trash2 className="size-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
 
                 <Button
                   type="button"
@@ -1066,7 +1212,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                             해설: {item.explanation}
                           </p>
                         )}
-                        {normalizedPreview.type === 'srs' && item.choices && item.choices.length > 0 && (
+                        {normalizedPreview.type === 'srs' && item.answerType === 'multiple_choice' && item.choices && item.choices.length > 0 && (
                           <ul className="mt-3 space-y-1">
                             {item.choices.map((choice, choiceIndex) => (
                               <li
@@ -1084,6 +1230,19 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                               </li>
                             ))}
                           </ul>
+                        )}
+                        {normalizedPreview.type === 'srs' && item.answerType === 'short_answer' && item.shortFields && item.shortFields.length > 0 && (
+                          <div className="mt-3 space-y-1">
+                            <p className="text-xs font-medium text-slate-500">단답 필드</p>
+                            <ul className="space-y-1 text-sm text-slate-700">
+                              {item.shortFields.map((field, fieldIndex) => (
+                                <li key={fieldIndex} className="flex flex-col gap-0.5 rounded border border-slate-200 bg-white px-3 py-2">
+                                  {field.label && <span className="text-xs font-medium text-slate-500">{field.label}</span>}
+                                  <span>{field.answer}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
                         {item.assets && item.assets.length > 0 && (
                           <div className="mt-3 space-y-1 text-xs text-slate-600">
@@ -1159,6 +1318,92 @@ interface SrsChoicesEditorProps {
   allowMultipleCorrect: boolean
   setValue: UseFormSetValue<WorkbookFormValues>
   errors: FieldErrorsImpl<WorkbookFormValues>
+}
+
+interface SrsShortFieldsEditorProps {
+  control: Control<WorkbookFormValues>
+  itemIndex: number
+  errors: FieldErrorsImpl<WorkbookFormValues>
+}
+
+function SrsShortFieldsEditor({ control, itemIndex, errors }: SrsShortFieldsEditorProps) {
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: `items.${itemIndex}.shortFields` as const,
+  })
+
+  const shortFields = useWatch({
+    control,
+    name: `items.${itemIndex}.shortFields` as const,
+  })
+
+  const itemErrors = (errors.items?.[itemIndex] as FieldErrorsImpl<WorkbookItemFormValues> | undefined) ?? {}
+  const shortFieldsErrorMessage = (itemErrors?.shortFields as { message?: string } | undefined)?.message
+
+  const handleAddField = () => {
+    append(createEmptyShortField())
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-slate-900">단답 필드</h4>
+        <Button type="button" variant="outline" size="sm" onClick={handleAddField} className="gap-2">
+          <Plus className="size-4" /> 단답 추가
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {fields.map((field, fieldIndex) => (
+          <div key={field.id} className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+              <FormField
+                control={control}
+                name={`items.${itemIndex}.shortFields.${fieldIndex}.label`}
+                render={({ field }) => (
+                  <FormItem className="sm:w-1/3">
+                    <FormLabel>라벨 (선택)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="예: 1번 공란" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={control}
+                name={`items.${itemIndex}.shortFields.${fieldIndex}.answer`}
+                render={({ field }) => (
+                  <FormItem className="flex-1">
+                    <FormLabel>정답</FormLabel>
+                    <FormControl>
+                      <Input placeholder="정확하게 일치해야 하는 답안을 입력하세요." {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:text-destructive"
+                onClick={() => remove(fieldIndex)}
+                disabled={(shortFields?.length ?? 0) <= 1}
+                aria-label={`단답 ${fieldIndex + 1} 삭제`}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {shortFieldsErrorMessage && <p className="text-sm text-destructive">{shortFieldsErrorMessage}</p>}
+    </div>
+  )
 }
 
 function SrsChoicesEditor({

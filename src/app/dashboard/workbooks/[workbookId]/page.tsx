@@ -25,8 +25,9 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
     .from('workbooks')
     .select(
       `id, title, subject, type, week_label, tags, description, config, created_at, updated_at,
-       workbook_items(id, position, prompt, explanation, srs_settings,
+       workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
         workbook_item_choices(id, label, content, is_correct),
+        workbook_item_short_fields(id, label, answer, position),
         workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))
       )`
     )
@@ -226,7 +227,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
                   )}
                 </div>
               </div>
-              {workbook.type === 'srs' && (item.workbook_item_choices?.length ?? 0) > 0 && (
+              {workbook.type === 'srs' && item.answer_type === 'multiple_choice' && (item.workbook_item_choices?.length ?? 0) > 0 && (
                 <div className="mt-3 space-y-2 rounded-md bg-slate-50 p-3">
                   <p className="text-xs font-medium text-slate-500">보기</p>
                   <ul className="space-y-1 text-sm">
@@ -245,6 +246,22 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
                         <span>{choice.label}. {choice.content}</span>
                       </li>
                     ))}
+                  </ul>
+                </div>
+              )}
+
+              {workbook.type === 'srs' && item.answer_type === 'short_answer' && (item.workbook_item_short_fields?.length ?? 0) > 0 && (
+                <div className="mt-3 space-y-2 rounded-md bg-slate-50 p-3">
+                  <p className="text-xs font-medium text-slate-500">단답 필드</p>
+                  <ul className="space-y-1 text-sm text-slate-700">
+                    {item.workbook_item_short_fields
+                      ?.sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+                      .map((field) => (
+                        <li key={field?.id ?? `${item.id}-short-${field?.position ?? 0}`} className="rounded border border-slate-200 bg-white px-3 py-2">
+                          {field?.label && <p className="text-xs font-medium text-slate-500">{field.label}</p>}
+                          <p>{field?.answer}</p>
+                        </li>
+                      ))}
                   </ul>
                 </div>
               )}

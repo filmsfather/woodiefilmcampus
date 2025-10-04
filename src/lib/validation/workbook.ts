@@ -71,15 +71,24 @@ const urlStringOptional = z
     }
   }, { message: '유효한 URL을 입력해주세요.' })
 
+const srsAnswerTypeSchema = z.enum(['multiple_choice', 'short_answer'])
+
 const workbookChoiceSchema = z.object({
   content: requiredTrimmedString,
   isCorrect: z.boolean(),
 })
 
+const workbookShortFieldSchema = z.object({
+  label: optionalTrimmedString,
+  answer: requiredTrimmedString.min(1, { message: '정답을 입력해주세요.' }),
+})
+
 export const workbookItemSchema = z.object({
   prompt: requiredTrimmedString.min(1, { message: '문항 내용을 입력해주세요.' }),
   explanation: optionalTrimmedString,
+  answerType: srsAnswerTypeSchema.optional(),
   choices: z.array(workbookChoiceSchema).optional(),
+  shortFields: z.array(workbookShortFieldSchema).optional(),
 })
 
 const srsSettingsSchema = z
@@ -142,42 +151,72 @@ export const workbookFormSchema = z
   .superRefine((values, ctx) => {
     if (values.type === 'srs') {
       values.items.forEach((item, index) => {
-        const choices = item.choices ?? []
-        const filledChoices = choices.filter((choice) => choice.content.length > 0)
+        const answerType = item.answerType ?? 'multiple_choice'
 
-        if (filledChoices.length < 2) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: '보기는 최소 2개 이상 입력해주세요.',
-            path: ['items', index, 'choices'],
-          })
-        }
+        if (answerType === 'multiple_choice') {
+          const choices = item.choices ?? []
+          const filledChoices = choices.filter((choice) => choice.content.length > 0)
 
-        choices.forEach((choice, choiceIndex) => {
-          if (choice.content.length === 0) {
+          if (filledChoices.length < 2) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: '보기 내용을 입력해주세요.',
-              path: ['items', index, 'choices', choiceIndex, 'content'],
+              message: '보기는 최소 2개 이상 입력해주세요.',
+              path: ['items', index, 'choices'],
             })
           }
-        })
 
-        const correctCount = choices.filter((choice) => choice.isCorrect).length
-
-        if (correctCount === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: '정답을 최소 1개 이상 선택해주세요.',
-            path: ['items', index, 'choices'],
+          choices.forEach((choice, choiceIndex) => {
+            if (choice.content.length === 0) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: '보기 내용을 입력해주세요.',
+                path: ['items', index, 'choices', choiceIndex, 'content'],
+              })
+            }
           })
-        }
 
-        if (!values.srsSettings.allowMultipleCorrect && correctCount > 1) {
+          const correctCount = choices.filter((choice) => choice.isCorrect).length
+
+          if (correctCount === 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '정답을 최소 1개 이상 선택해주세요.',
+              path: ['items', index, 'choices'],
+            })
+          }
+
+          if (!values.srsSettings.allowMultipleCorrect && correctCount > 1) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '단일 정답 모드에서는 하나의 정답만 선택할 수 있습니다.',
+              path: ['items', index, 'choices'],
+            })
+          }
+        } else if (answerType === 'short_answer') {
+          const shortFields = item.shortFields ?? []
+
+          if (shortFields.length === 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '단답 필드를 최소 1개 이상 추가해주세요.',
+              path: ['items', index, 'shortFields'],
+            })
+          }
+
+          shortFields.forEach((field, fieldIndex) => {
+            if (!field.answer || field.answer.length === 0) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: '단답 정답을 입력해주세요.',
+                path: ['items', index, 'shortFields', fieldIndex, 'answer'],
+              })
+            }
+          })
+        } else {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: '단일 정답 모드에서는 하나의 정답만 선택할 수 있습니다.',
-            path: ['items', index, 'choices'],
+            message: '지원하지 않는 답안 유형입니다.',
+            path: ['items', index, 'answerType'],
           })
         }
       })
@@ -198,6 +237,8 @@ export const workbookFormSchema = z
 export type WorkbookFormValues = z.infer<typeof workbookFormSchema>
 export type WorkbookItemFormValues = z.infer<typeof workbookItemSchema>
 export type WorkbookChoiceFormValues = z.infer<typeof workbookChoiceSchema>
+export type WorkbookShortFieldFormValues = z.infer<typeof workbookShortFieldSchema>
+export type SrsAnswerType = z.infer<typeof srsAnswerTypeSchema>
 
 export const workbookMetadataFormSchema = z.object({
   title: requiredTrimmedString
@@ -272,9 +313,14 @@ export interface NormalizedWorkbookPayload {
   items: Array<{
     prompt: string
     explanation?: string
+    answerType?: SrsAnswerType
     choices?: Array<{
       content: string
       isCorrect: boolean
+    }>
+    shortFields?: Array<{
+      label?: string
+      answer: string
     }>
     assets?: Array<NormalizedWorkbookAsset>
   }>
@@ -368,7 +414,12 @@ export function buildNormalizedWorkbookPayload(
     const base: {
       prompt: string
       explanation?: string
+      answerType?: SrsAnswerType
       choices?: Array<{ content: string; isCorrect: boolean }>
+      shortFields?: Array<{
+        label?: string
+        answer: string
+      }>
       assets?: Array<NormalizedWorkbookAsset>
     } = {
       prompt: item.prompt.trim(),
@@ -380,10 +431,20 @@ export function buildNormalizedWorkbookPayload(
     }
 
     if (values.type === 'srs') {
-      base.choices = (item.choices ?? []).map((choice) => ({
-        content: choice.content.trim(),
-        isCorrect: choice.isCorrect,
-      }))
+      const answerType: SrsAnswerType = item.answerType ?? 'multiple_choice'
+      base.answerType = answerType
+
+      if (answerType === 'multiple_choice') {
+        base.choices = (item.choices ?? []).map((choice) => ({
+          content: choice.content.trim(),
+          isCorrect: choice.isCorrect,
+        }))
+      } else if (answerType === 'short_answer') {
+        base.shortFields = (item.shortFields ?? []).map((field) => ({
+          label: normalizeString(field.label) ?? undefined,
+          answer: field.answer.trim(),
+        }))
+      }
     }
 
     const assetsForItem = assetsByPosition.get(position) ?? []

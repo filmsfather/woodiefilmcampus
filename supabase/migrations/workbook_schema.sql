@@ -41,6 +41,18 @@ create table if not exists public.workbook_item_choices (
 
 create index if not exists workbook_item_choices_item_idx on public.workbook_item_choices (item_id);
 
+create table if not exists public.workbook_item_short_fields (
+  id uuid primary key default gen_random_uuid(),
+  item_id uuid not null references public.workbook_items(id) on delete cascade,
+  label text,
+  answer text not null,
+  position int not null default 0,
+  created_at timestamptz not null default timezone('utc'::text, now()),
+  updated_at timestamptz not null default timezone('utc'::text, now())
+);
+
+create index if not exists workbook_item_short_fields_item_idx on public.workbook_item_short_fields (item_id, position);
+
 -- 2. 스토리지 자산 -------------------------------------------------------
 create table if not exists public.media_assets (
   id uuid primary key default gen_random_uuid(),
@@ -181,6 +193,14 @@ BEGIN
   ) THEN
     CREATE TRIGGER workbook_item_choices_set_updated_at
       BEFORE UPDATE ON public.workbook_item_choices
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_current_timestamp_updated_at();
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'workbook_item_short_fields_set_updated_at'
+  ) THEN
+    CREATE TRIGGER workbook_item_short_fields_set_updated_at
+      BEFORE UPDATE ON public.workbook_item_short_fields
       FOR EACH ROW
       EXECUTE FUNCTION public.set_current_timestamp_updated_at();
   END IF;
@@ -370,6 +390,7 @@ grant execute on function public.mark_student_task_item(uuid, boolean) to servic
 alter table public.workbooks enable row level security;
 alter table public.workbook_items enable row level security;
 alter table public.workbook_item_choices enable row level security;
+alter table public.workbook_item_short_fields enable row level security;
 alter table public.workbook_item_media enable row level security;
 alter table public.media_assets enable row level security;
 alter table public.assignments enable row level security;
@@ -546,6 +567,67 @@ create policy "workbook_item_choices_ins_upd"
       from public.workbook_items wi
       join public.workbooks w on w.id = wi.workbook_id
       where wi.id = workbook_item_choices.item_id
+        and (
+          w.teacher_id = auth.uid()
+          or public.can_manage_profiles(auth.uid())
+        )
+    )
+  );
+
+-- workbook_item_short_fields
+drop policy if exists "workbook_item_short_fields_select" on public.workbook_item_short_fields;
+create policy "workbook_item_short_fields_select"
+  on public.workbook_item_short_fields
+  for select
+  to authenticated
+  using (
+    exists (
+      select 1
+      from public.workbook_items wi
+      join public.workbooks w on w.id = wi.workbook_id
+      where wi.id = workbook_item_short_fields.item_id
+        and (
+          w.teacher_id = auth.uid()
+          or public.can_manage_profiles(auth.uid())
+          or exists (
+            select 1
+            from public.assignments a
+            join public.student_tasks st on st.assignment_id = a.id
+            where a.workbook_id = w.id
+              and st.student_id = auth.uid()
+          )
+          or exists (
+            select 1
+            from public.assignments a
+            where a.workbook_id = w.id
+              and a.assigned_by = auth.uid()
+          )
+        )
+    )
+  );
+
+drop policy if exists "workbook_item_short_fields_ins_upd" on public.workbook_item_short_fields;
+create policy "workbook_item_short_fields_ins_upd"
+  on public.workbook_item_short_fields
+  for all
+  using (
+    exists (
+      select 1
+      from public.workbook_items wi
+      join public.workbooks w on w.id = wi.workbook_id
+      where wi.id = workbook_item_short_fields.item_id
+        and (
+          w.teacher_id = auth.uid()
+          or public.can_manage_profiles(auth.uid())
+        )
+    )
+  )
+  with check (
+    exists (
+      select 1
+      from public.workbook_items wi
+      join public.workbooks w on w.id = wi.workbook_id
+      where wi.id = workbook_item_short_fields.item_id
         and (
           w.teacher_id = auth.uid()
           or public.can_manage_profiles(auth.uid())

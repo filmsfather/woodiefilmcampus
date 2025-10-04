@@ -8,15 +8,24 @@ import { getAuthContext } from '@/lib/auth'
 import { WORKBOOK_SUBJECTS, WORKBOOK_TYPES } from '@/lib/validation/workbook'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
+const srsAnswerTypeSchema = z.enum(['multiple_choice', 'short_answer'])
+
 const workbookChoiceSchema = z.object({
   content: z.string().min(1),
   isCorrect: z.boolean(),
 })
 
+const workbookShortFieldSchema = z.object({
+  label: z.string().optional(),
+  answer: z.string().min(1),
+})
+
 const workbookItemSchema = z.object({
   prompt: z.string().min(1),
   explanation: z.string().optional(),
+  answerType: srsAnswerTypeSchema.optional(),
   choices: z.array(workbookChoiceSchema).optional(),
+  shortFields: z.array(workbookShortFieldSchema).optional(),
 })
 
 const filmFiltersSchema = z.object({
@@ -92,11 +101,18 @@ const srsChoiceUpdateSchema = z.object({
   isCorrect: z.boolean(),
 })
 
+const shortFieldUpdateSchema = z.object({
+  label: z.string().optional(),
+  answer: z.string().min(1),
+})
+
 const workbookItemUpdateSchema = z.object({
   id: z.string().uuid('유효한 문항 ID가 아닙니다.'),
   prompt: z.string().min(1),
   explanation: z.string().optional(),
+  answerType: srsAnswerTypeSchema.optional(),
   choices: z.array(srsChoiceUpdateSchema).optional(),
+  shortFields: z.array(shortFieldUpdateSchema).optional(),
 })
 
 const updateWorkbookItemsInputSchema = z.object({
@@ -265,11 +281,14 @@ export async function createWorkbook(input: CreateWorkbookInput) {
       const position = index + 1
       itemByPosition.set(position, item)
 
+      const answerType =
+        payload.type === 'srs' ? item.answerType ?? 'multiple_choice' : payload.type
+
       return {
         workbook_id: workbook.id,
         position,
         prompt: item.prompt,
-        answer_type: payload.type,
+        answer_type: answerType,
         explanation: item.explanation ?? null,
         srs_settings:
           payload.type === 'srs'
@@ -291,28 +310,52 @@ export async function createWorkbook(input: CreateWorkbookInput) {
     }
 
     if (payload.type === 'srs') {
-      const choicesRows = insertedItems.flatMap((inserted) => {
+      const choiceRows: Array<{ item_id: string; label: string; content: string; is_correct: boolean }> = []
+      const shortFieldRows: Array<{ item_id: string; label: string | null; answer: string; position: number }> = []
+
+      insertedItems.forEach((inserted) => {
         const originalItem = itemByPosition.get(inserted.position)
-        if (!originalItem?.choices?.length) {
-          return []
+        const answerType = originalItem?.answerType ?? 'multiple_choice'
+
+        if (answerType === 'short_answer') {
+          const fields = originalItem?.shortFields ?? []
+          fields.forEach((field, fieldIndex) => {
+            shortFieldRows.push({
+              item_id: inserted.id,
+              label: field.label && field.label.trim().length > 0 ? field.label.trim() : null,
+              answer: field.answer.trim(),
+              position: fieldIndex,
+            })
+          })
+          return
         }
 
-        return originalItem.choices.map((choice, choiceIndex) => ({
-          item_id: inserted.id,
-          label: String.fromCharCode(65 + choiceIndex),
-          content: choice.content,
-          is_correct: choice.isCorrect,
-        }))
+        const choices = originalItem?.choices ?? []
+        choices.forEach((choice, choiceIndex) => {
+          choiceRows.push({
+            item_id: inserted.id,
+            label: String.fromCharCode(65 + choiceIndex),
+            content: choice.content,
+            is_correct: choice.isCorrect,
+          })
+        })
       })
 
-      if (choicesRows.length > 0) {
-        const { error: choicesError } = await supabase
-          .from('workbook_item_choices')
-          .insert(choicesRows)
+      if (choiceRows.length > 0) {
+        const { error: choicesError } = await supabase.from('workbook_item_choices').insert(choiceRows)
 
         if (choicesError) {
           console.error('[createWorkbook] failed to insert choices', choicesError)
           return await failAndCleanup('객관식 보기 저장 중 오류가 발생했습니다.', true)
+        }
+      }
+
+      if (shortFieldRows.length > 0) {
+        const { error: shortFieldError } = await supabase.from('workbook_item_short_fields').insert(shortFieldRows)
+
+        if (shortFieldError) {
+          console.error('[createWorkbook] failed to insert short fields', shortFieldError)
+          return await failAndCleanup('단답 필드 저장 중 오류가 발생했습니다.', true)
         }
       }
     }
@@ -582,23 +625,43 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
 
   if (isSrsWorkbook) {
     for (const item of payload.items) {
-      const choices = item.choices ?? []
-      if (choices.length < 2) {
-        return {
-          error: 'SRS 문항은 최소 2개 이상의 보기가 필요합니다.',
-        }
-      }
+      const answerType = item.answerType ?? 'multiple_choice'
 
-      const correctCount = choices.filter((choice) => choice.isCorrect).length
-      if (correctCount === 0) {
-        return {
-          error: 'SRS 문항의 정답을 최소 1개 이상 선택해주세요.',
+      if (answerType === 'multiple_choice') {
+        const choices = item.choices ?? []
+        if (choices.length < 2) {
+          return {
+            error: 'SRS 문항은 최소 2개 이상의 보기가 필요합니다.',
+          }
         }
-      }
 
-      if (!allowMultipleCorrect && correctCount > 1) {
-        return {
-          error: '단일 정답 모드에서는 하나의 정답만 설정할 수 있습니다.',
+        const correctCount = choices.filter((choice) => choice.isCorrect).length
+        if (correctCount === 0) {
+          return {
+            error: 'SRS 문항의 정답을 최소 1개 이상 선택해주세요.',
+          }
+        }
+
+        if (!allowMultipleCorrect && correctCount > 1) {
+          return {
+            error: '단일 정답 모드에서는 하나의 정답만 설정할 수 있습니다.',
+          }
+        }
+      } else {
+        const shortFields = item.shortFields ?? []
+
+        if (shortFields.length === 0) {
+          return {
+            error: '단답 필드를 최소 1개 이상 추가해주세요.',
+          }
+        }
+
+        for (const field of shortFields) {
+          if (!field.answer || field.answer.trim().length === 0) {
+            return {
+              error: '단답 정답을 입력해주세요.',
+            }
+          }
         }
       }
     }
@@ -606,12 +669,20 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
 
   try {
     for (const item of payload.items) {
+      const answerType = item.answerType ?? 'multiple_choice'
+
+      const updatePayload: Record<string, unknown> = {
+        prompt: item.prompt,
+        explanation: item.explanation ?? null,
+      }
+
+      if (isSrsWorkbook) {
+        updatePayload.answer_type = answerType
+      }
+
       const { error: updateItemError } = await supabase
         .from('workbook_items')
-        .update({
-          prompt: item.prompt,
-          explanation: item.explanation ?? null,
-        })
+        .update(updatePayload)
         .eq('id', item.id)
         .eq('workbook_id', payload.workbookId)
 
@@ -623,35 +694,93 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
       }
 
       if (isSrsWorkbook) {
-        const choices = item.choices ?? []
+        if (answerType === 'multiple_choice') {
+          const choices = item.choices ?? []
 
-        const { error: deleteChoicesError } = await supabase
-          .from('workbook_item_choices')
-          .delete()
-          .eq('item_id', item.id)
+          const { error: deleteShortFieldsError } = await supabase
+            .from('workbook_item_short_fields')
+            .delete()
+            .eq('item_id', item.id)
 
-        if (deleteChoicesError) {
-          console.error('[updateWorkbookItems] delete choices error', deleteChoicesError)
-          return {
-            error: '기존 보기 삭제 중 오류가 발생했습니다.',
+          if (deleteShortFieldsError) {
+            console.error('[updateWorkbookItems] delete short fields error', deleteShortFieldsError)
+            return {
+              error: '기존 단답 필드 삭제 중 오류가 발생했습니다.',
+            }
           }
-        }
 
-        const choiceRows = choices.map((choice, index) => ({
-          item_id: item.id,
-          label: String.fromCharCode(65 + index),
-          content: choice.content,
-          is_correct: choice.isCorrect,
-        }))
+          const { error: deleteChoicesError } = await supabase
+            .from('workbook_item_choices')
+            .delete()
+            .eq('item_id', item.id)
 
-        const { error: insertChoicesError } = await supabase
-          .from('workbook_item_choices')
-          .insert(choiceRows)
+          if (deleteChoicesError) {
+            console.error('[updateWorkbookItems] delete choices error', deleteChoicesError)
+            return {
+              error: '기존 보기 삭제 중 오류가 발생했습니다.',
+            }
+          }
 
-        if (insertChoicesError) {
-          console.error('[updateWorkbookItems] insert choices error', insertChoicesError)
-          return {
-            error: '새 보기 저장 중 오류가 발생했습니다.',
+          const choiceRows = choices.map((choice, index) => ({
+            item_id: item.id,
+            label: String.fromCharCode(65 + index),
+            content: choice.content,
+            is_correct: choice.isCorrect,
+          }))
+
+          const { error: insertChoicesError } = await supabase
+            .from('workbook_item_choices')
+            .insert(choiceRows)
+
+          if (insertChoicesError) {
+            console.error('[updateWorkbookItems] insert choices error', insertChoicesError)
+            return {
+              error: '새 보기 저장 중 오류가 발생했습니다.',
+            }
+          }
+        } else {
+          const shortFields = item.shortFields ?? []
+
+          const { error: deleteChoicesError } = await supabase
+            .from('workbook_item_choices')
+            .delete()
+            .eq('item_id', item.id)
+
+          if (deleteChoicesError) {
+            console.error('[updateWorkbookItems] delete choices error', deleteChoicesError)
+            return {
+              error: '기존 보기 삭제 중 오류가 발생했습니다.',
+            }
+          }
+
+          const { error: deleteShortFieldsError } = await supabase
+            .from('workbook_item_short_fields')
+            .delete()
+            .eq('item_id', item.id)
+
+          if (deleteShortFieldsError) {
+            console.error('[updateWorkbookItems] delete short fields error', deleteShortFieldsError)
+            return {
+              error: '기존 단답 필드 삭제 중 오류가 발생했습니다.',
+            }
+          }
+
+          const shortFieldRows = shortFields.map((field, index) => ({
+            item_id: item.id,
+            label: field.label && field.label.trim().length > 0 ? field.label.trim() : null,
+            answer: field.answer.trim(),
+            position: index,
+          }))
+
+          const { error: insertShortFieldsError } = await supabase
+            .from('workbook_item_short_fields')
+            .insert(shortFieldRows)
+
+          if (insertShortFieldsError) {
+            console.error('[updateWorkbookItems] insert short fields error', insertShortFieldsError)
+            return {
+              error: '단답 필드 저장 중 오류가 발생했습니다.',
+            }
           }
         }
       }
@@ -881,6 +1010,7 @@ export async function duplicateWorkbook(workbookId: string) {
         `id, title, subject, type, week_label, tags, description, config,
          workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
           workbook_item_choices(content, is_correct),
+          workbook_item_short_fields(label, answer, position),
           workbook_item_media(position, media_assets(id, bucket, path, mime_type, size, metadata))
          )`
       )
@@ -939,18 +1069,42 @@ export async function duplicateWorkbook(workbookId: string) {
       return { error: '문항 복제 중 오류가 발생했습니다.' }
     }
 
-    const choiceRows = insertedItems.flatMap((inserted) => {
+    const choiceRows: Array<{ item_id: string; label: string; content: string; is_correct: boolean }> = []
+    const shortFieldRows: Array<{ item_id: string; label: string | null; answer: string; position: number }> = []
+
+    insertedItems.forEach((inserted) => {
       const originalItem = workbook.workbook_items?.find((item) => item.position === inserted.position)
-      if (!originalItem?.workbook_item_choices?.length) {
-        return []
+      const answerType = originalItem?.answer_type ?? 'multiple_choice'
+
+      if (answerType === 'short_answer') {
+        const fields = originalItem?.workbook_item_short_fields ?? []
+        fields
+          .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+          .forEach((field, idx) => {
+            const answer = (field?.answer ?? '').trim()
+            if (!answer) {
+              return
+            }
+
+            shortFieldRows.push({
+              item_id: inserted.id,
+              label: field?.label && field.label.trim().length > 0 ? field.label.trim() : null,
+              answer,
+              position: idx,
+            })
+          })
+        return
       }
 
-      return originalItem.workbook_item_choices.map((choice, idx) => ({
-        item_id: inserted.id,
-        label: String.fromCharCode(65 + idx),
-        content: choice.content,
-        is_correct: choice.is_correct,
-      }))
+      const choices = originalItem?.workbook_item_choices ?? []
+      choices.forEach((choice, idx) => {
+        choiceRows.push({
+          item_id: inserted.id,
+          label: String.fromCharCode(65 + idx),
+          content: choice.content,
+          is_correct: choice.is_correct,
+        })
+      })
     })
 
     if (choiceRows.length > 0) {
@@ -961,6 +1115,17 @@ export async function duplicateWorkbook(workbookId: string) {
         await supabase.from('workbook_items').delete().eq('workbook_id', newWorkbook.id)
         await supabase.from('workbooks').delete().eq('id', newWorkbook.id)
         return { error: '객관식 보기 복제 중 오류가 발생했습니다.' }
+      }
+    }
+
+    if (shortFieldRows.length > 0) {
+      const { error: shortFieldInsertError } = await supabase.from('workbook_item_short_fields').insert(shortFieldRows)
+
+      if (shortFieldInsertError) {
+        console.error('[duplicateWorkbook] insert short fields error', shortFieldInsertError)
+        await supabase.from('workbook_items').delete().eq('workbook_id', newWorkbook.id)
+        await supabase.from('workbooks').delete().eq('id', newWorkbook.id)
+        return { error: '단답 필드 복제 중 오류가 발생했습니다.' }
       }
     }
 
