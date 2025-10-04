@@ -370,3 +370,18 @@ commit;
 --    select id, email from auth.users
 --    on conflict (id) do nothing;
 -- ---------------------------------------------------------------------------
+
+-- Add config column when migrating existing environments
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'workbooks'
+      and column_name = 'config'
+  ) then
+    alter table public.workbooks
+      add column config jsonb not null default '{}'::jsonb;
+  end if;
+end
+$$;
