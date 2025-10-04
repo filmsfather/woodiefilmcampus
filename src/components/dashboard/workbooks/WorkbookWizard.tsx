@@ -114,10 +114,12 @@ const createEmptyChoice = () => ({
   isCorrect: false,
 })
 
-const createEmptyItem = () => ({
+const createEmptyItem = (withChoices: boolean) => ({
   prompt: '',
   explanation: '',
-  choices: [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()],
+  ...(withChoices
+    ? { choices: [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()] }
+    : {}),
 })
 
 const defaultValues: WorkbookFormValues = {
@@ -148,7 +150,7 @@ const defaultValues: WorkbookFormValues = {
     youtubeUrl: '',
     instructions: '',
   },
-  items: [createEmptyItem()],
+  items: [createEmptyItem(true)],
 }
 
 export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
@@ -184,6 +186,32 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
       return next
     })
   }, [fields])
+
+  useEffect(() => {
+    const itemsValues = form.getValues().items ?? []
+
+    if (selectedType === 'srs') {
+      itemsValues.forEach((item, index) => {
+        if (!item.choices || item.choices.length === 0) {
+          setValue(
+            `items.${index}.choices` as FieldPath<WorkbookFormValues>,
+            [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()] as unknown as WorkbookFormValues['items'][number]['choices'],
+            { shouldDirty: false }
+          )
+        }
+      })
+    } else {
+      itemsValues.forEach((item, index) => {
+        if (item.choices) {
+          setValue(
+            `items.${index}.choices` as FieldPath<WorkbookFormValues>,
+            undefined as unknown as WorkbookFormValues['items'][number]['choices'],
+            { shouldDirty: false, shouldValidate: true }
+          )
+        }
+      })
+    }
+  }, [selectedType, fields.length, form, setValue])
 
   const currentStep = steps[stepIndex]
 
@@ -369,7 +397,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   }
 
   const handleAddItem = () => {
-    append(createEmptyItem())
+    append(createEmptyItem(selectedType === 'srs'))
   }
 
   const handleSubmit = (values: WorkbookFormValues) => {
