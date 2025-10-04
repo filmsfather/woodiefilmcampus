@@ -89,7 +89,9 @@ export async function createWorkbook(input: CreateWorkbookInput) {
   const supabase = createServerSupabase()
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  const allowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !allowedRoles.has(profile.role)) {
     await removeStoragePaths(supabase, assets.map((asset) => ({ bucket: asset.bucket, path: asset.path })))
     return {
       error: '문제집을 생성할 권한이 없습니다.',
@@ -400,7 +402,9 @@ export async function deleteWorkbook(workbookId: string) {
 
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  const deletionAllowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !deletionAllowedRoles.has(profile.role)) {
     return { error: '삭제 권한이 없습니다.' }
   }
 
@@ -526,7 +530,9 @@ export async function duplicateWorkbook(workbookId: string) {
 
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  const duplicationAllowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !duplicationAllowedRoles.has(profile.role)) {
     return { error: '복제 권한이 없습니다.' }
   }
 
