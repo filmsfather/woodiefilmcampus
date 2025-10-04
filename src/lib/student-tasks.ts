@@ -106,7 +106,7 @@ type StudentTaskRow = {
   created_at: string
   updated_at: string
   progress_meta: JsonRecord | null
-  assignment: AssignmentRow | AssignmentRow[] | null
+  assignment_id: string | null
   student_task_items?: StudentTaskItemRow[]
   task_level_submissions?: TaskSubmissionRow[] | null
 }
@@ -203,10 +203,9 @@ function deriveDueState(dueAt: string | null, status: StudentTaskStatus) {
 
 function mapSummary(
   row: StudentTaskRow,
-  workbookLookup: Map<string, StudentTaskWorkbookSummary>
+  assignmentLookup: Map<string, StudentTaskAssignmentSummary>
 ): StudentTaskSummary {
-  const assignmentRow = pickFirst(row.assignment)
-  const assignment = assignmentRow ? toAssignmentSummary(assignmentRow, workbookLookup) : null
+  const assignment = row.assignment_id ? assignmentLookup.get(row.assignment_id) ?? null : null
   const items = row.student_task_items ?? []
   const totalItems = items.length
   const completedItems = items.filter((item) => Boolean(item.completed_at)).length
@@ -312,9 +311,9 @@ function mapSubmission(row: TaskSubmissionRow): StudentTaskSubmission {
 
 function mapDetail(
   row: StudentTaskRow,
-  workbookLookup: Map<string, StudentTaskWorkbookSummary>
+  assignmentLookup: Map<string, StudentTaskAssignmentSummary>
 ): StudentTaskDetail {
-  const summary = mapSummary(row, workbookLookup)
+  const summary = mapSummary(row, assignmentLookup)
   const items = (row.student_task_items ?? [])
     .map(mapItemDetail)
     .sort((a, b) => a.workbookItem.position - b.workbookItem.position)
@@ -324,19 +323,6 @@ function mapDetail(
     items,
     submissions: (row.task_level_submissions ?? []).map(mapSubmission),
   }
-}
-
-function collectWorkbookIds(rows: StudentTaskRow[]): string[] {
-  const ids = new Set<string>()
-
-  for (const row of rows) {
-    const assignmentRow = pickFirst(row.assignment)
-    if (assignmentRow?.workbook_id) {
-      ids.add(assignmentRow.workbook_id)
-    }
-  }
-
-  return Array.from(ids)
 }
 
 async function loadWorkbookSummaries(
@@ -369,13 +355,63 @@ async function loadWorkbookSummaries(
   return lookup
 }
 
+function collectAssignmentIds(rows: StudentTaskRow[]): string[] {
+  const ids = new Set<string>()
+
+  for (const row of rows) {
+    if (row.assignment_id) {
+      ids.add(row.assignment_id)
+    }
+  }
+
+  return Array.from(ids)
+}
+
+async function loadAssignmentSummaries(
+  supabase: ReturnType<typeof createServerSupabase>,
+  assignmentIds: string[]
+): Promise<Map<string, StudentTaskAssignmentSummary>> {
+  const lookup = new Map<string, StudentTaskAssignmentSummary>()
+
+  if (assignmentIds.length === 0) {
+    return lookup
+  }
+
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('id, due_at, created_at, target_scope, workbook_id')
+    .in('id', assignmentIds)
+
+  if (error) {
+    console.error('[student-tasks] failed to load assignments', error)
+    return lookup
+  }
+
+  const rows = (data ?? []) as AssignmentRow[]
+  const workbookIdSet = new Set<string>()
+  for (const row of rows) {
+    if (typeof row.workbook_id === 'string' && row.workbook_id.length > 0) {
+      workbookIdSet.add(row.workbook_id)
+    }
+  }
+  const workbookLookup = await loadWorkbookSummaries(supabase, Array.from(workbookIdSet))
+
+  for (const row of rows) {
+    if (!row?.id) {
+      continue
+    }
+    lookup.set(row.id, toAssignmentSummary(row, workbookLookup))
+  }
+
+  return lookup
+}
+
 export async function fetchStudentTaskSummaries(studentId: string): Promise<StudentTaskSummary[]> {
   const supabase = createServerSupabase()
   const { data, error } = await supabase
     .from('student_tasks')
     .select(
-      `id, status, completion_at, created_at, updated_at, progress_meta,
-       assignment:assignments(id, due_at, created_at, target_scope, workbook_id),
+      `id, assignment_id, status, completion_at, created_at, updated_at, progress_meta,
        student_task_items(id, completed_at, next_review_at)`
     )
     .eq('student_id', studentId)
@@ -387,12 +423,12 @@ export async function fetchStudentTaskSummaries(studentId: string): Promise<Stud
   }
 
   const rows = (data ?? []) as StudentTaskRow[]
-  const workbookLookup = await loadWorkbookSummaries(
+  const assignmentLookup = await loadAssignmentSummaries(
     supabase,
-    collectWorkbookIds(rows)
+    collectAssignmentIds(rows)
   )
 
-  return rows.map((row) => mapSummary(row, workbookLookup))
+  return rows.map((row) => mapSummary(row, assignmentLookup))
 }
 
 export async function fetchStudentTaskDetail(
@@ -403,8 +439,7 @@ export async function fetchStudentTaskDetail(
   const { data, error } = await supabase
     .from('student_tasks')
     .select(
-      `id, status, completion_at, created_at, updated_at, progress_meta,
-       assignment:assignments(id, due_at, created_at, target_scope, workbook_id),
+      `id, assignment_id, status, completion_at, created_at, updated_at, progress_meta,
        student_task_items(
          id, completed_at, next_review_at, streak, last_result,
          item:workbook_items(
@@ -435,10 +470,10 @@ export async function fetchStudentTaskDetail(
   }
 
   const row = data as StudentTaskRow
-  const workbookLookup = await loadWorkbookSummaries(
+  const assignmentLookup = await loadAssignmentSummaries(
     supabase,
-    collectWorkbookIds([row])
+    collectAssignmentIds([row])
   )
 
-  return mapDetail(row, workbookLookup)
+  return mapDetail(row, assignmentLookup)
 }
