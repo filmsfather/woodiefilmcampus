@@ -131,7 +131,7 @@ export default async function TeacherDashboardPage() {
                     <div className="flex flex-wrap gap-2 text-xs text-slate-500">
                       <span>문항 {itemCount}개</span>
                       {workbook.week_label && <span>{workbook.week_label}</span>}
-                      {(workbook.tags ?? []).map((tag) => (
+                      {(workbook.tags ?? []).map((tag: string) => (
                         <span key={tag}>#{tag}</span>
                       ))}
                     </div>
