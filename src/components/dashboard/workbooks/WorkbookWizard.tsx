@@ -187,8 +187,12 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     })
   }, [fields])
 
+  const watchedValues = watch()
+  const selectedType = watch('type')
+  const allowMultipleCorrect = watch('srsSettings.allowMultipleCorrect')
+
   useEffect(() => {
-    const itemsValues = form.getValues().items ?? []
+    const itemsValues = watchedValues.items ?? []
 
     if (selectedType === 'srs') {
       itemsValues.forEach((item, index) => {
@@ -211,13 +215,9 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
         }
       })
     }
-  }, [selectedType, fields.length, form, setValue])
+  }, [selectedType, watchedValues.items, setValue])
 
   const currentStep = steps[stepIndex]
-
-  const watchedValues = watch()
-  const selectedType = watch('type')
-  const allowMultipleCorrect = watch('srsSettings.allowMultipleCorrect')
 
   const attachmentsForPreview = useMemo<NormalizedWorkbookAssetPayload[]>(
     () =>
