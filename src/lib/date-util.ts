@@ -1,0 +1,141 @@
+/*
+  중앙 시간 유틸. 서버와 클라이언트 모두 UTC 기준으로 계산하고, UI 표시는 로컬 포맷으로 변환한다.
+*/
+
+export type DateLike = string | number | Date
+
+interface ServerClockState {
+  baseTimeMs: number
+  capturedAtMs: number
+}
+
+let serverClock: ServerClockState | null = null
+let clientOffsetMs: number | null = null
+
+const isBrowser = typeof window !== "undefined"
+
+const MS_IN_DAY = 86_400_000
+
+function toDate(value?: DateLike | null): Date {
+  if (value instanceof Date) {
+    return new Date(value.getTime())
+  }
+
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value)
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed
+    }
+  }
+
+  return new Date()
+}
+
+function getUtcDayTimestamp(date: Date): number {
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+}
+
+function getElapsedMs(fromMs: number): number {
+  return Date.now() - fromMs
+}
+
+export function initServerClock(serverNow?: DateLike) {
+  const base = serverNow ? toDate(serverNow) : new Date()
+  serverClock = {
+    baseTimeMs: base.getTime(),
+    capturedAtMs: Date.now(),
+  }
+}
+
+export function initClientClock(serverNow: DateLike) {
+  const serverTime = toDate(serverNow).getTime()
+  clientOffsetMs = serverTime - Date.now()
+}
+
+export function getClientOffsetMs(): number {
+  return clientOffsetMs ?? 0
+}
+
+export function nowUTC(): Date {
+  if (isBrowser && clientOffsetMs !== null) {
+    return new Date(Date.now() + clientOffsetMs)
+  }
+
+  if (!isBrowser && serverClock) {
+    return new Date(serverClock.baseTimeMs + getElapsedMs(serverClock.capturedAtMs))
+  }
+
+  if (serverClock) {
+    return new Date(serverClock.baseTimeMs + getElapsedMs(serverClock.capturedAtMs))
+  }
+
+  return new Date()
+}
+
+export function toUTCDate(value: DateLike): Date {
+  return toDate(value)
+}
+
+export function toISOString(value: DateLike): string {
+  return toDate(value).toISOString()
+}
+
+export interface FormatOptions extends Intl.DateTimeFormatOptions {
+  locale?: string
+}
+
+export function formatForDisplay(value: DateLike, options?: FormatOptions): string {
+  const { locale = "ko-KR", timeZone = "Asia/Seoul", ...rest } = options ?? {}
+  return new Intl.DateTimeFormat(locale, { timeZone, ...rest }).format(toDate(value))
+}
+
+export function isSameUtcDay(a: DateLike, b: DateLike): boolean {
+  const d1 = toDate(a)
+  const d2 = toDate(b)
+  return getUtcDayTimestamp(d1) === getUtcDayTimestamp(d2)
+}
+
+export function diffInMinutes(later: DateLike, earlier: DateLike): number {
+  const diff = toDate(later).getTime() - toDate(earlier).getTime()
+  return Math.round(diff / 60_000)
+}
+
+export function diffInDays(later: DateLike, earlier: DateLike): number {
+  const diff = toDate(later).getTime() - toDate(earlier).getTime()
+  return Math.floor(diff / MS_IN_DAY)
+}
+
+export function addMinutes(value: DateLike, minutes: number): Date {
+  return new Date(toDate(value).getTime() + minutes * 60_000)
+}
+
+export function addDays(value: DateLike, days: number): Date {
+  return new Date(toDate(value).getTime() + days * MS_IN_DAY)
+}
+
+export function clearClientClock() {
+  clientOffsetMs = null
+}
+
+export function clearServerClock() {
+  serverClock = null
+}
+
+export const DateUtil = {
+  initServerClock,
+  initClientClock,
+  getClientOffsetMs,
+  nowUTC,
+  toUTCDate,
+  toISOString,
+  formatForDisplay,
+  isSameUtcDay,
+  diffInMinutes,
+  diffInDays,
+  addMinutes,
+  addDays,
+  clearClientClock,
+  clearServerClock,
+}
+
+export default DateUtil
