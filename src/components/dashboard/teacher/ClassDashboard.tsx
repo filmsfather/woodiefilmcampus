@@ -1,10 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import Link from 'next/link'
 import { AlertCircle, Calendar, CalendarClock, CheckCircle2, CircleDot, Printer, Users } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 const TYPE_LABELS: Record<string, string> = {
   srs: 'SRS 반복',
@@ -12,6 +14,22 @@ const TYPE_LABELS: Record<string, string> = {
   writing: '서술형',
   film: '영화 감상',
   lecture: '인터넷 강의',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: '대기',
+  not_started: '미시작',
+  in_progress: '검토 필요',
+  completed: '완료',
+  canceled: '취소',
+}
+
+const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' | 'destructive'> = {
+  pending: 'outline',
+  not_started: 'outline',
+  in_progress: 'default',
+  completed: 'secondary',
+  canceled: 'destructive',
 }
 
 interface StudentTaskSummary {
@@ -82,6 +100,32 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
   )
   const hasAssignments = assignments.length > 0
   const evaluationHref = activeAssignmentId ? `/dashboard/teacher/assignments/${activeAssignmentId}?classId=${classId}` : null
+
+  const statusSummary = useMemo(() => {
+    if (!activeAssignment) {
+      return null
+    }
+    const counters: Record<string, number> = {
+      pending: 0,
+      not_started: 0,
+      in_progress: 0,
+      completed: 0,
+      canceled: 0,
+    }
+    activeAssignment.studentTasks.forEach((task) => {
+      counters[task.status] = (counters[task.status] ?? 0) + 1
+    })
+    return counters
+  }, [activeAssignment])
+
+  const pendingTasks = useMemo(() => {
+    if (!activeAssignment) {
+      return []
+    }
+    return activeAssignment.studentTasks
+      .filter((task) => task.status !== 'completed' && task.status !== 'canceled')
+      .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt))
+  }, [activeAssignment])
 
   return (
     <section className="space-y-6">
@@ -248,8 +292,87 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
                     <Badge variant="outline">미평가 {activeAssignment.outstandingStudents}명</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <iframe key={evaluationHref} src={evaluationHref} title="과제 평가" className="h-[80vh] w-full border-t" />
+                <CardContent className="space-y-4">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-md border border-slate-200 bg-white p-3">
+                      <p className="text-xs text-slate-500">마감일</p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {activeAssignment.dueAt
+                          ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '마감 없음'}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-slate-200 bg-white p-3">
+                      <p className="text-xs text-slate-500">완료율</p>
+                      <p className="text-sm font-semibold text-slate-900">{activeAssignment.completionRate}%</p>
+                    </div>
+                    <div className="rounded-md border border-slate-200 bg-white p-3">
+                      <p className="text-xs text-slate-500">미평가 학생</p>
+                      <p className="text-sm font-semibold text-slate-900">{activeAssignment.outstandingStudents}명</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">상태 요약</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {statusSummary &&
+                        Object.entries(statusSummary)
+                          .filter(([, count]) => count > 0)
+                          .map(([status, count]) => (
+                            <Badge key={status} variant={STATUS_BADGE_VARIANT[status] ?? 'outline'} className="text-xs">
+                              {STATUS_LABELS[status] ?? status} {count}명
+                            </Badge>
+                          ))}
+                      {statusSummary && Object.values(statusSummary).every((count) => count === 0) && (
+                        <span className="text-xs text-slate-500">학생 데이터가 없습니다.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-slate-700">미평가 학생</p>
+                      <Button asChild size="sm">
+                        <Link href={evaluationHref}>평가 페이지 이동</Link>
+                      </Button>
+                    </div>
+                    {pendingTasks.length === 0 ? (
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+                        모든 학생 평가가 완료되었습니다.
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {pendingTasks.slice(0, 5).map((task) => (
+                          <div
+                            key={task.id}
+                            className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
+                          >
+                            <div className="space-y-1">
+                              <p className="font-medium text-slate-900">{task.student.name}</p>
+                              <p className="text-[11px] text-slate-500">
+                                {task.completedCount}/{task.totalItems}문항 완료
+                                {task.student.email ? ` · ${task.student.email}` : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>{STATUS_LABELS[task.status] ?? task.status}</Badge>
+                              <Button asChild size="sm" variant="ghost">
+                                <Link href={`${evaluationHref}&studentTask=${task.id}`}>평가</Link>
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        {pendingTasks.length > 5 && (
+                          <p className="text-[11px] text-slate-500">나머지 {pendingTasks.length - 5}명은 평가 페이지에서 계속 확인할 수 있습니다.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </>
             ) : (
