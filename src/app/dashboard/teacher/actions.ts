@@ -169,6 +169,7 @@ export async function evaluateSubmission(input: EvaluationInput) {
     if (classId) {
       revalidatePath(`/dashboard/teacher/review/${classId}`)
     }
+    revalidatePath('/dashboard/student', 'layout')
     revalidatePath('/dashboard/student')
     revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
     return { success: true as const }
@@ -558,6 +559,7 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
     revalidatePath(`/dashboard/teacher/review/${payload.classId}`)
     revalidatePath('/dashboard/manager')
     if (impactedStudentIds.size > 0) {
+      revalidatePath('/dashboard/student', 'layout')
       revalidatePath('/dashboard/student')
     }
     return { success: true as const }
