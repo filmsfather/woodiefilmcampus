@@ -114,7 +114,14 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     return true
   }, [task.assignment?.workbook.config])
 
-  const availableItems = useMemo(() => getAvailableItems(task.items), [task.items])
+  const availableItems = useMemo(() => {
+    const dueItems = getAvailableItems(task.items)
+    if (dueItems.length > 0) {
+      return dueItems
+    }
+    return task.items
+  }, [task.items])
+  const hasDueItems = useMemo(() => getAvailableItems(task.items).length > 0, [task.items])
   const nextScheduledItem = useMemo(() => getNextScheduledItem(task.items), [task.items])
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -220,7 +227,15 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   }
 
   if (!currentItem) {
-    if (task.summary.remainingItems === 0) {
+    if (task.items.length === 0) {
+      return (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
+          문항을 불러오지 못했습니다. 잠시 후 다시 시도하거나 담당 선생님께 문의해주세요.
+        </div>
+      )
+    }
+
+    if (!hasDueItems && task.summary.remainingItems === 0) {
       return (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
           모든 문항을 완료했습니다. 필요하면 과제를 다시 열람하여 복습할 수 있습니다.
