@@ -46,15 +46,17 @@
 - 업로드: Supabase Storage multipart 업로드 → 성공 시 `media_assets`에 기록.
 - API: `POST /api/workbooks`(server action 또는 Route Handler)에서 트랜잭션 처리.
 - 저장 후 워크북 목록 페이지에 신규 카드 표시, 태그/주차 필터 기본 구현.
-- **진행중**: `WorkbookWizard`(기본 정보/문항/검토 단계) 스캐폴드와 `workbookFormSchema` 검증, 미리보기 구조, 유형별 옵션(SRS 보기/복수 정답, PDF 안내, 서술/감상/강의 설정)을 구성.
+- **완료**: `WorkbookWizard`(기본 정보/문항/검토 단계) 스캐폴드와 `workbookFormSchema` 검증, 미리보기 구조, 유형별 옵션(SRS 보기/복수 정답, PDF 안내, 서술/감상/강의 설정)을 구성.
   - 서버 액션 `createWorkbook`으로 Supabase 연동(워크북/문항/보기 저장)까지 연결 완료.
   - `/dashboard/workbooks` 페이지에서 기본 목록/요약 UI 및 과목/유형/검색 필터 구현.
   - 상세 페이지에서 유형별 설정/문항/SRS 보기 + 첨부 자산(스토리지 signed URL) 렌더링 지원.
   - 워크북 복제/삭제 서버 액션 추가 및 상세 페이지에서 버튼으로 연동.
   - 워크북 생성 시 첨부 파일 업로드(임시 → 최종 이동) 및 실패 시 롤백 처리까지 연동.
-  - 상세/필터 UX 요구사항(`docs/workbook-detail-plan.md`), 자산 업로드 전략(`docs/workbook-storage-plan.md`) 정리 완료. 후속으로 워크북 편집 시 첨부 교체/삭제, PDF 템플릿 업로드 UX 개선 예정.
+  - 상세/필터 UX 요구사항(`docs/workbook-detail-plan.md`), 자산 업로드 전략(`docs/workbook-storage-plan.md`) 정리 완료.
+  - 후속 개선 항목(워크북 편집 시 첨부 교체/삭제, PDF 템플릿 업로드 UX)은 별도 백로그로 이동.
 
 ## Phase 3 — 과제 출제(Assign)
+- **완료**: 과제 생성 폼, 대상 선택/검증, 트랜잭션 액션 및 롤백 로직 구현.
 - UI: `src/app/dashboard/assignments/new` — 반/학생 선택, 워크북 필터(과목/주차/제목), 마감일 DateUtil 사용.
 - 기능:
   - 대상 선택 시 실시간 카운트 표시, 중복 배정 방지.
@@ -63,6 +65,7 @@
 - 노티: 성공 시 교사에게 확인 토스트, 향후 알림 발송 훅을 위한 placeholder(큐 테이블 등) 마련.
 
 ## Phase 4 — 학생 과제 수행
+- **완료**: 학생 대시보드, 과제 상세 유형별 러너, 제출 액션 및 Supabase 연동 구축.
 - “내 과제” 페이지: 마감순 정렬, 필터(이번주/지난주/전체). DateUtil로 현재 시각 기준 계산.
 - 유형별 상세 화면:
   - SRS: `student_task_items` 순회, `next_review_at <= now`인 문항만 노출, streak 관리 RPC 연동, 중단 후 재개 시 마지막 상태 유지.
@@ -72,6 +75,7 @@
 - 접근 제어: 로그인 학생이 아닌 경우 접근 차단, RLS 기반 보안 점검.
 
 ## Phase 5 — 교사 점검 & 인쇄 요청
+- **미착수**: 교사용 점검 대시보드, `print_requests` 기반 인쇄 요청 플로우 구현 필요.
 - All Classes 대시보드:
   - 필터(반/과목/유형/마감기간), 테이블에 학생별 완료율·미완료 과제 수 표시.
   - 학생 행 클릭 → 모달 또는 상세 페이지에서 제출 상태 조회.
@@ -90,6 +94,7 @@
   - 향후 Admin 인쇄 큐 페이지와 연동할 API 스켈레톤 마련.
 
 ## Phase 6 — 품질 확보 및 배포 준비
+- **미착수**: 자동화 테스트, 접근성/성능 점검, 배포 체크리스트 작성 필요.
 - 테스트: 주요 서버 액션/Edge RPC에 대한 Vitest 단위 테스트, Playwright로 핵심 플로우(워크북 생성 → 출제 → 학생 제출 → 교사 점검) 시나리오 작성.
 - 접근성 점검: 컴포넌트 aria-label, 키보드 네비게이션 확인.
 - 성능: 워크북/과제 목록에 대한 Supabase 쿼리 최적화(필요 시 pagination, index 확인).
