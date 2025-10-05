@@ -4,6 +4,16 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { ClassDashboard } from '@/components/dashboard/teacher/ClassDashboard'
+import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
+import {
+  transformAssignmentRow,
+  applySignedAssetUrls,
+  filterAssignmentForClass,
+  computeAssignmentSummary,
+  type AssignmentDetail,
+  type RawAssignmentRow,
+  type MediaAssetRecord,
+} from '@/lib/assignment-evaluation'
 
 interface RawClassRow {
   class_id: string
@@ -18,75 +28,7 @@ interface RawClassRow {
       }>
 }
 
-interface RawAssignmentRow {
-  id: string
-  due_at: string | null
-  created_at: string
-  workbooks?:
-    | {
-        id: string
-        title: string | null
-        subject: string | null
-        type: string | null
-        week_label: string | null
-      }
-    | Array<{
-        id: string
-        title: string | null
-        subject: string | null
-        type: string | null
-        week_label: string | null
-      }>
-  assignment_targets?: Array<{
-    class_id: string | null
-    classes?:
-      | {
-          id: string | null
-          name: string | null
-        }
-      | Array<{
-          id: string | null
-          name: string | null
-        }>
-  }>
-  student_tasks?: Array<{
-    id: string
-    status: string
-    completion_at: string | null
-    updated_at: string
-    student_id: string
-    profiles?:
-      | {
-          id: string
-          name: string | null
-          email: string | null
-          class_id: string | null
-        }
-      | Array<{
-          id: string
-          name: string | null
-          email: string | null
-          class_id: string | null
-        }>
-    student_task_items?: Array<{
-      id: string
-      completed_at: string | null
-    }>
-  }>
-  print_requests?: Array<{
-    id: string
-    status: string
-    student_task_id: string | null
-    desired_date: string | null
-    desired_period: string | null
-    copies: number | null
-    color_mode: string | null
-    notes: string | null
-    created_at: string
-  }>
-}
-
-interface AssignmentForClass {
+interface ClassAssignmentSummary {
   id: string
   title: string
   subject: string
@@ -98,30 +40,7 @@ interface AssignmentForClass {
   outstandingStudents: number
   completionRate: number
   hasPendingPrint: boolean
-  studentTasks: Array<{
-    id: string
-    status: string
-    completionAt: string | null
-    updatedAt: string
-    student: {
-      id: string
-      name: string
-      email: string | null
-    }
-    completedCount: number
-    totalItems: number
-    remainingCount: number
-  }>
-  printRequests: Array<{
-    id: string
-    status: string
-    desiredDate: string | null
-    desiredPeriod: string | null
-    copies: number
-    colorMode: string
-    notes: string | null
-    createdAt: string
-  }>
+  detail: AssignmentDetail
 }
 
 interface ClassSummary {
@@ -194,8 +113,8 @@ export default async function TeacherClassReviewPage({
   const assignmentQuery = supabase
     .from('assignments')
     .select(
-      `id, due_at, created_at,
-       workbooks(id, title, subject, type, week_label),
+      `id, due_at, created_at, target_scope,
+       workbooks(id, title, subject, type, week_label, config),
        assignment_targets(class_id, classes(id, name)),
        student_tasks(
          id,
@@ -204,9 +123,37 @@ export default async function TeacherClassReviewPage({
          updated_at,
          student_id,
          profiles!student_tasks_student_id_fkey(id, name, email, class_id),
-         student_task_items(id, completed_at)
+         student_task_items(
+           id,
+           item_id,
+           streak,
+           next_review_at,
+           completed_at,
+           last_result,
+           workbook_items(
+             id,
+             position,
+             prompt,
+             answer_type,
+             explanation,
+             workbook_item_short_fields(id, label, answer, position),
+             workbook_item_choices(id, label, content, is_correct)
+           )
+         ),
+         task_submissions(
+           id,
+           item_id,
+           submission_type,
+           content,
+           media_asset_id,
+           score,
+           feedback,
+           created_at,
+           updated_at,
+           media_assets(id, bucket, path, mime_type, metadata)
+         )
        ),
-       print_requests(id, status, student_task_id, desired_date, desired_period, copies, color_mode, notes, created_at)
+       print_requests(id, status, student_task_id, desired_date, desired_period, copies, color_mode, notes, created_at, updated_at)
       `
     )
     .order('due_at', { ascending: true })
@@ -215,112 +162,29 @@ export default async function TeacherClassReviewPage({
     assignmentQuery.eq('assigned_by', profile.id)
   }
 
-  const { data: assignmentRows, error: assignmentError } = await assignmentQuery.returns<RawAssignmentRow[]>()
+  const { data: rawAssignmentRows, error: assignmentError } = await assignmentQuery.returns<RawAssignmentRow[]>()
 
   if (assignmentError) {
     console.error('[teacher] class assignment fetch error', assignmentError)
   }
 
-  const assignments: AssignmentForClass[] = (assignmentRows ?? [])
-    .map((row) => {
-      const workbook = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
-      const targetClassIds = new Set(
-        (row.assignment_targets ?? [])
-          .map((target) => {
-            const explicitId = target.class_id ?? null
-            if (explicitId) {
-              return explicitId
-            }
-            const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
-            return cls?.id ?? null
-          })
-          .filter((value): value is string => Boolean(value))
-      )
-      const studentTasks = (row.student_tasks ?? []).map((task) => {
-        const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
-        const items = task.student_task_items ?? []
-        const completedCount = items.filter((item) => Boolean(item.completed_at)).length
-        const totalItems = items.length
-        return {
-          id: task.id,
-          status: task.status,
-          completionAt: task.completion_at,
-          updatedAt: task.updated_at,
-          student: {
-            id: profileRecord?.id ?? task.student_id,
-            name: profileRecord?.name ?? '이름 미정',
-            email: profileRecord?.email ?? null,
-          },
-          classId: profileRecord?.class_id ?? null,
-          completedCount,
-          totalItems,
-          remainingCount: Math.max(totalItems - completedCount, 0),
-        }
-      })
+  const transformResults = (rawAssignmentRows ?? []).map(transformAssignmentRow)
 
-      const classTasks = studentTasks.filter((task) => {
-        if (task.classId) {
-          return task.classId === classInfo.id
-        }
-        return targetClassIds.has(classInfo.id)
-      })
-
-      if (
-        classTasks.length === 0 &&
-        !targetClassIds.has(classInfo.id)
-      ) {
-        return null
-      }
-
-      const totalStudents = classTasks.length
-      const completedStudents = classTasks.filter((task) => task.status === 'completed').length
-      const outstandingStudents = classTasks.filter((task) => task.status !== 'completed' && task.status !== 'canceled').length
-      const completionRate = totalStudents === 0 ? 0 : Math.round((completedStudents / totalStudents) * 100)
-
-      const printRequests = (row.print_requests ?? [])
-        .filter((request) => {
-          if (request.student_task_id) {
-            return classTasks.some((task) => task.id === request.student_task_id)
-          }
-          return (row.assignment_targets ?? []).some((target) => target.class_id === classInfo.id)
-        })
-        .map((request) => ({
-          id: request.id,
-          status: request.status,
-          desiredDate: request.desired_date,
-          desiredPeriod: request.desired_period,
-          copies: request.copies ?? 1,
-          colorMode: request.color_mode ?? 'bw',
-          notes: request.notes ?? null,
-          createdAt: request.created_at,
-        }))
-
-      return {
-        id: row.id,
-        title: workbook?.title ?? '제목 미정',
-        subject: workbook?.subject ?? '기타',
-        type: workbook?.type ?? 'unknown',
-        weekLabel: workbook?.week_label ?? null,
-        dueAt: row.due_at,
-        totalStudents,
-        completedStudents,
-        outstandingStudents,
-        completionRate,
-        hasPendingPrint: printRequests.some((request) => request.status === 'requested'),
-        studentTasks: classTasks.map((task) => ({
-          id: task.id,
-          status: task.status,
-          completionAt: task.completionAt,
-          updatedAt: task.updatedAt,
-          student: task.student,
-          completedCount: task.completedCount,
-          totalItems: task.totalItems,
-          remainingCount: task.remainingCount,
-        })),
-        printRequests,
-      }
+  const combinedAssets = new Map<string, MediaAssetRecord>()
+  transformResults.forEach(({ mediaAssets }) => {
+    mediaAssets.forEach((value, key) => {
+      combinedAssets.set(key, value)
     })
-    .filter((value): value is AssignmentForClass => Boolean(value))
+  })
+
+  const signedMap = combinedAssets.size > 0 ? await createAssetSignedUrlMap(combinedAssets) : new Map()
+
+  const detailedAssignments: AssignmentDetail[] = transformResults
+    .map(({ assignment }) => applySignedAssetUrls(assignment, signedMap))
+    .map((assignment) => filterAssignmentForClass(assignment, classInfo.id))
+    .filter((assignment): assignment is AssignmentDetail => Boolean(assignment))
+
+  const assignments: ClassAssignmentSummary[] = detailedAssignments.map(mapAssignmentForClass)
 
   const now = DateUtil.nowUTC()
   const upcomingThreshold = DateUtil.addDays(now, UPCOMING_WINDOW_DAYS).getTime()
@@ -345,7 +209,7 @@ export default async function TeacherClassReviewPage({
         }
       }
 
-      acc.pendingPrintRequests += assignment.printRequests.filter((request) => request.status === 'requested').length
+      acc.pendingPrintRequests += assignment.detail.printRequests.filter((request) => request.status === 'requested').length
 
       return acc
     },
@@ -373,9 +237,28 @@ export default async function TeacherClassReviewPage({
     <ClassDashboard
       classId={classInfo.id}
       className={classInfo.name}
+      teacherName={profile.name ?? profile.email ?? null}
       assignments={assignments}
       summary={summary}
       initialAssignmentId={initialAssignmentId}
     />
   )
+}
+
+function mapAssignmentForClass(assignment: AssignmentDetail): ClassAssignmentSummary {
+  const summary = computeAssignmentSummary(assignment)
+  return {
+    id: assignment.id,
+    title: assignment.title,
+    subject: assignment.subject,
+    type: assignment.type,
+    weekLabel: assignment.weekLabel,
+    dueAt: assignment.dueAt,
+    totalStudents: summary.totalStudents,
+    completedStudents: summary.completedStudents,
+    outstandingStudents: summary.outstandingStudents,
+    completionRate: summary.completionRate,
+    hasPendingPrint: assignment.printRequests.some((request) => request.status === 'requested'),
+    detail: assignment,
+  }
 }

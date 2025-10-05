@@ -4,6 +4,8 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import DateUtil from '@/lib/date-util'
 import { AssignmentReview } from '@/components/dashboard/teacher/AssignmentReview'
+import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
+import { applySignedAssetUrls, transformAssignmentRow, type RawAssignmentRow } from '@/lib/assignment-evaluation'
 
 interface PageProps {
   params: {
@@ -64,7 +66,7 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
     )
     .eq('id', params.assignmentId)
     .eq('assigned_by', profile.id)
-    .maybeSingle()
+    .maybeSingle<RawAssignmentRow>()
 
   if (error) {
     console.error('[teacher] assignment review fetch error', error)
@@ -74,182 +76,14 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
     notFound()
   }
 
-  const workbook = Array.isArray(assignmentRow.workbooks) ? assignmentRow.workbooks[0] : assignmentRow.workbooks
-
-  if (!workbook) {
-    notFound()
-  }
-
-  const classTargets = (assignmentRow.assignment_targets ?? [])
-    .map((target) => {
-      const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
-      if (!cls?.id) {
-        return null
-      }
-      return {
-        id: cls.id,
-        name: cls.name ?? '이름 미정',
-      }
-    })
-    .filter((value): value is { id: string; name: string } => Boolean(value))
-
-  const mediaAssetMap = new Map<string, { id: string; bucket: string; path: string; mimeType: string | null; metadata: Record<string, unknown> | null }>()
-
-  const studentTasks = (assignmentRow.student_tasks ?? []).map((task) => {
-    const studentProfile = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
-
-    const taskItems = (task.student_task_items ?? []).map((item) => {
-      const workbookItem = Array.isArray(item.workbook_items) ? item.workbook_items[0] : item.workbook_items
-
-      return {
-        id: item.id,
-        itemId: item.item_id,
-        streak: item.streak,
-        nextReviewAt: item.next_review_at,
-        completedAt: item.completed_at,
-        lastResult: item.last_result,
-        workbookItem: workbookItem
-          ? {
-              id: workbookItem.id,
-              position: workbookItem.position,
-              prompt: workbookItem.prompt,
-              answerType: workbookItem.answer_type,
-              explanation: workbookItem.explanation,
-              shortFields: (workbookItem.workbook_item_short_fields ?? []).map((field) => ({
-                id: field.id,
-                label: field.label,
-                answer: field.answer,
-                position: field.position ?? 0,
-              })),
-              choices: (workbookItem.workbook_item_choices ?? []).map((choice) => ({
-                id: choice.id,
-                label: choice.label,
-                content: choice.content,
-                isCorrect: Boolean(choice.is_correct),
-              })),
-            }
-          : null,
-      }
-    })
-
-    const submissions = (task.task_submissions ?? []).map((submission) => {
-      const asset = Array.isArray(submission.media_assets)
-        ? submission.media_assets[0]
-        : submission.media_assets
-
-      if (asset?.id && asset.path) {
-        const key = asset.id
-        if (!mediaAssetMap.has(key)) {
-          mediaAssetMap.set(key, {
-            id: asset.id,
-            bucket: asset.bucket ?? 'submissions',
-            path: asset.path,
-            mimeType: asset.mime_type ?? null,
-            metadata: (asset.metadata as Record<string, unknown> | null) ?? null,
-          })
-        }
-      }
-
-      return {
-        id: submission.id,
-        itemId: submission.item_id,
-        submissionType: submission.submission_type,
-        content: submission.content,
-        mediaAssetId: submission.media_asset_id,
-        score: submission.score,
-        feedback: submission.feedback,
-        createdAt: submission.created_at,
-        updatedAt: submission.updated_at,
-      }
-    })
-
-    return {
-      id: task.id,
-      status: task.status,
-      completionAt: task.completion_at,
-      updatedAt: task.updated_at,
-      studentId: task.student_id,
-      student: {
-        id: studentProfile?.id ?? task.student_id,
-        name: studentProfile?.name ?? '이름 미정',
-        email: studentProfile?.email ?? null,
-        classId: studentProfile?.class_id ?? null,
-      },
-      items: taskItems,
-      submissions,
-    }
-  })
-
-  const assetSignedUrlMap = new Map<string, { url: string; filename: string; mimeType: string | null }>()
-
-  if (mediaAssetMap.size > 0) {
-    await Promise.all(
-      Array.from(mediaAssetMap.values()).map(async (asset) => {
-        try {
-          const { data: signed } = await supabase.storage
-            .from(asset.bucket)
-            .createSignedUrl(asset.path, 60 * 30)
-
-          if (signed?.signedUrl) {
-            const metadata = asset.metadata ?? {}
-            const originalName =
-              (typeof metadata.original_name === 'string' && metadata.original_name.length > 0
-                ? metadata.original_name
-                : undefined) ??
-              (typeof metadata.originalName === 'string' && metadata.originalName.length > 0
-                ? metadata.originalName
-                : undefined)
-
-            const filename = originalName ?? asset.path.split('/').pop() ?? '첨부 파일'
-            assetSignedUrlMap.set(asset.id, {
-              url: signed.signedUrl,
-              filename,
-              mimeType: asset.mimeType,
-            })
-          }
-        } catch (storageError) {
-          console.error('[teacher] assignment review signed url error', storageError)
-        }
-      })
-    )
-  }
-
-  const assignment = {
-    id: assignmentRow.id,
-    dueAt: assignmentRow.due_at,
-    createdAt: assignmentRow.created_at,
-    targetScope: assignmentRow.target_scope,
-    title: workbook.title,
-    subject: workbook.subject,
-    type: workbook.type,
-    weekLabel: workbook.week_label ?? null,
-    config: (workbook.config as Record<string, unknown> | null) ?? null,
-    classes: classTargets,
-    studentTasks: studentTasks.map((task) => ({
-      ...task,
-      submissions: task.submissions.map((submission) => ({
-        ...submission,
-        asset: submission.mediaAssetId ? assetSignedUrlMap.get(submission.mediaAssetId) ?? null : null,
-      })),
-    })),
-    printRequests: (assignmentRow.print_requests ?? []).map((request) => ({
-      id: request.id,
-      status: request.status,
-      studentTaskId: request.student_task_id,
-      desiredDate: request.desired_date,
-      desiredPeriod: request.desired_period,
-      copies: request.copies ?? 1,
-      colorMode: request.color_mode ?? 'bw',
-      notes: request.notes ?? null,
-      createdAt: request.created_at,
-      updatedAt: request.updated_at,
-    })),
-  }
+  const { assignment: transformed, mediaAssets } = transformAssignmentRow(assignmentRow)
+  const signedMap = mediaAssets.size > 0 ? await createAssetSignedUrlMap(mediaAssets) : new Map()
+  const assignment = applySignedAssetUrls(transformed, signedMap)
 
   const focusStudentTaskId = typeof searchParams.studentTask === 'string' ? searchParams.studentTask : null
   const classIdParam = typeof searchParams.classId === 'string' ? searchParams.classId : null
   const classContext = classIdParam
-    ? classTargets.find((cls) => cls.id === classIdParam) ?? null
+    ? assignment.classes.find((cls) => cls.id === classIdParam) ?? null
     : null
 
   return (

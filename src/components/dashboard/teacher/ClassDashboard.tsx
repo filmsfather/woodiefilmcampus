@@ -1,13 +1,23 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import Link from 'next/link'
-import { AlertCircle, Calendar, CalendarClock, CheckCircle2, CircleDot, Printer, Users } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  AlertCircle,
+  Calendar,
+  CalendarClock,
+  CheckCircle2,
+  CircleDot,
+  Printer,
+  Users,
+} from 'lucide-react'
 
+import { AssignmentEvaluationPanel } from '@/components/dashboard/teacher/AssignmentEvaluationPanel'
 import DateUtil from '@/lib/date-util'
+import type { AssignmentDetail } from '@/lib/assignment-evaluation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
 const TYPE_LABELS: Record<string, string> = {
   srs: 'SRS 반복',
   pdf: 'PDF 제출',
@@ -32,22 +42,7 @@ const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' |
   canceled: 'destructive',
 }
 
-interface StudentTaskSummary {
-  id: string
-  status: string
-  completionAt: string | null
-  updatedAt: string
-  student: {
-    id: string
-    name: string
-    email: string | null
-  }
-  completedCount: number
-  totalItems: number
-  remainingCount: number
-}
-
-interface AssignmentForClass {
+interface ClassAssignmentSummary {
   id: string
   title: string
   subject: string
@@ -59,17 +54,21 @@ interface AssignmentForClass {
   outstandingStudents: number
   completionRate: number
   hasPendingPrint: boolean
-  studentTasks: StudentTaskSummary[]
-  printRequests: Array<{
+  detail: AssignmentDetail
+}
+
+interface PendingTaskInfo {
+  id: string
+  status: string
+  updatedAt: string
+  student: {
     id: string
-    status: string
-    desiredDate: string | null
-    desiredPeriod: string | null
-    copies: number
-    colorMode: string
-    notes: string | null
-    createdAt: string
-  }>
+    name: string
+    email: string | null
+  }
+  completedCount: number
+  totalItems: number
+  className: string
 }
 
 interface ClassSummary {
@@ -83,26 +82,60 @@ interface ClassSummary {
 interface ClassDashboardProps {
   classId: string
   className: string
-  assignments: AssignmentForClass[]
+  teacherName: string | null
+  assignments: ClassAssignmentSummary[]
   summary: ClassSummary
   initialAssignmentId?: string | null
 }
 
-export function ClassDashboard({ classId, className, assignments, summary, initialAssignmentId }: ClassDashboardProps) {
+export function ClassDashboard({
+  classId,
+  className,
+  teacherName,
+  assignments,
+  summary,
+  initialAssignmentId,
+}: ClassDashboardProps) {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(
     initialAssignmentId && assignments.some((assignment) => assignment.id === initialAssignmentId)
       ? initialAssignmentId
       : assignments[0]?.id ?? null
   )
+  const [focusStudentTaskId, setFocusStudentTaskId] = useState<string | null>(null)
+
   const activeAssignment = useMemo(
     () => assignments.find((assignment) => assignment.id === activeAssignmentId) ?? null,
     [assignments, activeAssignmentId]
   )
+  const activeDetail = activeAssignment?.detail ?? null
   const hasAssignments = assignments.length > 0
-  const evaluationHref = activeAssignmentId ? `/dashboard/teacher/assignments/${activeAssignmentId}?classId=${classId}` : null
+  const generatedAt = useMemo(() => DateUtil.nowUTC().toISOString(), [])
+  const printRequestRows = useMemo(
+    () =>
+      assignments.flatMap((assignment) =>
+        assignment.detail.printRequests.map((request) => ({ assignment, request }))
+      ),
+    [assignments]
+  )
+
+  useEffect(() => {
+    if (!activeDetail) {
+      setFocusStudentTaskId(null)
+      return
+    }
+    setFocusStudentTaskId((current) => {
+      if (current && activeDetail.studentTasks.some((task) => task.id === current)) {
+        return current
+      }
+      const firstPending = activeDetail.studentTasks.find(
+        (task) => task.status !== 'completed' && task.status !== 'canceled'
+      )
+      return firstPending ? firstPending.id : null
+    })
+  }, [activeDetail])
 
   const statusSummary = useMemo(() => {
-    if (!activeAssignment) {
+    if (!activeDetail) {
       return null
     }
     const counters: Record<string, number> = {
@@ -112,20 +145,53 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
       completed: 0,
       canceled: 0,
     }
-    activeAssignment.studentTasks.forEach((task) => {
+    activeDetail.studentTasks.forEach((task) => {
       counters[task.status] = (counters[task.status] ?? 0) + 1
     })
     return counters
-  }, [activeAssignment])
+  }, [activeDetail])
 
-  const pendingTasks = useMemo(() => {
-    if (!activeAssignment) {
+  const classLookup = useMemo(() => {
+    if (!activeDetail) {
+      return new Map<string | null, string>()
+    }
+    return new Map(activeDetail.classes.map((cls) => [cls.id, cls.name]))
+  }, [activeDetail])
+
+  const pendingTasks = useMemo<PendingTaskInfo[]>(() => {
+    if (!activeDetail) {
       return []
     }
-    return activeAssignment.studentTasks
+    const fallbackClass = activeDetail.classes[0]?.name ?? '반 정보 없음'
+    return activeDetail.studentTasks
+      .map((task) => {
+        const completedCount = task.items.filter((item) => Boolean(item.completedAt)).length
+        const totalItems = task.items.length
+        return {
+          id: task.id,
+          status: task.status,
+          updatedAt: task.updatedAt,
+          student: {
+            id: task.student.id,
+            name: task.student.name,
+            email: task.student.email ?? null,
+          },
+          completedCount,
+          totalItems,
+          className: task.student.classId
+            ? classLookup.get(task.student.classId) ?? fallbackClass
+            : fallbackClass,
+        }
+      })
       .filter((task) => task.status !== 'completed' && task.status !== 'canceled')
       .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt))
-  }, [activeAssignment])
+  }, [activeDetail, classLookup])
+
+  const nextPendingTaskId = pendingTasks[0]?.id ?? null
+
+  const handleFocusStudentTask = useCallback((studentTaskId: string | null) => {
+    setFocusStudentTaskId(studentTaskId)
+  }, [])
 
   return (
     <section className="space-y-6">
@@ -143,9 +209,7 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
             <Badge variant={summary.pendingPrintRequests > 0 ? 'secondary' : 'outline'}>
               인쇄 대기 {summary.pendingPrintRequests}건
             </Badge>
-            {summary.nextDueAtLabel && (
-              <Badge variant="outline">다음 마감 {summary.nextDueAtLabel}</Badge>
-            )}
+            {summary.nextDueAtLabel && <Badge variant="outline">다음 마감 {summary.nextDueAtLabel}</Badge>}
           </div>
         </div>
       </header>
@@ -156,17 +220,13 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
           <p className="text-xs text-slate-500">대기 중인 요청은 관리자에게 인쇄를 의뢰해주세요.</p>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-slate-600">
-          {assignments.flatMap((assignment) =>
-            assignment.printRequests.map((request) => ({ assignment, request }))
-          ).length === 0 ? (
+          {printRequestRows.length === 0 ? (
             <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
               현재 등록된 인쇄 요청이 없습니다.
             </div>
           ) : (
             <div className="space-y-2">
-              {assignments.flatMap((assignment) =>
-                assignment.printRequests.map((request) => ({ assignment, request }))
-              ).map(({ assignment, request }) => {
+              {printRequestRows.map(({ assignment, request }) => {
                 const desiredLabel = request.desiredDate
                   ? DateUtil.formatForDisplay(request.desiredDate, { month: 'short', day: 'numeric' })
                   : '희망일 미정'
@@ -262,41 +322,22 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
             </CardContent>
           </Card>
 
-          <Card className="border-slate-200">
-            {activeAssignment && evaluationHref ? (
+          <div className="space-y-4">
+            {activeAssignment && activeDetail ? (
               <>
-                <CardHeader className="space-y-3">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg text-slate-900">{activeAssignment.title}</CardTitle>
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <Badge variant="outline">{activeAssignment.subject}</Badge>
-                      <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
-                      {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
+                <Card className="border-slate-200">
+                  <CardHeader className="space-y-3">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg text-slate-900">{activeAssignment.title}</CardTitle>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <Badge variant="outline">{activeAssignment.subject}</Badge>
+                        <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
+                        {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                    <span className="inline-flex items-center gap-1">
-                      <CalendarClock className="h-3 w-3" />
-                      {activeAssignment.dueAt
-                        ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : '마감 없음'}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <CheckCircle2 className="h-3 w-3" /> 완료 {activeAssignment.completedStudents}/{activeAssignment.totalStudents}명
-                    </span>
-                    <Badge variant="outline">미평가 {activeAssignment.outstandingStudents}명</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
-                      <p className="text-xs text-slate-500">마감일</p>
-                      <p className="text-sm font-semibold text-slate-900">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                      <span className="inline-flex items-center gap-1">
+                        <CalendarClock className="h-3 w-3" />
                         {activeAssignment.dueAt
                           ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
                               month: 'short',
@@ -305,82 +346,117 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
                               minute: '2-digit',
                             })
                           : '마감 없음'}
-                      </p>
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> 완료 {activeAssignment.completedStudents}/{activeAssignment.totalStudents}명
+                      </span>
+                      <Badge variant="outline">미평가 {activeAssignment.outstandingStudents}명</Badge>
                     </div>
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
-                      <p className="text-xs text-slate-500">완료율</p>
-                      <p className="text-sm font-semibold text-slate-900">{activeAssignment.completionRate}%</p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <SummaryTile
+                        label="마감일"
+                        value={
+                          activeAssignment.dueAt
+                            ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '마감 없음'
+                        }
+                      />
+                      <SummaryTile label="완료율" value={`${activeAssignment.completionRate}%`} />
+                      <SummaryTile label="미평가" value={`${activeAssignment.outstandingStudents}명`} />
                     </div>
-                    <div className="rounded-md border border-slate-200 bg-white p-3">
-                      <p className="text-xs text-slate-500">미평가 학생</p>
-                      <p className="text-sm font-semibold text-slate-900">{activeAssignment.outstandingStudents}명</p>
-                    </div>
-                  </div>
 
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">상태 요약</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {statusSummary &&
-                        Object.entries(statusSummary)
-                          .filter(([, count]) => count > 0)
-                          .map(([status, count]) => (
-                            <Badge key={status} variant={STATUS_BADGE_VARIANT[status] ?? 'outline'} className="text-xs">
-                              {STATUS_LABELS[status] ?? status} {count}명
-                            </Badge>
-                          ))}
-                      {statusSummary && Object.values(statusSummary).every((count) => count === 0) && (
-                        <span className="text-xs text-slate-500">학생 데이터가 없습니다.</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-slate-700">미평가 학생</p>
-                      <Button asChild size="sm">
-                        <Link href={evaluationHref}>평가 페이지 이동</Link>
-                      </Button>
-                    </div>
-                    {pendingTasks.length === 0 ? (
-                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-                        모든 학생 평가가 완료되었습니다.
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {pendingTasks.slice(0, 5).map((task) => (
-                          <div
-                            key={task.id}
-                            className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
-                          >
-                            <div className="space-y-1">
-                              <p className="font-medium text-slate-900">{task.student.name}</p>
-                              <p className="text-[11px] text-slate-500">
-                                {task.completedCount}/{task.totalItems}문항 완료
-                                {task.student.email ? ` · ${task.student.email}` : ''}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>{STATUS_LABELS[task.status] ?? task.status}</Badge>
-                              <Button asChild size="sm" variant="ghost">
-                                <Link href={`${evaluationHref}&studentTask=${task.id}`}>평가</Link>
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                        {pendingTasks.length > 5 && (
-                          <p className="text-[11px] text-slate-500">나머지 {pendingTasks.length - 5}명은 평가 페이지에서 계속 확인할 수 있습니다.</p>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">상태 요약</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
+                        {statusSummary &&
+                          Object.entries(statusSummary)
+                            .filter(([, count]) => count > 0)
+                            .map(([status, count]) => (
+                              <Badge key={status} variant={STATUS_BADGE_VARIANT[status] ?? 'outline'}>
+                                {STATUS_LABELS[status] ?? status} {count}명
+                              </Badge>
+                            ))}
+                        {statusSummary && Object.values(statusSummary).every((count) => count === 0) && (
+                          <span className="text-xs text-slate-500">학생 데이터가 없습니다.</span>
                         )}
                       </div>
-                    )}
-                  </div>
-                </CardContent>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-700">미평가 학생</p>
+                        {nextPendingTaskId && (
+                          <Button size="sm" variant="outline" onClick={() => handleFocusStudentTask(nextPendingTaskId)}>
+                            첫 학생 선택
+                          </Button>
+                        )}
+                      </div>
+                      {pendingTasks.length === 0 ? (
+                        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
+                          모든 학생 평가가 완료되었습니다.
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          {pendingTasks.slice(0, 5).map((task) => (
+                            <div
+                              key={task.id}
+                              className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
+                            >
+                              <div className="space-y-1">
+                                <p className="font-medium text-slate-900">{task.student.name}</p>
+                                <p className="text-[11px] text-slate-500">
+                                  {task.className} · {task.completedCount}/{task.totalItems}문항 완료
+                                  {task.student.email ? ` · ${task.student.email}` : ''}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
+                                  {STATUS_LABELS[task.status] ?? task.status}
+                                </Badge>
+                                <Button size="sm" variant="ghost" onClick={() => handleFocusStudentTask(task.id)}>
+                                  평가
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                          {pendingTasks.length > 5 && (
+                            <p className="text-[11px] text-slate-500">나머지 {pendingTasks.length - 5}명은 아래 평가 패널에서 계속 확인할 수 있습니다.</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-slate-500">
+                      하단의 평가 패널에서 학생별 제출물 검토, Pass/Non-pass 저장, 인쇄 요청을 바로 처리할 수 있습니다.
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <AssignmentEvaluationPanel
+                  teacherName={teacherName}
+                  assignment={activeDetail}
+                  generatedAt={generatedAt}
+                  focusStudentTaskId={focusStudentTaskId}
+                  classContext={{ id: classId, name: className }}
+                  onFocusStudentTask={handleFocusStudentTask}
+                  variant="embedded"
+                />
               </>
             ) : (
-              <CardContent className="py-16 text-center text-sm text-slate-500">
-                확인할 과제를 선택하세요.
-              </CardContent>
+              <Card className="border-slate-200">
+                <CardContent className="py-16 text-center text-sm text-slate-500">
+                  확인할 과제를 선택하세요.
+                </CardContent>
+              </Card>
             )}
-          </Card>
+          </div>
         </div>
       )}
 
@@ -392,5 +468,14 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
         </Card>
       )}
     </section>
+  )
+}
+
+function SummaryTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-sm font-semibold text-slate-900">{value}</p>
+    </div>
   )
 }
