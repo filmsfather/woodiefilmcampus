@@ -402,16 +402,18 @@ const deleteStudentSchema = z.object({
 type DeleteStudentInput = z.infer<typeof deleteStudentSchema>
 
 export async function deleteStudentTask(input: DeleteStudentInput) {
+  let stage = 'start'
   const { profile } = await getAuthContext()
 
   if (!isTeacherOrPrincipal(profile)) {
-    return { error: '교사 또는 원장 계정으로만 삭제할 수 있습니다.' }
+    return { error: `교사 또는 원장 계정으로만 삭제할 수 있습니다. [stage=${stage}]` }
   }
 
   const parsed = deleteStudentSchema.safeParse(input)
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]
-    return { error: firstIssue?.message ?? '삭제할 학생 과제 정보를 확인해주세요.' }
+    stage = 'validation_failed'
+    return { error: `${firstIssue?.message ?? '삭제할 학생 과제 정보를 확인해주세요.'} [stage=${stage}]` }
   }
 
   const payload = parsed.data
@@ -432,8 +434,9 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
       .maybeSingle()
 
     if (fetchTaskError) {
+      stage = 'fetch_student_task_error'
       console.error('[teacher] deleteStudentTask fetch error', fetchTaskError)
-      return { error: '학생 과제 정보를 불러오지 못했습니다.' }
+      return { error: `학생 과제 정보를 불러오지 못했습니다. [stage=${stage}]` }
     }
 
     if (!studentTask || studentTask.assignment_id !== payload.assignmentId) {
@@ -441,7 +444,8 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
         studentTask,
         payload,
       })
-      return { error: '학생 과제 정보를 확인할 수 없습니다.' }
+      stage = 'student_task_missing'
+      return { error: `학생 과제 정보를 확인할 수 없습니다. [stage=${stage}]` }
     }
 
     const assignment = Array.isArray(studentTask.assignments)
@@ -449,15 +453,18 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
       : studentTask.assignments
 
     if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
-      return { error: '해당 과제에 대한 삭제 권한이 없습니다.' }
+      stage = 'permission_denied'
+      return { error: `해당 과제에 대한 삭제 권한이 없습니다. [stage=${stage}]` }
     }
 
     const profileRecord = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
     const classId = profileRecord?.class_id ?? null
 
+    stage = 'cascade_start'
     const deleteResult = await deleteStudentTaskCascade(payload.studentTaskId)
     if (deleteResult.error) {
-      return deleteResult
+      stage = 'cascade_error'
+      return { error: `${deleteResult.error} [stage=${stage}]` }
     }
 
     revalidatePath('/dashboard/teacher')
@@ -471,14 +478,16 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
       studentTaskId: payload.studentTaskId,
       classId,
     })
-    return { success: true as const }
+    stage = 'completed'
+    return { success: true as const, message: stage }
   } catch (error) {
     console.error('[teacher] deleteStudentTask unexpected error', {
       error,
       studentTaskId: payload.studentTaskId,
       assignmentId: payload.assignmentId,
     })
-    return { error: '학생 과제 삭제 중 문제가 발생했습니다.' }
+    stage = 'unexpected_error'
+    return { error: `학생 과제 삭제 중 문제가 발생했습니다. [stage=${stage}]` }
   }
 }
 

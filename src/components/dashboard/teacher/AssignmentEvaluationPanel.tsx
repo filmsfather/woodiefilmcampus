@@ -244,10 +244,11 @@ export function AssignmentEvaluationPanel({
       setDeletePendingId(studentTaskId)
       startDeleteTransition(async () => {
         const result = await deleteStudentTask({ assignmentId: assignment.id, studentTaskId })
+        window.alert(`학생 삭제 결과: ${JSON.stringify(result)}`)
         if (result?.error) {
-          setDeleteAlert({ type: 'error', text: result.error })
+          setDeleteAlert({ type: 'error', text: `삭제 실패: ${JSON.stringify(result)}` })
         } else {
-          setDeleteAlert({ type: 'success', text: `${studentName} 학생 과제를 삭제했습니다.` })
+          setDeleteAlert({ type: 'success', text: `삭제 성공: ${JSON.stringify(result ?? { message: 'ok' })}` })
           if (focusStudentTaskId === studentTaskId) {
             onFocusStudentTask?.(null)
           }

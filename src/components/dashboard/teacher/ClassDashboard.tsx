@@ -159,8 +159,9 @@ export function ClassDashboard({
     }
     setActionMessage(null)
     const targetAssignmentId = targetAssignment.id
-    startDeleteClass(async () => {
-      const result = await deleteAssignmentTarget({ assignmentId: targetAssignmentId, classId })
+   startDeleteClass(async () => {
+     const result = await deleteAssignmentTarget({ assignmentId: targetAssignmentId, classId })
+      window.alert(`반 삭제 결과: ${JSON.stringify(result)}`)
       if (result?.error) {
         setActionMessage({ type: 'error', text: result.error })
         return
