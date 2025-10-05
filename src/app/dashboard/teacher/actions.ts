@@ -8,6 +8,12 @@ import type { UserProfile } from '@/lib/supabase'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+type DeleteResult = {
+  success?: true
+  error?: string
+  message?: string
+}
+
 function isTeacherOrPrincipal(profile: UserProfile | null | undefined): profile is UserProfile {
   return Boolean(profile && (profile.role === 'teacher' || profile.role === 'principal'))
 }
@@ -401,19 +407,19 @@ const deleteStudentSchema = z.object({
 
 type DeleteStudentInput = z.infer<typeof deleteStudentSchema>
 
-export async function deleteStudentTask(input: DeleteStudentInput) {
+export async function deleteStudentTask(input: DeleteStudentInput): Promise<DeleteResult> {
   let stage = 'start'
   const { profile } = await getAuthContext()
 
   if (!isTeacherOrPrincipal(profile)) {
-    return { error: `교사 또는 원장 계정으로만 삭제할 수 있습니다. [stage=${stage}]` }
+    return { error: `교사 또는 원장 계정으로만 삭제할 수 있습니다. [stage=${stage}]`, message: stage }
   }
 
   const parsed = deleteStudentSchema.safeParse(input)
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]
     stage = 'validation_failed'
-    return { error: `${firstIssue?.message ?? '삭제할 학생 과제 정보를 확인해주세요.'} [stage=${stage}]` }
+    return { error: `${firstIssue?.message ?? '삭제할 학생 과제 정보를 확인해주세요.'} [stage=${stage}]`, message: stage }
   }
 
   const payload = parsed.data
@@ -436,7 +442,7 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
     if (fetchTaskError) {
       stage = 'fetch_student_task_error'
       console.error('[teacher] deleteStudentTask fetch error', fetchTaskError)
-      return { error: `학생 과제 정보를 불러오지 못했습니다. [stage=${stage}]` }
+      return { error: `학생 과제 정보를 불러오지 못했습니다. [stage=${stage}]`, message: stage }
     }
 
     if (!studentTask || studentTask.assignment_id !== payload.assignmentId) {
@@ -445,7 +451,7 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
         payload,
       })
       stage = 'student_task_missing'
-      return { error: `학생 과제 정보를 확인할 수 없습니다. [stage=${stage}]` }
+      return { error: `학생 과제 정보를 확인할 수 없습니다. [stage=${stage}]`, message: stage }
     }
 
     const assignment = Array.isArray(studentTask.assignments)
@@ -454,7 +460,7 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
 
     if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
       stage = 'permission_denied'
-      return { error: `해당 과제에 대한 삭제 권한이 없습니다. [stage=${stage}]` }
+      return { error: `해당 과제에 대한 삭제 권한이 없습니다. [stage=${stage}]`, message: stage }
     }
 
     const profileRecord = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
@@ -464,7 +470,7 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
     const deleteResult = await deleteStudentTaskCascade(payload.studentTaskId)
     if (deleteResult.error) {
       stage = 'cascade_error'
-      return { error: `${deleteResult.error} [stage=${stage}]` }
+      return { error: `${deleteResult.error} [stage=${stage}]`, message: deleteResult.message ?? stage }
     }
 
     revalidatePath('/dashboard/teacher')
@@ -479,7 +485,10 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
       classId,
     })
     stage = 'completed'
-    return { success: true as const, message: stage }
+    return {
+      success: true as const,
+      message: deleteResult.message ? `${stage}>${deleteResult.message}` : stage,
+    }
   } catch (error) {
     console.error('[teacher] deleteStudentTask unexpected error', {
       error,
@@ -487,7 +496,7 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
       assignmentId: payload.assignmentId,
     })
     stage = 'unexpected_error'
-    return { error: `학생 과제 삭제 중 문제가 발생했습니다. [stage=${stage}]` }
+    return { error: `학생 과제 삭제 중 문제가 발생했습니다. [stage=${stage}]`, message: stage }
   }
 }
 
@@ -498,7 +507,7 @@ const deleteTargetSchema = z.object({
 
 type DeleteTargetInput = z.infer<typeof deleteTargetSchema>
 
-export async function deleteAssignmentTarget(input: DeleteTargetInput) {
+export async function deleteAssignmentTarget(input: DeleteTargetInput): Promise<DeleteResult> {
   const { profile } = await getAuthContext()
 
   if (!isTeacherOrPrincipal(profile)) {
@@ -577,7 +586,7 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
         studentTaskIds.map((studentTaskId) => deleteStudentTaskCascade(studentTaskId))
       )
       const failed = deleteResults.find((result) => result.error)
-      if (failed?.error) {
+      if (failed) {
         console.error('[teacher] deleteAssignmentTarget failed cascade', failed)
         return failed
       }
@@ -608,7 +617,10 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
       classId: payload.classId,
       studentTaskIds,
     })
-    return { success: true as const }
+    return {
+      success: true as const,
+      message: JSON.stringify({ deletedStudentTasks: studentTaskIds }),
+    }
   } catch (error) {
     console.error('[teacher] deleteAssignmentTarget unexpected error', {
       error,
@@ -619,8 +631,24 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
   }
 }
 
-async function deleteStudentTaskCascade(studentTaskId: string): Promise<{ success?: true; error?: string }> {
+async function deleteStudentTaskCascade(studentTaskId: string): Promise<DeleteResult> {
   const admin = createAdminClient()
+
+  const directDelete = await admin
+    .from('student_tasks')
+    .delete()
+    .eq('id', studentTaskId)
+    .select('id')
+    .maybeSingle()
+
+  if (!directDelete.error) {
+    return { success: true as const, message: 'student_tasks:direct_deleted' }
+  }
+
+  if (directDelete.error.code && directDelete.error.code !== '23503') {
+    console.error('[teacher] deleteStudentTask direct delete error', directDelete.error)
+    return { error: `학생 과제 삭제 중 오류가 발생했습니다. [code=${directDelete.error.code}]` }
+  }
 
   const { error: deleteSubmissionsError } = await admin
     .from('task_submissions')
@@ -662,5 +690,5 @@ async function deleteStudentTaskCascade(studentTaskId: string): Promise<{ succes
     return { error: '학생 과제 삭제 중 오류가 발생했습니다.' }
   }
 
-  return { success: true as const }
+  return { success: true as const, message: 'student_tasks:deleted_after_children' }
 }
