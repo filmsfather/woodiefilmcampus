@@ -114,18 +114,18 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     return true
   }, [task.assignment?.workbook.config])
 
-  const availableItems = useMemo(() => {
-    const dueItems = getAvailableItems(task.items)
-    if (dueItems.length > 0) {
-      return dueItems
-    }
-    return task.items
-  }, [task.items])
-  const hasDueItems = useMemo(() => getAvailableItems(task.items).length > 0, [task.items])
+  const dueItems = useMemo(() => getAvailableItems(task.items), [task.items])
+  const hasDueItems = dueItems.length > 0
+  const displayItems = hasDueItems ? dueItems : task.items
   const nextScheduledItem = useMemo(() => getNextScheduledItem(task.items), [task.items])
 
   const [currentIndex, setCurrentIndex] = useState(0)
-  const currentItem = availableItems[currentIndex] ?? null
+  useEffect(() => {
+    if (currentIndex >= displayItems.length) {
+      setCurrentIndex(0)
+    }
+  }, [displayItems.length, currentIndex])
+  const currentItem = displayItems[currentIndex] ?? null
 
   const [selectedChoiceIds, setSelectedChoiceIds] = useState<string[]>([])
   const [shortInputs, setShortInputs] = useState<string[]>([])
@@ -184,7 +184,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   const moveToNextItem = () => {
     setCurrentIndex((prev) => {
       const next = prev + 1
-      if (next >= availableItems.length) {
+      if (next >= displayItems.length) {
         return 0
       }
       return next
@@ -292,6 +292,22 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
             )}
           </div>
 
+          {!hasDueItems && nextScheduledItem?.nextReviewAt && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+              <p className="font-medium text-slate-700">다음 복습 예정 시각</p>
+              <p>
+                {DateUtil.formatForDisplay(nextScheduledItem.nextReviewAt, {
+                  locale: 'ko-KR',
+                  timeZone: 'Asia/Seoul',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+          )}
+
           {answerType === 'multiple_choice' ? (
             <div className="space-y-3">
               {currentItem.workbookItem.choices.length === 0 ? (
@@ -362,11 +378,11 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
                 {showAnswer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 정답 보기
               </Button>
-              {availableItems.length > 1 && (
-                <Button type="button" variant="ghost" onClick={moveToNextItem}>
-                  다음 문항
-                </Button>
-              )}
+          {displayItems.length > 1 && (
+            <Button type="button" variant="ghost" onClick={moveToNextItem}>
+              다음 문항
+            </Button>
+          )}
             </div>
             {result && (
               <div
