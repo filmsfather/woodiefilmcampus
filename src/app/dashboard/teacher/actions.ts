@@ -564,11 +564,31 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput): Promise<
       return { error: '학생 과제 목록을 확인하지 못했습니다.' }
     }
 
+    const { data: classMembers, error: classMemberError } = await admin
+      .from('class_students')
+      .select('student_id')
+      .eq('class_id', payload.classId)
+
+    if (classMemberError) {
+      console.error('[teacher] deleteAssignmentTarget class member fetch error', classMemberError)
+      return { error: '반 소속 학생 목록을 확인하지 못했습니다.' }
+    }
+
+    const studentIdsInClass = new Set((classMembers ?? []).map((row) => row.student_id))
+    console.info('[teacher] deleteAssignmentTarget student scan', {
+      assignmentId: payload.assignmentId,
+      classId: payload.classId,
+      totalTasks: tasks?.length ?? 0,
+      classMemberCount: studentIdsInClass.size,
+    })
+
     const impactedStudentIds = new Set<string>()
     const studentTaskIds = (tasks ?? [])
       .filter((task) => {
         const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
-        if (profileRecord?.class_id === payload.classId) {
+        const byProfile = profileRecord?.class_id === payload.classId
+        const byMembership = task.student_id ? studentIdsInClass.has(task.student_id) : false
+        if (byProfile || byMembership) {
           if (task.student_id) {
             impactedStudentIds.add(task.student_id)
           }
