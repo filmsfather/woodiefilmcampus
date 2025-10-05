@@ -6,6 +6,7 @@ import { z } from 'zod'
 import { getAuthContext } from '@/lib/auth'
 import type { UserProfile } from '@/lib/supabase'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 function isTeacherOrPrincipal(profile: UserProfile | null | undefined): profile is UserProfile {
   return Boolean(profile && (profile.role === 'teacher' || profile.role === 'principal'))
@@ -445,7 +446,7 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
     const profileRecord = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
     const classId = profileRecord?.class_id ?? null
 
-    const deleteResult = await deleteStudentTaskCascade(supabase, payload.studentTaskId)
+    const deleteResult = await deleteStudentTaskCascade(payload.studentTaskId)
     if (deleteResult.error) {
       return deleteResult
     }
@@ -534,7 +535,7 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
 
     if (studentTaskIds.length > 0) {
       const deleteResults = await Promise.all(
-        studentTaskIds.map((studentTaskId) => deleteStudentTaskCascade(supabase, studentTaskId))
+        studentTaskIds.map((studentTaskId) => deleteStudentTaskCascade(studentTaskId))
       )
       const failed = deleteResults.find((result) => result.error)
       if (failed?.error) {
@@ -569,11 +570,10 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
   }
 }
 
-async function deleteStudentTaskCascade(
-  supabase: ReturnType<typeof createServerSupabase>,
-  studentTaskId: string
-): Promise<{ success?: true; error?: string }> {
-  const { error: deleteSubmissionsError } = await supabase
+async function deleteStudentTaskCascade(studentTaskId: string): Promise<{ success?: true; error?: string }> {
+  const admin = createAdminClient()
+
+  const { error: deleteSubmissionsError } = await admin
     .from('task_submissions')
     .delete()
     .eq('student_task_id', studentTaskId)
@@ -583,7 +583,7 @@ async function deleteStudentTaskCascade(
     return { error: '학생 제출물 삭제 중 오류가 발생했습니다.' }
   }
 
-  const { error: deleteItemsError } = await supabase
+  const { error: deleteItemsError } = await admin
     .from('student_task_items')
     .delete()
     .eq('student_task_id', studentTaskId)
@@ -593,7 +593,7 @@ async function deleteStudentTaskCascade(
     return { error: '학생 과제 문항 삭제 중 오류가 발생했습니다.' }
   }
 
-  const { error: deletePrintsError } = await supabase
+  const { error: deletePrintsError } = await admin
     .from('print_requests')
     .delete()
     .eq('student_task_id', studentTaskId)
@@ -603,7 +603,7 @@ async function deleteStudentTaskCascade(
     return { error: '인쇄 요청 삭제 중 오류가 발생했습니다.' }
   }
 
-  const { error: deleteTaskError } = await supabase
+  const { error: deleteTaskError } = await admin
     .from('student_tasks')
     .delete()
     .eq('id', studentTaskId)
