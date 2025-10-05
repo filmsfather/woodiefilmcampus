@@ -247,6 +247,10 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
   }
 
   const focusStudentTaskId = typeof searchParams.studentTask === 'string' ? searchParams.studentTask : null
+  const classIdParam = typeof searchParams.classId === 'string' ? searchParams.classId : null
+  const classContext = classIdParam
+    ? classTargets.find((cls) => cls.id === classIdParam) ?? null
+    : null
 
   return (
     <AssignmentReview
@@ -254,6 +258,7 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
       assignment={assignment}
       generatedAt={DateUtil.nowUTC().toISOString()}
       focusStudentTaskId={focusStudentTaskId}
+      classContext={classContext ? { id: classContext.id, name: classContext.name } : null}
     />
   )
 }

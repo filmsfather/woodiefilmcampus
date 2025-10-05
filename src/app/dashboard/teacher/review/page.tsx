@@ -1,131 +1,286 @@
 import { requireAuthForDashboard } from '@/lib/auth'
+import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { TeacherDashboard } from '@/components/dashboard/teacher/TeacherDashboard'
+import { ClassOverviewGrid, ClassOverviewItem, ClassOverviewSummary } from '@/components/dashboard/teacher/ClassOverview'
 
-export default async function TeacherReviewDashboardPage() {
+interface RawClassRow {
+  classes?:
+    | {
+        id: string | null
+        name: string | null
+      }
+    | Array<{
+        id: string | null
+        name: string | null
+      }>
+}
+
+interface RawAssignmentRow {
+  id: string
+  due_at: string | null
+  created_at: string
+  target_scope: string | null
+  workbooks?:
+    | {
+        id: string
+        title: string | null
+        subject: string | null
+        type: string | null
+        week_label: string | null
+      }
+    | Array<{
+        id: string
+        title: string | null
+        subject: string | null
+        type: string | null
+        week_label: string | null
+      }>
+  assignment_targets?: Array<{
+    class_id: string | null
+    classes?:
+      | {
+          id: string | null
+          name: string | null
+        }
+      | Array<{
+          id: string | null
+          name: string | null
+        }>
+  }>
+  student_tasks?: Array<{
+    id: string
+    status: string
+    student_id: string
+    profiles?:
+      | {
+          id: string
+          name: string | null
+          email: string | null
+          class_id: string | null
+        }
+      | Array<{
+          id: string
+          name: string | null
+          email: string | null
+          class_id: string | null
+        }>
+  }>
+  print_requests?: Array<{
+    id: string
+    status: string
+    student_task_id: string | null
+    desired_date: string | null
+    desired_period: string | null
+    copies: number | null
+    color_mode: string | null
+    created_at: string
+  }>
+}
+
+interface AssignmentSummary {
+  id: string
+  dueAt: string | null
+  classes: Array<{ id: string; name: string }>
+  studentTasks: Array<{
+    id: string
+    status: string
+    studentId: string
+    classId: string | null
+  }>
+  printRequests: Array<{
+    id: string
+    status: string
+    studentTaskId: string | null
+  }>
+}
+
+interface ManagedClass {
+  id: string
+  name: string
+}
+
+const UPCOMING_WINDOW_DAYS = 3
+
+export default async function TeacherReviewOverviewPage() {
   const { profile } = await requireAuthForDashboard('teacher')
   const supabase = createServerSupabase()
 
-  const [{ data: assignmentRows, error: assignmentError }, { data: classRows, error: classError }] =
-    await Promise.all([
-      supabase
-        .from('assignments')
-        .select(
-          `id, due_at, created_at, target_scope,
-           workbooks(id, title, subject, type, week_label),
-           assignment_targets(class_id, classes(id, name)),
-           student_tasks(
-             id,
-             status,
-             completion_at,
-             updated_at,
-             student_id,
-             profiles!student_tasks_student_id_fkey(id, name, email, class_id),
-             student_task_items(id, completed_at)
-           ),
-           print_requests(id, status, student_task_id, desired_date, desired_period, copies, color_mode, created_at)
-          `
-        )
-        .eq('assigned_by', profile.id)
-        .order('due_at', { ascending: true }),
-      supabase
-        .from('class_teachers')
-        .select('class_id, classes(id, name)')
-        .eq('teacher_id', profile.id),
-    ])
-
-  if (assignmentError) {
-    console.error('[teacher] review assignments error', assignmentError)
-  }
+  const [{ data: classRows, error: classError }, { data: assignmentRows, error: assignmentError }] = await Promise.all([
+    supabase
+      .from('class_teachers')
+      .select('classes(id, name)')
+      .eq('teacher_id', profile.id),
+    supabase
+      .from('assignments')
+      .select(
+        `id, due_at, created_at, target_scope,
+         assignment_targets(class_id, classes(id, name)),
+         student_tasks(
+           id,
+           status,
+           student_id,
+           profiles!student_tasks_student_id_fkey(id, name, email, class_id)
+         ),
+         print_requests(id, status, student_task_id, created_at)
+        `
+      )
+      .eq('assigned_by', profile.id)
+      .order('due_at', { ascending: true }),
+  ])
 
   if (classError) {
-    console.error('[teacher] review class error', classError)
+    console.error('[teacher] class overview fetch error', classError)
   }
 
-  const assignments = (assignmentRows ?? []).map((row) => {
-    const workbook = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
-    const classTargets = (row.assignment_targets ?? [])
+  if (assignmentError) {
+    console.error('[teacher] assignment overview fetch error', assignmentError)
+  }
+
+  const managedClasses: ManagedClass[] = (classRows as RawClassRow[] | null | undefined)?.map((row) => {
+    const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
+    if (!cls?.id) {
+      return null
+    }
+    return {
+      id: cls.id,
+      name: cls.name ?? '이름 미정',
+    }
+  })
+    .filter((value): value is ManagedClass => Boolean(value)) ?? []
+
+  const assignments: AssignmentSummary[] = (assignmentRows as RawAssignmentRow[] | null | undefined)?.map((row) => {
+    const classes = (row.assignment_targets ?? [])
       .map((target) => {
         const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
-        return cls?.id
-          ? {
-              id: cls.id,
-              name: cls.name ?? '이름 미정',
-            }
-          : null
+        if (!cls?.id) {
+          return null
+        }
+        return {
+          id: cls.id,
+          name: cls.name ?? '이름 미정',
+        }
       })
       .filter((value): value is { id: string; name: string } => Boolean(value))
 
     const studentTasks = (row.student_tasks ?? []).map((task) => {
-      const studentProfile = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
-      const completedCount = task.student_task_items?.filter((item) => item.completed_at).length ?? 0
-      const totalItems = task.student_task_items?.length ?? 0
-
+      const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
       return {
         id: task.id,
         status: task.status,
-        completionAt: task.completion_at,
-        updatedAt: task.updated_at,
         studentId: task.student_id,
-        student: {
-          id: studentProfile?.id ?? task.student_id,
-          name: studentProfile?.name ?? '이름 미정',
-          email: studentProfile?.email ?? null,
-          classId: studentProfile?.class_id ?? null,
-        },
-        completedCount,
-        totalItems,
+        classId: profileRecord?.class_id ?? null,
       }
     })
+
+    const printRequests = (row.print_requests ?? []).map((request) => ({
+      id: request.id,
+      status: request.status,
+      studentTaskId: request.student_task_id,
+    }))
 
     return {
       id: row.id,
       dueAt: row.due_at,
-      createdAt: row.created_at,
-      targetScope: row.target_scope,
-      title: workbook?.title ?? '제목 미정',
-      subject: workbook?.subject ?? '기타',
-      type: workbook?.type ?? 'unknown',
-      weekLabel: workbook?.week_label ?? null,
-      classes: classTargets,
+      classes,
       studentTasks,
-      printRequests: (row.print_requests ?? []).map((request) => ({
-        id: request.id,
-        status: request.status,
-        studentTaskId: request.student_task_id,
-        desiredDate: request.desired_date,
-        desiredPeriod: request.desired_period,
-        copies: request.copies ?? 1,
-        colorMode: request.color_mode ?? 'bw',
-        createdAt: request.created_at,
-      })),
+      printRequests,
+    }
+  }) ?? []
+
+  const now = DateUtil.nowUTC()
+  const upcomingThreshold = DateUtil.addDays(now, UPCOMING_WINDOW_DAYS).getTime()
+
+  const overviewItems: ClassOverviewItem[] = managedClasses.map((managedClass) => {
+    let incompleteStudents = 0
+    let overdueAssignments = 0
+    let upcomingAssignments = 0
+    let pendingPrintRequests = 0
+    let nextDueAt: string | null = null
+
+    assignments.forEach((assignment) => {
+      const belongsToClass =
+        assignment.classes.some((cls) => cls.id === managedClass.id) ||
+        assignment.studentTasks.some((task) => task.classId === managedClass.id)
+
+      if (!belongsToClass) {
+        return
+      }
+
+      const classTasks = assignment.studentTasks.filter((task) => task.classId === managedClass.id)
+      const outstandingTasks = classTasks.filter((task) => task.status !== 'completed' && task.status !== 'canceled')
+
+      incompleteStudents += outstandingTasks.length
+
+      if (assignment.dueAt) {
+        const dueTime = new Date(assignment.dueAt).getTime()
+        const isOverdue = dueTime < now.getTime() && outstandingTasks.length > 0
+        const isUpcoming = dueTime >= now.getTime() && dueTime <= upcomingThreshold && outstandingTasks.length > 0
+
+        if (isOverdue) {
+          overdueAssignments += 1
+        }
+
+        if (isUpcoming) {
+          upcomingAssignments += 1
+        }
+
+        if (outstandingTasks.length > 0) {
+          if (!nextDueAt || dueTime < new Date(nextDueAt).getTime()) {
+            nextDueAt = assignment.dueAt
+          }
+        }
+      }
+
+      if (assignment.printRequests.length > 0) {
+        const classTaskIds = new Set(classTasks.map((task) => task.id))
+        const pendingForClass = assignment.printRequests.filter((request) => {
+          if (request.status !== 'requested') {
+            return false
+          }
+          if (request.studentTaskId) {
+            return classTaskIds.has(request.studentTaskId)
+          }
+          return assignment.classes.some((cls) => cls.id === managedClass.id)
+        })
+        pendingPrintRequests += pendingForClass.length
+      }
+    })
+
+    const nextDueAtLabel = nextDueAt
+      ? DateUtil.formatForDisplay(nextDueAt, {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : null
+
+    return {
+      id: managedClass.id,
+      name: managedClass.name,
+      incompleteStudents,
+      overdueAssignments,
+      pendingPrintRequests,
+      upcomingAssignments,
+      nextDueAtLabel,
     }
   })
 
-  const managedClasses = (classRows ?? [])
-    .map((row) => {
-      const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
-      if (!cls?.id) {
-        return null
-      }
-      return { id: cls.id, name: cls.name ?? '이름 미정' }
-    })
-    .filter((value): value is { id: string; name: string } => Boolean(value))
+  const overviewSummary: ClassOverviewSummary = overviewItems.reduce(
+    (acc, item) => {
+      acc.totalIncompleteStudents += item.incompleteStudents
+      acc.totalOverdueAssignments += item.overdueAssignments
+      acc.totalPendingPrintRequests += item.pendingPrintRequests
+      acc.totalUpcomingAssignments += item.upcomingAssignments
+      return acc
+    },
+    {
+      totalIncompleteStudents: 0,
+      totalOverdueAssignments: 0,
+      totalPendingPrintRequests: 0,
+      totalUpcomingAssignments: 0,
+    }
+  )
 
-  const subjects = Array.from(new Set(assignments.map((assignment) => assignment.subject))).sort(
-    (a, b) => a.localeCompare(b, 'ko')
-  )
-  const workbookTypes = Array.from(new Set(assignments.map((assignment) => assignment.type))).sort(
-    (a, b) => a.localeCompare(b)
-  )
-
-  return (
-    <TeacherDashboard
-      teacherName={profile.name ?? profile.email ?? null}
-      assignments={assignments}
-      classes={managedClasses}
-      subjects={subjects}
-      workbookTypes={workbookTypes}
-    />
-  )
+  return <ClassOverviewGrid summary={overviewSummary} items={overviewItems} />
 }

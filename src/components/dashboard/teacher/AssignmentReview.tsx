@@ -1,10 +1,12 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useCallback, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowRight,
   Calendar,
   CheckCircle2,
   Download,
@@ -114,6 +116,7 @@ interface AssignmentReviewProps {
   }
   generatedAt: string
   focusStudentTaskId: string | null
+  classContext: { id: string; name: string } | null
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -140,7 +143,16 @@ const STATUS_LABELS: Record<string, string> = {
   canceled: '취소',
 }
 
-export function AssignmentReview({ teacherName, assignment, generatedAt, focusStudentTaskId }: AssignmentReviewProps) {
+export function AssignmentReview({
+  teacherName,
+  assignment,
+  generatedAt,
+  focusStudentTaskId,
+  classContext,
+}: AssignmentReviewProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const classLookup = useMemo(() => new Map(assignment.classes.map((cls) => [cls.id, cls.name])), [assignment.classes])
   const studentLookup = useMemo(() => new Map(
     assignment.studentTasks.map((task) => [
@@ -154,6 +166,47 @@ export function AssignmentReview({ teacherName, assignment, generatedAt, focusSt
     ])
   ), [assignment.studentTasks, classLookup, assignment.classes])
 
+  const pendingTasks = useMemo(
+    () =>
+      assignment.studentTasks
+        .filter((task) => task.status !== 'completed' && task.status !== 'canceled')
+        .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt)),
+    [assignment.studentTasks]
+  )
+
+  const nextPendingTaskId = useMemo(() => {
+    if (pendingTasks.length === 0) {
+      return null
+    }
+
+    if (!focusStudentTaskId) {
+      return pendingTasks[0].id
+    }
+
+    const currentIndex = pendingTasks.findIndex((task) => task.id === focusStudentTaskId)
+    if (currentIndex === -1) {
+      return pendingTasks[0].id
+    }
+
+    if (currentIndex + 1 < pendingTasks.length) {
+      return pendingTasks[currentIndex + 1].id
+    }
+
+    return pendingTasks.length > 1 ? pendingTasks[0].id : null
+  }, [focusStudentTaskId, pendingTasks])
+
+  const handleNextPending = useCallback(() => {
+    if (!nextPendingTaskId) {
+      return
+    }
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('studentTask', nextPendingTaskId)
+    router.push(`${pathname}?${params.toString()}`)
+  }, [nextPendingTaskId, pathname, router, searchParams])
+
+  const backHref = classContext ? `/dashboard/teacher/review/${classContext.id}` : '/dashboard/teacher'
+  const backLabel = classContext ? `${classContext.name} 반으로 돌아가기` : '대시보드로 돌아가기'
+
   const totalStudents = assignment.studentTasks.length
   const completedStudents = assignment.studentTasks.filter((task) => task.status === 'completed').length
   const canceledStudents = assignment.studentTasks.filter((task) => task.status === 'canceled').length
@@ -163,8 +216,8 @@ export function AssignmentReview({ teacherName, assignment, generatedAt, focusSt
     <section className="space-y-6">
       <header>
         <Button asChild variant="ghost" className="mb-2 text-xs text-slate-500">
-          <Link href="/dashboard/teacher">
-            <ArrowLeft className="mr-1 h-3 w-3" /> 대시보드로 돌아가기
+          <Link href={backHref}>
+            <ArrowLeft className="mr-1 h-3 w-3" /> {backLabel}
           </Link>
         </Button>
         <Card className="border-slate-200">
@@ -181,29 +234,37 @@ export function AssignmentReview({ teacherName, assignment, generatedAt, focusSt
                 )}
               </div>
             </div>
-            <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-              <div className="flex items-center gap-1">
-                <Calendar className="h-3 w-3" />
-                {assignment.dueAt
-                  ? DateUtil.formatForDisplay(assignment.dueAt, {
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  : '마감 없음'}
-              </div>
-              <div className="flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3" /> 완료 {completedStudents}/{totalStudents}명
-              </div>
-              {canceledStudents > 0 && (
-                <div className="flex items-center gap-1 text-destructive">
-                  <XCircle className="h-3 w-3" /> 취소 {canceledStudents}명
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {assignment.dueAt
+                    ? DateUtil.formatForDisplay(assignment.dueAt, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '마감 없음'}
                 </div>
-              )}
-              <div className="flex items-center gap-1">
-                <Printer className="h-3 w-3" /> 인쇄 요청 {assignment.printRequests.length}건
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> 완료 {completedStudents}/{totalStudents}명
+                </div>
+                {canceledStudents > 0 && (
+                  <div className="flex items-center gap-1 text-destructive">
+                    <XCircle className="h-3 w-3" /> 취소 {canceledStudents}명
+                  </div>
+                )}
+                <div className="flex items-center gap-1">
+                  <Printer className="h-3 w-3" /> 인쇄 요청 {assignment.printRequests.length}건
+                </div>
+                <div className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> 미평가 {pendingTasks.length}명
+                </div>
               </div>
+              <Button size="sm" variant="outline" onClick={handleNextPending} disabled={!nextPendingTaskId}>
+                다음 미평가 학생 이동 <ArrowRight className="ml-1 h-3 w-3" />
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
