@@ -415,10 +415,10 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const admin = createAdminClient()
 
   try {
-    const { data: studentTask, error: fetchTaskError } = await supabase
+    const { data: studentTask, error: fetchTaskError } = await admin
       .from('student_tasks')
       .select(
         'id, assignment_id, student_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by), profiles!student_tasks_student_id_fkey(class_id)'
@@ -485,10 +485,10 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const admin = createAdminClient()
 
   try {
-    const { data: target, error: fetchTargetError } = await supabase
+    const { data: target, error: fetchTargetError } = await admin
       .from('assignment_targets')
       .select('id, assignment_id, class_id, assignments(id, assigned_by)')
       .eq('assignment_id', payload.assignmentId)
@@ -509,7 +509,7 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
       return { error: '해당 과제에 대한 삭제 권한이 없습니다.' }
     }
 
-    const { data: tasks, error: fetchTasksError } = await supabase
+    const { data: tasks, error: fetchTasksError } = await admin
       .from('student_tasks')
       .select('id, student_id, profiles!student_tasks_student_id_fkey(class_id)')
       .eq('assignment_id', payload.assignmentId)
@@ -543,7 +543,7 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
       }
     }
 
-    const { error: deleteTargetError } = await supabase
+    const { error: deleteTargetError } = await admin
       .from('assignment_targets')
       .delete()
       .eq('assignment_id', payload.assignmentId)
