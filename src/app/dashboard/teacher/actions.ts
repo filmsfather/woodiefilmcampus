@@ -417,6 +417,11 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
   const payload = parsed.data
   const admin = createAdminClient()
 
+  console.info('[teacher] deleteStudentTask start', {
+    assignmentId: payload.assignmentId,
+    studentTaskId: payload.studentTaskId,
+  })
+
   try {
     const { data: studentTask, error: fetchTaskError } = await admin
       .from('student_tasks')
@@ -432,6 +437,10 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
     }
 
     if (!studentTask || studentTask.assignment_id !== payload.assignmentId) {
+      console.warn('[teacher] deleteStudentTask missing student task', {
+        studentTask,
+        payload,
+      })
       return { error: '학생 과제 정보를 확인할 수 없습니다.' }
     }
 
@@ -457,9 +466,18 @@ export async function deleteStudentTask(input: DeleteStudentInput) {
     if (classId) {
       revalidatePath(`/dashboard/teacher/review/${classId}`)
     }
+    console.info('[teacher] deleteStudentTask success', {
+      assignmentId: payload.assignmentId,
+      studentTaskId: payload.studentTaskId,
+      classId,
+    })
     return { success: true as const }
   } catch (error) {
-    console.error('[teacher] deleteStudentTask unexpected error', error)
+    console.error('[teacher] deleteStudentTask unexpected error', {
+      error,
+      studentTaskId: payload.studentTaskId,
+      assignmentId: payload.assignmentId,
+    })
     return { error: '학생 과제 삭제 중 문제가 발생했습니다.' }
   }
 }
@@ -487,6 +505,11 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
   const payload = parsed.data
   const admin = createAdminClient()
 
+  console.info('[teacher] deleteAssignmentTarget start', {
+    assignmentId: payload.assignmentId,
+    classId: payload.classId,
+  })
+
   try {
     const { data: target, error: fetchTargetError } = await admin
       .from('assignment_targets')
@@ -501,6 +524,10 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
     }
 
     if (!target || target.assignment_id !== payload.assignmentId) {
+      console.warn('[teacher] deleteAssignmentTarget missing target', {
+        target,
+        payload,
+      })
       return { error: '삭제할 반 과제 정보를 찾을 수 없습니다.' }
     }
 
@@ -534,11 +561,15 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
       .map((task) => task.id)
 
     if (studentTaskIds.length > 0) {
+      console.info('[teacher] deleteAssignmentTarget deleting student tasks', {
+        studentTaskIds,
+      })
       const deleteResults = await Promise.all(
         studentTaskIds.map((studentTaskId) => deleteStudentTaskCascade(studentTaskId))
       )
       const failed = deleteResults.find((result) => result.error)
       if (failed?.error) {
+        console.error('[teacher] deleteAssignmentTarget failed cascade', failed)
         return failed
       }
     }
@@ -563,9 +594,18 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
       revalidatePath('/dashboard/student', 'layout')
       revalidatePath('/dashboard/student')
     }
+    console.info('[teacher] deleteAssignmentTarget success', {
+      assignmentId: payload.assignmentId,
+      classId: payload.classId,
+      studentTaskIds,
+    })
     return { success: true as const }
   } catch (error) {
-    console.error('[teacher] deleteAssignmentTarget unexpected error', error)
+    console.error('[teacher] deleteAssignmentTarget unexpected error', {
+      error,
+      assignmentId: payload.assignmentId,
+      classId: payload.classId,
+    })
     return { error: '반 과제 삭제 중 문제가 발생했습니다.' }
   }
 }
