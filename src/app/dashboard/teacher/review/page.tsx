@@ -97,6 +97,7 @@ interface AssignmentSummary {
     status: string
     studentTaskId: string | null
   }>
+  targetClassIds: string[]
 }
 
 interface ManagedClass {
@@ -190,6 +191,20 @@ export default async function TeacherReviewOverviewPage() {
       })
       .filter((value): value is { id: string; name: string } => Boolean(value))
 
+    const targetClassIds = Array.from(
+      new Set(
+        (row.assignment_targets ?? [])
+          .map((target) => {
+            if (target.class_id) {
+              return target.class_id
+            }
+            const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
+            return cls?.id ?? null
+          })
+          .filter((value): value is string => Boolean(value))
+      )
+    )
+
     const studentTasks = (row.student_tasks ?? []).map((task) => {
       const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
       return {
@@ -212,6 +227,7 @@ export default async function TeacherReviewOverviewPage() {
       classes,
       studentTasks,
       printRequests,
+      targetClassIds,
     }
   }) ?? []
 
@@ -226,15 +242,21 @@ export default async function TeacherReviewOverviewPage() {
     let nextDueAt: string | null = null
 
     assignments.forEach((assignment) => {
+      const targetIds = new Set(assignment.targetClassIds)
       const belongsToClass =
-        assignment.classes.some((cls) => cls.id === managedClass.id) ||
+        targetIds.has(managedClass.id) ||
         assignment.studentTasks.some((task) => task.classId === managedClass.id)
 
       if (!belongsToClass) {
         return
       }
 
-      const classTasks = assignment.studentTasks.filter((task) => task.classId === managedClass.id)
+      const classTasks = assignment.studentTasks.filter((task) => {
+        if (task.classId) {
+          return task.classId === managedClass.id
+        }
+        return targetIds.has(managedClass.id)
+      })
       const outstandingTasks = classTasks.filter((task) => task.status !== 'completed' && task.status !== 'canceled')
 
       incompleteStudents += outstandingTasks.length
@@ -268,7 +290,7 @@ export default async function TeacherReviewOverviewPage() {
           if (request.studentTaskId) {
             return classTaskIds.has(request.studentTaskId)
           }
-          return assignment.classes.some((cls) => cls.id === managedClass.id)
+          return assignment.classes.some((cls) => cls.id === managedClass.id) || targetIds.has(managedClass.id)
         })
         pendingPrintRequests += pendingForClass.length
       }

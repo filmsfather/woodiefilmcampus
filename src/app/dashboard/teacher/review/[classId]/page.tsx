@@ -224,6 +224,18 @@ export default async function TeacherClassReviewPage({
   const assignments: AssignmentForClass[] = (assignmentRows ?? [])
     .map((row) => {
       const workbook = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
+      const targetClassIds = new Set(
+        (row.assignment_targets ?? [])
+          .map((target) => {
+            const explicitId = target.class_id ?? null
+            if (explicitId) {
+              return explicitId
+            }
+            const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
+            return cls?.id ?? null
+          })
+          .filter((value): value is string => Boolean(value))
+      )
       const studentTasks = (row.student_tasks ?? []).map((task) => {
         const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
         const items = task.student_task_items ?? []
@@ -246,11 +258,16 @@ export default async function TeacherClassReviewPage({
         }
       })
 
-      const classTasks = studentTasks.filter((task) => task.classId === classInfo.id)
+      const classTasks = studentTasks.filter((task) => {
+        if (task.classId) {
+          return task.classId === classInfo.id
+        }
+        return targetClassIds.has(classInfo.id)
+      })
 
       if (
         classTasks.length === 0 &&
-        !(row.assignment_targets ?? []).some((target) => target.class_id === classInfo.id)
+        !targetClassIds.has(classInfo.id)
       ) {
         return null
       }
