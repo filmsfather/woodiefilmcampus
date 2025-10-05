@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   ArrowLeft,
@@ -20,6 +21,7 @@ import {
   evaluateSubmission,
   toggleStudentTaskStatus,
   createPrintRequest,
+  deleteStudentTask,
 } from '@/app/dashboard/teacher/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -159,6 +161,7 @@ export function AssignmentEvaluationPanel({
   onFocusStudentTask,
   variant = 'full',
 }: AssignmentEvaluationPanelProps) {
+  const router = useRouter()
   const classLookup = useMemo(() => new Map(assignment.classes.map((cls) => [cls.id, cls.name])), [assignment.classes])
   const studentLookup = useMemo(() => new Map(
     assignment.studentTasks.map((task) => [
@@ -218,8 +221,64 @@ export function AssignmentEvaluationPanel({
 
   const isEmbedded = variant === 'embedded'
 
+  const [deleteAlert, setDeleteAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [deletePendingId, setDeletePendingId] = useState<string | null>(null)
+  const [isDeleting, startDeleteTransition] = useTransition()
+
+  useEffect(() => {
+    if (!focusStudentTaskId) {
+      return
+    }
+    const exists = assignment.studentTasks.some((task) => task.id === focusStudentTaskId)
+    if (!exists) {
+      onFocusStudentTask?.(nextPendingTaskId)
+    }
+  }, [assignment.studentTasks, focusStudentTaskId, onFocusStudentTask, nextPendingTaskId])
+
+  const handleDeleteStudentTask = useCallback(
+    (studentTaskId: string, studentName: string) => {
+      if (!window.confirm(`${studentName} 학생의 과제를 삭제할까요?`)) {
+        return
+      }
+      setDeleteAlert(null)
+      setDeletePendingId(studentTaskId)
+      startDeleteTransition(async () => {
+        const result = await deleteStudentTask({ assignmentId: assignment.id, studentTaskId })
+        if (result?.error) {
+          setDeleteAlert({ type: 'error', text: result.error })
+        } else {
+          setDeleteAlert({ type: 'success', text: `${studentName} 학생 과제를 삭제했습니다.` })
+          if (focusStudentTaskId === studentTaskId) {
+            onFocusStudentTask?.(null)
+          }
+          router.refresh()
+        }
+        setDeletePendingId(null)
+      })
+    },
+    [assignment.id, focusStudentTaskId, onFocusStudentTask, router]
+  )
+
+  const deleteState = useMemo(
+    () => ({ pendingId: deletePendingId, isPending: isDeleting }),
+    [deletePendingId, isDeleting]
+  )
+
+  const deleteAlertElement = deleteAlert ? (
+    <div
+      className={`rounded-md border px-3 py-2 text-xs ${
+        deleteAlert.type === 'error'
+          ? 'border-destructive/40 bg-destructive/10 text-destructive'
+          : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+      }`}
+    >
+      {deleteAlert.text}
+    </div>
+  ) : null
+
   const evaluationSections = (
     <>
+      {deleteAlertElement}
       {assignment.printRequests.length > 0 && (
         <PrintRequestList requests={assignment.printRequests} studentLookup={studentLookup} />
       )}
@@ -229,6 +288,8 @@ export function AssignmentEvaluationPanel({
           assignment={assignment}
           classLookup={classLookup}
           focusStudentTaskId={focusStudentTaskId}
+          onDeleteStudentTask={handleDeleteStudentTask}
+          deleteState={deleteState}
         />
       )}
 
@@ -237,6 +298,8 @@ export function AssignmentEvaluationPanel({
           assignment={assignment}
           classLookup={classLookup}
           focusStudentTaskId={focusStudentTaskId}
+          onDeleteStudentTask={handleDeleteStudentTask}
+          deleteState={deleteState}
         />
       )}
 
@@ -245,6 +308,8 @@ export function AssignmentEvaluationPanel({
           assignment={assignment}
           classLookup={classLookup}
           focusStudentTaskId={focusStudentTaskId}
+          onDeleteStudentTask={handleDeleteStudentTask}
+          deleteState={deleteState}
         />
       )}
 
@@ -253,11 +318,18 @@ export function AssignmentEvaluationPanel({
           assignment={assignment}
           classLookup={classLookup}
           focusStudentTaskId={focusStudentTaskId}
+          onDeleteStudentTask={handleDeleteStudentTask}
+          deleteState={deleteState}
         />
       )}
 
       {assignment.type === 'lecture' && (
-        <LectureReviewPanel assignment={assignment} classLookup={classLookup} />
+        <LectureReviewPanel
+          assignment={assignment}
+          classLookup={classLookup}
+          onDeleteStudentTask={handleDeleteStudentTask}
+          deleteState={deleteState}
+        />
       )}
     </>
   )
@@ -410,9 +482,17 @@ interface ReviewPanelProps {
   assignment: AssignmentEvaluationPanelProps['assignment']
   classLookup: Map<string | null, string>
   focusStudentTaskId: string | null
+  onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
+  deleteState: { pendingId: string | null; isPending: boolean }
 }
 
-function SrsReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewPanelProps) {
+function SrsReviewPanel({
+  assignment,
+  classLookup,
+  focusStudentTaskId,
+  onDeleteStudentTask,
+  deleteState,
+}: ReviewPanelProps) {
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -453,7 +533,7 @@ function SrsReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewP
               <TableHead>상태</TableHead>
               <TableHead>최근 결과</TableHead>
               <TableHead>다음 복습</TableHead>
-              <TableHead className="text-right">액션</TableHead>
+              <TableHead className="text-right">관리</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -496,25 +576,35 @@ function SrsReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewP
                       : '복습 없음'}
                   </TableCell>
                   <TableCell className="text-right">
-                    {task.status === 'canceled' ? (
+                    <div className="flex items-center justify-end gap-2">
+                      {task.status === 'canceled' ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isPending && pendingTaskId === task.id}
+                          onClick={() => handleToggle(task.id, false)}
+                        >
+                          <RefreshCw className="mr-1 h-3 w-3" /> 재시작
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={isPending && pendingTaskId === task.id}
+                          onClick={() => handleToggle(task.id, true)}
+                        >
+                          <RotateCcw className="mr-1 h-3 w-3" /> 취소
+                        </Button>
+                      )}
                       <Button
-                        variant="outline"
+                        variant="destructive"
                         size="sm"
-                        disabled={isPending && pendingTaskId === task.id}
-                        onClick={() => handleToggle(task.id, false)}
+                        disabled={deleteState.isPending && deleteState.pendingId === task.id}
+                        onClick={() => onDeleteStudentTask(task.id, task.student.name)}
                       >
-                        <RefreshCw className="mr-1 h-3 w-3" /> 재시작
+                        삭제
                       </Button>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={isPending && pendingTaskId === task.id}
-                        onClick={() => handleToggle(task.id, true)}
-                      >
-                        <RotateCcw className="mr-1 h-3 w-3" /> 취소
-                      </Button>
-                    )}
+                    </div>
                   </TableCell>
                 </TableRow>
               )
@@ -526,7 +616,7 @@ function SrsReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewP
   )
 }
 
-function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewPanelProps) {
+function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
   const [printState, setPrintState] = useState({
     desiredDate: '',
     desiredPeriod: '',
@@ -643,7 +733,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewP
               <TableHead>제출</TableHead>
               <TableHead>평가</TableHead>
               <TableHead>상태</TableHead>
-              <TableHead className="text-right">저장</TableHead>
+              <TableHead className="text-right">관리</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -654,6 +744,8 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewP
                 task={task}
                 className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
                 isFocused={task.id === focusStudentTaskId}
+                onDeleteStudentTask={onDeleteStudentTask}
+                deleteState={deleteState}
               />
             ))}
           </TableBody>
@@ -668,11 +760,15 @@ function PdfEvaluationRow({
   task,
   className,
   isFocused,
+  onDeleteStudentTask,
+  deleteState,
 }: {
   assignmentId: string
   task: StudentTaskSummary
   className: string
   isFocused: boolean
+  onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
+  deleteState: { pendingId: string | null; isPending: boolean }
 }) {
   const submission = task.submissions.find((sub) => sub.mediaAssetId) ?? null
   const taskItem = submission && submission.itemId
@@ -744,20 +840,32 @@ function PdfEvaluationRow({
         </Badge>
       </TableCell>
       <TableCell className="text-right">
-        <Button size="sm" disabled={!submission || isPending || !score} onClick={handleSave}>
-          저장
-        </Button>
-        {message && (
-          <p className={`mt-1 text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
-            {message}
-          </p>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2">
+            <Button size="sm" disabled={!submission || isPending || !score} onClick={handleSave}>
+              저장
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteState.isPending && deleteState.pendingId === task.id}
+              onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+            >
+              삭제
+            </Button>
+          </div>
+          {message && (
+            <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
+              {message}
+            </p>
+          )}
+        </div>
       </TableCell>
     </TableRow>
   )
 }
 
-function WritingReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewPanelProps) {
+function WritingReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
   return (
     <Card className="border-slate-200">
       <CardHeader className="space-y-1">
@@ -772,6 +880,8 @@ function WritingReviewPanel({ assignment, classLookup, focusStudentTaskId }: Rev
             task={task}
             className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
             isFocused={task.id === focusStudentTaskId}
+            onDeleteStudentTask={onDeleteStudentTask}
+            deleteState={deleteState}
           />
         ))}
       </CardContent>
@@ -784,11 +894,15 @@ function WritingEvaluationCard({
   task,
   className,
   isFocused,
+  onDeleteStudentTask,
+  deleteState,
 }: {
   assignmentId: string
   task: StudentTaskSummary
   className: string
   isFocused: boolean
+  onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
+  deleteState: { pendingId: string | null; isPending: boolean }
 }) {
   const submission = task.submissions[0] ?? null
   const taskItem = submission && submission.itemId
@@ -831,15 +945,25 @@ function WritingEvaluationCard({
           <p className="text-base font-semibold text-slate-900">{task.student.name}</p>
           <p className="text-xs text-slate-500">{className}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-            {STATUS_LABELS[task.status] ?? task.status}
-          </Badge>
-          {submission?.updatedAt && (
-            <span>
-              최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
-            </span>
-          )}
+        <div className="flex flex-col items-end gap-2 md:flex-row md:items-center">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
+              {STATUS_LABELS[task.status] ?? task.status}
+            </Badge>
+            {submission?.updatedAt && (
+              <span>
+                최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={deleteState.isPending && deleteState.pendingId === task.id}
+            onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+          >
+            삭제
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-slate-700">
@@ -882,7 +1006,7 @@ function WritingEvaluationCard({
   )
 }
 
-function FilmReviewPanel({ assignment, classLookup, focusStudentTaskId }: ReviewPanelProps) {
+function FilmReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
   return (
     <Card className="border-slate-200">
       <CardHeader className="space-y-1">
@@ -897,6 +1021,8 @@ function FilmReviewPanel({ assignment, classLookup, focusStudentTaskId }: Review
             task={task}
             className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
             isFocused={task.id === focusStudentTaskId}
+            onDeleteStudentTask={onDeleteStudentTask}
+            deleteState={deleteState}
           />
         ))}
       </CardContent>
@@ -909,11 +1035,15 @@ function FilmEvaluationCard({
   task,
   className,
   isFocused,
+  onDeleteStudentTask,
+  deleteState,
 }: {
   assignmentId: string
   task: StudentTaskSummary
   className: string
   isFocused: boolean
+  onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
+  deleteState: { pendingId: string | null; isPending: boolean }
 }) {
   const submission = task.submissions[0] ?? null
   const taskItem = task.items[0] ?? null
@@ -954,15 +1084,25 @@ function FilmEvaluationCard({
           <p className="text-base font-semibold text-slate-900">{task.student.name}</p>
           <p className="text-xs text-slate-500">{className}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-            {STATUS_LABELS[task.status] ?? task.status}
-          </Badge>
-          {submission?.updatedAt && (
-            <span>
-              최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
-            </span>
-          )}
+        <div className="flex flex-col items-end gap-2 md:flex-row md:items-center">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
+              {STATUS_LABELS[task.status] ?? task.status}
+            </Badge>
+            {submission?.updatedAt && (
+              <span>
+                최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
+              </span>
+            )}
+          </div>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={deleteState.isPending && deleteState.pendingId === task.id}
+            onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+          >
+            삭제
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-slate-700">
@@ -1016,9 +1156,13 @@ function FilmField({ label, value, full }: { label: string; value: string; full?
 function LectureReviewPanel({
   assignment,
   classLookup,
+  onDeleteStudentTask,
+  deleteState,
 }: {
   assignment: AssignmentEvaluationPanelProps['assignment']
   classLookup: Map<string | null, string>
+  onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
+  deleteState: { pendingId: string | null; isPending: boolean }
 }) {
   return (
     <Card className="border-slate-200">
@@ -1033,6 +1177,7 @@ function LectureReviewPanel({
               <TableHead>반</TableHead>
               <TableHead>제출 요약</TableHead>
               <TableHead>상태</TableHead>
+              <TableHead className="text-right">관리</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -1062,6 +1207,16 @@ function LectureReviewPanel({
                     <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
                       {STATUS_LABELS[task.status] ?? task.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={deleteState.isPending && deleteState.pendingId === task.id}
+                      onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+                    >
+                      삭제
+                    </Button>
                   </TableCell>
                 </TableRow>
               )

@@ -4,7 +4,19 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
+import type { UserProfile } from '@/lib/supabase'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+
+function isTeacherOrPrincipal(profile: UserProfile | null | undefined): profile is UserProfile {
+  return Boolean(profile && (profile.role === 'teacher' || profile.role === 'principal'))
+}
+
+function canManageAssignment(profile: UserProfile, assignedBy: string | null | undefined) {
+  if (profile.role === 'principal') {
+    return true
+  }
+  return Boolean(assignedBy && assignedBy === profile.id)
+}
 
 const evaluationSchema = z.object({
   assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
@@ -23,8 +35,8 @@ type EvaluationInput = z.infer<typeof evaluationSchema>
 export async function evaluateSubmission(input: EvaluationInput) {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
-    return { error: '교사 계정으로만 평가할 수 있습니다.' }
+  if (!isTeacherOrPrincipal(profile)) {
+    return { error: '교사 또는 원장 계정으로만 평가할 수 있습니다.' }
   }
 
   const parsed = evaluationSchema.safeParse(input)
@@ -41,7 +53,7 @@ export async function evaluateSubmission(input: EvaluationInput) {
     const { data: studentTask, error: fetchTaskError } = await supabase
       .from('student_tasks')
       .select(
-        'id, status, completion_at, assignment_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by)'
+        'id, status, completion_at, assignment_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by), profiles!student_tasks_student_id_fkey(class_id)'
       )
       .eq('id', payload.studentTaskId)
       .maybeSingle()
@@ -59,9 +71,12 @@ export async function evaluateSubmission(input: EvaluationInput) {
       ? studentTask.assignments[0]
       : studentTask.assignments
 
-    if (!assignment || assignment.assigned_by !== profile.id) {
+    if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
       return { error: '해당 과제에 대한 평가 권한이 없습니다.' }
     }
+
+    const studentProfile = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
+    const classId = studentProfile?.class_id ?? null
 
     const now = new Date().toISOString()
 
@@ -149,7 +164,11 @@ export async function evaluateSubmission(input: EvaluationInput) {
     }
 
     revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
     revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+    if (classId) {
+      revalidatePath(`/dashboard/teacher/review/${classId}`)
+    }
     return { success: true as const }
   } catch (error) {
     console.error('[teacher] evaluateSubmission unexpected error', error)
@@ -168,8 +187,8 @@ type ToggleInput = z.infer<typeof toggleSchema>
 export async function toggleStudentTaskStatus(input: ToggleInput) {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
-    return { error: '교사 계정으로만 변경할 수 있습니다.' }
+  if (!isTeacherOrPrincipal(profile)) {
+    return { error: '교사 또는 원장 계정으로만 변경할 수 있습니다.' }
   }
 
   const parsed = toggleSchema.safeParse(input)
@@ -185,7 +204,7 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
   try {
     const { data: studentTask, error: fetchError } = await supabase
       .from('student_tasks')
-      .select('id, status, completion_at, assignment_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by)')
+      .select('id, status, completion_at, assignment_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by), profiles!student_tasks_student_id_fkey(class_id)')
       .eq('id', payload.studentTaskId)
       .maybeSingle()
 
@@ -202,9 +221,12 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
       ? studentTask.assignments[0]
       : studentTask.assignments
 
-    if (!assignment || assignment.assigned_by !== profile.id) {
+    if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
       return { error: '해당 과제에 대한 권한이 없습니다.' }
     }
+
+    const profileRecord = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
+    const classId = profileRecord?.class_id ?? null
 
     const now = new Date().toISOString()
 
@@ -250,7 +272,11 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
     }
 
     revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
     revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+    if (classId) {
+      revalidatePath(`/dashboard/teacher/review/${classId}`)
+    }
     return { success: true as const }
   } catch (error) {
     console.error('[teacher] toggleStudentTaskStatus unexpected error', error)
@@ -286,8 +312,8 @@ type PrintRequestInput = z.infer<typeof printRequestSchema>
 export async function createPrintRequest(input: PrintRequestInput) {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
-    return { error: '교사 계정으로만 인쇄를 요청할 수 있습니다.' }
+  if (!isTeacherOrPrincipal(profile)) {
+    return { error: '교사 또는 원장 계정으로만 인쇄를 요청할 수 있습니다.' }
   }
 
   const parsed = printRequestSchema.safeParse(input)
@@ -312,7 +338,7 @@ export async function createPrintRequest(input: PrintRequestInput) {
       return { error: '과제 정보를 불러오지 못했습니다.' }
     }
 
-    if (!assignment || assignment.assigned_by !== profile.id) {
+    if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
       return { error: '해당 과제에 대한 인쇄 권한이 없습니다.' }
     }
 
@@ -354,6 +380,7 @@ export async function createPrintRequest(input: PrintRequestInput) {
     }
 
     revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
     revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
     revalidatePath('/dashboard/manager')
     return { success: true as const }
@@ -361,4 +388,216 @@ export async function createPrintRequest(input: PrintRequestInput) {
     console.error('[teacher] createPrintRequest unexpected error', error)
     return { error: '인쇄 요청 처리 중 예상치 못한 문제가 발생했습니다.' }
   }
+}
+
+const deleteStudentSchema = z.object({
+  assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  studentTaskId: z.string().uuid('유효한 학생 과제 ID가 아닙니다.'),
+})
+
+type DeleteStudentInput = z.infer<typeof deleteStudentSchema>
+
+export async function deleteStudentTask(input: DeleteStudentInput) {
+  const { profile } = await getAuthContext()
+
+  if (!isTeacherOrPrincipal(profile)) {
+    return { error: '교사 또는 원장 계정으로만 삭제할 수 있습니다.' }
+  }
+
+  const parsed = deleteStudentSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '삭제할 학생 과제 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  const supabase = createServerSupabase()
+
+  try {
+    const { data: studentTask, error: fetchTaskError } = await supabase
+      .from('student_tasks')
+      .select(
+        'id, assignment_id, student_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by), profiles!student_tasks_student_id_fkey(class_id)'
+      )
+      .eq('id', payload.studentTaskId)
+      .maybeSingle()
+
+    if (fetchTaskError) {
+      console.error('[teacher] deleteStudentTask fetch error', fetchTaskError)
+      return { error: '학생 과제 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!studentTask || studentTask.assignment_id !== payload.assignmentId) {
+      return { error: '학생 과제 정보를 확인할 수 없습니다.' }
+    }
+
+    const assignment = Array.isArray(studentTask.assignments)
+      ? studentTask.assignments[0]
+      : studentTask.assignments
+
+    if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
+      return { error: '해당 과제에 대한 삭제 권한이 없습니다.' }
+    }
+
+    const profileRecord = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
+    const classId = profileRecord?.class_id ?? null
+
+    const deleteResult = await deleteStudentTaskCascade(supabase, payload.studentTaskId)
+    if (deleteResult.error) {
+      return deleteResult
+    }
+
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+    if (classId) {
+      revalidatePath(`/dashboard/teacher/review/${classId}`)
+    }
+    return { success: true as const }
+  } catch (error) {
+    console.error('[teacher] deleteStudentTask unexpected error', error)
+    return { error: '학생 과제 삭제 중 문제가 발생했습니다.' }
+  }
+}
+
+const deleteTargetSchema = z.object({
+  assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  classId: z.string().uuid('유효한 반 ID가 아닙니다.'),
+})
+
+type DeleteTargetInput = z.infer<typeof deleteTargetSchema>
+
+export async function deleteAssignmentTarget(input: DeleteTargetInput) {
+  const { profile } = await getAuthContext()
+
+  if (!isTeacherOrPrincipal(profile)) {
+    return { error: '교사 또는 원장 계정만 과제를 삭제할 수 있습니다.' }
+  }
+
+  const parsed = deleteTargetSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '삭제할 반 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  const supabase = createServerSupabase()
+
+  try {
+    const { data: target, error: fetchTargetError } = await supabase
+      .from('assignment_targets')
+      .select('id, assignment_id, class_id, assignments(id, assigned_by)')
+      .eq('assignment_id', payload.assignmentId)
+      .eq('class_id', payload.classId)
+      .maybeSingle()
+
+    if (fetchTargetError) {
+      console.error('[teacher] deleteAssignmentTarget fetch error', fetchTargetError)
+      return { error: '과제 대상 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!target || target.assignment_id !== payload.assignmentId) {
+      return { error: '삭제할 반 과제 정보를 찾을 수 없습니다.' }
+    }
+
+    const assignment = Array.isArray(target.assignments) ? target.assignments[0] : target.assignments
+    if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
+      return { error: '해당 과제에 대한 삭제 권한이 없습니다.' }
+    }
+
+    const { data: tasks, error: fetchTasksError } = await supabase
+      .from('student_tasks')
+      .select('id, student_id, profiles!student_tasks_student_id_fkey(class_id)')
+      .eq('assignment_id', payload.assignmentId)
+
+    if (fetchTasksError) {
+      console.error('[teacher] deleteAssignmentTarget task list error', fetchTasksError)
+      return { error: '학생 과제 목록을 확인하지 못했습니다.' }
+    }
+
+    const studentTaskIds = (tasks ?? [])
+      .filter((task) => {
+        const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
+        return profileRecord?.class_id === payload.classId
+      })
+      .map((task) => task.id)
+
+    if (studentTaskIds.length > 0) {
+      const deleteResults = await Promise.all(
+        studentTaskIds.map((studentTaskId) => deleteStudentTaskCascade(supabase, studentTaskId))
+      )
+      const failed = deleteResults.find((result) => result.error)
+      if (failed?.error) {
+        return failed
+      }
+    }
+
+    const { error: deleteTargetError } = await supabase
+      .from('assignment_targets')
+      .delete()
+      .eq('assignment_id', payload.assignmentId)
+      .eq('class_id', payload.classId)
+
+    if (deleteTargetError) {
+      console.error('[teacher] deleteAssignmentTarget delete error', deleteTargetError)
+      return { error: '반 대상 삭제 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+    revalidatePath(`/dashboard/teacher/review/${payload.classId}`)
+    revalidatePath('/dashboard/manager')
+    return { success: true as const }
+  } catch (error) {
+    console.error('[teacher] deleteAssignmentTarget unexpected error', error)
+    return { error: '반 과제 삭제 중 문제가 발생했습니다.' }
+  }
+}
+
+async function deleteStudentTaskCascade(
+  supabase: ReturnType<typeof createServerSupabase>,
+  studentTaskId: string
+): Promise<{ success?: true; error?: string }> {
+  const { error: deleteSubmissionsError } = await supabase
+    .from('task_submissions')
+    .delete()
+    .eq('student_task_id', studentTaskId)
+
+  if (deleteSubmissionsError) {
+    console.error('[teacher] deleteStudentTask submissions error', deleteSubmissionsError)
+    return { error: '학생 제출물 삭제 중 오류가 발생했습니다.' }
+  }
+
+  const { error: deleteItemsError } = await supabase
+    .from('student_task_items')
+    .delete()
+    .eq('student_task_id', studentTaskId)
+
+  if (deleteItemsError) {
+    console.error('[teacher] deleteStudentTask items error', deleteItemsError)
+    return { error: '학생 과제 문항 삭제 중 오류가 발생했습니다.' }
+  }
+
+  const { error: deletePrintsError } = await supabase
+    .from('print_requests')
+    .delete()
+    .eq('student_task_id', studentTaskId)
+
+  if (deletePrintsError) {
+    console.error('[teacher] deleteStudentTask print error', deletePrintsError)
+    return { error: '인쇄 요청 삭제 중 오류가 발생했습니다.' }
+  }
+
+  const { error: deleteTaskError } = await supabase
+    .from('student_tasks')
+    .delete()
+    .eq('id', studentTaskId)
+
+  if (deleteTaskError) {
+    console.error('[teacher] deleteStudentTask task error', deleteTaskError)
+    return { error: '학생 과제 삭제 중 오류가 발생했습니다.' }
+  }
+
+  return { success: true as const }
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import {
   AlertCircle,
   Calendar,
@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 
 import { AssignmentEvaluationPanel } from '@/components/dashboard/teacher/AssignmentEvaluationPanel'
+import { deleteAssignmentTarget } from '@/app/dashboard/teacher/actions'
+import { useRouter } from 'next/navigation'
 import DateUtil from '@/lib/date-util'
 import type { AssignmentDetail } from '@/lib/assignment-evaluation'
 import { Badge } from '@/components/ui/badge'
@@ -102,6 +104,9 @@ export function ClassDashboard({
       : assignments[0]?.id ?? null
   )
   const [focusStudentTaskId, setFocusStudentTaskId] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [isDeletingClass, startDeleteClass] = useTransition()
+  const router = useRouter()
 
   const activeAssignment = useMemo(
     () => assignments.find((assignment) => assignment.id === activeAssignmentId) ?? null,
@@ -119,6 +124,12 @@ export function ClassDashboard({
   )
 
   useEffect(() => {
+    if (activeAssignmentId && !assignments.some((assignment) => assignment.id === activeAssignmentId)) {
+      setActiveAssignmentId(assignments[0]?.id ?? null)
+    }
+  }, [assignments, activeAssignmentId])
+
+  useEffect(() => {
     if (!activeDetail) {
       setFocusStudentTaskId(null)
       return
@@ -133,6 +144,33 @@ export function ClassDashboard({
       return firstPending ? firstPending.id : null
     })
   }, [activeDetail])
+
+  const handleDeleteClassAssignment = useCallback(() => {
+    const targetAssignment = activeAssignment
+    if (!targetAssignment) {
+      return
+    }
+    if (
+      !window.confirm(
+        `${className} 반에서 "${targetAssignment.title}" 과제를 삭제하시겠어요?`
+      )
+    ) {
+      return
+    }
+    setActionMessage(null)
+    const targetAssignmentId = targetAssignment.id
+    startDeleteClass(async () => {
+      const result = await deleteAssignmentTarget({ assignmentId: targetAssignmentId, classId })
+      if (result?.error) {
+        setActionMessage({ type: 'error', text: result.error })
+        return
+      }
+      setActionMessage({ type: 'success', text: '반에서 과제를 삭제했습니다.' })
+      setFocusStudentTaskId(null)
+      setActiveAssignmentId((prev) => (prev === targetAssignmentId ? null : prev))
+      router.refresh()
+    })
+  }, [activeAssignment, classId, className, router])
 
   const statusSummary = useMemo(() => {
     if (!activeDetail) {
@@ -186,8 +224,6 @@ export function ClassDashboard({
       .filter((task) => task.status !== 'completed' && task.status !== 'canceled')
       .sort((a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt))
   }, [activeDetail, classLookup])
-
-  const nextPendingTaskId = pendingTasks[0]?.id ?? null
 
   const handleFocusStudentTask = useCallback((studentTaskId: string | null) => {
     setFocusStudentTaskId(studentTaskId)
@@ -323,17 +359,38 @@ export function ClassDashboard({
           </Card>
 
           <div className="space-y-4">
+            {actionMessage && (
+              <div
+                className={`rounded-md border px-3 py-2 text-xs ${
+                  actionMessage.type === 'error'
+                    ? 'border-destructive/40 bg-destructive/10 text-destructive'
+                    : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                }`}
+              >
+                {actionMessage.text}
+              </div>
+            )}
             {activeAssignment && activeDetail ? (
               <>
                 <Card className="border-slate-200">
                   <CardHeader className="space-y-3">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg text-slate-900">{activeAssignment.title}</CardTitle>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <Badge variant="outline">{activeAssignment.subject}</Badge>
-                        <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
-                        {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg text-slate-900">{activeAssignment.title}</CardTitle>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <Badge variant="outline">{activeAssignment.subject}</Badge>
+                          <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
+                          {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
+                        </div>
                       </div>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={handleDeleteClassAssignment}
+                        disabled={isDeletingClass}
+                      >
+                        이 반에서 삭제
+                      </Button>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                       <span className="inline-flex items-center gap-1">
@@ -392,11 +449,6 @@ export function ClassDashboard({
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-semibold text-slate-700">미평가 학생</p>
-                        {nextPendingTaskId && (
-                          <Button size="sm" variant="outline" onClick={() => handleFocusStudentTask(nextPendingTaskId)}>
-                            첫 학생 선택
-                          </Button>
-                        )}
                       </div>
                       {pendingTasks.length === 0 ? (
                         <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
