@@ -98,7 +98,7 @@ export async function submitSrsAnswer({
 
 const textResponsesSchema = z.object({
   studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
-  submissionType: z.enum(['writing', 'film', 'lecture']),
+  submissionType: z.enum(['writing', 'lecture']),
   answers: z
     .array(
       z.object({
@@ -233,6 +233,193 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
 
   revalidatePath('/dashboard/student')
   revalidatePath(`/dashboard/student/tasks/${parsed.studentTaskId}`)
+
+  return { success: true as const }
+}
+
+const filmEntrySchema = z.object({
+  studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
+  workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
+  title: z.string().optional().default(''),
+  director: z.string().optional().default(''),
+  releaseYear: z.string().optional().default(''),
+  genre: z.string().optional().default(''),
+  country: z.string().optional().default(''),
+  summary: z.string().optional().default(''),
+  favoriteScene: z.string().optional().default(''),
+})
+
+const filmResponsesSchema = z.object({
+  studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  entries: z.array(filmEntrySchema),
+})
+
+const FILM_REQUIRED_KEYS = ['title', 'director', 'releaseYear', 'genre', 'country', 'summary', 'favoriteScene'] as const
+
+const FILM_FIELD_LABELS: Record<(typeof FILM_REQUIRED_KEYS)[number], string> = {
+  title: '영화 제목',
+  director: '감독',
+  releaseYear: '개봉 연도',
+  genre: '장르',
+  country: '국가',
+  summary: '줄거리 요약',
+  favoriteScene: '연출적으로 좋았던 장면',
+}
+
+function sanitizePlain(value: string): string {
+  return value.replace(/\r/g, '').trim()
+}
+
+function isReleaseYearValid(value: string): boolean {
+  if (value.length === 0) {
+    return true
+  }
+  return /^\d{4}$/.test(value)
+}
+
+export async function submitFilmResponses(input: z.infer<typeof filmResponsesSchema>) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'student') {
+    return { success: false as const, error: '학생 계정으로만 제출할 수 있습니다.' }
+  }
+
+  const parsed = filmResponsesSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { success: false as const, error: firstIssue?.message ?? '입력 값을 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+
+  const supabase = createServerSupabase()
+
+  const ownsTask = await ensureStudentOwnsTask(supabase, payload.studentTaskId, profile.id)
+
+  if (!ownsTask) {
+    return { success: false as const, error: '해당 과제에 접근할 수 없습니다.' }
+  }
+
+  const now = new Date().toISOString()
+
+  for (let index = 0; index < payload.entries.length; index += 1) {
+    const entry = payload.entries[index]
+    const normalized = FILM_REQUIRED_KEYS.reduce((acc, key) => {
+      acc[key] = sanitizePlain(entry[key] ?? '')
+      return acc
+    }, {} as Record<(typeof FILM_REQUIRED_KEYS)[number], string>)
+
+    const hasAnyValue = FILM_REQUIRED_KEYS.some((key) => normalized[key].length > 0)
+    const missingKeys = FILM_REQUIRED_KEYS.filter((key) => normalized[key].length === 0)
+
+    if (!isReleaseYearValid(normalized.releaseYear)) {
+      return {
+        success: false as const,
+        error: `감상지 ${index + 1}: 개봉 연도는 4자리 숫자로 입력해주세요.`,
+      }
+    }
+
+    if (hasAnyValue && missingKeys.length > 0) {
+      const labels = missingKeys.map((key) => FILM_FIELD_LABELS[key]).join(', ')
+      return {
+        success: false as const,
+        error: `감상지 ${index + 1}: ${labels} 항목을 모두 작성해주세요.`,
+      }
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from('task_submissions')
+      .select('id')
+      .eq('student_task_id', payload.studentTaskId)
+      .eq('item_id', entry.workbookItemId)
+      .maybeSingle()
+
+    if (existingError) {
+      console.error('[submitFilmResponses] failed to load existing submission', existingError)
+      return { success: false as const, error: '기존 감상지를 불러오지 못했습니다.' }
+    }
+
+    if (!hasAnyValue) {
+      if (existing) {
+        const { error: deleteError } = await supabase
+          .from('task_submissions')
+          .delete()
+          .eq('id', existing.id)
+
+        if (deleteError) {
+          console.error('[submitFilmResponses] failed to delete submission', deleteError)
+          return { success: false as const, error: '기존 감상지를 삭제하지 못했습니다.' }
+        }
+      }
+
+      const { error: resetItemError } = await supabase
+        .from('student_task_items')
+        .update({
+          completed_at: null,
+          last_result: null,
+          updated_at: now,
+        })
+        .eq('id', entry.studentTaskItemId)
+
+      if (resetItemError) {
+        console.error('[submitFilmResponses] failed to reset student_task_item', resetItemError)
+        return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
+      }
+
+      continue
+    }
+
+    const contentPayload = JSON.stringify(normalized)
+
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from('task_submissions')
+        .update({
+          submission_type: 'film',
+          content: contentPayload,
+          media_asset_id: null,
+          updated_at: now,
+        })
+        .eq('id', existing.id)
+
+      if (updateError) {
+        console.error('[submitFilmResponses] failed to update submission', updateError)
+        return { success: false as const, error: '감상지를 저장하지 못했습니다.' }
+      }
+    } else {
+      const { error: insertError } = await supabase.from('task_submissions').insert({
+        student_task_id: payload.studentTaskId,
+        item_id: entry.workbookItemId,
+        submission_type: 'film',
+        content: contentPayload,
+      })
+
+      if (insertError) {
+        console.error('[submitFilmResponses] failed to insert submission', insertError)
+        return { success: false as const, error: '감상지를 저장하지 못했습니다.' }
+      }
+    }
+
+    const { error: itemUpdateError } = await supabase
+      .from('student_task_items')
+      .update({
+        completed_at: now,
+        last_result: 'submitted',
+        updated_at: now,
+      })
+      .eq('id', entry.studentTaskItemId)
+
+    if (itemUpdateError) {
+      console.error('[submitFilmResponses] failed to update student_task_item', itemUpdateError)
+      return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
+    }
+  }
+
+  await refreshStudentTaskStatus(supabase, payload.studentTaskId)
+
+  revalidatePath('/dashboard/student')
+  revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
 
   return { success: true as const }
 }

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import DateUtil from '@/lib/date-util'
 import type { StudentTaskDetail, StudentTaskItemDetail } from '@/types/student-task'
 import { cn } from '@/lib/utils'
@@ -256,106 +257,116 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">문항 #{currentItem.workbookItem.position}</h2>
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg font-semibold text-slate-900">문항 #{currentItem.workbookItem.position}</CardTitle>
+            <p className="text-sm text-slate-500">카드별로 정답을 입력하고 확인해보세요.</p>
+          </div>
           <Badge variant={currentItem.streak >= 3 ? 'secondary' : 'outline'}>
             연속 정답 {currentItem.streak}회
           </Badge>
-        </div>
-        <p className="text-slate-800 whitespace-pre-line">{currentItem.workbookItem.prompt}</p>
-        {currentItem.workbookItem.explanation && (
-          <p className="text-sm text-slate-500">{currentItem.workbookItem.explanation}</p>
-        )}
-      </div>
-
-      {answerType === 'multiple_choice' ? (
-        <div className="space-y-3">
-          {currentItem.workbookItem.choices.length === 0 ? (
-            <p className="text-sm text-slate-500">등록된 보기가 없습니다.</p>
-          ) : (
-            currentItem.workbookItem.choices.map((choice, index) => {
-              const isSelected = selectedChoiceIds.includes(choice.id)
-              return (
-                <button
-                  key={choice.id}
-                  type="button"
-                  onClick={() => handleToggleChoice(choice.id)}
-                  className={cn(
-                    'flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition',
-                    isSelected
-                      ? 'border-primary bg-primary/10 text-primary-foreground'
-                      : 'border-slate-200 hover:border-primary/60 hover:bg-slate-50'
-                  )}
-                >
-                  <Checkbox checked={isSelected} className="mt-1" readOnly />
-                  <div className="space-y-1">
-                    <p className="font-medium text-slate-900">보기 {index + 1}</p>
-                    <p className="text-sm text-slate-700 whitespace-pre-line">{choice.content}</p>
-                  </div>
-                </button>
-              )
-            })
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {currentItem.workbookItem.shortFields.length === 0 ? (
-            <p className="text-sm text-slate-500">등록된 정답 필드가 없습니다.</p>
-          ) : (
-            currentItem.workbookItem.shortFields.map((field, index) => (
-              <div key={field.id} className="space-y-2">
-                {field.label && <p className="text-sm font-medium text-slate-700">{field.label}</p>}
-                <Input
-                  value={shortInputs[index] ?? ''}
-                  onChange={(event) => handleShortInputChange(event.target.value, index)}
-                  placeholder={`정답을 입력하세요 (${index + 1})`}
-                  disabled={isSubmitting}
-                />
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <AlertCircle className="mt-0.5 h-4 w-4" />
-          <p>{errorMessage}</p>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="default"
-            disabled={!canSubmit || isSubmitting}
-            onClick={handleSubmit}
-          >
-            {isSubmitting ? '제출 중...' : '정답 확인'}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowAnswer((prev) => !prev)}
-            className="flex items-center gap-1"
-          >
-            {showAnswer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            정답 보기
-          </Button>
-          {availableItems.length > 1 && (
-            <Button type="button" variant="ghost" onClick={moveToNextItem}>
-              다음 문항
-            </Button>
-          )}
-        </div>
-        {result && (
-          <div className={cn('flex items-center gap-2 text-sm', result === 'correct' ? 'text-emerald-600' : 'text-rose-600')}>
-            {result === 'correct' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-            <span>{result === 'correct' ? '정답입니다!' : '오답입니다. 다시 복습해보세요.'}</span>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <p className="text-base font-medium text-slate-900 whitespace-pre-line">
+              {currentItem.workbookItem.prompt}
+            </p>
+            {currentItem.workbookItem.explanation && (
+              <p className="text-sm text-slate-500">{currentItem.workbookItem.explanation}</p>
+            )}
           </div>
-        )}
-      </div>
+
+          {answerType === 'multiple_choice' ? (
+            <div className="space-y-3">
+              {currentItem.workbookItem.choices.length === 0 ? (
+                <p className="text-sm text-slate-500">등록된 보기가 없습니다.</p>
+              ) : (
+                currentItem.workbookItem.choices.map((choice, index) => {
+                  const isSelected = selectedChoiceIds.includes(choice.id)
+                  return (
+                    <button
+                      key={choice.id}
+                      type="button"
+                      onClick={() => handleToggleChoice(choice.id)}
+                      className={cn(
+                        'flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition',
+                        isSelected
+                          ? 'border-primary bg-primary/10 text-primary-foreground'
+                          : 'border-slate-200 hover:border-primary/60 hover:bg-slate-50'
+                      )}
+                    >
+                      <Checkbox checked={isSelected} className="mt-1" readOnly />
+                      <div className="space-y-1">
+                        <p className="font-medium text-slate-900">보기 {index + 1}</p>
+                        <p className="text-sm text-slate-700 whitespace-pre-line">{choice.content}</p>
+                      </div>
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {currentItem.workbookItem.shortFields.length === 0 ? (
+                <p className="text-sm text-slate-500">등록된 정답 필드가 없습니다.</p>
+              ) : (
+                currentItem.workbookItem.shortFields.map((field, index) => (
+                  <div key={field.id} className="space-y-2">
+                    {field.label && <p className="text-sm font-medium text-slate-700">{field.label}</p>}
+                    <Input
+                      value={shortInputs[index] ?? ''}
+                      onChange={(event) => handleShortInputChange(event.target.value, index)}
+                      placeholder={`정답을 입력하세요 (${index + 1})`}
+                      disabled={isSubmitting}
+                    />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 h-4 w-4" />
+              <p>{errorMessage}</p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="default" disabled={!canSubmit || isSubmitting} onClick={handleSubmit}>
+                {isSubmitting ? '제출 중...' : '정답 확인'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAnswer((prev) => !prev)}
+                className="flex items-center gap-1"
+              >
+                {showAnswer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                정답 보기
+              </Button>
+              {availableItems.length > 1 && (
+                <Button type="button" variant="ghost" onClick={moveToNextItem}>
+                  다음 문항
+                </Button>
+              )}
+            </div>
+            {result && (
+              <div
+                className={cn(
+                  'flex items-center gap-2 text-sm',
+                  result === 'correct' ? 'text-emerald-600' : 'text-rose-600'
+                )}
+              >
+                {result === 'correct' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                <span>{result === 'correct' ? '정답입니다!' : '오답입니다. 다시 복습해보세요.'}</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {showAnswer && (
         <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">

@@ -10,19 +10,13 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { StudentTaskDetail } from '@/types/student-task'
 import RichTextEditor from '@/components/ui/rich-text-editor'
-import {
-  ensureRichTextValue,
-  isRichTextEmpty,
-  sanitizeRichTextInput,
-  stripHtml,
-} from '@/lib/rich-text'
+import { ensureRichTextValue, sanitizeRichTextInput, stripHtml } from '@/lib/rich-text'
 
 interface TextTaskRunnerProps {
   task: StudentTaskDetail
-  submissionType: 'writing' | 'film' | 'lecture'
+  submissionType: 'writing' | 'lecture'
   instructions?: string | null
   maxCharacters?: number | null
-  noteCount?: number | null
 }
 
 interface PromptEntry {
@@ -38,7 +32,6 @@ export function TextTaskRunner({
   submissionType,
   instructions,
   maxCharacters,
-  noteCount,
 }: TextTaskRunnerProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -77,20 +70,6 @@ export function TextTaskRunner({
           content: sanitizeRichTextInput(answers[index] ?? ''),
         }))
 
-        if (submissionType === 'film' && noteCount && noteCount > 0) {
-          const filledCount = normalizedAnswers.filter(({ content }) => !isRichTextEmpty(content)).length
-
-          if (filledCount < noteCount) {
-            setErrorMessage(`감상 노트는 최소 ${noteCount}개 작성해야 합니다. 현재 ${filledCount}개 입력되어 있습니다.`)
-            return
-          }
-
-          if (filledCount > noteCount) {
-            setErrorMessage(`감상 노트는 최대 ${noteCount}개까지만 제출할 수 있습니다. 작성한 노트 수를 조정해주세요.`)
-            return
-          }
-        }
-
         const payload = {
           studentTaskId: task.id,
           submissionType,
@@ -123,7 +102,6 @@ export function TextTaskRunner({
 
   const limit = typeof maxCharacters === 'number' && maxCharacters > 0 ? maxCharacters : undefined
   const plainTextAnswers = answers.map((value) => stripHtml(value ?? ''))
-  const filledNotes = answers.filter((value) => !isRichTextEmpty(value ?? '')).length
 
   return (
     <div className="space-y-6">
@@ -131,8 +109,8 @@ export function TextTaskRunner({
         <div className="flex flex-col gap-2">
           <p className="text-base font-medium text-slate-900">답안을 작성해주세요</p>
           {instructions && <p className="whitespace-pre-line">{instructions}</p>}
-          {noteCount && noteCount > 0 && (
-            <p className="text-xs text-slate-500">필수 감상 노트 수: {noteCount}개 (현재 {filledNotes}개 작성)</p>
+          {submissionType === 'lecture' && (
+            <p className="text-xs text-slate-500">요약을 저장하면 시청 완료로 표시됩니다.</p>
           )}
           {limit && (
             <p className="text-xs text-slate-500">최대 {limit.toLocaleString()}자까지 입력할 수 있습니다.</p>

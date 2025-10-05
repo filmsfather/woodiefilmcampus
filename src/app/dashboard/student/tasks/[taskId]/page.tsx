@@ -14,6 +14,7 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { fetchStudentTaskDetail } from '@/lib/student-tasks'
 import { WORKBOOK_TITLES, WORKBOOK_TYPE_DESCRIPTIONS } from '@/lib/validation/workbook'
 import { submitSrsAnswer } from '@/app/dashboard/student/tasks/actions'
+import { FilmTaskRunner } from '@/components/dashboard/student/tasks/FilmTaskRunner'
 
 interface StudentTaskDetailPageProps {
   params: {
@@ -120,14 +121,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
       )
       break
     case 'film':
-      taskContent = (
-        <TextTaskRunner
-          task={task}
-          submissionType="film"
-          instructions={null}
-          noteCount={typeof workbookConfig.film?.noteCount === 'number' ? workbookConfig.film?.noteCount ?? null : null}
-        />
-      )
+      taskContent = <FilmTaskRunner task={task} />
       break
     case 'lecture':
       taskContent = (
