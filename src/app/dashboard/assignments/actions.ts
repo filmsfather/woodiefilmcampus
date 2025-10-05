@@ -64,6 +64,18 @@ interface AssignmentTargetRow {
   student_id?: string | null
 }
 
+function chunkArray<T>(items: T[], size: number): T[][] {
+  if (size <= 0 || items.length === 0) {
+    return items.length > 0 ? [items] : []
+  }
+
+  const chunks: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
+}
+
 function deriveTargetScope(classCount: number, studentCount: number) {
   if (classCount > 0 && studentCount > 0) {
     return 'mixed'
@@ -309,6 +321,46 @@ export async function createAssignment(input: CreateAssignmentInput) {
       }
       await writeClient.from('assignments').delete().eq('id', assignmentId)
       return { error: '학생 과제가 생성되지 않았습니다. 다시 시도해주세요.' }
+    }
+
+    const insertedTaskIds = insertedTasks.map((row) => row.id)
+
+    const rollbackAssignment = async () => {
+      await writeClient.from('assignments').delete().eq('id', assignmentId)
+    }
+
+    const { data: workbookItems, error: workbookItemsError } = await writeClient
+      .from('workbook_items')
+      .select('id')
+      .eq('workbook_id', workbookId)
+      .order('position')
+
+    if (workbookItemsError) {
+      console.error('[createAssignment] failed to load workbook items', workbookItemsError)
+      await rollbackAssignment()
+      return { error: '문제집 문항 정보를 불러오지 못했습니다.' }
+    }
+
+    if (workbookItems && workbookItems.length > 0) {
+      const taskItemRows = insertedTaskIds.flatMap((studentTaskId) =>
+        workbookItems.map((item) => ({ student_task_id: studentTaskId, item_id: item.id }))
+      )
+
+      const batches = chunkArray(taskItemRows, 500)
+
+      for (const batch of batches) {
+        if (batch.length === 0) {
+          continue
+        }
+
+        const { error: taskItemsError } = await writeClient.from('student_task_items').insert(batch)
+
+        if (taskItemsError) {
+          console.error('[createAssignment] failed to insert student_task_items', taskItemsError)
+          await rollbackAssignment()
+          return { error: '학생 과제 문항 생성 중 오류가 발생했습니다.' }
+        }
+      }
     }
 
     const pathsToRevalidate = ['/dashboard/teacher']
