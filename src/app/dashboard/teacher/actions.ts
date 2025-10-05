@@ -169,6 +169,8 @@ export async function evaluateSubmission(input: EvaluationInput) {
     if (classId) {
       revalidatePath(`/dashboard/teacher/review/${classId}`)
     }
+    revalidatePath('/dashboard/student')
+    revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
     return { success: true as const }
   } catch (error) {
     console.error('[teacher] evaluateSubmission unexpected error', error)
@@ -515,10 +517,17 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
       return { error: '학생 과제 목록을 확인하지 못했습니다.' }
     }
 
+    const impactedStudentIds = new Set<string>()
     const studentTaskIds = (tasks ?? [])
       .filter((task) => {
         const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
-        return profileRecord?.class_id === payload.classId
+        if (profileRecord?.class_id === payload.classId) {
+          if (task.student_id) {
+            impactedStudentIds.add(task.student_id)
+          }
+          return true
+        }
+        return false
       })
       .map((task) => task.id)
 
@@ -548,6 +557,9 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput) {
     revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
     revalidatePath(`/dashboard/teacher/review/${payload.classId}`)
     revalidatePath('/dashboard/manager')
+    if (impactedStudentIds.size > 0) {
+      revalidatePath('/dashboard/student')
+    }
     return { success: true as const }
   } catch (error) {
     console.error('[teacher] deleteAssignmentTarget unexpected error', error)
