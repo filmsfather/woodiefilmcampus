@@ -1,37 +1,17 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import Link from 'next/link'
 import { AlertCircle, Calendar, CalendarClock, CheckCircle2, CircleDot, Printer, Users } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-
 const TYPE_LABELS: Record<string, string> = {
   srs: 'SRS 반복',
   pdf: 'PDF 제출',
   writing: '서술형',
   film: '영화 감상',
   lecture: '인터넷 강의',
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: '대기',
-  not_started: '미시작',
-  in_progress: '진행 중',
-  completed: '완료',
-  canceled: '취소',
-}
-
-const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' | 'destructive'> = {
-  pending: 'outline',
-  not_started: 'outline',
-  in_progress: 'default',
-  completed: 'secondary',
-  canceled: 'destructive',
 }
 
 interface StudentTaskSummary {
@@ -90,41 +70,18 @@ interface ClassDashboardProps {
   initialAssignmentId?: string | null
 }
 
-const STATUS_FILTERS: Array<{ key: string; label: string; filters: string[] }> = [
-  { key: 'all', label: '전체', filters: [] },
-  { key: 'not_started', label: '미제출', filters: ['pending', 'not_started'] },
-  { key: 'in_progress', label: '검토 필요', filters: ['in_progress'] },
-  { key: 'completed', label: '완료', filters: ['completed'] },
-  { key: 'canceled', label: '취소', filters: ['canceled'] },
-]
-
 export function ClassDashboard({ classId, className, assignments, summary, initialAssignmentId }: ClassDashboardProps) {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(
     initialAssignmentId && assignments.some((assignment) => assignment.id === initialAssignmentId)
       ? initialAssignmentId
       : assignments[0]?.id ?? null
   )
-  const [statusTab, setStatusTab] = useState<string>('all')
-
   const activeAssignment = useMemo(
     () => assignments.find((assignment) => assignment.id === activeAssignmentId) ?? null,
     [assignments, activeAssignmentId]
   )
-
-  const filteredTasks = useMemo(() => {
-    if (!activeAssignment) {
-      return []
-    }
-
-    const tab = STATUS_FILTERS.find((item) => item.key === statusTab)
-    if (!tab || tab.filters.length === 0) {
-      return activeAssignment.studentTasks
-    }
-
-    return activeAssignment.studentTasks.filter((task) => tab.filters.includes(task.status))
-  }, [activeAssignment, statusTab])
-
   const hasAssignments = assignments.length > 0
+  const evaluationHref = activeAssignmentId ? `/dashboard/teacher/assignments/${activeAssignmentId}?classId=${classId}` : null
 
   return (
     <section className="space-y-6">
@@ -262,32 +219,15 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
           </Card>
 
           <Card className="border-slate-200">
-            {activeAssignment ? (
+            {activeAssignment && evaluationHref ? (
               <>
                 <CardHeader className="space-y-3">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg text-slate-900">{activeAssignment.title}</CardTitle>
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        <Badge variant="outline">{activeAssignment.subject}</Badge>
-                        <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
-                        {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button asChild size="sm" variant="outline">
-                        <Link href={`/dashboard/teacher/assignments/${activeAssignment.id}?classId=${classId}`}>
-                          과제 상세 보기
-                        </Link>
-                      </Button>
-                      <Button asChild size="sm">
-                        <Link href={
-                          `/dashboard/teacher/assignments/${activeAssignment.id}?classId=${classId}` +
-                          (filteredTasks[0]?.id ? `&studentTask=${filteredTasks[0]?.id}` : '')
-                        }>
-                          평가 페이지 이동
-                        </Link>
-                      </Button>
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg text-slate-900">{activeAssignment.title}</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <Badge variant="outline">{activeAssignment.subject}</Badge>
+                      <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
+                      {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -308,74 +248,8 @@ export function ClassDashboard({ classId, className, assignments, summary, initi
                     <Badge variant="outline">미평가 {activeAssignment.outstandingStudents}명</Badge>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex flex-wrap gap-1">
-                    {STATUS_FILTERS.map((tab) => {
-                      const isActive = tab.key === statusTab
-                      return (
-                        <Button
-                          key={tab.key}
-                          size="sm"
-                          variant={isActive ? 'default' : 'outline'}
-                          onClick={() => setStatusTab(tab.key)}
-                          className="text-xs"
-                        >
-                          {tab.label}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                  <div className="rounded-md border border-slate-200">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>학생</TableHead>
-                          <TableHead>이메일</TableHead>
-                          <TableHead>상태</TableHead>
-                          <TableHead>완료 문항</TableHead>
-                          <TableHead className="text-right">액션</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredTasks.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={5} className="py-10 text-center text-xs text-slate-500">
-                              해당 조건에 맞는 학생이 없습니다.
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          filteredTasks.map((task) => (
-                            <TableRow key={task.id}>
-                              <TableCell className="max-w-[160px] truncate" title={task.student.name}>
-                                {task.student.name}
-                              </TableCell>
-                              <TableCell className="max-w-[200px] truncate text-xs" title={task.student.email ?? undefined}>
-                                {task.student.email ?? '이메일 없음'}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-                                  {STATUS_LABELS[task.status] ?? task.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-xs text-slate-500">
-                                  {task.completedCount}/{task.totalItems}문항
-                                  {task.remainingCount > 0 ? ` · 남은 ${task.remainingCount}` : ''}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button asChild size="sm" variant="ghost">
-                                  <Link href={`/dashboard/teacher/assignments/${activeAssignment.id}?classId=${classId}&studentTask=${task.id}`}>
-                                    평가하기
-                                  </Link>
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                <CardContent className="p-0">
+                  <iframe key={evaluationHref} src={evaluationHref} title="과제 평가" className="h-[80vh] w-full border-t" />
                 </CardContent>
               </>
             ) : (
