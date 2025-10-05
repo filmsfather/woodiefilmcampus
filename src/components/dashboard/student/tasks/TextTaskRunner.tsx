@@ -1,9 +1,9 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
-import Image from 'next/image'
 
 import { submitTextResponses } from '@/app/dashboard/student/tasks/actions'
 import { Badge } from '@/components/ui/badge'
@@ -151,13 +151,11 @@ export function TextTaskRunner({
                       if (file.mimeType && file.mimeType.startsWith('image/')) {
                         return (
                           <figure key={file.id} className="space-y-1">
-                            <Image
+                            <img
                               src={file.url}
                               alt={file.filename}
-                              width={800}
-                              height={600}
                               className="max-h-64 w-full rounded-md border border-slate-200 object-contain"
-                              sizes="(min-width: 768px) 50vw, 100vw"
+                              loading="lazy"
                             />
                             <figcaption className="break-all text-slate-500">{file.filename}</figcaption>
                           </figure>
