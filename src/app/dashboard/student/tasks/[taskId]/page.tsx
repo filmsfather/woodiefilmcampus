@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchStudentTaskDetail } from '@/lib/student-tasks'
 import { WORKBOOK_TITLES, WORKBOOK_TYPE_DESCRIPTIONS } from '@/lib/validation/workbook'
 import { submitSrsAnswer } from '@/app/dashboard/student/tasks/actions'
@@ -48,6 +49,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
   DateUtil.initServerClock()
 
   const supabase = createServerSupabase()
+  const adminSupabase = createAdminClient()
   const task = await fetchStudentTaskDetail(params.taskId, profile.id)
 
   if (!task) {
@@ -115,7 +117,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
         }
 
         const bucket = media.asset.bucket ?? 'workbook-assets'
-        const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(media.asset.path, 60 * 30)
+        const { data: signed } = await adminSupabase.storage.from(bucket).createSignedUrl(media.asset.path, 60 * 30)
 
         if (!signed?.signedUrl) {
           continue
