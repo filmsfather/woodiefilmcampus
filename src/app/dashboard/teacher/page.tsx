@@ -1,131 +1,49 @@
+import Link from 'next/link'
+
 import { requireAuthForDashboard } from '@/lib/auth'
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { TeacherDashboard } from '@/components/dashboard/teacher/TeacherDashboard'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+
+const NAV_ITEMS = [
+  {
+    title: '문제집 아카이브',
+    description: '문제집을 생성·편집하고 저장된 워크북을 관리하세요.',
+    href: '/dashboard/workbooks',
+  },
+  {
+    title: '과제 검사',
+    description: '과제 제출 현황을 확인하고 평가·인쇄 요청을 처리하세요.',
+    href: '/dashboard/teacher/review',
+  },
+]
 
 export default async function TeacherDashboardPage() {
   const { profile } = await requireAuthForDashboard('teacher')
-  const supabase = createServerSupabase()
-
-  const [{ data: assignmentRows, error: assignmentError }, { data: classRows, error: classError }] =
-    await Promise.all([
-      supabase
-        .from('assignments')
-        .select(
-          `id, due_at, created_at, target_scope,
-           workbooks(id, title, subject, type, week_label),
-           assignment_targets(class_id, classes(id, name)),
-           student_tasks(
-             id,
-             status,
-             completion_at,
-             updated_at,
-             student_id,
-             profiles!student_tasks_student_id_fkey(id, name, email, class_id),
-             student_task_items(id, completed_at)
-           ),
-           print_requests(id, status, student_task_id, desired_date, desired_period, copies, color_mode, created_at)
-          `
-        )
-        .eq('assigned_by', profile.id)
-        .order('due_at', { ascending: true }),
-      supabase
-        .from('class_teachers')
-        .select('class_id, classes(id, name)')
-        .eq('teacher_id', profile.id),
-    ])
-
-  if (assignmentError) {
-    console.error('[teacher] dashboard assignments error', assignmentError)
-  }
-
-  if (classError) {
-    console.error('[teacher] dashboard class error', classError)
-  }
-
-  const assignments = (assignmentRows ?? []).map((row) => {
-    const workbook = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
-    const classTargets = (row.assignment_targets ?? [])
-      .map((target) => {
-        const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
-        return cls?.id
-          ? {
-              id: cls.id,
-              name: cls.name ?? '이름 미정',
-            }
-          : null
-      })
-      .filter((value): value is { id: string; name: string } => Boolean(value))
-
-    const studentTasks = (row.student_tasks ?? []).map((task) => {
-      const studentProfile = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
-      const completedCount = task.student_task_items?.filter((item) => item.completed_at).length ?? 0
-      const totalItems = task.student_task_items?.length ?? 0
-
-      return {
-        id: task.id,
-        status: task.status,
-        completionAt: task.completion_at,
-        updatedAt: task.updated_at,
-        studentId: task.student_id,
-        student: {
-          id: studentProfile?.id ?? task.student_id,
-          name: studentProfile?.name ?? '이름 미정',
-          email: studentProfile?.email ?? null,
-          classId: studentProfile?.class_id ?? null,
-        },
-        completedCount,
-        totalItems,
-      }
-    })
-
-    return {
-      id: row.id,
-      dueAt: row.due_at,
-      createdAt: row.created_at,
-      targetScope: row.target_scope,
-      title: workbook?.title ?? '제목 미정',
-      subject: workbook?.subject ?? '기타',
-      type: workbook?.type ?? 'unknown',
-      weekLabel: workbook?.week_label ?? null,
-      classes: classTargets,
-      studentTasks,
-      printRequests: (row.print_requests ?? []).map((request) => ({
-        id: request.id,
-        status: request.status,
-        studentTaskId: request.student_task_id,
-        desiredDate: request.desired_date,
-        desiredPeriod: request.desired_period,
-        copies: request.copies ?? 1,
-        colorMode: request.color_mode ?? 'bw',
-        createdAt: request.created_at,
-      })),
-    }
-  })
-
-  const managedClasses = (classRows ?? [])
-    .map((row) => {
-      const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
-      if (!cls?.id) {
-        return null
-      }
-      return { id: cls.id, name: cls.name ?? '이름 미정' }
-    })
-    .filter((value): value is { id: string; name: string } => Boolean(value))
-
-  const subjects = Array.from(new Set(assignments.map((assignment) => assignment.subject))).sort(
-    (a, b) => a.localeCompare(b, 'ko')
-  )
-  const workbookTypes = Array.from(new Set(assignments.map((assignment) => assignment.type))).sort(
-    (a, b) => a.localeCompare(b)
-  )
 
   return (
-    <TeacherDashboard
-      teacherName={profile.name ?? profile.email ?? null}
-      assignments={assignments}
-      classes={managedClasses}
-      subjects={subjects}
-      workbookTypes={workbookTypes}
-    />
+    <section className="mx-auto flex max-w-4xl flex-col gap-6">
+      <header className="space-y-2 text-center">
+        <h1 className="text-3xl font-semibold text-slate-900">교사용 허브</h1>
+        <p className="text-sm text-slate-600">
+          {profile?.name ?? profile?.email ?? '선생님'} 님, 작업 영역을 선택해 주세요.
+        </p>
+      </header>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {NAV_ITEMS.map((item) => (
+          <Card key={item.href} className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+            <CardHeader>
+              <CardTitle className="text-lg text-slate-900">{item.title}</CardTitle>
+              <CardDescription className="text-sm text-slate-500">{item.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full">
+                <Link href={item.href}>바로가기</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </section>
   )
 }
