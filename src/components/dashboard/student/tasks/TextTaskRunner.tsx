@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import Image from 'next/image'
 
 import { submitTextResponses } from '@/app/dashboard/student/tasks/actions'
 import { Badge } from '@/components/ui/badge'
@@ -145,20 +146,42 @@ export function TextTaskRunner({
               {itemAttachments.length > 0 && (
                 <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                   <p className="font-medium text-slate-700">첨부 파일</p>
-                  <ul className="space-y-1">
-                    {itemAttachments.map((file) => (
-                      <li key={file.id}>
-                        <a
-                          href={file.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary underline break-all"
-                        >
-                          {file.filename}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {itemAttachments.map((file) => {
+                      if (file.mimeType && file.mimeType.startsWith('image/')) {
+                        return (
+                          <figure key={file.id} className="space-y-1">
+                            <Image
+                              src={file.url}
+                              alt={file.filename}
+                              width={800}
+                              height={600}
+                              className="max-h-64 w-full rounded-md border border-slate-200 object-contain"
+                              sizes="(min-width: 768px) 50vw, 100vw"
+                            />
+                            <figcaption className="break-all text-slate-500">{file.filename}</figcaption>
+                          </figure>
+                        )
+                      }
+
+                      const isPdf = file.mimeType === 'application/pdf' || file.filename.toLowerCase().endsWith('.pdf')
+
+                      return (
+                        <div key={file.id} className="flex flex-col gap-1">
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary underline break-all"
+                            download={isPdf ? file.filename : undefined}
+                          >
+                            {file.filename}
+                          </a>
+                          <span className="text-slate-500">{isPdf ? 'PDF 파일' : file.mimeType ?? '파일'}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
               <Textarea
