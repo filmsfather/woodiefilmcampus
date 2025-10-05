@@ -70,6 +70,7 @@ type StudentTaskSubmissionRow = {
 
 type StudentTaskItemRow = {
   id: string
+  item_id: string
   completed_at: string | null
   next_review_at: string | null
   streak: number | null
@@ -444,7 +445,7 @@ export async function fetchStudentTaskDetail(
     .select(
       `id, assignment_id, status, completion_at, created_at, updated_at, progress_meta,
        student_task_items(
-         id, completed_at, next_review_at, streak, last_result,
+         id, item_id, completed_at, next_review_at, streak, last_result,
          item:workbook_items(
            id, position, prompt, answer_type, explanation, srs_settings,
            workbook_item_choices(id, label, content, is_correct),
@@ -470,6 +471,31 @@ export async function fetchStudentTaskDetail(
   const assignmentLookup = await loadAssignmentSummaries(
     collectAssignmentIds([row])
   )
+
+  const assignmentSummary = row.assignment_id ? assignmentLookup.get(row.assignment_id) ?? null : null
+
+  let workbookItemLookup: Map<string, WorkbookItemRow> | null = null
+
+  if (assignmentSummary?.workbook.id) {
+    const adminClient = createAdminClient()
+    const { data: workbookItemRows, error: workbookItemsError } = await adminClient
+      .from('workbook_items')
+      .select(
+        `id, position, prompt, answer_type, explanation, srs_settings,
+         workbook_item_choices(id, label, content, is_correct),
+         workbook_item_short_fields(id, label, answer, position),
+         workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))`
+      )
+      .eq('workbook_id', assignmentSummary.workbook.id)
+
+    if (workbookItemsError) {
+      console.error('[student-tasks] failed to load workbook items for detail', workbookItemsError)
+    } else if (workbookItemRows) {
+      workbookItemLookup = new Map(
+        (workbookItemRows as unknown as WorkbookItemRow[]).map((item) => [item.id, item])
+      )
+    }
+  }
 
   const { data: submissionRows, error: submissionError } = await supabase
     .from('task_submissions')
@@ -497,9 +523,17 @@ export async function fetchStudentTaskDetail(
   }
 
   const enrichedItems = (row.student_task_items ?? []).map((item) => {
-    const workbookItemId = pickFirst(item.item)?.id ?? null
+    let workbookItem = pickFirst(item.item)
+
+    if (!workbookItem && workbookItemLookup && item.item_id && workbookItemLookup.has(item.item_id)) {
+      workbookItem = workbookItemLookup.get(item.item_id) ?? null
+    }
+
+    const workbookItemId = (workbookItem as { id?: string } | null)?.id ?? null
+
     return {
       ...item,
+      item: workbookItem ?? null,
       submissions: workbookItemId ? itemSubmissionMap.get(workbookItemId) ?? [] : [],
     }
   })
