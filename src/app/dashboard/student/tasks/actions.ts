@@ -8,7 +8,6 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { isRichTextEmpty, sanitizeRichTextInput } from '@/lib/rich-text'
 
 const SUBMISSIONS_BUCKET = 'submissions'
 const MAX_PDF_FILE_SIZE = 20 * 1024 * 1024
@@ -140,8 +139,9 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
   const now = new Date().toISOString()
 
   for (const answer of parsed.answers) {
-    const sanitizedContent = sanitizeRichTextInput(answer.content ?? '')
-    const submissionIsEmpty = isRichTextEmpty(sanitizedContent)
+    const rawContent = (answer.content ?? '').replace(/\r/g, '')
+    const normalizedContent = rawContent.trim()
+    const submissionIsEmpty = normalizedContent.length === 0
 
     const { data: existing, error: existingError } = await supabase
       .from('task_submissions')
@@ -190,7 +190,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         .from('task_submissions')
         .update({
           submission_type: parsed.submissionType,
-          content: sanitizedContent,
+          content: normalizedContent,
           media_asset_id: null,
           updated_at: now,
         })
@@ -205,7 +205,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         student_task_id: parsed.studentTaskId,
         item_id: answer.workbookItemId,
         submission_type: parsed.submissionType,
-        content: sanitizedContent,
+        content: normalizedContent,
       })
 
       if (insertError) {

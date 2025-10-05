@@ -7,16 +7,22 @@ import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { submitTextResponses } from '@/app/dashboard/student/tasks/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { StudentTaskDetail } from '@/types/student-task'
-import RichTextEditor from '@/components/ui/rich-text-editor'
-import { ensureRichTextValue, sanitizeRichTextInput, stripHtml } from '@/lib/rich-text'
+import { stripHtml } from '@/lib/rich-text'
 
 interface TextTaskRunnerProps {
   task: StudentTaskDetail
   submissionType: 'writing' | 'lecture'
   instructions?: string | null
   maxCharacters?: number | null
+  attachments?: Record<string, Array<{
+    id: string
+    filename: string
+    url: string
+    mimeType: string | null
+  }>>
 }
 
 interface PromptEntry {
@@ -32,6 +38,7 @@ export function TextTaskRunner({
   submissionType,
   instructions,
   maxCharacters,
+  attachments,
 }: TextTaskRunnerProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -44,7 +51,7 @@ export function TextTaskRunner({
       workbookItemId: item.workbookItem.id,
       prompt: item.workbookItem.prompt,
       index: index + 1,
-      existingAnswer: ensureRichTextValue(item.submission?.content ?? ''),
+      existingAnswer: stripHtml(item.submission?.content ?? ''),
     }))
   }, [task.items])
 
@@ -55,7 +62,7 @@ export function TextTaskRunner({
   }, [prompts])
 
   const handleChange = (value: string, targetIndex: number) => {
-    setAnswers((prev) => prev.map((answer, index) => (index === targetIndex ? ensureRichTextValue(value) : answer)))
+    setAnswers((prev) => prev.map((answer, index) => (index === targetIndex ? value : answer)))
   }
 
   const handleSubmit = () => {
@@ -64,11 +71,15 @@ export function TextTaskRunner({
 
     startTransition(async () => {
       try {
-        const normalizedAnswers = prompts.map((prompt, index) => ({
-          studentTaskItemId: prompt.studentTaskItemId,
-          workbookItemId: prompt.workbookItemId,
-          content: sanitizeRichTextInput(answers[index] ?? ''),
-        }))
+        const normalizedAnswers = prompts.map((prompt, index) => {
+          const raw = answers[index] ?? ''
+          const normalized = raw.replace(/\r/g, '')
+          return {
+            studentTaskItemId: prompt.studentTaskItemId,
+            workbookItemId: prompt.workbookItemId,
+            content: normalized,
+          }
+        })
 
         const payload = {
           studentTaskId: task.id,
@@ -101,7 +112,7 @@ export function TextTaskRunner({
   }
 
   const limit = typeof maxCharacters === 'number' && maxCharacters > 0 ? maxCharacters : undefined
-  const plainTextAnswers = answers.map((value) => stripHtml(value ?? ''))
+  const attachmentMap = attachments ?? {}
 
   return (
     <div className="space-y-6">
@@ -121,9 +132,9 @@ export function TextTaskRunner({
       <div className="space-y-5">
         {prompts.map((prompt, index) => {
           const value = answers[index] ?? ''
-          const plainText = plainTextAnswers[index] ?? ''
-          const characterCount = plainText.length
+          const characterCount = value.length
           const overLimit = limit ? characterCount > limit : false
+          const itemAttachments = attachmentMap[prompt.studentTaskItemId] ?? []
 
           return (
             <div key={prompt.studentTaskItemId} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
@@ -131,11 +142,31 @@ export function TextTaskRunner({
                 <Badge variant="secondary">문항 {prompt.index}</Badge>
                 <p className="font-medium text-slate-900 whitespace-pre-line">{prompt.prompt}</p>
               </div>
-              <RichTextEditor
+              {itemAttachments.length > 0 && (
+                <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                  <p className="font-medium text-slate-700">첨부 파일</p>
+                  <ul className="space-y-1">
+                    {itemAttachments.map((file) => (
+                      <li key={file.id}>
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-primary underline break-all"
+                        >
+                          {file.filename}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <Textarea
                 value={value}
-                onChange={(nextValue) => handleChange(nextValue, index)}
+                onChange={(event) => handleChange(event.target.value, index)}
                 placeholder="답안을 입력하세요"
                 disabled={isPending}
+                rows={6}
               />
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>작성한 글자 수: {characterCount.toLocaleString()}자</span>

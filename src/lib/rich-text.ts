@@ -29,19 +29,28 @@ function stripDisallowedTags(value: string): string {
   })
 }
 
+const BASIC_ENTITY_DECODE_MAP: Record<string, string> = {
+  '&nbsp;': ' ',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&amp;': '&',
+}
+
+const BASIC_ENTITY_ENCODE_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+}
+
+const ENTITY_PATTERN = /&[a-z]+;/gi
+const NEEDS_ENCODE_PATTERN = /[&<>]/g
+
 function decodeBasicEntities(value: string): string {
-  return value
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&lt;/gi, '<')
-    .replace(/&gt;/gi, '>')
-    .replace(/&amp;/gi, '&')
+  return value.replace(ENTITY_PATTERN, (entity) => BASIC_ENTITY_DECODE_MAP[entity.toLowerCase()] ?? entity)
 }
 
 function encodeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return value.replace(NEEDS_ENCODE_PATTERN, (char) => BASIC_ENTITY_ENCODE_MAP[char] ?? char)
 }
 
 export function sanitizeRichTextInput(value: string): string {
@@ -61,8 +70,9 @@ export function ensureRichTextValue(value: string): string {
   }
 
   const containsTags = /<[^>]+>/.test(value)
+  const containsEntities = /&[a-z]+;/i.test(value)
 
-  if (containsTags) {
+  if (containsTags || containsEntities) {
     return sanitizeRichTextInput(value)
   }
 
@@ -89,4 +99,3 @@ export function stripHtml(value: string): string {
 export function isRichTextEmpty(value: string): boolean {
   return stripHtml(value).trim().length === 0
 }
-

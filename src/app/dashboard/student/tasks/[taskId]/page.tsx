@@ -94,6 +94,57 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
     }
   }
 
+  type AttachmentEntry = {
+    id: string
+    filename: string
+    url: string
+    mimeType: string | null
+  }
+
+  const attachmentPairs = await Promise.all(
+    task.items.map(async (item) => {
+      if (!item.workbookItem.media || item.workbookItem.media.length === 0) {
+        return null
+      }
+
+      const attachments: AttachmentEntry[] = []
+
+      for (const media of item.workbookItem.media) {
+        if (!media.asset.path) {
+          continue
+        }
+
+        const bucket = media.asset.bucket ?? 'workbook-assets'
+        const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(media.asset.path, 60 * 30)
+
+        if (!signed?.signedUrl) {
+          continue
+        }
+
+        const metadata = (media.asset.metadata as { originalName?: string; original_name?: string } | null) ?? null
+        const filename =
+          metadata?.originalName ?? metadata?.original_name ?? media.asset.path.split('/').pop() ?? '첨부 파일'
+
+        attachments.push({
+          id: media.id,
+          filename,
+          url: signed.signedUrl,
+          mimeType: media.asset.mimeType ?? null,
+        })
+      }
+
+      if (attachments.length === 0) {
+        return null
+      }
+
+      return [item.id, attachments] as const
+    })
+  )
+
+  const attachmentsByItem = Object.fromEntries(
+    attachmentPairs.filter((entry): entry is [string, AttachmentEntry[]] => Boolean(entry))
+  )
+
   let taskContent: React.ReactNode
 
   switch (workbookType) {
@@ -117,6 +168,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
           submissionType="writing"
           instructions={workbookConfig.writing?.instructions ?? null}
           maxCharacters={typeof workbookConfig.writing?.maxCharacters === 'number' ? workbookConfig.writing?.maxCharacters ?? null : null}
+          attachments={attachmentsByItem}
         />
       )
       break
@@ -147,6 +199,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
             task={task}
             submissionType="lecture"
             instructions={workbookConfig.lecture?.instructions ?? null}
+            attachments={attachmentsByItem}
           />
         </div>
       )

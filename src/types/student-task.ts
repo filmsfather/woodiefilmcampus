@@ -76,6 +76,7 @@ export interface StudentTaskItemDetail extends StudentTaskItemSummary {
         path: string
         mimeType: string | null
         size: number | null
+        metadata?: Record<string, unknown> | null
       }
     }>
   }

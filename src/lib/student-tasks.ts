@@ -40,6 +40,7 @@ type WorkbookItemMediaRow = {
     path: string | null
     mime_type: string | null
     size: number | null
+    metadata: JsonRecord | null
   }
 }
 
@@ -266,6 +267,7 @@ function mapItemDetail(row: StudentTaskItemRow): StudentTaskItemDetail {
         path: item.media_assets?.path ?? '',
         mimeType: item.media_assets?.mime_type ?? null,
         size: item.media_assets?.size ?? null,
+        metadata: (item.media_assets?.metadata as JsonRecord | null) ?? null,
       },
     }))
     .sort((a, b) => a.position - b.position)
