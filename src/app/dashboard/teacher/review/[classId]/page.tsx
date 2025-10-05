@@ -143,37 +143,55 @@ export default async function TeacherClassReviewPage({
 }) {
   const { profile } = await requireAuthForDashboard('teacher')
   const supabase = createServerSupabase()
+  const isPrincipal = profile.role === 'principal'
 
-  const { data: classRecord, error: classError } = await supabase
-    .from('class_teachers')
-    .select('class_id, classes(id, name)')
-    .eq('teacher_id', profile.id)
-    .eq('class_id', params.classId)
-    .maybeSingle<RawClassRow>()
+  let classInfo: { id: string; name: string } | null = null
 
-  if (classError) {
-    console.error('[teacher] class review fetch error', classError)
+  if (isPrincipal) {
+    const { data: classRow, error: principalClassError } = await supabase
+      .from('classes')
+      .select('id, name')
+      .eq('id', params.classId)
+      .maybeSingle()
+
+    if (principalClassError) {
+      console.error('[principal] class review fetch error', principalClassError)
+    }
+
+    if (classRow?.id) {
+      classInfo = {
+        id: classRow.id,
+        name: classRow.name ?? '이름 미정',
+      }
+    }
+  } else {
+    const { data: classRecord, error: classError } = await supabase
+      .from('class_teachers')
+      .select('class_id, classes(id, name)')
+      .eq('teacher_id', profile.id)
+      .eq('class_id', params.classId)
+      .maybeSingle<RawClassRow>()
+
+    if (classError) {
+      console.error('[teacher] class review fetch error', classError)
+    }
+
+    if (classRecord) {
+      const cls = Array.isArray(classRecord.classes) ? classRecord.classes[0] : classRecord.classes
+      if (cls?.id) {
+        classInfo = {
+          id: cls.id,
+          name: cls.name ?? '이름 미정',
+        }
+      }
+    }
   }
-
-  const classInfo = (() => {
-    if (!classRecord) {
-      return null
-    }
-    const cls = Array.isArray(classRecord.classes) ? classRecord.classes[0] : classRecord.classes
-    if (!cls?.id) {
-      return null
-    }
-    return {
-      id: cls.id,
-      name: cls.name ?? '이름 미정',
-    }
-  })()
 
   if (!classInfo) {
     notFound()
   }
 
-  const { data: assignmentRows, error: assignmentError } = await supabase
+  const assignmentQuery = supabase
     .from('assignments')
     .select(
       `id, due_at, created_at,
@@ -191,9 +209,13 @@ export default async function TeacherClassReviewPage({
        print_requests(id, status, student_task_id, desired_date, desired_period, copies, color_mode, notes, created_at)
       `
     )
-    .eq('assigned_by', profile.id)
     .order('due_at', { ascending: true })
-    .returns<RawAssignmentRow[]>()
+
+  if (!isPrincipal) {
+    assignmentQuery.eq('assigned_by', profile.id)
+  }
+
+  const { data: assignmentRows, error: assignmentError } = await assignmentQuery.returns<RawAssignmentRow[]>()
 
   if (assignmentError) {
     console.error('[teacher] class assignment fetch error', assignmentError)

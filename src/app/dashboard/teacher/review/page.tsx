@@ -3,7 +3,7 @@ import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { ClassOverviewGrid, ClassOverviewItem, ClassOverviewSummary } from '@/components/dashboard/teacher/ClassOverview'
 
-interface RawClassRow {
+interface RawTeacherClassRow {
   classes?:
     | {
         id: string | null
@@ -13,6 +13,11 @@ interface RawClassRow {
         id: string | null
         name: string | null
       }>
+}
+
+interface RawPrincipalClassRow {
+  id: string
+  name: string | null
 }
 
 interface RawAssignmentRow {
@@ -104,28 +109,41 @@ const UPCOMING_WINDOW_DAYS = 3
 export default async function TeacherReviewOverviewPage() {
   const { profile } = await requireAuthForDashboard('teacher')
   const supabase = createServerSupabase()
+  const isPrincipal = profile.role === 'principal'
+
+  const classQuery = isPrincipal
+    ? supabase
+        .from('classes')
+        .select('id, name')
+        .order('name', { ascending: true })
+    : supabase
+        .from('class_teachers')
+        .select('classes(id, name)')
+        .eq('teacher_id', profile.id)
+
+  const assignmentQuery = supabase
+    .from('assignments')
+    .select(
+      `id, due_at, created_at, target_scope,
+       assignment_targets(class_id, classes(id, name)),
+       student_tasks(
+         id,
+         status,
+         student_id,
+         profiles!student_tasks_student_id_fkey(id, name, email, class_id)
+       ),
+       print_requests(id, status, student_task_id, created_at)
+      `
+    )
+    .order('due_at', { ascending: true })
+
+  if (!isPrincipal) {
+    assignmentQuery.eq('assigned_by', profile.id)
+  }
 
   const [{ data: classRows, error: classError }, { data: assignmentRows, error: assignmentError }] = await Promise.all([
-    supabase
-      .from('class_teachers')
-      .select('classes(id, name)')
-      .eq('teacher_id', profile.id),
-    supabase
-      .from('assignments')
-      .select(
-        `id, due_at, created_at, target_scope,
-         assignment_targets(class_id, classes(id, name)),
-         student_tasks(
-           id,
-           status,
-           student_id,
-           profiles!student_tasks_student_id_fkey(id, name, email, class_id)
-         ),
-         print_requests(id, status, student_task_id, created_at)
-        `
-      )
-      .eq('assigned_by', profile.id)
-      .order('due_at', { ascending: true }),
+    classQuery,
+    assignmentQuery,
   ])
 
   if (classError) {
@@ -136,17 +154,27 @@ export default async function TeacherReviewOverviewPage() {
     console.error('[teacher] assignment overview fetch error', assignmentError)
   }
 
-  const managedClasses: ManagedClass[] = (classRows as RawClassRow[] | null | undefined)?.map((row) => {
-    const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
-    if (!cls?.id) {
-      return null
-    }
-    return {
-      id: cls.id,
-      name: cls.name ?? '이름 미정',
-    }
-  })
-    .filter((value): value is ManagedClass => Boolean(value)) ?? []
+  const managedClasses: ManagedClass[] = isPrincipal
+    ? ((classRows as RawPrincipalClassRow[] | null | undefined)?.map((row) =>
+        row.id
+          ? {
+              id: row.id,
+              name: row.name ?? '이름 미정',
+            }
+          : null
+      )
+        .filter((value): value is ManagedClass => Boolean(value)) ?? [])
+    : ((classRows as RawTeacherClassRow[] | null | undefined)?.map((row) => {
+        const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
+        if (!cls?.id) {
+          return null
+        }
+        return {
+          id: cls.id,
+          name: cls.name ?? '이름 미정',
+        }
+      })
+        .filter((value): value is ManagedClass => Boolean(value)) ?? [])
 
   const assignments: AssignmentSummary[] = (assignmentRows as RawAssignmentRow[] | null | undefined)?.map((row) => {
     const classes = (row.assignment_targets ?? [])
