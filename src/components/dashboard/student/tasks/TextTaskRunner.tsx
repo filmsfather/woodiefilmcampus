@@ -7,9 +7,15 @@ import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 import { submitTextResponses } from '@/app/dashboard/student/tasks/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { StudentTaskDetail } from '@/types/student-task'
+import RichTextEditor from '@/components/ui/rich-text-editor'
+import {
+  ensureRichTextValue,
+  isRichTextEmpty,
+  sanitizeRichTextInput,
+  stripHtml,
+} from '@/lib/rich-text'
 
 interface TextTaskRunnerProps {
   task: StudentTaskDetail
@@ -45,7 +51,7 @@ export function TextTaskRunner({
       workbookItemId: item.workbookItem.id,
       prompt: item.workbookItem.prompt,
       index: index + 1,
-      existingAnswer: item.submission?.content ?? '',
+      existingAnswer: ensureRichTextValue(item.submission?.content ?? ''),
     }))
   }, [task.items])
 
@@ -56,7 +62,7 @@ export function TextTaskRunner({
   }, [prompts])
 
   const handleChange = (value: string, targetIndex: number) => {
-    setAnswers((prev) => prev.map((answer, index) => (index === targetIndex ? value : answer)))
+    setAnswers((prev) => prev.map((answer, index) => (index === targetIndex ? ensureRichTextValue(value) : answer)))
   }
 
   const handleSubmit = () => {
@@ -65,14 +71,30 @@ export function TextTaskRunner({
 
     startTransition(async () => {
       try {
+        const normalizedAnswers = prompts.map((prompt, index) => ({
+          studentTaskItemId: prompt.studentTaskItemId,
+          workbookItemId: prompt.workbookItemId,
+          content: sanitizeRichTextInput(answers[index] ?? ''),
+        }))
+
+        if (submissionType === 'film' && noteCount && noteCount > 0) {
+          const filledCount = normalizedAnswers.filter(({ content }) => !isRichTextEmpty(content)).length
+
+          if (filledCount < noteCount) {
+            setErrorMessage(`감상 노트는 최소 ${noteCount}개 작성해야 합니다. 현재 ${filledCount}개 입력되어 있습니다.`)
+            return
+          }
+
+          if (filledCount > noteCount) {
+            setErrorMessage(`감상 노트는 최대 ${noteCount}개까지만 제출할 수 있습니다. 작성한 노트 수를 조정해주세요.`)
+            return
+          }
+        }
+
         const payload = {
           studentTaskId: task.id,
           submissionType,
-          answers: prompts.map((prompt, index) => ({
-            studentTaskItemId: prompt.studentTaskItemId,
-            workbookItemId: prompt.workbookItemId,
-            content: answers[index] ?? '',
-          })),
+          answers: normalizedAnswers,
         }
 
         const response = await submitTextResponses(payload)
@@ -100,6 +122,8 @@ export function TextTaskRunner({
   }
 
   const limit = typeof maxCharacters === 'number' && maxCharacters > 0 ? maxCharacters : undefined
+  const plainTextAnswers = answers.map((value) => stripHtml(value ?? ''))
+  const filledNotes = answers.filter((value) => !isRichTextEmpty(value ?? '')).length
 
   return (
     <div className="space-y-6">
@@ -108,7 +132,7 @@ export function TextTaskRunner({
           <p className="text-base font-medium text-slate-900">답안을 작성해주세요</p>
           {instructions && <p className="whitespace-pre-line">{instructions}</p>}
           {noteCount && noteCount > 0 && (
-            <p className="text-xs text-slate-500">필수 감상 노트 수: {noteCount}개</p>
+            <p className="text-xs text-slate-500">필수 감상 노트 수: {noteCount}개 (현재 {filledNotes}개 작성)</p>
           )}
           {limit && (
             <p className="text-xs text-slate-500">최대 {limit.toLocaleString()}자까지 입력할 수 있습니다.</p>
@@ -119,7 +143,8 @@ export function TextTaskRunner({
       <div className="space-y-5">
         {prompts.map((prompt, index) => {
           const value = answers[index] ?? ''
-          const characterCount = value.length
+          const plainText = plainTextAnswers[index] ?? ''
+          const characterCount = plainText.length
           const overLimit = limit ? characterCount > limit : false
 
           return (
@@ -128,12 +153,9 @@ export function TextTaskRunner({
                 <Badge variant="secondary">문항 {prompt.index}</Badge>
                 <p className="font-medium text-slate-900 whitespace-pre-line">{prompt.prompt}</p>
               </div>
-              <Textarea
+              <RichTextEditor
                 value={value}
-                onChange={(event) => handleChange(event.target.value, index)}
-                maxLength={limit}
-                minLength={0}
-                rows={6}
+                onChange={(nextValue) => handleChange(nextValue, index)}
                 placeholder="답안을 입력하세요"
                 disabled={isPending}
               />

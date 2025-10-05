@@ -8,6 +8,7 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { isRichTextEmpty, sanitizeRichTextInput } from '@/lib/rich-text'
 
 const SUBMISSIONS_BUCKET = 'submissions'
 const MAX_PDF_FILE_SIZE = 20 * 1024 * 1024
@@ -139,7 +140,8 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
   const now = new Date().toISOString()
 
   for (const answer of parsed.answers) {
-    const trimmedContent = (answer.content ?? '').trim()
+    const sanitizedContent = sanitizeRichTextInput(answer.content ?? '')
+    const submissionIsEmpty = isRichTextEmpty(sanitizedContent)
 
     const { data: existing, error: existingError } = await supabase
       .from('task_submissions')
@@ -153,7 +155,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       return { success: false as const, error: '기존 답안을 불러오지 못했습니다.' }
     }
 
-    if (trimmedContent.length === 0) {
+    if (submissionIsEmpty) {
       if (existing) {
         const { error: deleteError } = await supabase
           .from('task_submissions')
@@ -188,7 +190,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         .from('task_submissions')
         .update({
           submission_type: parsed.submissionType,
-          content: trimmedContent,
+          content: sanitizedContent,
           media_asset_id: null,
           updated_at: now,
         })
@@ -203,7 +205,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         student_task_id: parsed.studentTaskId,
         item_id: answer.workbookItemId,
         submission_type: parsed.submissionType,
-        content: trimmedContent,
+        content: sanitizedContent,
       })
 
       if (insertError) {

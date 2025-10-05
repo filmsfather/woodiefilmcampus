@@ -589,6 +589,19 @@ create policy "workbook_item_short_fields_select"
         and (
           w.teacher_id = auth.uid()
           or public.can_manage_profiles(auth.uid())
+          or exists (
+            select 1
+            from public.assignments a
+            join public.student_tasks st on st.assignment_id = a.id
+            where a.workbook_id = w.id
+              and st.student_id = auth.uid()
+          )
+          or exists (
+            select 1
+            from public.assignments a
+            where a.workbook_id = w.id
+              and a.assigned_by = auth.uid()
+          )
         )
     )
   );
@@ -621,6 +634,7 @@ create policy "workbook_item_short_fields_ins_upd"
         )
     )
   );
+
 -- workbook_item_media
 drop policy if exists "workbook_item_media_all" on public.workbook_item_media;
 create policy "workbook_item_media_all"

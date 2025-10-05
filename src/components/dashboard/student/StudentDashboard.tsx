@@ -25,7 +25,21 @@ interface StudentDashboardProps {
   serverNowIso: string
 }
 
-type FilterKey = 'all' | 'active' | 'completed'
+type StatusFilterKey = 'all' | 'active' | 'completed'
+type TimeFilterKey = 'all' | 'this_week' | 'last_week'
+
+function getStartOfWeek(date: Date) {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+  const day = start.getUTCDay()
+  const diff = day === 0 ? 6 : day - 1
+  start.setUTCDate(start.getUTCDate() - diff)
+  start.setUTCHours(0, 0, 0, 0)
+  return start
+}
+
+function isWithinRange(date: Date, start: Date, end: Date) {
+  return date.getTime() >= start.getTime() && date.getTime() < end.getTime()
+}
 
 function getStatusLabel(status: StudentTaskSummary['status']) {
   switch (status) {
@@ -91,7 +105,31 @@ function formatDateTime(value: string | null, fallback = '정보 없음') {
 }
 
 export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDashboardProps) {
-  const [filter, setFilter] = useState<FilterKey>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilterKey>('all')
+  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>('all')
+
+  const nowMs = useMemo(() => {
+    const parsed = Date.parse(serverNowIso)
+    if (Number.isNaN(parsed)) {
+      return DateUtil.nowUTC().getTime()
+    }
+    return parsed
+  }, [serverNowIso])
+  const weekBoundaries = useMemo(() => {
+    const now = new Date(nowMs)
+    const startOfThisWeek = getStartOfWeek(now)
+    const startOfNextWeek = new Date(startOfThisWeek)
+    startOfNextWeek.setUTCDate(startOfNextWeek.getUTCDate() + 7)
+
+    const startOfLastWeek = new Date(startOfThisWeek)
+    startOfLastWeek.setUTCDate(startOfLastWeek.getUTCDate() - 7)
+
+    return {
+      startOfThisWeek,
+      startOfNextWeek,
+      startOfLastWeek,
+    }
+  }, [nowMs])
 
   const summary = useMemo(() => {
     const total = tasks.length
@@ -114,8 +152,8 @@ export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDa
     }
   }, [tasks])
 
-  const filteredTasks = useMemo(() => {
-    switch (filter) {
+  const filteredByStatus = useMemo(() => {
+    switch (statusFilter) {
       case 'active':
         return tasks.filter((task) => task.status !== 'completed')
       case 'completed':
@@ -124,7 +162,35 @@ export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDa
       default:
         return tasks
     }
-  }, [tasks, filter])
+  }, [tasks, statusFilter])
+
+  const filteredTasks = useMemo(() => {
+    if (timeFilter === 'all') {
+      return filteredByStatus
+    }
+
+    return filteredByStatus.filter((task) => {
+      if (!task.due.dueAt) {
+        return false
+      }
+
+      const dueDate = new Date(task.due.dueAt)
+
+      if (Number.isNaN(dueDate.getTime())) {
+        return false
+      }
+
+      if (timeFilter === 'this_week') {
+        return isWithinRange(dueDate, weekBoundaries.startOfThisWeek, weekBoundaries.startOfNextWeek)
+      }
+
+      if (timeFilter === 'last_week') {
+        return isWithinRange(dueDate, weekBoundaries.startOfLastWeek, weekBoundaries.startOfThisWeek)
+      }
+
+      return true
+    })
+  }, [filteredByStatus, timeFilter, weekBoundaries])
 
   const sortedTasks = useMemo(() => {
     return [...filteredTasks].sort((a, b) => {
@@ -246,24 +312,45 @@ export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDa
         />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {(
-          [
-            { key: 'all', label: `전체 (${summary.total})` },
-            { key: 'active', label: `진행 중 (${summary.active})` },
-            { key: 'completed', label: `완료 (${summary.completed})` },
-          ] as Array<{ key: FilterKey; label: string }>
-        ).map(({ key, label }) => (
-          <Button
-            key={key}
-            variant={filter === key ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilter(key)}
-            className={cn('rounded-full')}
-          >
-            {label}
-          </Button>
-        ))}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { key: 'all', label: '전체 기간' },
+              { key: 'this_week', label: '이번주 마감' },
+              { key: 'last_week', label: '지난주 마감' },
+            ] as Array<{ key: TimeFilterKey; label: string }>
+          ).map(({ key, label }) => (
+            <Button
+              key={key}
+              variant={timeFilter === key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setTimeFilter(key)}
+              className={cn('rounded-full')}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              { key: 'all', label: `전체 (${summary.total})` },
+              { key: 'active', label: `진행 중 (${summary.active})` },
+              { key: 'completed', label: `완료 (${summary.completed})` },
+            ] as Array<{ key: StatusFilterKey; label: string }>
+          ).map(({ key, label }) => (
+            <Button
+              key={key}
+              variant={statusFilter === key ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setStatusFilter(key)}
+              className={cn('rounded-full')}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {sortedTasks.length === 0 ? (
