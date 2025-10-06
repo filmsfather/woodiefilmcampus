@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import type { ClassMaterialAssetType } from '@/lib/class-materials'
 
 type PrintResult = {
   success?: boolean
@@ -17,19 +18,27 @@ type PrintResult = {
 interface ClassMaterialPrintRequestFormProps {
   postId: string
   onSubmit: (formData: FormData) => Promise<PrintResult>
+  availableAssets: Array<{
+    type: ClassMaterialAssetType
+    label: string
+    fileName: string | null
+    disabled: boolean
+  }>
 }
 
-export function ClassMaterialPrintRequestForm({ postId, onSubmit }: ClassMaterialPrintRequestFormProps) {
+export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAssets }: ClassMaterialPrintRequestFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const hasSelectableAssets = availableAssets.some((asset) => !asset.disabled)
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
     setSuccessMessage(null)
 
-    const formData = new FormData(event.currentTarget)
+    const form = event.currentTarget
+    const formData = new FormData(form)
     formData.set('postId', postId)
 
     startTransition(async () => {
@@ -42,7 +51,7 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit }: ClassMateria
 
       if (result?.success) {
         setSuccessMessage('인쇄 요청을 등록했습니다.')
-        event.currentTarget.reset()
+        form.reset()
       }
     })
   }
@@ -67,6 +76,42 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit }: ClassMateria
 
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <input type="hidden" name="postId" value={postId} />
+
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-slate-700">인쇄할 파일 선택</span>
+            <div className="flex flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+              {availableAssets.length === 0 ? (
+                <p className="text-sm text-slate-500">선택 가능한 파일이 없습니다. 먼저 자료를 업로드해주세요.</p>
+              ) : (
+                availableAssets.map((asset) => (
+                  <label
+                    key={asset.type}
+                    className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${
+                      asset.disabled ? 'border-slate-200 text-slate-400' : 'border-slate-200 bg-white text-slate-600'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        name="selectedAssets"
+                        value={asset.type}
+                        defaultChecked={!asset.disabled}
+                        disabled={asset.disabled || isPending}
+                        className="h-4 w-4 rounded border-slate-300"
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium text-slate-700">{asset.label}</span>
+                        <span className="text-xs text-slate-500">{asset.fileName ?? '파일 없음'}</span>
+                      </div>
+                    </div>
+                    {asset.disabled ? <span className="text-xs text-slate-400">업로드 필요</span> : null}
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-slate-500">최소 1개 이상의 파일을 선택해주세요.</p>
+          </div>
+
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-4">
             <label className="grid gap-2 text-sm text-slate-700">
               <span>희망일</span>
@@ -74,7 +119,18 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit }: ClassMateria
             </label>
             <label className="grid gap-2 text-sm text-slate-700">
               <span>희망 교시</span>
-              <Input type="text" name="desiredPeriod" placeholder="예: 2교시" maxLength={50} disabled={isPending} />
+              <select
+                name="desiredPeriod"
+                defaultValue=""
+                disabled={isPending}
+                className="h-9 rounded-md border border-slate-300 px-3 text-sm text-slate-700 focus:border-primary focus:outline-none"
+              >
+                <option value="">선택 안 함</option>
+                <option value="1교시">1교시</option>
+                <option value="2교시">2교시</option>
+                <option value="3교시">3교시</option>
+                <option value="4교시">4교시</option>
+              </select>
             </label>
           </div>
 
@@ -104,7 +160,7 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit }: ClassMateria
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={isPending} className="sm:w-32">
+            <Button type="submit" disabled={isPending || !hasSelectableAssets} className="sm:w-32">
               {isPending ? '요청 중...' : '인쇄 요청' }
             </Button>
           </div>

@@ -21,6 +21,8 @@ export const CLASS_MATERIAL_ALLOWED_ROLES = ['teacher', 'manager', 'principal'] 
 
 export type ClassMaterialAllowedRole = (typeof CLASS_MATERIAL_ALLOWED_ROLES)[number]
 
+export type ClassMaterialAssetType = 'class_material' | 'student_handout'
+
 export function isClassMaterialAllowedRole(
   role: string | null | undefined
 ): role is ClassMaterialAllowedRole {

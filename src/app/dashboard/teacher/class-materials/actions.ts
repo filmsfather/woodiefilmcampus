@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { getAuthContext } from '@/lib/auth'
 import {
   CLASS_MATERIALS_BUCKET,
+  type ClassMaterialAssetType,
   type ClassMaterialSubject,
   isClassMaterialAllowedRole,
   isClassMaterialSubject,
@@ -449,16 +450,38 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
   const desiredDateValue = formData.get('desiredDate')
   const desiredPeriodValue = formData.get('desiredPeriod')
   const notesValue = formData.get('notes')
+  const selectedAssetsRaw = formData.getAll('selectedAssets')
 
   if (typeof postIdValue !== 'string' || postIdValue.length === 0) {
     return { error: '자료 정보를 확인할 수 없습니다.' }
+  }
+
+  const normalizedSelectedAssets = Array.from(
+    new Set(
+      selectedAssetsRaw
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value): value is ClassMaterialAssetType => value === 'class_material' || value === 'student_handout')
+    )
+  )
+
+  if (normalizedSelectedAssets.length === 0) {
+    return { error: '인쇄할 파일을 선택해주세요.' }
   }
 
   const supabase = createServerSupabase()
 
   const { data: post, error: fetchError } = await supabase
     .from('class_material_posts')
-    .select('id, subject, title')
+    .select(
+      `id,
+       subject,
+       title,
+       class_material_asset_id,
+       student_handout_asset_id,
+       class_material_asset:media_assets!class_material_posts_class_material_asset_id_fkey(id, bucket, path, metadata),
+       student_handout_asset:media_assets!class_material_posts_student_handout_asset_id_fkey(id, bucket, path, metadata)
+      `
+    )
     .eq('id', postIdValue)
     .maybeSingle()
 
@@ -471,6 +494,34 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
     return { error: '자료를 찾을 수 없습니다.' }
   }
 
+  const classMaterialAsset = Array.isArray(post.class_material_asset)
+    ? post.class_material_asset[0]
+    : post.class_material_asset
+  const studentHandoutAsset = Array.isArray(post.student_handout_asset)
+    ? post.student_handout_asset[0]
+    : post.student_handout_asset
+
+  const assetLookup: Record<ClassMaterialAssetType, { assetId: string | null; filename: string | null }> = {
+    class_material: {
+      assetId: (post.class_material_asset_id as string | null) ?? (classMaterialAsset?.id ?? null),
+      filename:
+        ((classMaterialAsset?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
+        (classMaterialAsset?.path ? classMaterialAsset.path.split('/').pop() ?? classMaterialAsset.path : null),
+    },
+    student_handout: {
+      assetId: (post.student_handout_asset_id as string | null) ?? (studentHandoutAsset?.id ?? null),
+      filename:
+        ((studentHandoutAsset?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
+        (studentHandoutAsset?.path ? studentHandoutAsset.path.split('/').pop() ?? studentHandoutAsset.path : null),
+    },
+  }
+
+  for (const assetType of normalizedSelectedAssets) {
+    if (!assetLookup[assetType].assetId) {
+      return { error: assetType === 'class_material' ? '수업자료 파일이 존재하지 않습니다.' : '학생 유인물 파일이 존재하지 않습니다.' }
+    }
+  }
+
   const copies = typeof copiesValue === 'string' ? Number.parseInt(copiesValue, 10) : 1
   const normalizedCopies = Number.isNaN(copies) || copies < 1 ? 1 : Math.min(copies, 100)
   const colorMode = colorModeValue === 'color' ? 'color' : 'bw'
@@ -478,23 +529,117 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
   const desiredPeriod = typeof desiredPeriodValue === 'string' && desiredPeriodValue.length > 0 ? desiredPeriodValue : null
   const notes = typeof notesValue === 'string' && notesValue.trim().length > 0 ? notesValue.trim() : null
 
-  const { error: insertError } = await supabase.from('class_material_print_requests').insert({
-    post_id: postIdValue,
-    requested_by: profile.id,
-    copies: normalizedCopies,
-    color_mode: colorMode,
-    desired_date: desiredDate,
-    desired_period: desiredPeriod,
-    notes,
-    status: 'requested',
-  })
+  const { data: requestRow, error: insertError } = await supabase
+    .from('class_material_print_requests')
+    .insert({
+      post_id: postIdValue,
+      requested_by: profile.id,
+      copies: normalizedCopies,
+      color_mode: colorMode,
+      desired_date: desiredDate,
+      desired_period: desiredPeriod,
+      notes,
+      status: 'requested',
+    })
+    .select('id')
+    .single()
 
-  if (insertError) {
+  if (insertError || !requestRow?.id) {
     console.error('[class-materials] failed to insert print request', insertError)
     return { error: '인쇄 요청을 저장하지 못했습니다.' }
+  }
+
+  const itemsPayload = normalizedSelectedAssets.map((assetType) => ({
+    request_id: requestRow.id,
+    asset_type: assetType,
+    media_asset_id: assetLookup[assetType].assetId,
+    asset_filename: assetLookup[assetType].filename,
+  }))
+
+  const { error: itemsError } = await supabase.from('class_material_print_request_items').insert(itemsPayload)
+
+  if (itemsError) {
+    console.error('[class-materials] failed to insert print request items', itemsError)
+    await supabase.from('class_material_print_requests').delete().eq('id', requestRow.id)
+    return { error: '인쇄 요청 파일 정보를 저장하지 못했습니다.' }
   }
 
   revalidateMaterialPaths(post.subject as ClassMaterialSubject, post.id)
 
   return { success: true }
+}
+
+export async function cancelClassMaterialPrintRequest(formData: FormData): Promise<void> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.role || !isClassMaterialAllowedRole(profile.role)) {
+    throw new Error('인쇄 요청을 취소할 권한이 없습니다.')
+  }
+
+  const requestIdValue = formData.get('requestId')
+
+  if (typeof requestIdValue !== 'string' || requestIdValue.length === 0) {
+    throw new Error('인쇄 요청 정보를 확인할 수 없습니다.')
+  }
+
+  const supabase = createServerSupabase()
+
+  const { data: requestRow, error: fetchError } = await supabase
+    .from('class_material_print_requests')
+    .select('id, post_id, requested_by, status')
+    .eq('id', requestIdValue)
+    .maybeSingle()
+
+  if (fetchError) {
+    console.error('[class-materials] failed to load print request', fetchError)
+    throw new Error('인쇄 요청 정보를 불러오지 못했습니다.')
+  }
+
+  if (!requestRow) {
+    throw new Error('인쇄 요청을 찾을 수 없습니다.')
+  }
+
+  if (requestRow.status !== 'requested') {
+    throw new Error('처리 중이거나 완료된 요청은 취소할 수 없습니다.')
+  }
+
+  const isOwner = requestRow.requested_by === profile.id
+  const isSupervisor = profile.role === 'principal' || profile.role === 'manager'
+
+  if (!isOwner && !isSupervisor) {
+    throw new Error('해당 인쇄 요청을 취소할 권한이 없습니다.')
+  }
+
+  const now = new Date().toISOString()
+
+  const { error: cancelError } = await supabase
+    .from('class_material_print_requests')
+    .update({ status: 'canceled', updated_at: now })
+    .eq('id', requestRow.id)
+
+  if (cancelError) {
+    console.error('[class-materials] failed to cancel print request', cancelError)
+    throw new Error('인쇄 요청 취소 중 오류가 발생했습니다.')
+  }
+
+  const { data: postRow, error: postError } = await supabase
+    .from('class_material_posts')
+    .select('id, subject')
+    .eq('id', requestRow.post_id)
+    .maybeSingle()
+
+  if (postError) {
+    console.error('[class-materials] failed to load post for revalidate', postError)
+  }
+
+  if (postRow?.subject) {
+    revalidateMaterialPaths(postRow.subject as ClassMaterialSubject, postRow.id)
+  } else {
+    revalidatePath('/dashboard/teacher/class-materials')
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath('/dashboard/manager')
+  }
+
+  return
 }

@@ -9,13 +9,17 @@ import { Badge } from '@/components/ui/badge'
 import DateUtil from '@/lib/date-util'
 import {
   CLASS_MATERIALS_BUCKET,
+  type ClassMaterialAssetType,
   ClassMaterialSubject,
   getClassMaterialSubjectLabel,
   isClassMaterialSubject,
 } from '@/lib/class-materials'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { ClassMaterialPrintRequestForm } from '@/components/dashboard/class-materials/ClassMaterialPrintRequestForm'
-import { createClassMaterialPrintRequest } from '@/app/dashboard/teacher/class-materials/actions'
+import {
+  cancelClassMaterialPrintRequest,
+  createClassMaterialPrintRequest,
+} from '@/app/dashboard/teacher/class-materials/actions'
 
 interface MediaAssetInfo {
   id: string
@@ -23,6 +27,13 @@ interface MediaAssetInfo {
   path: string
   mime_type: string | null
   metadata?: Record<string, unknown> | null
+}
+
+interface PrintRequestItemRow {
+  id: string
+  asset_type: ClassMaterialAssetType
+  asset_filename: string | null
+  downloadUrl: string | null
 }
 
 interface PrintRequestRow {
@@ -41,6 +52,7 @@ interface PrintRequestRow {
     name: string | null
     email: string | null
   } | null
+  items: PrintRequestItemRow[]
 }
 
 interface ClassMaterialPostDetail {
@@ -97,7 +109,13 @@ export default async function ClassMaterialDetailPage({
          requested_by,
          created_at,
          updated_at,
-         requester:profiles!class_material_print_requests_requested_by_fkey(id, name, email)
+         requester:profiles!class_material_print_requests_requested_by_fkey(id, name, email),
+         request_items:class_material_print_request_items!class_material_print_request_items_request_id_fkey(
+           id,
+           asset_type,
+           asset_filename,
+           media_asset:media_assets!class_material_print_request_items_media_asset_id_fkey(id, bucket, path, mime_type, metadata)
+         )
        )
       `
     )
@@ -122,29 +140,62 @@ export default async function ClassMaterialDetailPage({
     : data.student_handout_asset
 
   const normalizedPrintRequests: PrintRequestRow[] = Array.isArray(data.print_requests)
-    ? data.print_requests.map((request) => {
-        const requesterRelation = Array.isArray(request.requester) ? request.requester[0] : request.requester
+    ? await Promise.all(
+        data.print_requests.map(async (request) => {
+          const requesterRelation = Array.isArray(request.requester) ? request.requester[0] : request.requester
+          const rawItems = Array.isArray(request.request_items) ? request.request_items : []
 
-        return {
-          id: String(request.id),
-          status: (request.status ?? 'requested') as 'requested' | 'done' | 'canceled',
-          copies: Number(request.copies ?? 1),
-          color_mode: (request.color_mode ?? 'bw') as 'bw' | 'color',
-          desired_date: request.desired_date ?? null,
-          desired_period: request.desired_period ?? null,
-          notes: request.notes ?? null,
-          requested_by: String(request.requested_by),
-          created_at: String(request.created_at),
-          updated_at: String(request.updated_at),
-          requester: requesterRelation
-            ? {
-                id: String(requesterRelation.id),
-                name: (requesterRelation.name ?? null) as string | null,
-                email: (requesterRelation.email ?? null) as string | null,
+          const items: PrintRequestItemRow[] = await Promise.all(
+            rawItems.map(async (item) => {
+              const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
+              let downloadUrl: string | null = null
+
+              if (mediaAsset?.bucket && mediaAsset.path) {
+                try {
+                  const { data: signed, error: signedError } = await supabase.storage
+                    .from(mediaAsset.bucket)
+                    .createSignedUrl(mediaAsset.path, 60 * 60)
+                  if (signedError) {
+                    console.error('[class-materials] failed to sign request item url', signedError)
+                  } else {
+                    downloadUrl = signed?.signedUrl ?? null
+                  }
+                } catch (error) {
+                  console.error('[class-materials] unexpected error signing request item url', error)
+                }
               }
-            : null,
-        }
-      })
+
+              return {
+                id: String(item.id),
+                asset_type: (item.asset_type ?? 'class_material') as ClassMaterialAssetType,
+                asset_filename: (item.asset_filename ?? null) as string | null,
+                downloadUrl,
+              }
+            })
+          )
+
+          return {
+            id: String(request.id),
+            status: (request.status ?? 'requested') as 'requested' | 'done' | 'canceled',
+            copies: Number(request.copies ?? 1),
+            color_mode: (request.color_mode ?? 'bw') as 'bw' | 'color',
+            desired_date: request.desired_date ?? null,
+            desired_period: request.desired_period ?? null,
+            notes: request.notes ?? null,
+            requested_by: String(request.requested_by),
+            created_at: String(request.created_at),
+            updated_at: String(request.updated_at),
+            requester: requesterRelation
+              ? {
+                  id: String(requesterRelation.id),
+                  name: (requesterRelation.name ?? null) as string | null,
+                  email: (requesterRelation.email ?? null) as string | null,
+                }
+              : null,
+            items,
+          }
+        })
+      )
     : []
 
   const post: ClassMaterialPostDetail = {
@@ -183,15 +234,47 @@ export default async function ClassMaterialDetailPage({
     print_requests: normalizedPrintRequests,
   }
 
-  const bucketClient = supabase.storage.from(CLASS_MATERIALS_BUCKET)
+  const signUrl = async (bucket: string | null | undefined, path: string | null | undefined) => {
+    if (!bucket || !path) {
+      return null
+    }
+    try {
+      const { data: signed, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60)
+      if (signedError) {
+        console.error('[class-materials] failed to sign asset url', { bucket, path, signedError })
+        return null
+      }
+      return signed?.signedUrl ?? null
+    } catch (error) {
+      console.error('[class-materials] unexpected error signing asset url', { bucket, path, error })
+      return null
+    }
+  }
 
-  const classMaterialUrl = post.class_material_asset?.path
-    ? (await bucketClient.createSignedUrl(post.class_material_asset.path, 60 * 60)).data?.signedUrl ?? null
-    : null
+  const classMaterialUrl = await signUrl(classMaterialAssetRelation?.bucket ?? CLASS_MATERIALS_BUCKET, classMaterialAssetRelation?.path ?? null)
+  const studentHandoutUrl = await signUrl(studentHandoutAssetRelation?.bucket ?? CLASS_MATERIALS_BUCKET, studentHandoutAssetRelation?.path ?? null)
 
-  const studentHandoutUrl = post.student_handout_asset?.path
-    ? (await bucketClient.createSignedUrl(post.student_handout_asset.path, 60 * 60)).data?.signedUrl ?? null
-    : null
+  const classMaterialFileName =
+    ((classMaterialAssetRelation?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
+    (classMaterialAssetRelation?.path ? classMaterialAssetRelation.path.split('/').pop() ?? classMaterialAssetRelation.path : null)
+  const studentHandoutFileName =
+    ((studentHandoutAssetRelation?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
+    (studentHandoutAssetRelation?.path ? studentHandoutAssetRelation.path.split('/').pop() ?? studentHandoutAssetRelation.path : null)
+
+  const availableAssets = [
+    {
+      type: 'class_material' as ClassMaterialAssetType,
+      label: '수업자료 파일',
+      fileName: classMaterialFileName,
+      disabled: !classMaterialAssetRelation?.id,
+    },
+    {
+      type: 'student_handout' as ClassMaterialAssetType,
+      label: '학생 유인물 파일',
+      fileName: studentHandoutFileName,
+      disabled: !studentHandoutAssetRelation?.id,
+    },
+  ]
 
   const title = getClassMaterialSubjectLabel(subject)
 
@@ -293,7 +376,11 @@ export default async function ClassMaterialDetailPage({
         </div>
       </div>
 
-      <ClassMaterialPrintRequestForm postId={post.id} onSubmit={createClassMaterialPrintRequest} />
+      <ClassMaterialPrintRequestForm
+        postId={post.id}
+        onSubmit={createClassMaterialPrintRequest}
+        availableAssets={availableAssets}
+      />
 
       <Card className="border-slate-200">
         <CardHeader className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
@@ -315,7 +402,9 @@ export default async function ClassMaterialDetailPage({
                   <TableHead>컬러</TableHead>
                   <TableHead>요청자</TableHead>
                   <TableHead>메모</TableHead>
+                  <TableHead>파일</TableHead>
                   <TableHead>상태</TableHead>
+                  <TableHead className="w-28 text-right">작업</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -343,10 +432,44 @@ export default async function ClassMaterialDetailPage({
                         <TableCell className="text-sm text-slate-600">
                           {request.notes ? request.notes : <span className="text-slate-400">메모 없음</span>}
                         </TableCell>
+                        <TableCell className="text-sm text-slate-600">
+                          {request.items.length === 0 ? (
+                            <span className="text-xs text-slate-400">선택된 파일 없음</span>
+                          ) : (
+                            <div className="flex flex-col gap-2">
+                              {request.items.map((item) => (
+                                <div key={item.id} className="flex items-center justify-between gap-3">
+                                  <span className="text-xs text-slate-500">{item.asset_type === 'class_material' ? '수업자료' : '학생 유인물'}</span>
+                                  {item.downloadUrl ? (
+                                    <Button asChild size="sm" variant="outline">
+                                      <a href={item.downloadUrl} target="_blank" rel="noreferrer">
+                                        {item.asset_filename ?? '다운로드'}
+                                      </a>
+                                    </Button>
+                                  ) : (
+                                    <span className="text-xs text-slate-400">다운로드 불가</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={request.status === 'done' ? 'secondary' : request.status === 'canceled' ? 'outline' : 'destructive'}>
                             {formatStatus(request.status)}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {request.status === 'requested' ? (
+                            <form action={cancelClassMaterialPrintRequest} className="inline-flex">
+                              <input type="hidden" name="requestId" value={request.id} />
+                              <Button type="submit" size="sm" variant="outline">
+                                취소
+                              </Button>
+                            </form>
+                          ) : (
+                            <span className="text-xs text-slate-400">-</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     )

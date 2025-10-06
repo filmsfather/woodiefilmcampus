@@ -2,6 +2,10 @@ import { PendingApprovalList } from '@/components/dashboard/manager/PendingAppro
 import { ManagerQuickLinks } from '@/components/dashboard/manager/ManagerQuickLinks'
 import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStatsOverview'
 import { PrintRequestAdminPanel } from '@/components/dashboard/manager/PrintRequestAdminPanel'
+import {
+  ClassMaterialPrintRequestPanel,
+  type ClassMaterialPrintRequestView,
+} from '@/components/dashboard/manager/ClassMaterialPrintRequestPanel'
 import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
@@ -69,7 +73,7 @@ export default async function ManagerDashboardPage({
   const storageAdmin = createAdminClient()
   const weekRange = resolveWeekRange(searchParams.week ?? null)
 
-  const [pendingStudentsResult, approvedCountResult, printRequestResult] = await Promise.all([
+  const [pendingStudentsResult, approvedCountResult, printRequestResult, classMaterialPrintRequestResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, email, name, student_phone, parent_phone, academic_record, created_at')
@@ -118,6 +122,35 @@ export default async function ManagerDashboardPage({
       .order('desired_period', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
       .limit(50),
+    supabase
+      .from('class_material_print_requests')
+      .select(
+        `id,
+         status,
+         desired_date,
+         desired_period,
+         copies,
+         color_mode,
+         notes,
+         created_at,
+         updated_at,
+         requested_by,
+         requester:profiles!class_material_print_requests_requested_by_fkey(id, name, email),
+         post:class_material_posts!class_material_print_requests_post_id_fkey(id, title, subject),
+         items:class_material_print_request_items(
+           id,
+           asset_type,
+           asset_filename,
+           media_asset:media_assets!class_material_print_request_items_media_asset_id_fkey(id, bucket, path, mime_type, metadata)
+         )
+        `
+      )
+      .gte('created_at', DateUtil.toISOString(weekRange.start))
+      .lt('created_at', DateUtil.toISOString(weekRange.endExclusive))
+      .order('desired_date', { ascending: true, nullsFirst: false })
+      .order('desired_period', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
+      .limit(50),
   ])
 
   if (pendingStudentsResult.error) {
@@ -126,6 +159,10 @@ export default async function ManagerDashboardPage({
 
   if (printRequestResult.error) {
     console.error('[manager] print request error', printRequestResult.error)
+  }
+
+  if (classMaterialPrintRequestResult.error) {
+    console.error('[manager] class material print request error', classMaterialPrintRequestResult.error)
   }
 
   const pendingStudents = pendingStudentsResult.data ?? []
@@ -276,6 +313,116 @@ export default async function ManagerDashboardPage({
     return createdA - createdB
   })
 
+  const classMaterialPrintRequests: ClassMaterialPrintRequestView[] = await Promise.all(
+    ((classMaterialPrintRequestResult.data ?? []) as Array<{
+      id: string
+      status: string | null
+      desired_date: string | null
+      desired_period: string | null
+      copies: number | null
+      color_mode: string | null
+      notes: string | null
+      created_at: string
+      updated_at: string
+      requester?: { id: string; name: string | null; email: string | null } | Array<{ id: string; name: string | null; email: string | null }>
+      post?: { id: string; title: string; subject: string } | Array<{ id: string; title: string; subject: string }>
+      items?: Array<{
+        id: string
+        asset_type: string | null
+        asset_filename: string | null
+        media_asset?: { id: string; bucket: string | null; path: string | null } | Array<{ id: string; bucket: string | null; path: string | null }>
+      }>
+    }>)
+      .filter((row) => row.status !== 'canceled')
+      .map(async (row) => {
+        const requesterRelation = Array.isArray(row.requester) ? row.requester[0] : row.requester
+        const postRelation = Array.isArray(row.post) ? row.post[0] : row.post
+        const rawItems = Array.isArray(row.items) ? row.items : []
+
+        const items = await Promise.all(
+          rawItems.map(async (item) => {
+            const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
+            let downloadUrl: string | null = null
+
+            if (mediaAsset?.bucket && mediaAsset.path) {
+              try {
+                const { data: signed, error: signedError } = await storageAdmin.storage
+                  .from(mediaAsset.bucket)
+                  .createSignedUrl(mediaAsset.path, 60 * 60)
+                if (signedError) {
+                  console.error('[manager] class material request signed url error', signedError)
+                } else {
+                  downloadUrl = signed?.signedUrl ?? null
+                }
+              } catch (error) {
+                console.error('[manager] class material request signed url unexpected error', error)
+              }
+            }
+
+            return {
+              id: item.id,
+              assetType: item.asset_type === 'student_handout' ? ('student_handout' as const) : ('class_material' as const),
+              fileName: item.asset_filename,
+              downloadUrl,
+            }
+          })
+        )
+
+        return {
+          id: row.id,
+          status: row.status ?? 'requested',
+          desiredDate: row.desired_date,
+          desiredPeriod: row.desired_period,
+          copies: row.copies ?? 1,
+          colorMode: row.color_mode ?? 'bw',
+          notes: row.notes ?? null,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          teacher: {
+            id: requesterRelation?.id ?? '',
+            name: requesterRelation?.name ?? requesterRelation?.email ?? '교사 미확인',
+          },
+          material: postRelation
+            ? {
+                id: postRelation.id,
+                title: postRelation.title,
+                subject: postRelation.subject,
+              }
+            : null,
+          items,
+        }
+      })
+  )
+
+  classMaterialPrintRequests.sort((a, b) => {
+    const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY
+    const dateB = b.desiredDate ? new Date(b.desiredDate).getTime() : Number.POSITIVE_INFINITY
+    if (dateA !== dateB) {
+      return dateA - dateB
+    }
+
+    const extractPeriod = (value: string | null | undefined) => {
+      if (!value) {
+        return Number.POSITIVE_INFINITY
+      }
+      const match = value.match(/\d+/)
+      if (!match) {
+        return Number.POSITIVE_INFINITY
+      }
+      return parseInt(match[0] ?? '0', 10)
+    }
+
+    const periodA = extractPeriod(a.desiredPeriod)
+    const periodB = extractPeriod(b.desiredPeriod)
+    if (periodA !== periodB) {
+      return periodA - periodB
+    }
+
+    const createdA = new Date(a.createdAt).getTime()
+    const createdB = new Date(b.createdAt).getTime()
+    return createdA - createdB
+  })
+
   const previousWeekHref = buildWeekHref('/dashboard/manager', searchParams, weekRange.previousStart)
   const nextWeekHref = buildWeekHref('/dashboard/manager', searchParams, weekRange.nextStart)
 
@@ -304,6 +451,20 @@ export default async function ManagerDashboardPage({
           </div>
         ) : (
           <PrintRequestAdminPanel requests={printRequests} />
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold text-slate-900">수업자료 인쇄 요청</h2>
+          <p className="text-sm text-slate-500">교사가 수업자료 아카이브에서 요청한 출력 파일을 내려받을 수 있습니다.</p>
+        </div>
+        {classMaterialPrintRequests.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+            선택한 주간에 수업자료 인쇄 요청이 없습니다.
+          </div>
+        ) : (
+          <ClassMaterialPrintRequestPanel requests={classMaterialPrintRequests} />
         )}
       </div>
 
