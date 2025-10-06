@@ -482,9 +482,18 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
     }
   }
 
-  if (!workbook || workbook.teacher_id !== profile.id) {
+  if (!workbook) {
     return {
       error: '수정할 문제집을 찾을 수 없습니다.',
+    }
+  }
+
+  const canEditAll = profile.role === 'principal' || profile.role === 'manager'
+  const isOwner = workbook.teacher_id === profile.id
+
+  if (!canEditAll && !isOwner) {
+    return {
+      error: '문제집을 수정할 권한이 없습니다.',
     }
   }
 
@@ -523,7 +532,7 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
       break
   }
 
-  const { error: updateError } = await supabase
+  const updateQuery = supabase
     .from('workbooks')
     .update({
       title: payload.title,
@@ -534,7 +543,12 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
       config: workbookConfig,
     })
     .eq('id', payload.workbookId)
-    .eq('teacher_id', profile.id)
+
+  if (!canEditAll) {
+    updateQuery.eq('teacher_id', profile.id)
+  }
+
+  const { error: updateError } = await updateQuery
 
   if (updateError) {
     console.error('[updateWorkbook] update error', updateError)
@@ -591,7 +605,7 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
     }
   }
 
-  if (!workbook || workbook.teacher_id !== profile.id) {
+  if (!workbook) {
     return {
       error: '수정할 문제집을 찾을 수 없습니다.',
     }
@@ -875,12 +889,18 @@ export async function deleteWorkbook(workbookId: string) {
   const supabase = createServerSupabase()
 
   try {
-    const { data: workbook, error: fetchError } = await supabase
+    const canManageAll = profile.role === 'principal' || profile.role === 'manager'
+
+    const workbookQuery = supabase
       .from('workbooks')
       .select('id')
       .eq('id', workbookId)
-      .eq('teacher_id', profile.id)
-      .maybeSingle()
+
+    if (!canManageAll) {
+      workbookQuery.eq('teacher_id', profile.id)
+    }
+
+    const { data: workbook, error: fetchError } = await workbookQuery.maybeSingle()
 
     if (fetchError) {
       console.error('[deleteWorkbook] fetch error', fetchError)
@@ -1003,10 +1023,12 @@ export async function duplicateWorkbook(workbookId: string) {
   const supabase = createServerSupabase()
 
   try {
-    const { data: workbook, error: fetchError } = await supabase
+    const canManageAll = profile.role === 'principal' || profile.role === 'manager'
+
+    const workbookQuery = supabase
       .from('workbooks')
       .select(
-        `id, title, subject, type, week_label, tags, description, config,
+        `id, teacher_id, title, subject, type, week_label, tags, description, config,
          workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
           workbook_item_choices(content, is_correct),
           workbook_item_short_fields(label, answer, position),
@@ -1014,8 +1036,12 @@ export async function duplicateWorkbook(workbookId: string) {
          )`
       )
       .eq('id', workbookId)
-      .eq('teacher_id', profile.id)
-      .maybeSingle()
+
+    if (!canManageAll) {
+      workbookQuery.eq('teacher_id', profile.id)
+    }
+
+    const { data: workbook, error: fetchError } = await workbookQuery.maybeSingle()
 
     if (fetchError) {
       console.error('[duplicateWorkbook] fetch error', fetchError)

@@ -25,7 +25,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
   const { data: workbook, error } = await supabase
     .from('workbooks')
     .select(
-      `id, title, subject, type, week_label, tags, description, config, created_at, updated_at,
+      `id, teacher_id, title, subject, type, week_label, tags, description, config, created_at, updated_at,
        workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
         workbook_item_choices(id, label, content, is_correct),
         workbook_item_short_fields(id, label, answer, position),
@@ -33,7 +33,6 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
       )`
     )
     .eq('id', params.workbookId)
-    .eq('teacher_id', profile?.id ?? '')
     .maybeSingle()
 
   if (error) {
@@ -43,6 +42,9 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
   if (!workbook) {
     notFound()
   }
+
+  const canManageWorkbook =
+    profile?.role === 'principal' || profile?.role === 'manager' || profile?.id === workbook.teacher_id
 
   const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
 
@@ -114,29 +116,33 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <form
-              action={async () => {
-                'use server'
-                await duplicateWorkbook(workbook.id)
-              }}
-            >
-              <Button type="submit" variant="outline">
-                복제
-              </Button>
-            </form>
-            <form
-              action={async () => {
-                'use server'
-                await deleteWorkbook(workbook.id)
-              }}
-            >
-              <Button type="submit" variant="destructive">
-                삭제
-              </Button>
-            </form>
-            <Button asChild variant="outline">
-              <Link href={`/dashboard/workbooks/${workbook.id}/edit`}>편집</Link>
-            </Button>
+            {canManageWorkbook && (
+              <>
+                <form
+                  action={async () => {
+                    'use server'
+                    await duplicateWorkbook(workbook.id)
+                  }}
+                >
+                  <Button type="submit" variant="outline">
+                    복제
+                  </Button>
+                </form>
+                <form
+                  action={async () => {
+                    'use server'
+                    await deleteWorkbook(workbook.id)
+                  }}
+                >
+                  <Button type="submit" variant="destructive">
+                    삭제
+                  </Button>
+                </form>
+                <Button asChild variant="outline">
+                  <Link href={`/dashboard/workbooks/${workbook.id}/edit`}>편집</Link>
+                </Button>
+              </>
+            )}
             <Button asChild>
               <Link href={`/dashboard/assignments/new?workbookId=${workbook.id}`}>출제하기</Link>
             </Button>

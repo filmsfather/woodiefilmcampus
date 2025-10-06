@@ -23,7 +23,7 @@ interface WorkbookListItem {
 }
 
 export default async function WorkbookListPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
-  const { profile } = await requireAuthForDashboard('teacher')
+  await requireAuthForDashboard('teacher')
   const supabase = createServerSupabase()
 
   const subjectFilter = ensureArray(searchParams.subject)
@@ -36,7 +36,6 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
   let queryBuilder = supabase
     .from('workbooks')
     .select('id, title, subject, type, week_label, tags, created_at, updated_at, workbook_items(count)')
-    .eq('teacher_id', profile?.id ?? '')
 
   if (subjectFilter.length > 0) {
     queryBuilder = queryBuilder.in('subject', subjectFilter)

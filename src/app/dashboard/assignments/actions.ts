@@ -127,8 +127,8 @@ export async function createAssignment(input: CreateAssignmentInput) {
       return { error: '문제집 정보를 불러오지 못했습니다.' }
     }
 
-    if (!workbook || (profile.role !== 'principal' && workbook.teacher_id !== profile.id)) {
-      return { error: '해당 문제집에 접근할 수 없습니다.' }
+    if (!workbook) {
+      return { error: '해당 문제집을 찾을 수 없습니다.' }
     }
 
     const accessibleClassIds = new Set<string>()

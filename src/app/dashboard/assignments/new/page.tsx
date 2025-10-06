@@ -88,7 +88,6 @@ export default async function AssignmentCreatePage() {
   const { data: workbookData, error: workbookError } = await supabase
     .from('workbooks')
     .select('id, title, subject, type, week_label, tags, updated_at, workbook_items(count)')
-    .eq('teacher_id', teacherId)
     .order('updated_at', { ascending: false })
 
   if (workbookError) {

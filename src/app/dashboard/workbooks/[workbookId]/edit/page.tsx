@@ -59,21 +59,23 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
   const { data: workbook, error } = await supabase
     .from('workbooks')
     .select(
-      `id, title, subject, type, week_label, tags, description, config,
+      `id, teacher_id, title, subject, type, week_label, tags, description, config,
        workbook_items(id, position, prompt, explanation, answer_type,
         workbook_item_choices(content, is_correct),
         workbook_item_short_fields(label, answer, position)
       )`
     )
     .eq('id', params.workbookId)
-    .eq('teacher_id', profile?.id ?? '')
     .maybeSingle()
 
   if (error) {
     console.error('[workbooks/edit] fetch error', error)
   }
 
-  if (!workbook) {
+  const canEditAll = profile?.role === 'principal' || profile?.role === 'manager'
+  const isOwner = workbook?.teacher_id === profile?.id
+
+  if (!workbook || (!canEditAll && !isOwner)) {
     notFound()
   }
 
@@ -139,6 +141,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
 
 type WorkbookRecord = {
   id: string
+  teacher_id: string
   title: string
   subject: string
   type: string
