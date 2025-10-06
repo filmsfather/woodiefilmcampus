@@ -542,65 +542,25 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
       updated_at: now,
     }))
 
-  if (rowsForFilmNotes.length === 0) {
-    const { error: deleteFilmNotesError } = await supabase
-      .from('film_notes')
-      .delete()
-      .eq('student_id', profile.id)
-      .eq('source', 'assignment')
-      .eq('student_task_id', payload.studentTaskId)
-      .eq('workbook_item_id', payload.workbookItemId)
+  const { error: clearFilmNotesError } = await supabase
+    .from('film_notes')
+    .delete()
+    .eq('student_id', profile.id)
+    .eq('source', 'assignment')
+    .eq('student_task_id', payload.studentTaskId)
+    .eq('workbook_item_id', payload.workbookItemId)
 
-    if (deleteFilmNotesError) {
-      console.error('[submitFilmResponses] failed to remove film_notes rows', deleteFilmNotesError)
+  if (clearFilmNotesError) {
+    console.error('[submitFilmResponses] failed to clear film_notes rows', clearFilmNotesError)
+    return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
+  }
+
+  if (rowsForFilmNotes.length > 0) {
+    const { error: filmNotesInsertError } = await supabase.from('film_notes').insert(rowsForFilmNotes)
+
+    if (filmNotesInsertError) {
+      console.error('[submitFilmResponses] failed to insert film_notes', filmNotesInsertError)
       return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
-    }
-  } else {
-    const { error: filmNotesUpsertError } = await supabase
-      .from('film_notes')
-      .upsert(rowsForFilmNotes, { onConflict: 'student_task_id,workbook_item_id,note_index' })
-
-    if (filmNotesUpsertError) {
-      console.error('[submitFilmResponses] failed to upsert film_notes', filmNotesUpsertError)
-      return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
-    }
-
-    const { error: overflowDeleteError } = await supabase
-      .from('film_notes')
-      .delete()
-      .eq('student_id', profile.id)
-      .eq('source', 'assignment')
-      .eq('student_task_id', payload.studentTaskId)
-      .eq('workbook_item_id', payload.workbookItemId)
-      .gt('note_index', payload.noteCount - 1)
-
-    if (overflowDeleteError) {
-      console.error('[submitFilmResponses] failed to cleanup overflow film_notes', overflowDeleteError)
-      return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
-    }
-
-    const noteIndexesToKeep = new Set(rowsForFilmNotes.map((row) => row.note_index))
-    const indexesToRemove: number[] = []
-    for (let index = 0; index < payload.noteCount; index += 1) {
-      if (!noteIndexesToKeep.has(index)) {
-        indexesToRemove.push(index)
-      }
-    }
-
-    if (indexesToRemove.length > 0) {
-      const { error: removeEmptyNotesError } = await supabase
-        .from('film_notes')
-        .delete()
-        .eq('student_id', profile.id)
-        .eq('source', 'assignment')
-        .eq('student_task_id', payload.studentTaskId)
-        .eq('workbook_item_id', payload.workbookItemId)
-        .in('note_index', indexesToRemove)
-
-      if (removeEmptyNotesError) {
-        console.error('[submitFilmResponses] failed to remove empty film_notes rows', removeEmptyNotesError)
-        return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
-      }
     }
   }
 
