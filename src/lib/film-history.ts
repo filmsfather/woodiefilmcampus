@@ -56,6 +56,11 @@ export interface FilmNoteHistorySummary {
   assignment: {
     dueAt: string | null
   }
+  taskItem: {
+    id: string | null
+    workbookItemId: string | null
+  }
+  noteSlots: FilmNoteEntry[]
   entries: FilmNoteHistoryEntry[]
   completedCount: number
 }
@@ -144,8 +149,13 @@ export async function fetchFilmNoteHistory(
       : (rawLinked as { id: string | null; prompt: string | null } | null | undefined) ?? null
 
     return {
-      id: base.id ?? '',
-      workbookItemId: linked?.id ?? base.item_id ?? null,
+      id: (typeof base.id === 'string' && base.id.length > 0) ? base.id : null,
+      workbookItemId:
+        (linked && typeof linked.id === 'string' && linked.id.length > 0)
+          ? linked.id
+          : (typeof base.item_id === 'string' && base.item_id.length > 0)
+            ? base.item_id
+            : null,
       prompt: linked?.prompt ?? null,
     }
   })[0]
@@ -210,10 +220,12 @@ export async function fetchFilmNoteHistory(
   }
 
   const entries: FilmNoteHistoryEntry[] = []
+  const noteSlots: FilmNoteEntry[] = []
 
   for (let index = 0; index < configuredNoteCount; index += 1) {
     const row = rowMap.get(index) ?? null
     const content = row ? sanitizeFilmEntry(coerceFilmEntry(row.content)) : createEmptyFilmEntry()
+    noteSlots.push(content)
     entries.push({
       noteIndex: index,
       content,
@@ -223,7 +235,8 @@ export async function fetchFilmNoteHistory(
     })
   }
 
-  const completedCount = entries.filter((entry) => entry.completed).length
+  const completedEntries = entries.filter((entry) => entry.completed)
+  const completedCount = completedEntries.length
 
   return {
     taskId: task.id,
@@ -237,7 +250,12 @@ export async function fetchFilmNoteHistory(
     assignment: {
       dueAt: assignment?.due_at ?? null,
     },
-    entries,
+    taskItem: {
+      id: firstItem?.id ?? null,
+      workbookItemId,
+    },
+    noteSlots,
+    entries: completedEntries,
     completedCount,
   }
 }
