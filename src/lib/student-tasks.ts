@@ -440,7 +440,17 @@ async function loadAssignmentSummaries(
   return lookup
 }
 
-export async function fetchStudentTaskSummaries(studentId: string): Promise<StudentTaskSummary[]> {
+export interface StudentTaskSummaryFilters {
+  dueBetween?: {
+    start: Date
+    endExclusive: Date
+  }
+}
+
+export async function fetchStudentTaskSummaries(
+  studentId: string,
+  filters?: StudentTaskSummaryFilters
+): Promise<StudentTaskSummary[]> {
   const supabase = createServerSupabase()
   const { data, error } = await supabase
     .from('student_tasks')
@@ -461,7 +471,27 @@ export async function fetchStudentTaskSummaries(studentId: string): Promise<Stud
     collectAssignmentIds(rows)
   )
 
-  return rows.map((row) => mapSummary(row, assignmentLookup))
+  const summaries = rows.map((row) => mapSummary(row, assignmentLookup))
+
+  const range = filters?.dueBetween
+  if (!range) {
+    return summaries
+  }
+
+  const startMs = range.start.getTime()
+  const endMs = range.endExclusive.getTime()
+
+  return summaries.filter((summary) => {
+    const dueValue = summary.due.dueAt ?? summary.assignment?.dueAt ?? null
+    if (!dueValue) {
+      return false
+    }
+    const dueTime = new Date(dueValue).getTime()
+    if (Number.isNaN(dueTime)) {
+      return false
+    }
+    return dueTime >= startMs && dueTime < endMs
+  })
 }
 
 export async function fetchStudentTaskDetail(

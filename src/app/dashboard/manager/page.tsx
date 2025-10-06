@@ -2,7 +2,10 @@ import { PendingApprovalList } from '@/components/dashboard/manager/PendingAppro
 import { ManagerQuickLinks } from '@/components/dashboard/manager/ManagerQuickLinks'
 import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStatsOverview'
 import { PrintRequestAdminPanel } from '@/components/dashboard/manager/PrintRequestAdminPanel'
+import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 import { requireAuthForDashboard } from '@/lib/auth'
+import DateUtil from '@/lib/date-util'
+import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -56,10 +59,15 @@ type RawPrintRequestRow = {
   print_request_items?: RawPrintRequestItemRow[] | null
 }
 
-export default async function ManagerDashboardPage() {
+export default async function ManagerDashboardPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>
+}) {
   const { profile } = await requireAuthForDashboard('manager')
   const supabase = createClient()
   const storageAdmin = createAdminClient()
+  const weekRange = resolveWeekRange(searchParams.week ?? null)
 
   const [pendingStudentsResult, approvedCountResult, printRequestResult] = await Promise.all([
     supabase
@@ -104,6 +112,8 @@ export default async function ManagerDashboardPage() {
          )
         `
       )
+      .gte('created_at', DateUtil.toISOString(weekRange.start))
+      .lt('created_at', DateUtil.toISOString(weekRange.endExclusive))
       .order('created_at', { ascending: false })
       .limit(50),
   ])
@@ -235,6 +245,9 @@ export default async function ManagerDashboardPage() {
     })
   )
 
+  const previousWeekHref = buildWeekHref('/dashboard/manager', searchParams, weekRange.previousStart)
+  const nextWeekHref = buildWeekHref('/dashboard/manager', searchParams, weekRange.nextStart)
+
   return (
     <section className="space-y-6">
       <div className="space-y-1">
@@ -248,7 +261,20 @@ export default async function ManagerDashboardPage() {
 
       <ManagerQuickLinks />
 
-      <PrintRequestAdminPanel requests={printRequests} />
+      <div className="space-y-3">
+        <WeekNavigator
+          label={weekRange.label}
+          previousHref={previousWeekHref}
+          nextHref={nextWeekHref}
+        />
+        {printRequests.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+            선택한 주간에 표시할 인쇄 요청이 없습니다.
+          </div>
+        ) : (
+          <PrintRequestAdminPanel requests={printRequests} />
+        )}
+      </div>
 
       <PendingApprovalList students={pendingStudents} />
     </section>

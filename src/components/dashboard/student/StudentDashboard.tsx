@@ -23,23 +23,10 @@ interface StudentDashboardProps {
   profileName: string | null
   tasks: StudentTaskSummary[]
   serverNowIso: string
+  weekLabel: string
 }
 
 type StatusFilterKey = 'all' | 'active' | 'completed'
-type TimeFilterKey = 'all' | 'this_week' | 'last_week'
-
-function getStartOfWeek(date: Date) {
-  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
-  const day = start.getUTCDay()
-  const diff = day === 0 ? 6 : day - 1
-  start.setUTCDate(start.getUTCDate() - diff)
-  start.setUTCHours(0, 0, 0, 0)
-  return start
-}
-
-function isWithinRange(date: Date, start: Date, end: Date) {
-  return date.getTime() >= start.getTime() && date.getTime() < end.getTime()
-}
 
 function getStatusLabel(status: StudentTaskSummary['status']) {
   switch (status) {
@@ -104,9 +91,8 @@ function formatDateTime(value: string | null, fallback = '정보 없음') {
   })
 }
 
-export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDashboardProps) {
+export function StudentDashboard({ profileName, tasks, serverNowIso, weekLabel }: StudentDashboardProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilterKey>('all')
-  const [timeFilter, setTimeFilter] = useState<TimeFilterKey>('all')
 
   const nowMs = useMemo(() => {
     const parsed = Date.parse(serverNowIso)
@@ -115,21 +101,6 @@ export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDa
     }
     return parsed
   }, [serverNowIso])
-  const weekBoundaries = useMemo(() => {
-    const now = new Date(nowMs)
-    const startOfThisWeek = getStartOfWeek(now)
-    const startOfNextWeek = new Date(startOfThisWeek)
-    startOfNextWeek.setUTCDate(startOfNextWeek.getUTCDate() + 7)
-
-    const startOfLastWeek = new Date(startOfThisWeek)
-    startOfLastWeek.setUTCDate(startOfLastWeek.getUTCDate() - 7)
-
-    return {
-      startOfThisWeek,
-      startOfNextWeek,
-      startOfLastWeek,
-    }
-  }, [nowMs])
 
   const summary = useMemo(() => {
     const total = tasks.length
@@ -164,33 +135,7 @@ export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDa
     }
   }, [tasks, statusFilter])
 
-  const filteredTasks = useMemo(() => {
-    if (timeFilter === 'all') {
-      return filteredByStatus
-    }
-
-    return filteredByStatus.filter((task) => {
-      if (!task.due.dueAt) {
-        return false
-      }
-
-      const dueDate = new Date(task.due.dueAt)
-
-      if (Number.isNaN(dueDate.getTime())) {
-        return false
-      }
-
-      if (timeFilter === 'this_week') {
-        return isWithinRange(dueDate, weekBoundaries.startOfThisWeek, weekBoundaries.startOfNextWeek)
-      }
-
-      if (timeFilter === 'last_week') {
-        return isWithinRange(dueDate, weekBoundaries.startOfLastWeek, weekBoundaries.startOfThisWeek)
-      }
-
-      return true
-    })
-  }, [filteredByStatus, timeFilter, weekBoundaries])
+  const filteredTasks = useMemo(() => filteredByStatus, [filteredByStatus])
 
   const sortedTasks = useMemo(() => {
     return [...filteredTasks].sort((a, b) => {
@@ -320,24 +265,8 @@ export function StudentDashboard({ profileName, tasks, serverNowIso }: StudentDa
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              { key: 'all', label: '전체 기간' },
-              { key: 'this_week', label: '이번주 마감' },
-              { key: 'last_week', label: '지난주 마감' },
-            ] as Array<{ key: TimeFilterKey; label: string }>
-          ).map(({ key, label }) => (
-            <Button
-              key={key}
-              variant={timeFilter === key ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setTimeFilter(key)}
-              className={cn('rounded-full')}
-            >
-              {label}
-            </Button>
-          ))}
+        <div className="text-sm text-slate-600">
+          선택한 주간 과제: <span className="font-medium text-slate-900">{weekLabel}</span>
         </div>
         <div className="flex flex-wrap gap-2">
           {(

@@ -2,8 +2,14 @@ import { StudentDashboard } from '@/components/dashboard/student/StudentDashboar
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchStudentTaskSummaries } from '@/lib/student-tasks'
+import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
+import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
 
-export default async function StudentDashboardPage() {
+export default async function StudentDashboardPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>
+}) {
   const { profile } = await requireAuthForDashboard('student')
 
   if (!profile) {
@@ -14,13 +20,34 @@ export default async function StudentDashboardPage() {
   DateUtil.initServerClock()
   const serverNowIso = DateUtil.nowUTC().toISOString()
 
-  const tasks = await fetchStudentTaskSummaries(profile.id)
+  const weekRange = resolveWeekRange(searchParams.week ?? null)
+
+  const tasks = await fetchStudentTaskSummaries(profile.id, {
+    dueBetween: {
+      start: weekRange.start,
+      endExclusive: weekRange.endExclusive,
+    },
+  })
+
+  const previousWeekHref = buildWeekHref('/dashboard/student', searchParams, weekRange.previousStart)
+  const nextWeekHref = buildWeekHref('/dashboard/student', searchParams, weekRange.nextStart)
 
   return (
-    <StudentDashboard
-      profileName={profile.name ?? profile.email ?? null}
-      tasks={tasks}
-      serverNowIso={serverNowIso}
-    />
+    <div className="space-y-4">
+      <div className="flex justify-center md:justify-start">
+        <WeekNavigator
+          label={weekRange.label}
+          previousHref={previousWeekHref}
+          nextHref={nextWeekHref}
+          className="w-full max-w-xs md:w-auto"
+        />
+      </div>
+      <StudentDashboard
+        profileName={profile.name ?? profile.email ?? null}
+        tasks={tasks}
+        serverNowIso={serverNowIso}
+        weekLabel={weekRange.label}
+      />
+    </div>
   )
 }
