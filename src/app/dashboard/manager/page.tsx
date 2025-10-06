@@ -1,11 +1,7 @@
 import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
 import { ManagerQuickLinks } from '@/components/dashboard/manager/ManagerQuickLinks'
 import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStatsOverview'
-import { PrintRequestAdminPanel } from '@/components/dashboard/manager/PrintRequestAdminPanel'
-import {
-  ClassMaterialPrintRequestPanel,
-  type ClassMaterialPrintRequestView,
-} from '@/components/dashboard/manager/ClassMaterialPrintRequestPanel'
+import { PrintRequestAdminPanel, type PrintRequestView } from '@/components/dashboard/manager/PrintRequestAdminPanel'
 import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
@@ -135,12 +131,11 @@ export default async function ManagerDashboardPage({
          created_at,
          updated_at,
          requested_by,
-         requester:profiles!class_material_print_requests_requested_by_fkey(id, name, email),
-         post:class_material_posts!class_material_print_requests_post_id_fkey(id, title, subject),
-         items:class_material_print_request_items(
-           id,
-           asset_type,
-           asset_filename,
+      requester:profiles!class_material_print_requests_requested_by_fkey(id, name, email),
+      items:class_material_print_request_items(
+        id,
+        asset_type,
+        asset_filename,
            media_asset:media_assets!class_material_print_request_items_media_asset_id_fkey(id, bucket, path, mime_type, metadata)
          )
         `
@@ -284,7 +279,7 @@ export default async function ManagerDashboardPage({
     })
   )
 
-  const printRequests = printRequestsUnsorted.sort((a, b) => {
+  const sortedAssignmentRequests = printRequestsUnsorted.sort((a, b) => {
     const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY
     const dateB = b.desiredDate ? new Date(b.desiredDate).getTime() : Number.POSITIVE_INFINITY
     if (dateA !== dateB) {
@@ -313,7 +308,41 @@ export default async function ManagerDashboardPage({
     return createdA - createdB
   })
 
-  const classMaterialPrintRequests: ClassMaterialPrintRequestView[] = await Promise.all(
+  const assignmentRequests: PrintRequestView[] = sortedAssignmentRequests.map((request) => {
+    const studentSummary = (() => {
+      if (request.students.length === 0) {
+        return '전체 학생'
+      }
+      if (request.students.length <= 2) {
+        return request.students.map((student) => student.name).join(', ')
+      }
+      return `${request.students.slice(0, 2).map((student) => student.name).join(', ')} 외 ${request.students.length - 2}명`
+    })()
+
+    const itemLabel = request.items.length > 0 ? ` (${request.items.length}건)` : ''
+
+    return {
+      id: request.id,
+      source: 'assignment',
+      status: (request.status ?? 'requested') as 'requested' | 'done' | 'canceled',
+      desiredDate: request.desiredDate,
+      desiredPeriod: request.desiredPeriod,
+      copies: request.copies,
+      colorMode: request.colorMode,
+      notes: request.notes,
+      createdAt: request.createdAt,
+      updatedAt: request.updatedAt,
+      teacherName: request.teacher.name,
+      studentLabel: `${studentSummary}${itemLabel}`,
+      files: request.items.map((item) => ({
+        id: item.id,
+        label: `${item.studentName} · ${item.fileName}`,
+        downloadUrl: item.downloadUrl,
+      })),
+    }
+  })
+
+  const classMaterialRequests: PrintRequestView[] = await Promise.all(
     ((classMaterialPrintRequestResult.data ?? []) as Array<{
       id: string
       status: string | null
@@ -336,7 +365,6 @@ export default async function ManagerDashboardPage({
       .filter((row) => row.status !== 'canceled')
       .map(async (row) => {
         const requesterRelation = Array.isArray(row.requester) ? row.requester[0] : row.requester
-        const postRelation = Array.isArray(row.post) ? row.post[0] : row.post
         const rawItems = Array.isArray(row.items) ? row.items : []
 
         const items = await Promise.all(
@@ -370,7 +398,8 @@ export default async function ManagerDashboardPage({
 
         return {
           id: row.id,
-          status: row.status ?? 'requested',
+          source: 'class_material' as const,
+          status: (row.status ?? 'requested') as 'requested' | 'done' | 'canceled',
           desiredDate: row.desired_date,
           desiredPeriod: row.desired_period,
           copies: row.copies ?? 1,
@@ -378,23 +407,47 @@ export default async function ManagerDashboardPage({
           notes: row.notes ?? null,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
-          teacher: {
-            id: requesterRelation?.id ?? '',
-            name: requesterRelation?.name ?? requesterRelation?.email ?? '교사 미확인',
-          },
-          material: postRelation
-            ? {
-                id: postRelation.id,
-                title: postRelation.title,
-                subject: postRelation.subject,
-              }
-            : null,
-          items,
+          teacherName: requesterRelation?.name ?? requesterRelation?.email ?? '교사 미확인',
+          studentLabel: '(수업자료)',
+          files: items.map((item) => ({
+            id: item.id,
+            label: `${item.assetType === 'class_material' ? '수업자료' : '학생 유인물'} · ${item.fileName ?? '파일'}`,
+            downloadUrl: item.downloadUrl,
+          })),
         }
       })
   )
 
-  classMaterialPrintRequests.sort((a, b) => {
+  classMaterialRequests.sort((a, b) => {
+    const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY
+    const dateB = b.desiredDate ? new Date(b.desiredDate).getTime() : Number.POSITIVE_INFINITY
+    if (dateA !== dateB) {
+      return dateA - dateB
+    }
+
+    const extractPeriod = (value: string | null | undefined) => {
+      if (!value) {
+        return Number.POSITIVE_INFINITY
+      }
+      const match = value.match(/\d+/)
+      if (!match) {
+        return Number.POSITIVE_INFINITY
+      }
+      return parseInt(match[0] ?? '0', 10)
+    }
+
+    const periodA = extractPeriod(a.desiredPeriod)
+    const periodB = extractPeriod(b.desiredPeriod)
+    if (periodA !== periodB) {
+      return periodA - periodB
+    }
+
+    const createdA = new Date(a.createdAt).getTime()
+    const createdB = new Date(b.createdAt).getTime()
+    return createdA - createdB
+  })
+
+  const combinedRequests = [...assignmentRequests, ...classMaterialRequests].sort((a, b) => {
     const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY
     const dateB = b.desiredDate ? new Date(b.desiredDate).getTime() : Number.POSITIVE_INFINITY
     if (dateA !== dateB) {
@@ -445,26 +498,12 @@ export default async function ManagerDashboardPage({
           previousHref={previousWeekHref}
           nextHref={nextWeekHref}
         />
-        {printRequests.length === 0 ? (
+        {combinedRequests.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
             선택한 주간에 표시할 인쇄 요청이 없습니다.
           </div>
         ) : (
-          <PrintRequestAdminPanel requests={printRequests} />
-        )}
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold text-slate-900">수업자료 인쇄 요청</h2>
-          <p className="text-sm text-slate-500">교사가 수업자료 아카이브에서 요청한 출력 파일을 내려받을 수 있습니다.</p>
-        </div>
-        {classMaterialPrintRequests.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
-            선택한 주간에 수업자료 인쇄 요청이 없습니다.
-          </div>
-        ) : (
-          <ClassMaterialPrintRequestPanel requests={classMaterialPrintRequests} />
+          <PrintRequestAdminPanel requests={combinedRequests} />
         )}
       </div>
 
