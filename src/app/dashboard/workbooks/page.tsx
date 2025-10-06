@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { WORKBOOK_SUBJECTS, WORKBOOK_TITLES, WORKBOOK_TYPES } from '@/lib/validation/workbook'
+import { WORKBOOK_SUBJECTS, WORKBOOK_TITLES } from '@/lib/validation/workbook'
 import WorkbookFilters from '@/components/dashboard/workbooks/WorkbookFilters'
 
 interface WorkbookListItem {
@@ -27,8 +27,11 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
   const supabase = createServerSupabase()
 
   const subjectFilter = ensureArray(searchParams.subject)
-  const typeFilter = ensureArray(searchParams.type)
   const query = typeof searchParams.q === 'string' ? searchParams.q.trim() : ''
+  const weekSortParam =
+    typeof searchParams.weekSort === 'string' && (searchParams.weekSort === 'asc' || searchParams.weekSort === 'desc')
+      ? (searchParams.weekSort as 'asc' | 'desc')
+      : null
 
   let queryBuilder = supabase
     .from('workbooks')
@@ -39,17 +42,23 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
     queryBuilder = queryBuilder.in('subject', subjectFilter)
   }
 
-  if (typeFilter.length > 0) {
-    queryBuilder = queryBuilder.in('type', typeFilter)
-  }
-
   if (query) {
     queryBuilder = queryBuilder.or(
       `title.ilike.%${query}%,week_label.ilike.%${query}%,tags.cs.{${query}}`
     )
   }
 
-  const { data, error } = await queryBuilder.order('updated_at', { ascending: false })
+  if (weekSortParam) {
+    queryBuilder = queryBuilder.order('week_label', {
+      ascending: weekSortParam === 'asc',
+      nullsFirst: false,
+    })
+    queryBuilder = queryBuilder.order('updated_at', { ascending: false })
+  } else {
+    queryBuilder = queryBuilder.order('updated_at', { ascending: false })
+  }
+
+  const { data, error } = await queryBuilder
 
   if (error) {
     console.error('[workbooks] failed to load list', error)
@@ -85,13 +94,7 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
         </div>
       </div>
 
-      <WorkbookFilters
-        subjects={WORKBOOK_SUBJECTS}
-        types={WORKBOOK_TYPES}
-        activeSubjects={subjectFilter}
-        activeTypes={typeFilter}
-        searchQuery={query}
-      />
+      <WorkbookFilters subjects={WORKBOOK_SUBJECTS} activeSubjects={subjectFilter} searchQuery={query} />
 
       {workbooks.length === 0 ? (
         <Card className="border-dashed border-slate-200 bg-slate-50">
@@ -105,10 +108,28 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
       ) : (
         <Card className="border-slate-200">
           <CardContent className="p-0">
+            <div className="flex flex-col border-b border-slate-200 bg-slate-50 px-4 py-3 gap-2 text-sm text-slate-700">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <span className="font-medium">주차 정렬</span>
+                <div className="flex flex-wrap gap-2">
+                  <Button asChild size="sm" variant={weekSortParam === 'asc' ? 'default' : 'outline'}>
+                    <Link href={buildWeekSortHref(searchParams, 'asc')}>오름차순</Link>
+                  </Button>
+                  <Button asChild size="sm" variant={weekSortParam === 'desc' ? 'default' : 'outline'}>
+                    <Link href={buildWeekSortHref(searchParams, 'desc')}>내림차순</Link>
+                  </Button>
+                  <Button asChild size="sm" variant={!weekSortParam ? 'default' : 'outline'}>
+                    <Link href={buildWeekSortHref(searchParams, null)}>기본 정렬</Link>
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">주차 정보가 없는 문제집은 목록 하단에 표시됩니다.</p>
+            </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
-                <thead className="bg-slate-50 text-slate-600">
+              <table className="w-full min-w-[820px] table-fixed border-collapse text-sm">
+                <thead className="bg-white text-slate-600">
                   <tr className="border-b border-slate-200">
+                    <th className="px-4 py-3 text-left font-medium">주차</th>
                     <th className="px-4 py-3 text-left font-medium">제목</th>
                     <th className="px-4 py-3 text-left font-medium">유형</th>
                     <th className="px-4 py-3 text-left font-medium">과목</th>
@@ -122,16 +143,19 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
                   {workbooks.map((workbook) => {
                     const itemCount = workbook.workbook_items?.[0]?.count ?? 0
                     const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
+                    const weekLabel = (workbook.week_label ?? '').trim()
 
                     return (
                       <tr key={workbook.id} className="border-b border-slate-100 last:border-none hover:bg-slate-50">
+                        <td className="px-4 py-3 align-top text-slate-600">
+                          {weekLabel ? (
+                            <Badge variant="outline" className="text-xs font-medium">{weekLabel}</Badge>
+                          ) : (
+                            <span className="text-slate-300">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3 align-top">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-medium text-slate-900">{workbook.title}</span>
-                            {workbook.week_label && (
-                              <span className="text-xs text-slate-500">주차: {workbook.week_label}</span>
-                            )}
-                          </div>
+                          <span className="font-medium text-slate-900">{workbook.title}</span>
                         </td>
                         <td className="px-4 py-3 align-top">
                           <Badge variant="secondary">{readableType}</Badge>
@@ -165,6 +189,34 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
       )}
     </section>
   )
+}
+
+function buildWeekSortHref(
+  currentParams: Record<string, string | string[] | undefined>,
+  direction: 'asc' | 'desc' | null
+) {
+  const params = new URLSearchParams()
+
+  Object.entries(currentParams).forEach(([key, rawValue]) => {
+    if (!rawValue) {
+      return
+    }
+
+    if (Array.isArray(rawValue)) {
+      rawValue.forEach((entry) => params.append(key, entry))
+    } else {
+      params.set(key, rawValue)
+    }
+  })
+
+  params.delete('weekSort')
+
+  if (direction) {
+    params.set('weekSort', direction)
+  }
+
+  const query = params.toString()
+  return query ? `/dashboard/workbooks?${query}` : '/dashboard/workbooks'
 }
 
 function ensureArray(value: string | string[] | undefined): string[] {
