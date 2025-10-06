@@ -111,14 +111,12 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>요청일</TableHead>
               <TableHead>희망일</TableHead>
+              <TableHead>교시</TableHead>
               <TableHead>부수</TableHead>
               <TableHead>교사</TableHead>
-              <TableHead>과제</TableHead>
               <TableHead>학생</TableHead>
               <TableHead>파일</TableHead>
-              <TableHead>상태</TableHead>
               <TableHead className="text-right">처리</TableHead>
             </TableRow>
           </TableHeader>
@@ -151,64 +149,62 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
 
               return (
                 <TableRow key={request.id}>
-                  <TableCell>{createdLabel}</TableCell>
                   <TableCell>
-                    {desiredLabel}
-                    {request.desiredPeriod ? ` · ${request.desiredPeriod}` : ''}
+                    <div className="flex flex-col text-xs text-slate-600">
+                      <span className="text-sm font-medium text-slate-900">{desiredLabel}</span>
+                      <span>요청일 {createdLabel}</span>
+                    </div>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="text-sm text-slate-700">{request.desiredPeriod ?? '미지정'}</TableCell>
+                  <TableCell className="text-sm text-slate-700">
                     {request.copies}부 · {request.colorMode === 'color' ? '컬러' : '흑백'}
                     {request.notes ? (
                       <p className="text-[11px] text-slate-500">메모: {request.notes}</p>
                     ) : null}
                   </TableCell>
-                  <TableCell>{request.teacher.name}</TableCell>
-                  <TableCell>
-                    {request.assignment ? (
-                      <div className="flex items-center gap-1 text-xs text-slate-700">
-                        <FileText className="h-3 w-3" /> {assignmentLabel}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400">과제 정보 없음</span>
-                    )}
-                  </TableCell>
+                  <TableCell className="text-sm text-slate-700">{request.teacher.name}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1 text-xs text-slate-600">
                       <span>{studentLabel}</span>
                     </div>
                   </TableCell>
                   <TableCell>
-                    {request.items.length === 0 ? (
-                      <span className="text-xs text-slate-400">파일 없음</span>
-                    ) : (
-                      <div className="flex flex-col gap-1">
-                        {request.items.map((item) => (
-                          <Button
-                            key={item.id}
-                            asChild
-                            size="sm"
-                            variant={item.downloadUrl ? 'outline' : 'ghost'}
-                            className="justify-start text-xs"
-                            disabled={!item.downloadUrl}
-                          >
-                            <a
-                              href={item.downloadUrl ?? '#'}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex items-center gap-1"
-                            >
-                              <Download className="h-3 w-3" />
-                              <span className="truncate">
-                                {item.studentName} · {item.fileName}
-                              </span>
-                            </a>
-                          </Button>
-                        ))}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
                     <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1 text-xs text-slate-500">
+                        <FileText className="h-3 w-3" /> {assignmentLabel}
+                      </div>
+                      {request.items.length === 0 ? (
+                        <span className="text-xs text-slate-400">파일 없음</span>
+                      ) : (
+                        <div className="flex flex-col gap-1">
+                          {request.items.map((item) => (
+                            <Button
+                              key={item.id}
+                              asChild
+                              size="sm"
+                              variant={item.downloadUrl ? 'outline' : 'ghost'}
+                              className="justify-start text-xs"
+                              disabled={!item.downloadUrl}
+                            >
+                              <a
+                                href={item.downloadUrl ?? '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="flex items-center gap-1"
+                              >
+                                <Download className="h-3 w-3" />
+                                <span className="truncate">
+                                  {item.studentName} · {item.fileName}
+                                </span>
+                              </a>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="space-y-2 text-right">
+                    <div className="flex flex-col gap-1 text-xs text-slate-500">
                       <Badge variant={STATUS_VARIANTS[request.status] ?? 'outline'}>
                         {STATUS_LABELS[request.status] ?? request.status}
                       </Badge>
@@ -217,26 +213,28 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                         <span className="text-[11px] text-destructive">오류: {request.bundleError}</span>
                       )}
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={request.status !== 'requested' || (isPending && pendingId === request.id)}
-                        onClick={() => handleUpdate(request.id, 'done')}
-                      >
-                        <CheckCircle2 className="mr-1 h-3 w-3" /> 완료
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={request.status !== 'requested' || (isPending && pendingId === request.id)}
-                        onClick={() => handleUpdate(request.id, 'canceled')}
-                      >
-                        <XCircle className="mr-1 h-3 w-3" /> 취소
-                      </Button>
-                    </div>
+                    {request.status === 'requested' ? (
+                      <div className="mt-2 flex flex-col gap-1">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={isPending && pendingId === request.id}
+                          onClick={() => handleUpdate(request.id, 'done')}
+                          className="justify-end"
+                        >
+                          <CheckCircle2 className="mr-1 h-3 w-3" /> 완료 처리
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isPending && pendingId === request.id}
+                          onClick={() => handleUpdate(request.id, 'canceled')}
+                          className="justify-end"
+                        >
+                          <XCircle className="mr-1 h-3 w-3" /> 취소 처리
+                        </Button>
+                      </div>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               )

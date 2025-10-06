@@ -114,7 +114,9 @@ export default async function ManagerDashboardPage({
       )
       .gte('created_at', DateUtil.toISOString(weekRange.start))
       .lt('created_at', DateUtil.toISOString(weekRange.endExclusive))
-      .order('created_at', { ascending: false })
+      .order('desired_date', { ascending: true, nullsFirst: false })
+      .order('desired_period', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: true })
       .limit(50),
   ])
 
@@ -134,7 +136,7 @@ export default async function ManagerDashboardPage({
     (row) => row.status !== 'canceled'
   )
 
-  const printRequests = await Promise.all(
+  const printRequestsUnsorted = await Promise.all(
     rawPrintRequests.map(async (row) => {
       const teacherRecord = Array.isArray(row.teacher) ? row.teacher[0] : row.teacher
       const assignmentRecord = Array.isArray(row.assignment) ? row.assignment[0] : row.assignment
@@ -244,6 +246,35 @@ export default async function ManagerDashboardPage({
       }
     })
   )
+
+  const printRequests = printRequestsUnsorted.sort((a, b) => {
+    const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY
+    const dateB = b.desiredDate ? new Date(b.desiredDate).getTime() : Number.POSITIVE_INFINITY
+    if (dateA !== dateB) {
+      return dateA - dateB
+    }
+
+    const extractPeriod = (value: string | null) => {
+      if (!value) {
+        return Number.POSITIVE_INFINITY
+      }
+      const match = value.match(/\d+/)
+      if (!match) {
+        return Number.POSITIVE_INFINITY
+      }
+      return parseInt(match[0] ?? '0', 10)
+    }
+
+    const periodA = extractPeriod(a.desiredPeriod ?? null)
+    const periodB = extractPeriod(b.desiredPeriod ?? null)
+    if (periodA !== periodB) {
+      return periodA - periodB
+    }
+
+    const createdA = new Date(a.createdAt).getTime()
+    const createdB = new Date(b.createdAt).getTime()
+    return createdA - createdB
+  })
 
   const previousWeekHref = buildWeekHref('/dashboard/manager', searchParams, weekRange.previousStart)
   const nextWeekHref = buildWeekHref('/dashboard/manager', searchParams, weekRange.nextStart)

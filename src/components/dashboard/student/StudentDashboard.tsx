@@ -94,14 +94,6 @@ function formatDateTime(value: string | null, fallback = '정보 없음') {
 export function StudentDashboard({ profileName, tasks, serverNowIso, weekLabel }: StudentDashboardProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilterKey>('all')
 
-  const nowMs = useMemo(() => {
-    const parsed = Date.parse(serverNowIso)
-    if (Number.isNaN(parsed)) {
-      return DateUtil.nowUTC().getTime()
-    }
-    return parsed
-  }, [serverNowIso])
-
   const summary = useMemo(() => {
     const total = tasks.length
     const completed = tasks.filter((task) => task.status === 'completed')
