@@ -28,6 +28,14 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -36,6 +44,16 @@ import {
 } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  FILM_NOTE_FIELDS,
+  FILM_NOTE_TEXT_AREAS,
+  coerceFilmEntry,
+  createEmptyFilmEntry,
+  hasFilmEntryValue,
+  isFilmEntryComplete,
+  sanitizeFilmEntry,
+  type FilmNoteEntry,
+} from '@/lib/film-notes'
 
 interface WorkbookItemSummary {
   id: string
@@ -1047,10 +1065,28 @@ function FilmEvaluationCard({
 }) {
   const submission = task.submissions[0] ?? null
   const taskItem = task.items[0] ?? null
-  const parsedNote = useMemo(() => parseFilmContent(submission?.content), [submission?.content])
+  const filmSubmission = useMemo(() => parseFilmSubmission(submission?.content), [submission?.content])
   const [score, setScore] = useState<string>(submission?.score ?? '')
   const [message, setMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  const titlePreview = useMemo(() => {
+    if (!filmSubmission) {
+      return null
+    }
+    const titles = filmSubmission.entries
+      .filter((entry) => entry.hasValue && entry.content.title.trim().length > 0)
+      .map((entry) => entry.content.title)
+
+    if (titles.length === 0) {
+      return '제목 정보 없음'
+    }
+    if (titles.length === 1) {
+      return titles[0]
+    }
+    return `${titles[0]} 외 ${titles.length - 1}편`
+  }, [filmSubmission])
 
   const handleSave = () => {
     if (!submission || !taskItem) {
@@ -1105,20 +1141,31 @@ function FilmEvaluationCard({
           </Button>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm text-slate-700">
-        {parsedNote ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <FilmField label="영화 제목" value={parsedNote.title} />
-            <FilmField label="감독" value={parsedNote.director} />
-            <FilmField label="개봉 연도" value={parsedNote.releaseYear} />
-            <FilmField label="장르 / 국가" value={`${parsedNote.genre || '-'} · ${parsedNote.country || '-'}`} />
-            <FilmField label="줄거리 요약" value={parsedNote.summary} full />
-            <FilmField label="인상 깊은 장면" value={parsedNote.favoriteScene} full />
+      <CardContent className="space-y-4 text-sm text-slate-700">
+        {filmSubmission ? (
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <Badge variant="outline">필요 {filmSubmission.noteCount}개</Badge>
+              <Badge variant={filmSubmission.completedCount === filmSubmission.noteCount ? 'secondary' : 'outline'}>
+                완료 {filmSubmission.completedCount}/{filmSubmission.noteCount}
+              </Badge>
+              {filmSubmission.valueCount > 0 && (
+                <Badge variant="outline">작성 {filmSubmission.valueCount}개</Badge>
+              )}
+              {submission?.updatedAt && (
+                <span>
+                  최근 저장 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
+                </span>
+              )}
+            </div>
+            {filmSubmission.valueCount > 0 && titlePreview && (
+              <p className="text-sm text-slate-600">주요 제목: {titlePreview}</p>
+            )}
           </div>
         ) : (
           <p className="text-xs text-slate-400">제출된 감상지가 없습니다.</p>
         )}
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <Select value={score} onValueChange={setScore}>
             <SelectTrigger className="w-28">
               <SelectValue placeholder="평가" />
@@ -1128,29 +1175,148 @@ function FilmEvaluationCard({
               <SelectItem value="nonpass">Non-pass</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" disabled={isPending || !submission} onClick={handleSave}>
               저장
             </Button>
-            {message && (
-              <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
-                {message}
-              </p>
+            {filmSubmission && (
+              <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+                <SheetTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    감상지 상세 보기
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="sm:max-w-xl">
+                  <SheetHeader>
+                    <SheetTitle>{task.student.name} 감상지</SheetTitle>
+                    <SheetDescription>
+                      필요 {filmSubmission.noteCount}개 · 완료 {filmSubmission.completedCount}개
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-6">
+                    {filmSubmission.entries.map((entry) => (
+                      <div key={entry.noteIndex} className="space-y-3 rounded-lg border border-slate-200 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-slate-900">감상지 {entry.noteIndex + 1}</p>
+                          <Badge
+                            variant={entry.isComplete ? 'secondary' : entry.hasValue ? 'outline' : 'outline'}
+                            className={entry.hasValue ? undefined : 'text-slate-400'}
+                          >
+                            {entry.isComplete ? '완료' : entry.hasValue ? '작성 중' : '미작성'}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {FILM_NOTE_FIELDS.map((field) => (
+                            <FilmField key={field.key} label={field.label} value={entry.content[field.key]} />
+                          ))}
+                        </div>
+                        <div className="space-y-4">
+                          {FILM_NOTE_TEXT_AREAS.map((field) => (
+                            <FilmField key={field.key} label={field.label} value={entry.content[field.key]} full />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SheetContent>
+              </Sheet>
             )}
           </div>
         </div>
+        {message && (
+          <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>{message}</p>
+        )}
       </CardContent>
     </Card>
   )
 }
 
 function FilmField({ label, value, full }: { label: string; value: string; full?: boolean }) {
+  const displayValue = value?.trim().length ? value : '미입력'
+
   return (
     <div className={full ? 'md:col-span-2' : undefined}>
       <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="whitespace-pre-line leading-relaxed">{value || '-'}</p>
+      <p className="whitespace-pre-line leading-relaxed text-slate-700">{displayValue}</p>
     </div>
   )
+}
+
+interface ParsedFilmSubmissionEntry {
+  noteIndex: number
+  content: FilmNoteEntry
+  hasValue: boolean
+  isComplete: boolean
+}
+
+interface ParsedFilmSubmission {
+  entries: ParsedFilmSubmissionEntry[]
+  noteCount: number
+  completedCount: number
+  valueCount: number
+}
+
+function parseFilmSubmission(content: string | null | undefined): ParsedFilmSubmission | null {
+  if (!content) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(content) as unknown
+
+    let noteCount = 1
+    let rawEntries: unknown[] = []
+
+    if (Array.isArray(parsed)) {
+      rawEntries = parsed
+      noteCount = parsed.length > 0 ? parsed.length : 1
+    } else if (parsed && typeof parsed === 'object') {
+      const maybeEntries = (parsed as { entries?: unknown }).entries
+      const maybeNoteCount = Number((parsed as { noteCount?: unknown }).noteCount)
+
+      if (Array.isArray(maybeEntries)) {
+        rawEntries = maybeEntries
+        if (Number.isFinite(maybeNoteCount) && maybeNoteCount > 0) {
+          noteCount = maybeNoteCount
+        } else {
+          noteCount = maybeEntries.length > 0 ? maybeEntries.length : 1
+        }
+      } else {
+        rawEntries = [parsed]
+        noteCount = 1
+      }
+    } else {
+      return null
+    }
+
+    noteCount = Math.max(1, noteCount)
+
+    const entries: ParsedFilmSubmissionEntry[] = Array.from({ length: noteCount }, (_, index) => {
+      const source = rawEntries[index] ?? null
+      const content = source ? sanitizeFilmEntry(coerceFilmEntry(source)) : createEmptyFilmEntry()
+      const hasValue = hasFilmEntryValue(content)
+      const isComplete = isFilmEntryComplete(content)
+      return {
+        noteIndex: index,
+        content,
+        hasValue,
+        isComplete,
+      }
+    })
+
+    const completedCount = entries.filter((entry) => entry.isComplete).length
+    const valueCount = entries.filter((entry) => entry.hasValue).length
+
+    return {
+      entries,
+      noteCount,
+      completedCount,
+      valueCount,
+    }
+  } catch (error) {
+    console.error('[teacher] film submission parse error', error)
+    return null
+  }
 }
 
 function LectureReviewPanel({
@@ -1226,26 +1392,4 @@ function LectureReviewPanel({
       </CardContent>
     </Card>
   )
-}
-
-function parseFilmContent(content: string | null | undefined): Record<string, string> | null {
-  if (!content) {
-    return null
-  }
-
-  try {
-    const parsed = JSON.parse(content) as Record<string, string | undefined>
-    return {
-      title: parsed.title ?? '',
-      director: parsed.director ?? '',
-      releaseYear: parsed.releaseYear ?? '',
-      genre: parsed.genre ?? '',
-      country: parsed.country ?? '',
-      summary: parsed.summary ?? '',
-      favoriteScene: parsed.favoriteScene ?? '',
-    }
-  } catch (error) {
-    console.error('[teacher] film submission parse error', error)
-    return null
-  }
 }
