@@ -39,6 +39,18 @@ function getElapsedMs(fromMs: number): number {
   return Date.now() - fromMs
 }
 
+function normalizeUtcDate(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
+}
+
+function startOfWeekUTC(value: DateLike, weekStartsOn: number): Date {
+  const date = normalizeUtcDate(toDate(value))
+  const currentDow = date.getUTCDay()
+  const diff = (currentDow - weekStartsOn + 7) % 7
+  date.setUTCDate(date.getUTCDate() - diff)
+  return date
+}
+
 export function initServerClock(serverNow?: DateLike) {
   const base = serverNow ? toDate(serverNow) : new Date()
   serverClock = {
@@ -113,6 +125,23 @@ export function addDays(value: DateLike, days: number): Date {
   return new Date(toDate(value).getTime() + days * MS_IN_DAY)
 }
 
+export function startOfWeek(value: DateLike, weekStartsOn = 1): Date {
+  return startOfWeekUTC(value, weekStartsOn)
+}
+
+export function endOfWeek(value: DateLike, weekStartsOn = 1): Date {
+  const start = startOfWeekUTC(value, weekStartsOn)
+  start.setUTCDate(start.getUTCDate() + 6)
+  return start
+}
+
+export function formatISODate(value: DateLike): string {
+  const date = normalizeUtcDate(toDate(value))
+  const month = `${date.getUTCMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getUTCDate()}`.padStart(2, '0')
+  return `${date.getUTCFullYear()}-${month}-${day}`
+}
+
 export function clearClientClock() {
   clientOffsetMs = null
 }
@@ -134,6 +163,9 @@ export const DateUtil = {
   diffInDays,
   addMinutes,
   addDays,
+  startOfWeek,
+  endOfWeek,
+  formatISODate,
   clearClientClock,
   clearServerClock,
 }

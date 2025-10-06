@@ -15,6 +15,8 @@ import {
   type RawAssignmentRow,
   type MediaAssetRecord,
 } from '@/lib/assignment-evaluation'
+import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
+import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 
 interface RawClassRow {
   class_id: string
@@ -64,6 +66,7 @@ export default async function TeacherClassReviewPage({
   const { profile } = await requireAuthForDashboard('teacher')
   const supabase = createServerSupabase()
   const isPrincipal = profile.role === 'principal'
+  const weekRange = resolveWeekRange(searchParams.week ?? null)
 
   let classInfo: { id: string; name: string } | null = null
 
@@ -176,6 +179,10 @@ export default async function TeacherClassReviewPage({
     )
     .order('due_at', { ascending: true })
 
+  assignmentQuery
+    .gte('due_at', DateUtil.toISOString(weekRange.start))
+    .lt('due_at', DateUtil.toISOString(weekRange.endExclusive))
+
   if (!isPrincipal) {
     assignmentQuery.eq('assigned_by', profile.id)
   }
@@ -250,10 +257,28 @@ export default async function TeacherClassReviewPage({
     : null
 
   const initialAssignmentId = typeof searchParams.assignment === 'string' ? searchParams.assignment : null
+  const previousWeekHref = buildWeekHref(
+    `/dashboard/teacher/review/${classInfo.id}`,
+    searchParams,
+    weekRange.previousStart
+  )
+  const nextWeekHref = buildWeekHref(
+    `/dashboard/teacher/review/${classInfo.id}`,
+    searchParams,
+    weekRange.nextStart
+  )
 
   return (
     <div className="space-y-4">
       <DashboardBackLink fallbackHref="/dashboard/teacher/review" label="반 개요로 돌아가기" />
+      <div className="flex justify-center md:justify-start">
+        <WeekNavigator
+          label={weekRange.label}
+          previousHref={previousWeekHref}
+          nextHref={nextWeekHref}
+          className="w-full max-w-xs md:w-auto"
+        />
+      </div>
       <ClassDashboard
         classId={classInfo.id}
         className={classInfo.name}

@@ -3,6 +3,8 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { ClassOverviewGrid, ClassOverviewItem, ClassOverviewSummary } from '@/components/dashboard/teacher/ClassOverview'
+import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
+import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
 
 interface RawTeacherClassRow {
   classes?:
@@ -109,10 +111,15 @@ interface ManagedClass {
 
 const UPCOMING_WINDOW_DAYS = 3
 
-export default async function TeacherReviewOverviewPage() {
+export default async function TeacherReviewOverviewPage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>
+}) {
   const { profile } = await requireAuthForDashboard('teacher')
   const supabase = createServerSupabase()
   const isPrincipal = profile.role === 'principal'
+  const weekRange = resolveWeekRange(searchParams?.week ?? null)
 
   const classQuery = isPrincipal
     ? supabase
@@ -147,6 +154,10 @@ export default async function TeacherReviewOverviewPage() {
       `
     )
     .order('due_at', { ascending: true })
+
+  assignmentQuery
+    .gte('due_at', DateUtil.toISOString(weekRange.start))
+    .lt('due_at', DateUtil.toISOString(weekRange.endExclusive))
 
   if (!isPrincipal) {
     assignmentQuery.eq('assigned_by', profile.id)
@@ -359,9 +370,20 @@ export default async function TeacherReviewOverviewPage() {
     }
   )
 
+  const previousWeekHref = buildWeekHref('/dashboard/teacher/review', searchParams, weekRange.previousStart)
+  const nextWeekHref = buildWeekHref('/dashboard/teacher/review', searchParams, weekRange.nextStart)
+
   return (
     <div className="space-y-6">
       <DashboardBackLink fallbackHref="/dashboard/teacher" label="교사용 허브로 돌아가기" />
+      <div className="flex justify-center md:justify-start">
+        <WeekNavigator
+          label={weekRange.label}
+          previousHref={previousWeekHref}
+          nextHref={nextWeekHref}
+          className="w-full max-w-xs md:w-auto"
+        />
+      </div>
       <ClassOverviewGrid summary={overviewSummary} items={overviewItems} />
     </div>
   )
