@@ -28,7 +28,6 @@ export default function NewClassMaterialPage({ params }: { params: { subject: st
         subject={subject}
         submitLabel="자료 업로드"
         onSubmit={createClassMaterialPost}
-        redirectTo={(postId) => `/dashboard/teacher/class-materials/${subject}/${postId}`}
       />
     </section>
   )

@@ -1,11 +1,13 @@
 # 구현 계획 (Woodie Film Campus)
 
 ## 목적
+
 - PRD 요구사항을 충족하는 워크북 생성·출제·학습·점검 플로우를 구축한다.
 - 교사/학생/Admin 역할별 권한과 데이터 일관성을 유지하면서 중단 후 재개 가능한 학습 경험을 제공한다.
 - 향후 예약 기능 등에서도 재사용 가능한 시간 표준화, 스토리지, 인쇄 요청 흐름의 기반을 마련한다.
 
 ## 공통 고려사항
+
 - **시간 표준화(DateUtil)**: `src/lib/date-util.ts`에 중앙 유틸을 구현한다.
   - `initServerClock()`(SSR/Edge에서 호출) → `nowUTC()`와 동일한 UTC 기준 제공.
   - `initClientClock(serverNow)` → 브라우저-서버 오프셋 캐시, `nowUTC()`, `isSameUtcDay()`, `formatForDisplay(locale, tz)` 제공.
@@ -19,11 +21,13 @@
 - **에러/감사 로그**: 주요 액션(출제, 제출, 인쇄요청 상태 변경)에 Supabase Edge Function 로그 또는 DB trigger 기록을 추가해 추후 감사 가능하게 함.
 
 ## Phase 0 — 준비 및 범위 명확화
+
 - `src` 앱 구조, 인증 흐름, Supabase 클라이언트 초기화 코드 검토.
 - 역할별 사용자 플로우를 시퀀스 다이어그램으로 정리(내부 문서 또는 FigJam).
 - DateUtil과 스토리지 UX 시나리오에 대한 팀 합의 확보.
 
 ## Phase 1 — 데이터 모델링 & 백엔드 기반
+
 - **완료**: 워크북/과제/학생 진행 관련 테이블 및 인덱스를 `supabase/migrations/workbook_schema.sql`로 분리 생성.
   - `workbooks`, `workbook_items`, `workbook_item_choices`, `workbook_item_media`
   - `media_assets`
@@ -37,6 +41,7 @@
 - **완료**: 마이그레이션 적용/검증 절차를 `docs/migration-checklist.md`로 정리.
 
 ## Phase 2 — 워크북 생성(교사)
+
 - UI: `src/app/dashboard/workbooks/new` 페이지 생성, 다단계 폼(기본 정보 → 문항 구성 → 미리보기 → 저장).
 - 폼 기술: React Hook Form + Zod 스키마, 문항별 동적 필드 컴포넌트.
 - 문항 타입별 구성 요소:
@@ -56,6 +61,7 @@
   - 후속 개선 항목(워크북 편집 시 첨부 교체/삭제, PDF 템플릿 업로드 UX)은 별도 백로그로 이동.
 
 ## Phase 3 — 과제 출제(Assign)
+
 - **완료**: 과제 생성 폼, 대상 선택/검증, 트랜잭션 액션 및 롤백 로직 구현.
 - UI: `src/app/dashboard/assignments/new` — 반/학생 선택, 워크북 필터(과목/주차/제목), 마감일 DateUtil 사용.
 - 기능:
@@ -65,6 +71,7 @@
 - 노티: 성공 시 교사에게 확인 토스트, 향후 알림 발송 훅을 위한 placeholder(큐 테이블 등) 마련.
 
 ## Phase 4 — 학생 과제 수행
+
 - **완료**: 학생 대시보드, 과제 상세 유형별 러너, 제출 액션 및 Supabase 연동 구축.
 - “내 과제” 페이지: 마감순 정렬, 필터(이번주/지난주/전체). DateUtil로 현재 시각 기준 계산.
 - 유형별 상세 화면:
@@ -75,6 +82,7 @@
 - 접근 제어: 로그인 학생이 아닌 경우 접근 차단, RLS 기반 보안 점검.
 
 ## Phase 5 — 교사 점검 & 인쇄 요청
+
 - **미착수**: 교사용 점검 대시보드, `print_requests` 기반 인쇄 요청 플로우 구현 필요.
 - All Classes 대시보드:
   - 필터(반/과목/유형/마감기간), 테이블에 학생별 완료율·미완료 과제 수 표시.
@@ -94,6 +102,7 @@
   - 향후 Admin 인쇄 큐 페이지와 연동할 API 스켈레톤 마련.
 
 ## Phase 6 — 품질 확보 및 배포 준비
+
 - **미착수**: 자동화 테스트, 접근성/성능 점검, 배포 체크리스트 작성 필요.
 - 테스트: 주요 서버 액션/Edge RPC에 대한 Vitest 단위 테스트, Playwright로 핵심 플로우(워크북 생성 → 출제 → 학생 제출 → 교사 점검) 시나리오 작성.
 - 접근성 점검: 컴포넌트 aria-label, 키보드 네비게이션 확인.
@@ -102,6 +111,7 @@
 - 배포 체크리스트: `.env` 키, Supabase migration 적용 순서, Storage 버킷 권한, Edge Function 배포.
 
 ## 부록 — 후속 고려 사항
+
 - 예약 기능: DateUtil과 동일한 오프셋 관리로 예약 시작/종료 로직을 재사용.
 - 알림 시스템: assignment 생성 시 webhook/notification queue로 확장할 수 있도록 이벤트 발행 포인트 마련.
 - 분석 지표: 향후 학생 학습 리포트 작성을 위해 `student_task_items` 로그 테이블(정답 여부, 소요시간)을 추가하는 방안 검토.

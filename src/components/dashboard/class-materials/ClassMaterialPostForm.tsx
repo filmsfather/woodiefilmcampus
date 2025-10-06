@@ -39,7 +39,6 @@ interface ClassMaterialPostFormProps {
   submitLabel?: string
   onSubmit: (formData: FormData) => Promise<FormResult>
   onDelete?: (() => Promise<DeleteResult>) | null
-  redirectTo?: (postId: string) => string
 }
 
 export function ClassMaterialPostForm({
@@ -48,7 +47,6 @@ export function ClassMaterialPostForm({
   submitLabel = '저장',
   onSubmit,
   onDelete,
-  redirectTo,
 }: ClassMaterialPostFormProps) {
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
@@ -94,8 +92,8 @@ export function ClassMaterialPostForm({
       if (result?.success) {
         const targetPostId = result.postId ?? defaults?.postId ?? null
 
-        if (targetPostId && redirectTo) {
-          router.push(redirectTo(targetPostId))
+        if (targetPostId) {
+          router.push(`/dashboard/teacher/class-materials/${subject}/${targetPostId}`)
           router.refresh()
           return
         }

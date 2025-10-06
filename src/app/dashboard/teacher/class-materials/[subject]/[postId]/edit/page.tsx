@@ -86,7 +86,6 @@ export default async function EditClassMaterialPage({
         submitLabel="자료 수정"
         onSubmit={updateClassMaterialPost}
         onDelete={() => deleteClassMaterialPost(params.postId)}
-        redirectTo={(postId) => `/dashboard/teacher/class-materials/${subject}/${postId}`}
       />
     </section>
   )
