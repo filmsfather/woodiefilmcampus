@@ -42,13 +42,6 @@ create policy "print_requests_select"
       where st.id = print_requests.student_task_id
         and st.student_id = auth.uid()
     )
-    or exists (
-      select 1
-      from public.print_request_items pri
-      join public.student_tasks st on st.id = pri.student_task_id
-      where pri.request_id = print_requests.id
-        and st.student_id = auth.uid()
-    )
   );
 
 drop policy if exists "print_requests_ins_upd" on public.print_requests;

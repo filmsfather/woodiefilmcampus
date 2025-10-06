@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { AlertCircle, CheckCircle2, FileText, XCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Download, FileText, XCircle } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
 import { updatePrintRequestStatus } from '@/app/dashboard/manager/actions'
@@ -36,6 +36,13 @@ interface PrintRequestView {
     type: string
   } | null
   students: Array<{ id: string; name: string }>
+  items: Array<{
+    id: string
+    studentId: string
+    studentName: string
+    fileName: string
+    downloadUrl: string | null
+  }>
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -110,6 +117,7 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
               <TableHead>교사</TableHead>
               <TableHead>과제</TableHead>
               <TableHead>학생</TableHead>
+              <TableHead>파일</TableHead>
               <TableHead>상태</TableHead>
               <TableHead className="text-right">처리</TableHead>
             </TableRow>
@@ -170,6 +178,36 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                       <span>{studentLabel}</span>
                       <span className="text-[11px] text-slate-500">{bundleModeLabel}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {request.items.length === 0 ? (
+                      <span className="text-xs text-slate-400">파일 없음</span>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {request.items.map((item) => (
+                          <Button
+                            key={item.id}
+                            asChild
+                            size="sm"
+                            variant={item.downloadUrl ? 'outline' : 'ghost'}
+                            className="justify-start text-xs"
+                            disabled={!item.downloadUrl}
+                          >
+                            <a
+                              href={item.downloadUrl ?? '#'}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1"
+                            >
+                              <Download className="h-3 w-3" />
+                              <span className="truncate">
+                                {item.studentName} · {item.fileName}
+                              </span>
+                            </a>
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">

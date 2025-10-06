@@ -1013,12 +1013,16 @@ function PdfEvaluationRow({
       </TableCell>
       <TableCell>{className}</TableCell>
       <TableCell>
-        {submission?.asset ? (
-          <Button asChild variant="outline" size="sm">
-            <a href={submission.asset.url} target="_blank" rel="noreferrer">
-              <Download className="mr-1 h-3 w-3" /> {submission.asset.filename}
-            </a>
-          </Button>
+        {submission ? (
+          submission.asset ? (
+            <Button asChild variant="outline" size="sm">
+              <a href={submission.asset.url} target="_blank" rel="noreferrer">
+                <Download className="mr-1 h-3 w-3" /> {submission.asset.filename}
+              </a>
+            </Button>
+          ) : (
+            <Badge variant="secondary">제출됨</Badge>
+          )
         ) : (
           <Badge variant="outline">미제출</Badge>
         )}
