@@ -4,6 +4,7 @@ import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStat
 import { PrintRequestAdminPanel } from '@/components/dashboard/manager/PrintRequestAdminPanel'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type RawPrintRequestItemRow = {
   id: string
@@ -58,6 +59,7 @@ type RawPrintRequestRow = {
 export default async function ManagerDashboardPage() {
   const { profile } = await requireAuthForDashboard('manager')
   const supabase = createClient()
+  const storageAdmin = createAdminClient()
 
   const [pendingStudentsResult, approvedCountResult, printRequestResult] = await Promise.all([
     supabase
@@ -152,7 +154,7 @@ export default async function ManagerDashboardPage() {
           let downloadUrl: string | null = null
           if (mediaAsset?.bucket && mediaAsset.path) {
             try {
-              const { data: signedData, error: signedError } = await supabase.storage
+              const { data: signedData, error: signedError } = await storageAdmin.storage
                 .from(mediaAsset.bucket)
                 .createSignedUrl(mediaAsset.path, 60 * 30)
               if (signedError) {

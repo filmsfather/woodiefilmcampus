@@ -1,10 +1,10 @@
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { MediaAssetRecord } from '@/lib/assignment-evaluation'
 
 export async function createAssetSignedUrlMap(
   mediaAssetMap: Map<string, MediaAssetRecord>
 ): Promise<Map<string, { url: string; filename: string; mimeType: string | null }>> {
-  const supabase = createServerSupabase()
+  const supabase = createAdminClient()
   const result = new Map<string, { url: string; filename: string; mimeType: string | null }>()
 
   await Promise.all(
