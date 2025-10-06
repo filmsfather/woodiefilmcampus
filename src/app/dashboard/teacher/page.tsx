@@ -36,6 +36,23 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     ],
   },
   {
+    title: '수업자료',
+    description: '수업과 입시에 필요한 자료 아카이브를 한곳에서 확인하세요.',
+    actions: [
+      {
+        label: '수업자료 아카이브',
+        href: '/dashboard/teacher/class-materials',
+        description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
+      },
+      {
+        label: '입시자료 아카이브',
+        href: '/dashboard/teacher/admission-materials',
+        description: '입시 대비 자료를 정리하고 공유할 예정입니다.',
+        variant: 'outline',
+      },
+    ],
+  },
+  {
     title: '과제 관리',
     description: '반과 학생에게 과제를 배정하고 평가 흐름을 관리하세요.',
     actions: [
