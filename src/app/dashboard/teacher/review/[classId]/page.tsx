@@ -154,7 +154,24 @@ export default async function TeacherClassReviewPage({
            media_assets(id, bucket, path, mime_type, metadata)
          )
        ),
-       print_requests(id, status, student_task_id, desired_date, desired_period, copies, color_mode, notes, created_at, updated_at)
+       print_requests(
+         id,
+         status,
+         student_task_id,
+         desired_date,
+         desired_period,
+         copies,
+         color_mode,
+         notes,
+         bundle_mode,
+         bundle_status,
+         compiled_asset_id,
+         bundle_ready_at,
+         bundle_error,
+         created_at,
+         updated_at,
+         print_request_items(id, student_task_id, submission_id, media_asset_id, asset_filename, asset_metadata)
+       )
       `
     )
     .order('due_at', { ascending: true })

@@ -138,6 +138,19 @@ export interface RawAssignmentRow {
     notes: string | null
     created_at: string
     updated_at?: string | null
+    bundle_mode: string | null
+    bundle_status: string | null
+    compiled_asset_id: string | null
+    bundle_ready_at: string | null
+    bundle_error: string | null
+    print_request_items?: Array<{
+      id: string
+      student_task_id: string
+      submission_id: string | null
+      media_asset_id: string | null
+      asset_filename: string | null
+      asset_metadata: Record<string, unknown> | null
+    }>
   }>
 }
 
@@ -190,10 +203,25 @@ export interface StudentTaskSummary {
   submissions: SubmissionSummary[]
 }
 
+export interface PrintRequestItemSummary {
+  id: string
+  studentTaskId: string
+  submissionId: string | null
+  mediaAssetId: string | null
+  assetFilename: string | null
+  assetMetadata: Record<string, unknown> | null
+}
+
 export interface PrintRequestSummary {
   id: string
   status: string
+  bundleMode: 'merged' | 'separate'
+  bundleStatus: string
+  compiledAssetId: string | null
+  bundleReadyAt: string | null
+  bundleError: string | null
   studentTaskId: string | null
+  studentTaskIds: string[]
   desiredDate: string | null
   desiredPeriod: string | null
   copies: number
@@ -201,6 +229,7 @@ export interface PrintRequestSummary {
   notes: string | null
   createdAt: string
   updatedAt: string | null
+  items: PrintRequestItemSummary[]
 }
 
 export interface AssignmentDetail {
@@ -356,18 +385,42 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
     config: workbook?.config ?? null,
     classes,
     studentTasks,
-    printRequests: (row.print_requests ?? []).map((request) => ({
-      id: request.id,
-      status: request.status,
-      studentTaskId: request.student_task_id,
-      desiredDate: request.desired_date,
-      desiredPeriod: request.desired_period,
-      copies: request.copies ?? 1,
-      colorMode: request.color_mode ?? 'bw',
-      notes: request.notes ?? null,
-      createdAt: request.created_at,
-      updatedAt: request.updated_at ?? null,
-    })),
+    printRequests: (row.print_requests ?? []).map((request) => {
+      const items: PrintRequestItemSummary[] = (request.print_request_items ?? []).map((item) => ({
+        id: item.id,
+        studentTaskId: item.student_task_id,
+        submissionId: item.submission_id,
+        mediaAssetId: item.media_asset_id,
+        assetFilename: item.asset_filename ?? null,
+        assetMetadata: item.asset_metadata ?? null,
+      }))
+
+      const studentTaskIds = items.length > 0
+        ? Array.from(new Set(items.map((item) => item.studentTaskId)))
+        : request.student_task_id
+          ? [request.student_task_id]
+          : []
+
+      return {
+        id: request.id,
+        status: request.status,
+        bundleMode: (request.bundle_mode as 'merged' | 'separate' | null) ?? 'merged',
+        bundleStatus: request.bundle_status ?? 'pending',
+        compiledAssetId: request.compiled_asset_id ?? null,
+        bundleReadyAt: request.bundle_ready_at ?? null,
+        bundleError: request.bundle_error ?? null,
+        studentTaskId: request.student_task_id,
+        studentTaskIds,
+        desiredDate: request.desired_date,
+        desiredPeriod: request.desired_period,
+        copies: request.copies ?? 1,
+        colorMode: request.color_mode ?? 'bw',
+        notes: request.notes ?? null,
+        createdAt: request.created_at,
+        updatedAt: request.updated_at ?? null,
+        items,
+      }
+    }),
   }
 
   return { assignment, mediaAssets }
@@ -413,7 +466,11 @@ export function cloneAssignmentDetail(assignment: AssignmentDetail): AssignmentD
         asset: submission.asset ? { ...submission.asset } : null,
       })),
     })),
-    printRequests: assignment.printRequests.map((request) => ({ ...request })),
+    printRequests: assignment.printRequests.map((request) => ({
+      ...request,
+      studentTaskIds: [...request.studentTaskIds],
+      items: request.items.map((item) => ({ ...item })),
+    })),
   }
 }
 
@@ -435,8 +492,13 @@ export function filterAssignmentForClass(assignment: AssignmentDetail, classId: 
 
   cloned.studentTasks = cloned.studentTasks.filter((task) => taskIds.has(task.id))
   cloned.printRequests = cloned.printRequests.filter((request) => {
-    if (request.studentTaskId) {
-      return taskIds.has(request.studentTaskId)
+    const requestTargets = request.studentTaskIds.length > 0
+      ? request.studentTaskIds
+      : request.studentTaskId
+        ? [request.studentTaskId]
+        : []
+    if (requestTargets.length > 0) {
+      return requestTargets.some((taskId) => taskIds.has(taskId))
     }
     return targetedClassIds.has(classId)
   })

@@ -97,6 +97,7 @@ interface AssignmentSummary {
     id: string
     status: string
     studentTaskId: string | null
+    studentTaskIds: string[]
   }>
   targetClassIds: string[]
 }
@@ -134,7 +135,15 @@ export default async function TeacherReviewOverviewPage() {
          student_id,
          profiles!student_tasks_student_id_fkey(id, name, email, class_id)
        ),
-       print_requests(id, status, student_task_id, created_at)
+       print_requests(
+         id,
+         status,
+         student_task_id,
+         created_at,
+         bundle_mode,
+         bundle_status,
+         print_request_items(id, student_task_id)
+       )
       `
     )
     .order('due_at', { ascending: true })
@@ -216,11 +225,23 @@ export default async function TeacherReviewOverviewPage() {
       }
     })
 
-    const printRequests = (row.print_requests ?? []).map((request) => ({
-      id: request.id,
-      status: request.status,
-      studentTaskId: request.student_task_id,
-    }))
+    const printRequests = (row.print_requests ?? []).map((request) => {
+      const items = (request as typeof request & {
+        print_request_items?: Array<{ student_task_id: string | null }>
+      }).print_request_items ?? []
+      const studentTaskIds = items.length > 0
+        ? Array.from(new Set(items.map((item) => item.student_task_id))).filter((id): id is string => typeof id === 'string')
+        : request.student_task_id
+          ? [request.student_task_id]
+          : []
+
+      return {
+        id: request.id,
+        status: request.status,
+        studentTaskId: request.student_task_id,
+        studentTaskIds,
+      }
+    })
 
     return {
       id: row.id,
@@ -288,8 +309,13 @@ export default async function TeacherReviewOverviewPage() {
           if (request.status !== 'requested') {
             return false
           }
-          if (request.studentTaskId) {
-            return classTaskIds.has(request.studentTaskId)
+          const requestTargets = request.studentTaskIds.length > 0
+            ? request.studentTaskIds
+            : request.studentTaskId
+              ? [request.studentTaskId]
+              : []
+          if (requestTargets.length > 0) {
+            return requestTargets.some((taskId) => classTaskIds.has(taskId))
           }
           return assignment.classes.some((cls) => cls.id === managedClass.id) || targetIds.has(managedClass.id)
         })

@@ -18,6 +18,11 @@ interface PrintRequestView {
   copies: number
   colorMode: string
   notes: string | null
+  bundleMode: 'merged' | 'separate'
+  bundleStatus: string
+  bundleReadyAt: string | null
+  bundleError: string | null
+  itemCount: number
   createdAt: string
   updatedAt: string
   teacher: {
@@ -30,10 +35,7 @@ interface PrintRequestView {
     subject: string
     type: string
   } | null
-  student: {
-    id: string
-    name: string
-  } | null
+  students: Array<{ id: string; name: string }>
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -46,6 +48,20 @@ const STATUS_VARIANTS: Record<string, 'secondary' | 'outline' | 'destructive'> =
   requested: 'destructive',
   done: 'secondary',
   canceled: 'outline',
+}
+
+const BUNDLE_STATUS_LABELS: Record<string, string> = {
+  pending: '자료 대기',
+  processing: '자료 준비 중',
+  ready: '자료 준비 완료',
+  failed: '자료 준비 실패',
+}
+
+const BUNDLE_STATUS_VARIANTS: Record<string, 'secondary' | 'outline' | 'destructive'> = {
+  pending: 'outline',
+  processing: 'outline',
+  ready: 'secondary',
+  failed: 'destructive',
 }
 
 export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestView[] }) {
@@ -112,7 +128,19 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
               const assignmentLabel = request.assignment
                 ? `${request.assignment.title} (${request.assignment.subject})`
                 : '과제 정보 없음'
-              const studentLabel = request.student?.name ?? '전체'
+              const studentSummary = (() => {
+                if (request.students.length === 0) {
+                  return '전체 학생'
+                }
+                if (request.students.length <= 2) {
+                  return request.students.map((student) => student.name).join(', ')
+                }
+                return `${request.students.slice(0, 2).map((student) => student.name).join(', ')} 외 ${request.students.length - 2}명`
+              })()
+              const studentLabel = `${studentSummary}${request.itemCount > 0 ? ` (${request.itemCount}건)` : ''}`
+              const bundleStatusLabel = BUNDLE_STATUS_LABELS[request.bundleStatus] ?? request.bundleStatus
+              const bundleVariant = BUNDLE_STATUS_VARIANTS[request.bundleStatus] ?? 'outline'
+              const bundleModeLabel = request.bundleMode === 'merged' ? '단일 합본' : '개별 묶음'
 
               return (
                 <TableRow key={request.id}>
@@ -137,11 +165,22 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                       <span className="text-xs text-slate-400">과제 정보 없음</span>
                     )}
                   </TableCell>
-                  <TableCell>{studentLabel}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANTS[request.status] ?? 'outline'}>
-                      {STATUS_LABELS[request.status] ?? request.status}
-                    </Badge>
+                    <div className="flex flex-col gap-1 text-xs text-slate-600">
+                      <span>{studentLabel}</span>
+                      <span className="text-[11px] text-slate-500">{bundleModeLabel}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant={STATUS_VARIANTS[request.status] ?? 'outline'}>
+                        {STATUS_LABELS[request.status] ?? request.status}
+                      </Badge>
+                      <Badge variant={bundleVariant}>{bundleStatusLabel}</Badge>
+                      {request.bundleError && (
+                        <span className="text-[11px] text-destructive">오류: {request.bundleError}</span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">

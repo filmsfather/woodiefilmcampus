@@ -294,32 +294,48 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
   }
 }
 
-const printRequestSchema = z.object({
-  assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
-  studentTaskId: z
-    .string()
-    .uuid('유효한 학생 과제 ID가 아닙니다.')
-    .optional()
-    .nullable(),
-  desiredDate: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value : null)),
-  desiredPeriod: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.trim().length > 0 ? value : null)),
-  copies: z.coerce.number().int().min(1, '부수는 1권 이상이어야 합니다.').max(50, '부수는 50권 이하로 입력해주세요.'),
-  colorMode: z.enum(['bw', 'color']).default('bw'),
-  notes: z
-    .string()
-    .max(500, '요청 메모는 500자 이하로 입력해주세요.')
-    .optional(),
-})
+const printRequestSchema = z
+  .object({
+    assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+    studentTaskId: z
+      .string()
+      .uuid('유효한 학생 과제 ID가 아닙니다.')
+      .optional()
+      .nullable(),
+    studentTaskIds: z
+      .array(z.string().uuid('유효한 학생 과제 ID가 아닙니다.'))
+      .optional()
+      .refine((value) => !value || value.length > 0, {
+        message: '인쇄할 학생을 한 명 이상 선택해주세요.',
+      }),
+    desiredDate: z
+      .string()
+      .optional()
+      .transform((value) => (value && value.trim().length > 0 ? value : null)),
+    desiredPeriod: z
+      .string()
+      .optional()
+      .transform((value) => (value && value.trim().length > 0 ? value : null)),
+    copies: z.coerce
+      .number()
+      .int()
+      .min(1, '부수는 1권 이상이어야 합니다.')
+      .max(50, '부수는 50권 이하로 입력해주세요.'),
+    colorMode: z.enum(['bw', 'color']).default('bw'),
+    bundleMode: z.enum(['merged', 'separate']).default('merged'),
+    notes: z
+      .string()
+      .max(500, '요청 메모는 500자 이하로 입력해주세요.')
+      .optional(),
+  })
 
 type PrintRequestInput = z.infer<typeof printRequestSchema>
 
-export async function createPrintRequest(input: PrintRequestInput) {
+type PrintRequestResult =
+  | { success: true; skippedStudents?: string[] }
+  | { error: string }
+
+export async function createPrintRequest(input: PrintRequestInput): Promise<PrintRequestResult> {
   const { profile } = await getAuthContext()
 
   if (!isTeacherOrPrincipal(profile)) {
@@ -352,48 +368,179 @@ export async function createPrintRequest(input: PrintRequestInput) {
       return { error: '해당 과제에 대한 인쇄 권한이 없습니다.' }
     }
 
-    if (payload.studentTaskId) {
-      const { data: studentTask, error: studentTaskError } = await supabase
-        .from('student_tasks')
-        .select('id, assignment_id')
-        .eq('id', payload.studentTaskId)
-        .maybeSingle()
+    const explicitTaskIds = payload.studentTaskIds && payload.studentTaskIds.length > 0
+      ? Array.from(new Set(payload.studentTaskIds))
+      : payload.studentTaskId
+        ? [payload.studentTaskId]
+        : []
 
-      if (studentTaskError) {
-        console.error('[teacher] createPrintRequest task error', studentTaskError)
-        return { error: '학생 과제 정보를 확인하지 못했습니다.' }
+    const taskQuery = supabase
+      .from('student_tasks')
+      .select(
+        `id,
+         assignment_id,
+         student_id,
+         profiles:profiles!student_tasks_student_id_fkey(id, name),
+         task_submissions(
+           id,
+           submission_type,
+           media_asset_id,
+           created_at,
+           media_assets:media_assets!task_submissions_media_asset_id_fkey(
+             id,
+             bucket,
+             path,
+             mime_type,
+             metadata
+           )
+         )
+        `
+      )
+      .eq('assignment_id', payload.assignmentId)
+      .order('created_at', { ascending: false, foreignTable: 'task_submissions' })
+
+    if (explicitTaskIds.length > 0) {
+      taskQuery.in('id', explicitTaskIds)
+    }
+
+    const { data: taskRows, error: studentTasksError } = await taskQuery
+
+    if (studentTasksError) {
+      console.error('[teacher] createPrintRequest student tasks error', studentTasksError)
+      return { error: '학생 제출 정보를 불러오지 못했습니다.' }
+    }
+
+    const taskList = (taskRows ?? []) as Array<{
+      id: string
+      assignment_id: string
+      student_id: string
+      profiles?: { id: string; name: string | null } | Array<{ id: string; name: string | null }>
+      task_submissions?: Array<{
+        id: string
+        submission_type: string | null
+        media_asset_id: string | null
+        created_at: string
+        media_assets?:
+          | { id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }
+          | Array<{ id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }>
+      }>
+    }>
+
+    if (explicitTaskIds.length > 0 && taskList.length !== explicitTaskIds.length) {
+      return { error: '선택한 학생 과제를 찾을 수 없습니다.' }
+    }
+
+    const filteredTasks = explicitTaskIds.length > 0
+      ? taskList
+      : taskList.filter((task) => (task.task_submissions ?? []).some((submission) => submission.media_asset_id))
+
+    if (filteredTasks.length === 0) {
+      return { error: '인쇄할 수 있는 PDF 제출물을 찾지 못했습니다.' }
+    }
+
+    const printableItems: Array<{
+      studentTaskId: string
+      submissionId: string
+      mediaAssetId: string
+      assetMetadata: Record<string, unknown> | null
+      assetFilename: string | null
+    }> = []
+    const skippedStudents: string[] = []
+
+    filteredTasks.forEach((task) => {
+      const submissions = task.task_submissions ?? []
+      const submission = submissions.find((sub) => Boolean(sub.media_asset_id))
+
+      if (!submission || !submission.media_asset_id) {
+        const profileRow = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
+        skippedStudents.push(profileRow?.name ?? '이름 미정')
+        return
       }
 
-      if (!studentTask || studentTask.assignment_id !== payload.assignmentId) {
-        return { error: '해당 학생 과제를 찾을 수 없습니다.' }
+      const assetRecord = Array.isArray(submission.media_assets)
+        ? submission.media_assets[0]
+        : submission.media_assets ?? null
+
+      const assetFilename = (() => {
+        if (!assetRecord?.metadata) {
+          return null
+        }
+        const metadata = assetRecord.metadata as Record<string, unknown>
+        const filenameValue = metadata.filename ?? metadata.original_filename ?? metadata.name
+        return typeof filenameValue === 'string' ? filenameValue : null
+      })()
+
+      printableItems.push({
+        studentTaskId: task.id,
+        submissionId: submission.id,
+        mediaAssetId: submission.media_asset_id,
+        assetMetadata: assetRecord?.metadata ?? null,
+        assetFilename,
+      })
+    })
+
+    if (printableItems.length === 0) {
+      return {
+        error:
+          '선택한 학생들의 PDF 제출물을 찾지 못했습니다. 제출 파일이 업로드되었는지 확인해주세요.',
       }
     }
 
     const desiredDate = payload.desiredDate ? new Date(payload.desiredDate) : null
     const formattedDate = desiredDate ? desiredDate.toISOString().slice(0, 10) : null
 
-    const { error: insertError } = await supabase.from('print_requests').insert({
-      assignment_id: payload.assignmentId,
-      student_task_id: payload.studentTaskId ?? null,
-      teacher_id: profile.id,
-      desired_date: formattedDate,
-      desired_period: payload.desiredPeriod ?? null,
-      copies: payload.copies,
-      color_mode: payload.colorMode,
-      status: 'requested',
-      notes: payload.notes ?? null,
-    })
+    const primaryStudentTaskId =
+      explicitTaskIds.length === 1 ? explicitTaskIds[0] : payload.studentTaskId ?? null
 
-    if (insertError) {
+    const { data: requestRow, error: insertError } = await supabase
+      .from('print_requests')
+      .insert({
+        assignment_id: payload.assignmentId,
+        student_task_id: primaryStudentTaskId,
+        teacher_id: profile.id,
+        desired_date: formattedDate,
+        desired_period: payload.desiredPeriod ?? null,
+        copies: payload.copies,
+        color_mode: payload.colorMode,
+        status: 'requested',
+        notes: payload.notes ?? null,
+        bundle_mode: payload.bundleMode,
+        bundle_status: 'pending',
+      })
+      .select('id')
+      .maybeSingle()
+
+    if (insertError || !requestRow?.id) {
       console.error('[teacher] createPrintRequest insert error', insertError)
       return { error: '인쇄 요청 저장 중 오류가 발생했습니다.' }
+    }
+
+    const itemsPayload = printableItems.map((item) => ({
+      request_id: requestRow.id,
+      student_task_id: item.studentTaskId,
+      submission_id: item.submissionId,
+      media_asset_id: item.mediaAssetId,
+      asset_filename: item.assetFilename,
+      asset_metadata: item.assetMetadata,
+    }))
+
+    const { error: itemsError } = await supabase.from('print_request_items').insert(itemsPayload)
+
+    if (itemsError) {
+      console.error('[teacher] createPrintRequest items insert error', itemsError)
+      await supabase.from('print_requests').delete().eq('id', requestRow.id)
+      return { error: '인쇄 요청 항목 저장 중 오류가 발생했습니다.' }
     }
 
     revalidatePath('/dashboard/teacher')
     revalidatePath('/dashboard/principal')
     revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
     revalidatePath('/dashboard/manager')
-    return { success: true as const }
+    revalidatePath('/dashboard/teacher/review')
+
+    return skippedStudents.length > 0
+      ? { success: true, skippedStudents }
+      : { success: true }
   } catch (error) {
     console.error('[teacher] createPrintRequest unexpected error', error)
     return { error: '인쇄 요청 처리 중 예상치 못한 문제가 발생했습니다.' }

@@ -26,6 +26,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import {
   Sheet,
@@ -107,7 +108,13 @@ interface StudentTaskSummary {
 interface PrintRequestSummary {
   id: string
   status: string
+  bundleMode: 'merged' | 'separate'
+  bundleStatus: string
+  compiledAssetId: string | null
+  bundleReadyAt: string | null
+  bundleError: string | null
   studentTaskId: string | null
+  studentTaskIds: string[]
   desiredDate: string | null
   desiredPeriod: string | null
   copies: number
@@ -115,6 +122,14 @@ interface PrintRequestSummary {
   notes: string | null
   createdAt: string
   updatedAt: string | null
+  items: Array<{
+    id: string
+    studentTaskId: string
+    submissionId: string | null
+    mediaAssetId: string | null
+    assetFilename: string | null
+    assetMetadata: Record<string, unknown> | null
+  }>
 }
 
 export interface AssignmentEvaluationPanelProps {
@@ -157,6 +172,25 @@ const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' |
   in_progress: 'default',
   completed: 'secondary',
   canceled: 'destructive',
+}
+
+const PRINT_BUNDLE_MODE_LABELS: Record<'merged' | 'separate', string> = {
+  merged: '단일 합본',
+  separate: '개별 파일 묶음',
+}
+
+const PRINT_BUNDLE_STATUS_LABELS: Record<string, string> = {
+  pending: '대기',
+  processing: '준비 중',
+  ready: '준비 완료',
+  failed: '실패',
+}
+
+const PRINT_BUNDLE_STATUS_BADGE: Record<string, 'outline' | 'secondary' | 'default' | 'destructive'> = {
+  pending: 'outline',
+  processing: 'outline',
+  ready: 'secondary',
+  failed: 'destructive',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -303,6 +337,7 @@ export function AssignmentEvaluationPanel({
 
       {assignment.type === 'pdf' && (
         <PdfReviewPanel
+          key={assignment.id}
           assignment={assignment}
           classLookup={classLookup}
           focusStudentTaskId={focusStudentTaskId}
@@ -466,31 +501,65 @@ function PrintRequestList({
         <span className="text-xs text-slate-500">총 {requests.length}건</span>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-slate-600">
-        {requests.map((request) => (
-          <div
-            key={request.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-white px-3 py-2"
-          >
-            <div className="space-y-1">
-              <p className="font-medium text-slate-900">
-                {request.desiredDate
-                  ? DateUtil.formatForDisplay(request.desiredDate, { month: 'short', day: 'numeric' })
-                  : '희망일 미정'}
-                {request.desiredPeriod ? ` · ${request.desiredPeriod}` : ''}
-              </p>
-              <p className="text-xs text-slate-500">
-                {request.copies}부 · {request.colorMode === 'color' ? '컬러' : '흑백'}
-                {request.studentTaskId
-                  ? ` · ${studentLookup.get(request.studentTaskId)?.name ?? '개별 학생'} (${studentLookup.get(request.studentTaskId)?.className ?? '반 정보 없음'})`
-                  : ' · 전체'}
-                {request.notes ? ` · ${request.notes}` : ''}
-              </p>
+        {requests.map((request) => {
+          const targetTaskIds = request.studentTaskIds.length > 0
+            ? request.studentTaskIds
+            : request.studentTaskId
+              ? [request.studentTaskId]
+              : []
+          const targetLabels = targetTaskIds.map((taskId) => {
+            const info = studentLookup.get(taskId)
+            if (!info) {
+              return '학생 정보 없음'
+            }
+            return `${info.name} (${info.className})`
+          })
+
+          const targetSummary = (() => {
+            if (targetLabels.length === 0) {
+              return '전체 학생'
+            }
+            if (targetLabels.length <= 2) {
+              return targetLabels.join(', ')
+            }
+            return `${targetLabels.slice(0, 2).join(', ')} 외 ${targetLabels.length - 2}명`
+          })()
+
+          const bundleStatusLabel = PRINT_BUNDLE_STATUS_LABELS[request.bundleStatus] ?? request.bundleStatus
+          const bundleModeLabel = PRINT_BUNDLE_MODE_LABELS[request.bundleMode] ?? request.bundleMode
+          const bundleBadgeVariant = PRINT_BUNDLE_STATUS_BADGE[request.bundleStatus] ?? 'outline'
+
+          return (
+            <div
+              key={request.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
+            >
+              <div className="space-y-1">
+                <p className="font-medium text-slate-900">
+                  {request.desiredDate
+                    ? DateUtil.formatForDisplay(request.desiredDate, { month: 'short', day: 'numeric' })
+                    : '희망일 미정'}
+                  {request.desiredPeriod ? ` · ${request.desiredPeriod}` : ''}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {request.copies}부 · {request.colorMode === 'color' ? '컬러' : '흑백'} · {targetSummary}
+                  {request.items.length > 0 ? ` · 제출 ${request.items.length}건` : ''}
+                  {request.notes ? ` · ${request.notes}` : ''}
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  {bundleModeLabel} · 상태 {bundleStatusLabel}
+                  {request.bundleError ? ` · 오류 ${request.bundleError}` : ''}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-2">
+                <Badge variant={request.status === 'requested' ? 'destructive' : 'secondary'}>
+                  {request.status === 'requested' ? '대기' : request.status === 'done' ? '완료' : '취소'}
+                </Badge>
+                <Badge variant={bundleBadgeVariant}>{bundleStatusLabel}</Badge>
+              </div>
             </div>
-            <Badge variant={request.status === 'requested' ? 'destructive' : 'secondary'}>
-              {request.status === 'requested' ? '대기' : request.status === 'done' ? '완료' : '취소'}
-            </Badge>
-          </div>
-        ))}
+          )
+        })}
       </CardContent>
     </Card>
   )
@@ -635,35 +704,103 @@ function SrsReviewPanel({
 }
 
 function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
+  const printableStudents = useMemo(
+    () =>
+      assignment.studentTasks.map((task) => ({
+        task,
+        hasSubmission: task.submissions.some((submission) => Boolean(submission.mediaAssetId)),
+      })),
+    [assignment.studentTasks]
+  )
+  const selectableStudents = useMemo(
+    () => printableStudents.filter((item) => item.hasSubmission),
+    [printableStudents]
+  )
+  const missingStudents = useMemo(
+    () => printableStudents.filter((item) => !item.hasSubmission),
+    [printableStudents]
+  )
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(() => selectableStudents.map((item) => item.task.id))
+  const [hasCustomSelection, setHasCustomSelection] = useState(false)
   const [printState, setPrintState] = useState({
     desiredDate: '',
     desiredPeriod: '',
     copies: 1,
     colorMode: 'bw' as 'bw' | 'color',
+    bundleMode: 'merged' as 'merged' | 'separate',
     notes: '',
-    studentTaskId: 'all',
   })
   const [printMessage, setPrintMessage] = useState<string | null>(null)
   const [isRequestPending, startPrintTransition] = useTransition()
 
+  const handleToggleStudent = useCallback((taskId: string, checked: boolean) => {
+    setSelectedTaskIds((prev) => {
+      if (checked) {
+        if (prev.includes(taskId)) {
+          return prev
+        }
+        return [...prev, taskId]
+      }
+      return prev.filter((id) => id !== taskId)
+    })
+    setHasCustomSelection(true)
+  }, [])
+
+  const handleSelectAll = useCallback(() => {
+    const allIds = assignment.studentTasks
+      .filter((task) => task.submissions.some((submission) => submission.mediaAssetId))
+      .map((task) => task.id)
+    setSelectedTaskIds(allIds)
+    setHasCustomSelection(false)
+  }, [assignment.studentTasks])
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedTaskIds([])
+    setHasCustomSelection(true)
+  }, [])
+
+  useEffect(() => {
+    if (hasCustomSelection) {
+      return
+    }
+    const autoSelectedIds = assignment.studentTasks
+      .filter((task) => task.submissions.some((submission) => submission.mediaAssetId))
+      .map((task) => task.id)
+    setSelectedTaskIds((prev) => {
+      const isSame = prev.length === autoSelectedIds.length && prev.every((id) => autoSelectedIds.includes(id))
+      return isSame ? prev : autoSelectedIds
+    })
+  }, [assignment.studentTasks, hasCustomSelection])
+
   const handlePrintSubmit = () => {
     setPrintMessage(null)
+    if (selectedTaskIds.length === 0) {
+      setPrintMessage('인쇄할 학생을 선택해주세요.')
+      return
+    }
     startPrintTransition(async () => {
       const result = await createPrintRequest({
         assignmentId: assignment.id,
-        studentTaskId: printState.studentTaskId === 'all' ? undefined : printState.studentTaskId,
+        studentTaskIds: selectedTaskIds,
         desiredDate: printState.desiredDate,
         desiredPeriod: printState.desiredPeriod,
         copies: printState.copies,
         colorMode: printState.colorMode,
+        bundleMode: printState.bundleMode,
         notes: printState.notes,
       })
 
-      if (result?.error) {
+      if ('error' in result) {
         setPrintMessage(result.error)
       } else {
-        setPrintMessage('인쇄 요청을 등록했습니다.')
+        const skippedText = result.skippedStudents?.length
+          ? ` (${result.skippedStudents.join(', ')} 제출본 제외)`
+          : ''
+        setPrintMessage(`인쇄 요청을 등록했습니다.${skippedText}`)
         setPrintState((prev) => ({ ...prev, notes: '' }))
+        if (result.skippedStudents?.length) {
+          setHasCustomSelection(true)
+        }
       }
     })
   }
@@ -707,21 +844,66 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               </SelectContent>
             </Select>
             <Select
-              value={printState.studentTaskId}
-              onValueChange={(value) => setPrintState((prev) => ({ ...prev, studentTaskId: value }))}
+              value={printState.bundleMode}
+              onValueChange={(value) => setPrintState((prev) => ({ ...prev, bundleMode: value as 'merged' | 'separate' }))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="대상" />
+                <SelectValue placeholder="묶음 방식" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                {assignment.studentTasks.map((task) => (
-                  <SelectItem key={task.id} value={task.id}>
-                    {task.student.name}
-                  </SelectItem>
-                ))}
+                <SelectItem value="merged">단일 PDF 합본</SelectItem>
+                <SelectItem value="separate">개별 파일 묶음</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="mt-3 space-y-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-500">
+                선택 {selectedTaskIds.length}명 / PDF 제출 {selectableStudents.length}명
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  disabled={selectableStudents.length === 0}
+                  onClick={handleSelectAll}
+                >
+                  전체 선택
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  disabled={selectedTaskIds.length === 0}
+                  onClick={handleClearSelection}
+                >
+                  선택 해제
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
+              {selectableStudents.length === 0 ? (
+                <p className="text-xs text-slate-500">PDF 제출이 있는 학생이 없습니다.</p>
+              ) : (
+                selectableStudents.map(({ task }) => (
+                  <label key={task.id} className="flex items-center gap-3 text-xs text-slate-600">
+                    <Checkbox
+                      checked={selectedTaskIds.includes(task.id)}
+                      onChange={(event) => handleToggleStudent(task.id, event.target.checked)}
+                    />
+                    <span className="flex-1 truncate">{task.student.name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+            {missingStudents.length > 0 && (
+              <p className="text-[11px] text-slate-500">
+                제출본 미확인 학생: {missingStudents.map((item) => item.task.student.name ?? '이름 미정').join(', ')}
+              </p>
+            )}
           </div>
           <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <Textarea
