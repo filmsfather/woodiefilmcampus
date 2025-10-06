@@ -148,7 +148,6 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
               const studentLabel = `${studentSummary}${request.itemCount > 0 ? ` (${request.itemCount}건)` : ''}`
               const bundleStatusLabel = BUNDLE_STATUS_LABELS[request.bundleStatus] ?? request.bundleStatus
               const bundleVariant = BUNDLE_STATUS_VARIANTS[request.bundleStatus] ?? 'outline'
-              const bundleModeLabel = request.bundleMode === 'merged' ? '단일 합본' : '개별 묶음'
 
               return (
                 <TableRow key={request.id}>
@@ -176,7 +175,6 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                   <TableCell>
                     <div className="flex flex-col gap-1 text-xs text-slate-600">
                       <span>{studentLabel}</span>
-                      <span className="text-[11px] text-slate-500">{bundleModeLabel}</span>
                     </div>
                   </TableCell>
                   <TableCell>

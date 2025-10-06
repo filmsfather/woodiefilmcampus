@@ -174,11 +174,6 @@ const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' |
   canceled: 'destructive',
 }
 
-const PRINT_BUNDLE_MODE_LABELS: Record<'merged' | 'separate', string> = {
-  merged: '단일 합본',
-  separate: '개별 파일 묶음',
-}
-
 const PRINT_BUNDLE_STATUS_LABELS: Record<string, string> = {
   pending: '대기',
   processing: '준비 중',
@@ -192,6 +187,8 @@ const PRINT_BUNDLE_STATUS_BADGE: Record<string, 'outline' | 'secondary' | 'defau
   ready: 'secondary',
   failed: 'destructive',
 }
+
+const PRINT_PERIOD_OPTIONS = ['1교시', '2교시', '3교시', '4교시'] as const
 
 const STATUS_LABELS: Record<string, string> = {
   pending: '대기',
@@ -526,7 +523,6 @@ function PrintRequestList({
           })()
 
           const bundleStatusLabel = PRINT_BUNDLE_STATUS_LABELS[request.bundleStatus] ?? request.bundleStatus
-          const bundleModeLabel = PRINT_BUNDLE_MODE_LABELS[request.bundleMode] ?? request.bundleMode
           const bundleBadgeVariant = PRINT_BUNDLE_STATUS_BADGE[request.bundleStatus] ?? 'outline'
 
           return (
@@ -547,7 +543,7 @@ function PrintRequestList({
                   {request.notes ? ` · ${request.notes}` : ''}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  {bundleModeLabel} · 상태 {bundleStatusLabel}
+                  상태 {bundleStatusLabel}
                   {request.bundleError ? ` · 오류 ${request.bundleError}` : ''}
                 </p>
               </div>
@@ -727,7 +723,6 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
     desiredPeriod: '',
     copies: 1,
     colorMode: 'bw' as 'bw' | 'color',
-    bundleMode: 'merged' as 'merged' | 'separate',
     notes: '',
   })
   const [printMessage, setPrintMessage] = useState<string | null>(null)
@@ -786,7 +781,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
         desiredPeriod: printState.desiredPeriod,
         copies: printState.copies,
         colorMode: printState.colorMode,
-        bundleMode: printState.bundleMode,
+        bundleMode: 'merged',
         notes: printState.notes,
       })
 
@@ -819,16 +814,27 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               value={printState.desiredDate}
               onChange={(event) => setPrintState((prev) => ({ ...prev, desiredDate: event.target.value }))}
             />
-            <Input
-              placeholder="교시 / 시간"
-              value={printState.desiredPeriod}
-              onChange={(event) => setPrintState((prev) => ({ ...prev, desiredPeriod: event.target.value }))}
-            />
+            <Select
+              value={printState.desiredPeriod || undefined}
+              onValueChange={(value) => setPrintState((prev) => ({ ...prev, desiredPeriod: value }))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="교시 선택" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRINT_PERIOD_OPTIONS.map((period) => (
+                  <SelectItem key={period} value={period}>
+                    {period}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               type="number"
               min={1}
               max={50}
               value={printState.copies}
+              placeholder="부수입력"
               onChange={(event) => setPrintState((prev) => ({ ...prev, copies: Number(event.target.value || 1) }))}
             />
             <Select
@@ -841,18 +847,6 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               <SelectContent>
                 <SelectItem value="bw">흑백</SelectItem>
                 <SelectItem value="color">컬러</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select
-              value={printState.bundleMode}
-              onValueChange={(value) => setPrintState((prev) => ({ ...prev, bundleMode: value as 'merged' | 'separate' }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="묶음 방식" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="merged">단일 PDF 합본</SelectItem>
-                <SelectItem value="separate">개별 파일 묶음</SelectItem>
               </SelectContent>
             </Select>
           </div>
