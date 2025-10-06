@@ -212,8 +212,35 @@ function mapSummary(
 ): StudentTaskSummary {
   const assignment = row.assignment_id ? assignmentLookup.get(row.assignment_id) ?? null : null
   const items = row.student_task_items ?? []
-  const totalItems = items.length
-  const completedItems = items.filter((item) => Boolean(item.completed_at)).length
+  let totalItems = items.length
+  let completedItems = items.filter((item) => Boolean(item.completed_at)).length
+
+  if (assignment?.workbook?.type === 'film') {
+    const filmProgress = (() => {
+      const meta = row.progress_meta
+      if (!meta || typeof meta !== 'object') {
+        return null
+      }
+      const film = (meta as { film?: unknown }).film
+      if (!film || typeof film !== 'object') {
+        return null
+      }
+      const total = Number((film as { total?: unknown }).total)
+      const completed = Number((film as { completed?: unknown }).completed)
+      if (!Number.isFinite(total) || total <= 0) {
+        return null
+      }
+      return {
+        total,
+        completed: Number.isFinite(completed) ? Math.max(0, Math.min(completed, total)) : 0,
+      }
+    })()
+
+    if (filmProgress) {
+      totalItems = filmProgress.total
+      completedItems = filmProgress.completed
+    }
+  }
 
   return {
     id: row.id,

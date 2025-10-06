@@ -51,28 +51,69 @@ function createEmptyEntry(): FilmEntryValues {
   }
 }
 
-function parseExistingSubmission(content: string | null): FilmEntryValues {
+function coerceFilmEntry(raw: unknown): FilmEntryValues {
+  const base = createEmptyEntry()
+
+  if (!raw || typeof raw !== 'object') {
+    return base
+  }
+
+  for (const key of [...FILM_FIELDS.map((field) => field.key), ...FILM_TEXTAREAS.map((field) => field.key)] as FilmFieldKey[]) {
+    const value = (raw as Record<string, unknown>)[key]
+    if (typeof value === 'string') {
+      base[key] = value
+    }
+  }
+
+  return base
+}
+
+function decodeFilmSubmission(
+  content: string | null
+): { entries: FilmEntryValues[]; noteCount?: number } | null {
   if (!content) {
-    return createEmptyEntry()
+    return null
   }
 
   try {
-    const parsed = JSON.parse(content) as Partial<FilmEntryValues>
-    const base: FilmEntryValues = createEmptyEntry()
-    for (const key of [...FILM_FIELDS.map((field) => field.key), ...FILM_TEXTAREAS.map((field) => field.key)] as FilmFieldKey[]) {
-      if (typeof parsed[key] === 'string') {
-        base[key] = parsed[key] as string
-      }
+    const parsed = JSON.parse(content) as unknown
+
+    if (Array.isArray(parsed)) {
+      return { entries: parsed.map(coerceFilmEntry) }
     }
-    return base
+
+    if (parsed && typeof parsed === 'object') {
+      const maybeEntries = (parsed as { entries?: unknown }).entries
+      const maybeNoteCount = Number((parsed as { noteCount?: unknown }).noteCount)
+
+      if (Array.isArray(maybeEntries)) {
+        return {
+          entries: maybeEntries.map(coerceFilmEntry),
+          noteCount: Number.isFinite(maybeNoteCount) ? maybeNoteCount : undefined,
+        }
+      }
+
+      return { entries: [coerceFilmEntry(parsed)] }
+    }
   } catch (error) {
     console.error('[FilmTaskRunner] failed to parse submission', error)
-    return createEmptyEntry()
   }
+
+  return null
 }
 
 function sanitizeValue(value: string): string {
   return value.replace(/\r/g, '').replace(/\u00a0/g, ' ').trim()
+}
+
+function sanitizeEntry(entry: FilmEntryValues): FilmEntryValues {
+  const normalized = createEmptyEntry()
+
+  for (const key of [...FILM_FIELDS.map((field) => field.key), ...FILM_TEXTAREAS.map((field) => field.key)] as FilmFieldKey[]) {
+    normalized[key] = sanitizeValue(entry[key])
+  }
+
+  return normalized
 }
 
 function hasAnyValue(entry: FilmEntryValues): boolean {
@@ -94,22 +135,65 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const items = task.items
+  const baseItem = items[0] ?? null
+
+  const workbookConfig = useMemo(() => {
+    return (task.assignment?.workbook.config ?? {}) as {
+      film?: { noteCount?: number | null }
+    }
+  }, [task.assignment?.workbook.config])
+
+  const decodedEntries = useMemo(() => {
+    const primary = decodeFilmSubmission(baseItem?.submission?.content ?? null)
+
+    if (primary?.entries?.length) {
+      return {
+        entries: primary.entries.map(sanitizeEntry),
+        noteCount: primary.noteCount,
+      }
+    }
+
+    const collected: FilmEntryValues[] = []
+
+    for (const item of items) {
+      const parsed = decodeFilmSubmission(item.submission?.content ?? null)
+      if (parsed?.entries?.length) {
+        collected.push(...parsed.entries.map(sanitizeEntry))
+      }
+    }
+
+    return {
+      entries: collected,
+      noteCount: primary?.noteCount,
+    }
+  }, [baseItem?.submission?.content, items])
+
+  const configuredNoteCount = useMemo(() => {
+    const configured = workbookConfig.film?.noteCount
+    if (typeof configured === 'number' && configured > 0) {
+      return configured
+    }
+    return Math.max(items.length, 1)
+  }, [workbookConfig, items.length])
+
+  const noteCount = useMemo(() => {
+    const detected = decodedEntries.noteCount && decodedEntries.noteCount > 0 ? decodedEntries.noteCount : undefined
+    const storedLength = decodedEntries.entries.length
+    return Math.max(configuredNoteCount, detected ?? 0, storedLength || 0, 1)
+  }, [configuredNoteCount, decodedEntries])
+
   const initialEntries = useMemo(() => {
-    return items.map((item) => parseExistingSubmission(item.submission?.content ?? null))
-  }, [items])
+    return Array.from({ length: noteCount }, (_, index) => {
+      const source = decodedEntries.entries[index]
+      return source ? { ...source } : createEmptyEntry()
+    })
+  }, [noteCount, decodedEntries])
 
   const [entries, setEntries] = useState<FilmEntryValues[]>(initialEntries)
 
   useEffect(() => {
     setEntries(initialEntries)
   }, [initialEntries])
-
-  const noteCount = useMemo(() => {
-    const workbookConfig = (task.assignment?.workbook.config ?? {}) as {
-      film?: { noteCount?: number | null }
-    }
-    return workbookConfig.film?.noteCount ?? items.length
-  }, [task.assignment?.workbook.config, items.length])
 
   const handleFieldChange = (entryIndex: number, key: FilmFieldKey, value: string) => {
     setEntries((prev) =>
@@ -140,22 +224,17 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
 
     startTransition(async () => {
       try {
+        if (!baseItem || !baseItem.workbookItem) {
+          setErrorMessage('감상지 문항 정보를 불러오지 못했습니다.')
+          return
+        }
+
         const payload = {
           studentTaskId: task.id,
-          entries: entries.map((entry, index) => {
-            const normalized = Object.fromEntries(
-              (Object.entries(entry) as Array<[FilmFieldKey, string]>).map(([key, value]) => [
-                key,
-                sanitizeValue(value),
-              ])
-            ) as FilmEntryValues
-
-            return {
-              studentTaskItemId: items[index]?.id ?? '',
-              workbookItemId: items[index]?.workbookItem.id ?? '',
-              ...normalized,
-            }
-          }),
+          studentTaskItemId: baseItem.id,
+          workbookItemId: baseItem.workbookItem.id,
+          noteCount,
+          entries: entries.map((entry) => sanitizeEntry(entry)),
         }
 
         const response = await submitFilmResponses(payload)
@@ -190,13 +269,19 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
 
       <div className="space-y-6">
         {entries.map((entry, index) => {
-          const item = items[index]
-          const heading = item?.workbookItem.prompt || `감상지 ${index + 1}`
+          const itemForIndex = items[index] ?? baseItem
+          const prompt = itemForIndex?.workbookItem.prompt ?? null
+          const heading = prompt
+            ? items.length > 1
+              ? prompt
+              : `${prompt} (${index + 1})`
+            : `감상지 ${index + 1}`
           const completed = isEntryComplete(entry)
           const started = hasAnyValue(entry)
+          const controlIdBase = `${itemForIndex?.id ?? 'film'}-${index}`
 
           return (
-            <Card key={item?.id ?? index} className="border-slate-200">
+            <Card key={`${itemForIndex?.id ?? 'film'}-${index}`} className="border-slate-200">
               <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-lg font-semibold text-slate-900">{heading}</CardTitle>
@@ -219,11 +304,14 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
                 <div className="grid gap-4 md:grid-cols-2">
                   {FILM_FIELDS.map((field) => (
                     <div key={field.key} className="space-y-2">
-                      <label className="text-sm font-medium text-slate-700" htmlFor={`${item?.id}-${field.key}`}>
+                      <label
+                        className="text-sm font-medium text-slate-700"
+                        htmlFor={`${controlIdBase}-${field.key}`}
+                      >
                         {field.label}
                       </label>
                       <Input
-                        id={`${item?.id}-${field.key}`}
+                        id={`${controlIdBase}-${field.key}`}
                         value={entry[field.key]}
                         onChange={(event) => handleFieldChange(index, field.key, event.target.value)}
                         placeholder={field.placeholder}
@@ -237,11 +325,14 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
                 <div className="space-y-4">
                   {FILM_TEXTAREAS.map((field) => (
                     <div key={field.key} className="space-y-2">
-                      <label className="text-sm font-medium text-slate-700" htmlFor={`${item?.id}-${field.key}`}>
+                      <label
+                        className="text-sm font-medium text-slate-700"
+                        htmlFor={`${controlIdBase}-${field.key}`}
+                      >
                         {field.label}
                       </label>
                       <Textarea
-                        id={`${item?.id}-${field.key}`}
+                        id={`${controlIdBase}-${field.key}`}
                         value={entry[field.key]}
                         onChange={(event) => handleFieldChange(index, field.key, event.target.value)}
                         placeholder={field.placeholder}

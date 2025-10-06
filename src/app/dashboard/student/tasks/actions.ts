@@ -238,8 +238,6 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
 }
 
 const filmEntrySchema = z.object({
-  studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
-  workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
   title: z.string().optional().default(''),
   director: z.string().optional().default(''),
   releaseYear: z.string().optional().default(''),
@@ -249,10 +247,23 @@ const filmEntrySchema = z.object({
   favoriteScene: z.string().optional().default(''),
 })
 
-const filmResponsesSchema = z.object({
-  studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
-  entries: z.array(filmEntrySchema),
-})
+const filmResponsesSchema = z
+  .object({
+    studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+    studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
+    workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
+    noteCount: z.number().int().min(1).max(5),
+    entries: z.array(filmEntrySchema),
+  })
+  .superRefine((value, ctx) => {
+    if (value.entries.length < value.noteCount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['entries'],
+        message: '감상지 개수와 동일한 답안을 전달해주세요.',
+      })
+    }
+  })
 
 const FILM_REQUIRED_KEYS = ['title', 'director', 'releaseYear', 'genre', 'country', 'summary', 'favoriteScene'] as const
 
@@ -301,24 +312,46 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
     return { success: false as const, error: '해당 과제에 접근할 수 없습니다.' }
   }
 
-  const now = new Date().toISOString()
+  const { data: studentTaskItem, error: studentTaskItemError } = await supabase
+    .from('student_task_items')
+    .select('id, student_task_id, item_id')
+    .eq('id', payload.studentTaskItemId)
+    .maybeSingle()
 
-  for (let index = 0; index < payload.entries.length; index += 1) {
-    const entry = payload.entries[index]
-    const normalized = FILM_REQUIRED_KEYS.reduce((acc, key) => {
-      acc[key] = sanitizePlain(entry[key] ?? '')
+  if (studentTaskItemError) {
+    console.error('[submitFilmResponses] failed to load student_task_item', studentTaskItemError)
+    return { success: false as const, error: '문항 정보를 불러오지 못했습니다.' }
+  }
+
+  if (!studentTaskItem || studentTaskItem.student_task_id !== payload.studentTaskId) {
+    return { success: false as const, error: '해당 문항에 접근할 수 없습니다.' }
+  }
+
+  if (studentTaskItem.item_id !== payload.workbookItemId) {
+    return { success: false as const, error: '문항 정보가 올바르지 않습니다.' }
+  }
+
+  const now = new Date().toISOString()
+  const normalizedEntries = Array.from({ length: payload.noteCount }, (_, index) => {
+    const entry = payload.entries[index] ?? {}
+    return FILM_REQUIRED_KEYS.reduce((acc, key) => {
+      acc[key] = sanitizePlain((entry as Record<string, string | undefined>)[key] ?? '')
       return acc
     }, {} as Record<(typeof FILM_REQUIRED_KEYS)[number], string>)
+  })
 
-    const hasAnyValue = FILM_REQUIRED_KEYS.some((key) => normalized[key].length > 0)
-    const missingKeys = FILM_REQUIRED_KEYS.filter((key) => normalized[key].length === 0)
+  for (let index = 0; index < normalizedEntries.length; index += 1) {
+    const entry = normalizedEntries[index]
 
-    if (!isReleaseYearValid(normalized.releaseYear)) {
+    if (!isReleaseYearValid(entry.releaseYear)) {
       return {
         success: false as const,
         error: `감상지 ${index + 1}: 개봉 연도는 4자리 숫자로 입력해주세요.`,
       }
     }
+
+    const hasAnyValue = FILM_REQUIRED_KEYS.some((key) => entry[key].length > 0)
+    const missingKeys = FILM_REQUIRED_KEYS.filter((key) => entry[key].length === 0)
 
     if (hasAnyValue && missingKeys.length > 0) {
       const labels = missingKeys.map((key) => FILM_FIELD_LABELS[key]).join(', ')
@@ -327,52 +360,62 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
         error: `감상지 ${index + 1}: ${labels} 항목을 모두 작성해주세요.`,
       }
     }
+  }
 
-    const { data: existing, error: existingError } = await supabase
-      .from('task_submissions')
-      .select('id')
-      .eq('student_task_id', payload.studentTaskId)
-      .eq('item_id', entry.workbookItemId)
-      .maybeSingle()
+  const hasAnyValue = normalizedEntries.some((entry) =>
+    FILM_REQUIRED_KEYS.some((key) => entry[key].length > 0)
+  )
 
-    if (existingError) {
-      console.error('[submitFilmResponses] failed to load existing submission', existingError)
-      return { success: false as const, error: '기존 감상지를 불러오지 못했습니다.' }
+  const completedEntries = normalizedEntries.filter((entry) =>
+    FILM_REQUIRED_KEYS.every((key) => entry[key].length > 0)
+  ).length
+
+  const { data: existingSubmission, error: existingSubmissionError } = await supabase
+    .from('task_submissions')
+    .select('id')
+    .eq('student_task_id', payload.studentTaskId)
+    .eq('item_id', payload.workbookItemId)
+    .maybeSingle()
+
+  if (existingSubmissionError) {
+    console.error('[submitFilmResponses] failed to load existing submission', existingSubmissionError)
+    return { success: false as const, error: '기존 감상지를 불러오지 못했습니다.' }
+  }
+
+  if (!hasAnyValue) {
+    if (existingSubmission) {
+      const { error: deleteError } = await supabase
+        .from('task_submissions')
+        .delete()
+        .eq('id', existingSubmission.id)
+
+      if (deleteError) {
+        console.error('[submitFilmResponses] failed to delete submission', deleteError)
+        return { success: false as const, error: '기존 감상지를 삭제하지 못했습니다.' }
+      }
     }
 
-    if (!hasAnyValue) {
-      if (existing) {
-        const { error: deleteError } = await supabase
-          .from('task_submissions')
-          .delete()
-          .eq('id', existing.id)
+    const { error: resetItemError } = await supabase
+      .from('student_task_items')
+      .update({
+        completed_at: null,
+        last_result: null,
+        updated_at: now,
+      })
+      .eq('id', payload.studentTaskItemId)
 
-        if (deleteError) {
-          console.error('[submitFilmResponses] failed to delete submission', deleteError)
-          return { success: false as const, error: '기존 감상지를 삭제하지 못했습니다.' }
-        }
-      }
-
-      const { error: resetItemError } = await supabase
-        .from('student_task_items')
-        .update({
-          completed_at: null,
-          last_result: null,
-          updated_at: now,
-        })
-        .eq('id', entry.studentTaskItemId)
-
-      if (resetItemError) {
-        console.error('[submitFilmResponses] failed to reset student_task_item', resetItemError)
-        return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
-      }
-
-      continue
+    if (resetItemError) {
+      console.error('[submitFilmResponses] failed to reset student_task_item', resetItemError)
+      return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
     }
+  } else {
+    const contentPayload = JSON.stringify({
+      version: 2,
+      noteCount: payload.noteCount,
+      entries: normalizedEntries,
+    })
 
-    const contentPayload = JSON.stringify(normalized)
-
-    if (existing) {
+    if (existingSubmission) {
       const { error: updateError } = await supabase
         .from('task_submissions')
         .update({
@@ -381,7 +424,7 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
           media_asset_id: null,
           updated_at: now,
         })
-        .eq('id', existing.id)
+        .eq('id', existingSubmission.id)
 
       if (updateError) {
         console.error('[submitFilmResponses] failed to update submission', updateError)
@@ -390,7 +433,7 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
     } else {
       const { error: insertError } = await supabase.from('task_submissions').insert({
         student_task_id: payload.studentTaskId,
-        item_id: entry.workbookItemId,
+        item_id: payload.workbookItemId,
         submission_type: 'film',
         content: contentPayload,
       })
@@ -401,19 +444,54 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
       }
     }
 
+    const shouldMarkCompleted = completedEntries >= payload.noteCount
+
     const { error: itemUpdateError } = await supabase
       .from('student_task_items')
       .update({
-        completed_at: now,
-        last_result: 'submitted',
+        completed_at: shouldMarkCompleted ? now : null,
+        last_result: shouldMarkCompleted ? 'submitted' : null,
         updated_at: now,
       })
-      .eq('id', entry.studentTaskItemId)
+      .eq('id', payload.studentTaskItemId)
 
     if (itemUpdateError) {
       console.error('[submitFilmResponses] failed to update student_task_item', itemUpdateError)
       return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
     }
+  }
+
+  const { data: taskRow, error: taskRowError } = await supabase
+    .from('student_tasks')
+    .select('progress_meta')
+    .eq('id', payload.studentTaskId)
+    .maybeSingle()
+
+  if (taskRowError) {
+    console.error('[submitFilmResponses] failed to load student_task progress meta', taskRowError)
+    return { success: false as const, error: '과제 상태를 업데이트하지 못했습니다.' }
+  }
+
+  const currentProgress = (taskRow?.progress_meta as Record<string, unknown> | null) ?? {}
+  const nextProgress = {
+    ...currentProgress,
+    film: {
+      total: payload.noteCount,
+      completed: hasAnyValue ? Math.min(completedEntries, payload.noteCount) : 0,
+    },
+  }
+
+  const { error: progressUpdateError } = await supabase
+    .from('student_tasks')
+    .update({
+      progress_meta: nextProgress,
+      updated_at: now,
+    })
+    .eq('id', payload.studentTaskId)
+
+  if (progressUpdateError) {
+    console.error('[submitFilmResponses] failed to update progress_meta', progressUpdateError)
+    return { success: false as const, error: '과제 상태를 업데이트하지 못했습니다.' }
   }
 
   await refreshStudentTaskStatus(supabase, payload.studentTaskId)
@@ -607,15 +685,54 @@ async function refreshStudentTaskStatus(supabase: AnySupabaseClient, studentTask
     return
   }
 
-  const total = items?.length ?? 0
-  const completedCount = (items ?? []).filter((item) => Boolean(item.completed_at)).length
+  const { data: taskRow, error: taskRowError } = await supabase
+    .from('student_tasks')
+    .select('progress_meta')
+    .eq('id', studentTaskId)
+    .maybeSingle()
+
+  if (taskRowError) {
+    console.error('[student-task-actions] failed to load task progress meta', taskRowError)
+    return
+  }
+
+  const filmProgress = (() => {
+    const meta = taskRow?.progress_meta
+    if (!meta || typeof meta !== 'object') {
+      return null
+    }
+    const film = (meta as { film?: unknown }).film
+    if (!film || typeof film !== 'object') {
+      return null
+    }
+
+    const total = Number((film as { total?: unknown }).total)
+    const completed = Number((film as { completed?: unknown }).completed)
+
+    if (!Number.isFinite(total) || total <= 0) {
+      return null
+    }
+
+    return {
+      total,
+      completed: Number.isFinite(completed) ? Math.max(0, Math.min(completed, total)) : 0,
+    }
+  })()
+
+  let total = items?.length ?? 0
+  let completedCount = (items ?? []).filter((item) => Boolean(item.completed_at)).length
+
+  if (filmProgress) {
+    total = filmProgress.total
+    completedCount = filmProgress.completed
+  }
 
   let status: 'not_started' | 'in_progress' | 'completed'
   if (total === 0) {
     status = 'in_progress'
   } else if (completedCount === 0) {
-    status = 'not_started'
-  } else if (completedCount === total) {
+    status = filmProgress && filmProgress.completed > 0 ? 'in_progress' : 'not_started'
+  } else if (completedCount >= total) {
     status = 'completed'
   } else {
     status = 'in_progress'
