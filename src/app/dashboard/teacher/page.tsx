@@ -4,16 +4,53 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
-const NAV_ITEMS = [
+type TeacherDashboardAction = {
+  label: string
+  href: string
+  description?: string
+  variant?: 'default' | 'outline' | 'secondary' | 'ghost' | 'link' | 'destructive'
+}
+
+type TeacherDashboardSection = {
+  title: string
+  description: string
+  actions: TeacherDashboardAction[]
+}
+
+const TEACHER_SECTIONS: TeacherDashboardSection[] = [
   {
     title: '문제집 아카이브',
     description: '문제집을 생성·편집하고 저장된 워크북을 관리하세요.',
-    href: '/dashboard/workbooks',
+    actions: [
+      {
+        label: '문제집 만들기',
+        href: '/dashboard/workbooks/new',
+        description: '새 문제집을 작성하는 마법사로 이동합니다.',
+      },
+      {
+        label: '출판된 문제집 확인',
+        href: '/dashboard/workbooks',
+        description: '출판된 문제집과 보관 중인 자료를 살펴보세요.',
+        variant: 'outline',
+      },
+    ],
   },
   {
-    title: '과제 검사',
-    description: '과제 제출 현황을 확인하고 평가·인쇄 요청을 처리하세요.',
-    href: '/dashboard/teacher/review',
+    title: '과제 관리',
+    description: '반과 학생에게 과제를 배정하고 평가 흐름을 관리하세요.',
+    actions: [
+      {
+        label: '과제 출제하기',
+        href: '/dashboard/assignments/new',
+        description: '문제집을 선택해 새로운 과제를 배정합니다.',
+      },
+      {
+        label: '과제 검사하기',
+        href: '/dashboard/teacher/review',
+        description: '제출된 과제를 확인하고 평가를 진행하세요.',
+        variant: 'outline',
+      },
+    ],
   },
 ]
 
@@ -25,21 +62,34 @@ export default async function TeacherDashboardPage() {
       <header className="space-y-2 text-center">
         <h1 className="text-3xl font-semibold text-slate-900">교사용 허브</h1>
         <p className="text-sm text-slate-600">
-          {profile?.name ?? profile?.email ?? '선생님'} 님, 작업 영역을 선택해 주세요.
+          {profile?.name ?? profile?.email ?? '선생님'} 님, 다음 작업을 선택해 주세요.
         </p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {NAV_ITEMS.map((item) => (
-          <Card key={item.href} className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
-            <CardHeader>
-              <CardTitle className="text-lg text-slate-900">{item.title}</CardTitle>
-              <CardDescription className="text-sm text-slate-500">{item.description}</CardDescription>
+        {TEACHER_SECTIONS.map((section) => (
+          <Card key={section.title} className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+            <CardHeader className="space-y-2">
+              <CardTitle className="text-lg text-slate-900">{section.title}</CardTitle>
+              <CardDescription className="text-sm text-slate-500">{section.description}</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link href={item.href}>바로가기</Link>
-              </Button>
+            <CardContent className="space-y-3">
+              <div className="space-y-3">
+                {section.actions.map((action, index) => (
+                  <div key={action.href} className="flex flex-col gap-1">
+                    <Button
+                      asChild
+                      className="w-full"
+                      variant={action.variant ?? (index === 0 ? 'default' : 'outline')}
+                    >
+                      <Link href={action.href}>{action.label}</Link>
+                    </Button>
+                    {action.description ? (
+                      <p className="text-xs text-slate-500 text-center md:text-left">{action.description}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         ))}
