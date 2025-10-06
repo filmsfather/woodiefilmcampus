@@ -1,4 +1,5 @@
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   coerceFilmEntry,
   createEmptyFilmEntry,
@@ -18,53 +19,21 @@ interface RawFilmNoteHistoryRow {
 interface RawStudentTaskRow {
   id: string
   status: StudentTaskStatus
+  assignment_id: string | null
   progress_meta: Record<string, unknown> | null
-  assignments?:
-    | {
-        due_at: string | null
-        workbooks?:
-          | {
-              id: string
-              title: string | null
-              type: string | null
-              config: Record<string, unknown> | null
-            }
-          | Array<{
-              id: string
-              title: string | null
-              type: string | null
-              config: Record<string, unknown> | null
-            }>
-      }
-    | Array<{
-        due_at: string | null
-        workbooks?:
-          | {
-              id: string
-              title: string | null
-              type: string | null
-              config: Record<string, unknown> | null
-            }
-          | Array<{
-              id: string
-              title: string | null
-              type: string | null
-              config: Record<string, unknown> | null
-            }>
-      }>
-  student_task_items?: Array<{
-    id: string
-    item_id: string | null
-    workbook_items?:
-      | {
-          id: string
-          prompt: string | null
-        }
-      | Array<{
-          id: string
-          prompt: string | null
-        }>
-  }>
+}
+
+interface RawAssignmentRow {
+  id: string
+  workbook_id: string | null
+  due_at: string | null
+}
+
+interface RawWorkbookRow {
+  id: string
+  title: string | null
+  type: string | null
+  config: Record<string, unknown> | null
 }
 
 export interface FilmNoteHistoryEntry {
@@ -91,13 +60,6 @@ export interface FilmNoteHistorySummary {
   completedCount: number
 }
 
-function unwrapSingle<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) {
-    return null
-  }
-  return Array.isArray(value) ? value[0] ?? null : value
-}
-
 export async function fetchFilmNoteHistory(
   studentTaskId: string,
   studentId: string
@@ -106,11 +68,7 @@ export async function fetchFilmNoteHistory(
 
   const { data: taskRow, error: taskError } = await supabase
     .from('student_tasks')
-    .select(
-      `id, status, progress_meta,
-       assignments:assignments(due_at, workbooks:workbooks(id, title, type, config)),
-       student_task_items(id, item_id, workbook_items:workbook_items(id, prompt))`
-    )
+    .select('id, status, assignment_id, progress_meta')
     .eq('id', studentTaskId)
     .eq('student_id', studentId)
     .maybeSingle()
@@ -125,22 +83,74 @@ export async function fetchFilmNoteHistory(
   }
 
   const task = taskRow as RawStudentTaskRow
-  const assignment = unwrapSingle(task.assignments)
-  const workbook = assignment ? unwrapSingle(assignment.workbooks) : null
 
-  if (!workbook || workbook.type !== 'film') {
+  const adminClient = createAdminClient()
+
+  const { data: assignmentRow, error: assignmentError } = await adminClient
+    .from('assignments')
+    .select('id, workbook_id, due_at')
+    .eq('id', task.assignment_id)
+    .maybeSingle()
+
+  if (assignmentError) {
+    console.error('[fetchFilmNoteHistory] failed to load assignment', assignmentError)
+    throw new Error('감상지 히스토리를 불러오지 못했습니다.')
+  }
+
+  if (!assignmentRow?.workbook_id) {
     return null
   }
 
-  const firstItem = (task.student_task_items ?? []).map((item) => ({
-    id: item?.id ?? '',
-    workbookItemId: unwrapSingle(item?.workbook_items)?.id ?? item?.item_id ?? null,
-    prompt: unwrapSingle(item?.workbook_items)?.prompt ?? null,
-  }))[0]
+  const assignment = assignmentRow as RawAssignmentRow
 
-  if (!firstItem?.workbookItemId) {
+  const { data: workbookRow, error: workbookError } = await adminClient
+    .from('workbooks')
+    .select('id, title, type, config')
+    .eq('id', assignment.workbook_id)
+    .maybeSingle()
+
+  if (workbookError) {
+    console.error('[fetchFilmNoteHistory] failed to load workbook', workbookError)
+    throw new Error('감상지 히스토리를 불러오지 못했습니다.')
+  }
+
+  if (!workbookRow) {
     return null
   }
+
+  const workbook = workbookRow as RawWorkbookRow
+  const workbookType = typeof workbook.type === 'string' ? workbook.type.toLowerCase() : ''
+
+  if (workbookType !== 'film') {
+    return null
+  }
+
+  const { data: studentTaskItemRows, error: itemsError } = await adminClient
+    .from('student_task_items')
+    .select('id, item_id, workbook_items:workbook_items(id, prompt)')
+    .eq('student_task_id', task.id)
+    .order('created_at', { ascending: true })
+
+  if (itemsError) {
+    console.error('[fetchFilmNoteHistory] failed to load student_task_items', itemsError)
+    throw new Error('감상지 히스토리를 불러오지 못했습니다.')
+  }
+
+  const firstItem = (studentTaskItemRows ?? []).map((row) => {
+    const base = row as { id?: string; item_id?: string | null; workbook_items?: unknown }
+    const rawLinked = base.workbook_items
+    const linked = Array.isArray(rawLinked)
+      ? (rawLinked[0] as { id: string | null; prompt: string | null } | undefined) ?? null
+      : (rawLinked as { id: string | null; prompt: string | null } | null | undefined) ?? null
+
+    return {
+      id: base.id ?? '',
+      workbookItemId: linked?.id ?? base.item_id ?? null,
+      prompt: linked?.prompt ?? null,
+    }
+  })[0]
+
+  const workbookItemId = firstItem?.workbookItemId ?? null
 
   const filmConfig = (() => {
     const rawConfig = workbook.config ?? {}
@@ -179,21 +189,24 @@ export async function fetchFilmNoteHistory(
     return 1
   })()
 
-  const { data: historyRows, error: historyError } = await supabase
-    .from('film_note_histories')
-    .select('note_index, content, completed, created_at, updated_at')
-    .eq('student_task_id', studentTaskId)
-    .eq('workbook_item_id', firstItem.workbookItemId)
-    .order('note_index', { ascending: true })
-
-  if (historyError) {
-    console.error('[fetchFilmNoteHistory] failed to load note history', historyError)
-    throw new Error('감상지 히스토리를 불러오지 못했습니다.')
-  }
-
   const rowMap = new Map<number, RawFilmNoteHistoryRow>()
-  for (const row of (historyRows ?? []) as RawFilmNoteHistoryRow[]) {
-    rowMap.set(row.note_index, row)
+
+  if (workbookItemId) {
+    const { data: historyRows, error: historyError } = await supabase
+      .from('film_note_histories')
+      .select('note_index, content, completed, created_at, updated_at')
+      .eq('student_task_id', studentTaskId)
+      .eq('workbook_item_id', workbookItemId)
+      .order('note_index', { ascending: true })
+
+    if (historyError) {
+      console.error('[fetchFilmNoteHistory] failed to load note history', historyError)
+      throw new Error('감상지 히스토리를 불러오지 못했습니다.')
+    }
+
+    for (const row of (historyRows ?? []) as RawFilmNoteHistoryRow[]) {
+      rowMap.set(row.note_index, row)
+    }
   }
 
   const entries: FilmNoteHistoryEntry[] = []
@@ -218,7 +231,7 @@ export async function fetchFilmNoteHistory(
     workbook: {
       id: workbook.id,
       title: workbook.title ?? '제목 미정',
-      prompt: firstItem.prompt ?? null,
+      prompt: firstItem?.prompt ?? null,
       noteCount: configuredNoteCount,
     },
     assignment: {

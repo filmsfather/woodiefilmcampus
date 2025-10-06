@@ -255,7 +255,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
                         onChange={(event) => handleFieldChange(index, field.key, event.target.value)}
                         placeholder={field.placeholder}
                         disabled={isPending}
-                        inputMode={field.inputMode}
+                        {...(field.inputMode ? { inputMode: field.inputMode } : {})}
                       />
                     </div>
                   ))}
