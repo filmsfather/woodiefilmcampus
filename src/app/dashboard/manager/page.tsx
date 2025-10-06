@@ -471,6 +471,12 @@ export default async function ManagerDashboardPage({
       return periodA - periodB
     }
 
+    const teacherA = (a.teacherName ?? '').toLowerCase()
+    const teacherB = (b.teacherName ?? '').toLowerCase()
+    if (teacherA !== teacherB) {
+      return teacherA.localeCompare(teacherB)
+    }
+
     const createdA = new Date(a.createdAt).getTime()
     const createdB = new Date(b.createdAt).getTime()
     return createdA - createdB
