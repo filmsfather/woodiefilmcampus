@@ -60,12 +60,19 @@ export default async function FilmHistoryPage({ params }: { params: PageParams }
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-2">
-        <Button asChild variant="ghost" size="sm" className="w-fit px-0 text-slate-500">
-          <Link href={`/dashboard/student/tasks/${params.taskId}`} className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            과제 상세로 돌아가기
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="ghost" size="sm" className="w-fit px-0 text-slate-500">
+            <Link href={`/dashboard/student/tasks/${params.taskId}`} className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              과제 상세로 돌아가기
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/student/film-notes" className="flex items-center gap-2">
+              감상지 기록 모아보기
+            </Link>
+          </Button>
+        </div>
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-slate-900">{workbook.title}</h1>

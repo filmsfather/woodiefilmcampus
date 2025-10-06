@@ -12,7 +12,7 @@ type FilmNoteTextArea = {
   rows: number
 }
 
-export const FILM_NOTE_FIELDS: FilmNoteField[] = [
+export const FILM_NOTE_FIELDS: ReadonlyArray<FilmNoteField> = [
   { key: 'title', label: '영화 제목', placeholder: '예: 기생충' },
   { key: 'director', label: '감독', placeholder: '예: 봉준호' },
   { key: 'releaseYear', label: '개봉 연도', placeholder: '예: 2019', inputMode: 'numeric' },
@@ -20,7 +20,7 @@ export const FILM_NOTE_FIELDS: FilmNoteField[] = [
   { key: 'country', label: '국가', placeholder: '예: 한국' },
 ]
 
-export const FILM_NOTE_TEXT_AREAS: FilmNoteTextArea[] = [
+export const FILM_NOTE_TEXT_AREAS: ReadonlyArray<FilmNoteTextArea> = [
   {
     key: 'summary',
     label: '줄거리 요약 (3문장 이상)',
@@ -36,6 +36,16 @@ export const FILM_NOTE_TEXT_AREAS: FilmNoteTextArea[] = [
 ]
 
 export type FilmNoteFieldKey = FilmNoteField['key'] | FilmNoteTextArea['key']
+
+export const FILM_NOTE_REQUIRED_KEYS: FilmNoteFieldKey[] = [
+  'title',
+  'director',
+  'releaseYear',
+  'genre',
+  'country',
+  'summary',
+  'favoriteScene',
+]
 
 export type FilmNoteEntry = Record<FilmNoteFieldKey, string>
 
@@ -80,4 +90,12 @@ export function coerceFilmEntry(raw: unknown): FilmNoteEntry {
   }
 
   return base
+}
+
+export function hasFilmEntryValue(entry: FilmNoteEntry): boolean {
+  return FILM_NOTE_REQUIRED_KEYS.some((key) => sanitizeFilmValue(entry[key] ?? '').length > 0)
+}
+
+export function isFilmEntryComplete(entry: FilmNoteEntry): boolean {
+  return FILM_NOTE_REQUIRED_KEYS.every((key) => sanitizeFilmValue(entry[key] ?? '').length > 0)
 }

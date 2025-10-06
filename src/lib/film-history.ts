@@ -241,3 +241,165 @@ export async function fetchFilmNoteHistory(
     completedCount,
   }
 }
+
+
+export interface StudentFilmNoteListItem {
+  id: string
+  source: 'assignment' | 'personal'
+  content: FilmNoteEntry
+  completed: boolean
+  noteIndex: number | null
+  createdAt: string
+  updatedAt: string
+  assignment: {
+    id: string
+    dueAt: string | null
+    workbookTitle: string | null
+    workbookType: string | null
+    prompt: string | null
+    studentTaskId: string | null
+  } | null
+}
+
+export async function fetchStudentFilmNotesList(studentId: string): Promise<StudentFilmNoteListItem[]> {
+  const supabase = createServerSupabase()
+
+  const { data, error } = await supabase
+    .from('film_notes')
+    .select(
+      'id, source, assignment_id, student_task_id, workbook_item_id, note_index, content, completed, created_at, updated_at'
+    )
+    .eq('student_id', studentId)
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    console.error('[fetchStudentFilmNotesList] failed to load film_notes', error)
+    throw new Error('감상지 목록을 불러오지 못했습니다.')
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string
+    source: string
+    assignment_id: string | null
+    student_task_id: string | null
+    workbook_item_id: string | null
+    note_index: number | null
+    content: unknown
+    completed: boolean | null
+    created_at: string
+    updated_at: string
+  }>
+
+  if (rows.length === 0) {
+    return []
+  }
+
+  const assignmentIdSet = new Set<string>()
+  const workbookItemIdSet = new Set<string>()
+
+  for (const row of rows) {
+    if (row.source === 'assignment') {
+      if (typeof row.assignment_id === 'string' && row.assignment_id.length > 0) {
+        assignmentIdSet.add(row.assignment_id)
+      }
+      if (typeof row.workbook_item_id === 'string' && row.workbook_item_id.length > 0) {
+        workbookItemIdSet.add(row.workbook_item_id)
+      }
+    }
+  }
+
+  const adminClient = createAdminClient()
+
+  const assignmentMap = new Map<string, RawAssignmentRow>()
+  if (assignmentIdSet.size > 0) {
+    const { data: assignmentRows, error: assignmentError } = await adminClient
+      .from('assignments')
+      .select('id, workbook_id, due_at')
+      .in('id', Array.from(assignmentIdSet))
+
+    if (assignmentError) {
+      console.error('[fetchStudentFilmNotesList] failed to load assignments', assignmentError)
+      throw new Error('감상지 목록을 불러오지 못했습니다.')
+    }
+
+    for (const row of assignmentRows ?? []) {
+      assignmentMap.set((row as RawAssignmentRow).id, row as RawAssignmentRow)
+    }
+  }
+
+  const workbookIdSet = new Set<string>()
+  for (const assignment of assignmentMap.values()) {
+    if (typeof assignment.workbook_id === 'string' && assignment.workbook_id.length > 0) {
+      workbookIdSet.add(assignment.workbook_id)
+    }
+  }
+
+  const workbookMap = new Map<string, RawWorkbookRow>()
+  if (workbookIdSet.size > 0) {
+    const { data: workbookRows, error: workbookError } = await adminClient
+      .from('workbooks')
+      .select('id, title, type, config')
+      .in('id', Array.from(workbookIdSet))
+
+    if (workbookError) {
+      console.error('[fetchStudentFilmNotesList] failed to load workbooks', workbookError)
+      throw new Error('감상지 목록을 불러오지 못했습니다.')
+    }
+
+    for (const row of workbookRows ?? []) {
+      workbookMap.set((row as RawWorkbookRow).id, row as RawWorkbookRow)
+    }
+  }
+
+  const workbookItemMap = new Map<string, { prompt: string | null; workbookId: string | null }>()
+  if (workbookItemIdSet.size > 0) {
+    const { data: workbookItemRows, error: workbookItemError } = await adminClient
+      .from('workbook_items')
+      .select('id, prompt, workbook_id')
+      .in('id', Array.from(workbookItemIdSet))
+
+    if (workbookItemError) {
+      console.error('[fetchStudentFilmNotesList] failed to load workbook items', workbookItemError)
+      throw new Error('감상지 목록을 불러오지 못했습니다.')
+    }
+
+    for (const row of workbookItemRows ?? []) {
+      const record = row as { id: string; prompt: string | null; workbook_id: string | null }
+      workbookItemMap.set(record.id, { prompt: record.prompt ?? null, workbookId: record.workbook_id ?? null })
+    }
+  }
+
+  return rows.map((row) => {
+    const normalizedContent = sanitizeFilmEntry(coerceFilmEntry(row.content))
+    const source = row.source === 'assignment' ? 'assignment' : 'personal'
+    const noteIndex = typeof row.note_index === 'number' ? row.note_index : null
+
+    let assignmentMeta: StudentFilmNoteListItem['assignment'] = null
+
+    if (source === 'assignment' && row.assignment_id) {
+      const assignment = assignmentMap.get(row.assignment_id)
+      const workbook = assignment?.workbook_id ? workbookMap.get(assignment.workbook_id) : null
+      const workbookItem = row.workbook_item_id ? workbookItemMap.get(row.workbook_item_id) : null
+
+      assignmentMeta = {
+        id: row.assignment_id,
+        dueAt: assignment?.due_at ?? null,
+        workbookTitle: workbook?.title ?? null,
+        workbookType: workbook?.type ?? null,
+        prompt: workbookItem?.prompt ?? null,
+        studentTaskId: row.student_task_id ?? null,
+      }
+    }
+
+    return {
+      id: row.id,
+      source,
+      content: normalizedContent,
+      completed: Boolean(row.completed),
+      noteIndex,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      assignment: assignmentMeta,
+    }
+  })
+}

@@ -331,6 +331,19 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
     return { success: false as const, error: '문항 정보가 올바르지 않습니다.' }
   }
 
+  const { data: studentTaskRow, error: studentTaskError } = await supabase
+    .from('student_tasks')
+    .select('assignment_id')
+    .eq('id', payload.studentTaskId)
+    .maybeSingle()
+
+  if (studentTaskError) {
+    console.error('[submitFilmResponses] failed to load student_task assignment', studentTaskError)
+    return { success: false as const, error: '과제 정보를 불러오지 못했습니다.' }
+  }
+
+  const assignmentId = (studentTaskRow as { assignment_id: string | null } | null)?.assignment_id ?? null
+
   const now = new Date().toISOString()
   const normalizedEntries = Array.from({ length: payload.noteCount }, (_, index) => {
     const entry = payload.entries[index] ?? {}
@@ -508,6 +521,89 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
     return { success: false as const, error: '감상지 기록 정리 중 오류가 발생했습니다.' }
   }
 
+  const assignmentFilmNoteRows = normalizedEntries.map((entry, index) => ({
+    entry,
+    index,
+    hasValue: entryStates[index]?.hasAnyValue ?? false,
+    isComplete: entryStates[index]?.isComplete ?? false,
+  }))
+
+  const rowsForFilmNotes = assignmentFilmNoteRows
+    .filter((row) => row.hasValue)
+    .map((row) => ({
+      student_id: profile.id,
+      source: 'assignment' as const,
+      assignment_id: assignmentId,
+      student_task_id: payload.studentTaskId,
+      workbook_item_id: payload.workbookItemId,
+      note_index: row.index,
+      content: row.entry,
+      completed: row.isComplete,
+      updated_at: now,
+    }))
+
+  if (rowsForFilmNotes.length === 0) {
+    const { error: deleteFilmNotesError } = await supabase
+      .from('film_notes')
+      .delete()
+      .eq('student_id', profile.id)
+      .eq('source', 'assignment')
+      .eq('student_task_id', payload.studentTaskId)
+      .eq('workbook_item_id', payload.workbookItemId)
+
+    if (deleteFilmNotesError) {
+      console.error('[submitFilmResponses] failed to remove film_notes rows', deleteFilmNotesError)
+      return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
+    }
+  } else {
+    const { error: filmNotesUpsertError } = await supabase
+      .from('film_notes')
+      .upsert(rowsForFilmNotes, { onConflict: 'student_task_id,workbook_item_id,note_index' })
+
+    if (filmNotesUpsertError) {
+      console.error('[submitFilmResponses] failed to upsert film_notes', filmNotesUpsertError)
+      return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
+    }
+
+    const { error: overflowDeleteError } = await supabase
+      .from('film_notes')
+      .delete()
+      .eq('student_id', profile.id)
+      .eq('source', 'assignment')
+      .eq('student_task_id', payload.studentTaskId)
+      .eq('workbook_item_id', payload.workbookItemId)
+      .gt('note_index', payload.noteCount - 1)
+
+    if (overflowDeleteError) {
+      console.error('[submitFilmResponses] failed to cleanup overflow film_notes', overflowDeleteError)
+      return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
+    }
+
+    const noteIndexesToKeep = new Set(rowsForFilmNotes.map((row) => row.note_index))
+    const indexesToRemove: number[] = []
+    for (let index = 0; index < payload.noteCount; index += 1) {
+      if (!noteIndexesToKeep.has(index)) {
+        indexesToRemove.push(index)
+      }
+    }
+
+    if (indexesToRemove.length > 0) {
+      const { error: removeEmptyNotesError } = await supabase
+        .from('film_notes')
+        .delete()
+        .eq('student_id', profile.id)
+        .eq('source', 'assignment')
+        .eq('student_task_id', payload.studentTaskId)
+        .eq('workbook_item_id', payload.workbookItemId)
+        .in('note_index', indexesToRemove)
+
+      if (removeEmptyNotesError) {
+        console.error('[submitFilmResponses] failed to remove empty film_notes rows', removeEmptyNotesError)
+        return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
+      }
+    }
+  }
+
   const currentProgress = (taskRow?.progress_meta as Record<string, unknown> | null) ?? {}
   const nextProgress = {
     ...currentProgress,
@@ -534,6 +630,7 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
 
   revalidatePath('/dashboard/student')
   revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
+  revalidatePath('/dashboard/student/film-notes')
 
   return { success: true as const }
 }
