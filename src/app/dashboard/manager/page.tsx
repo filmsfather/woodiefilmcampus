@@ -120,7 +120,9 @@ export default async function ManagerDashboardPage() {
   const pendingCount = pendingStudents.length
   const approvedCount = approvedCountResult.count ?? 0
 
-  const rawPrintRequests = (printRequestResult.data ?? []) as RawPrintRequestRow[]
+  const rawPrintRequests = ((printRequestResult.data ?? []) as RawPrintRequestRow[]).filter(
+    (row) => row.status !== 'canceled'
+  )
 
   const printRequests = await Promise.all(
     rawPrintRequests.map(async (row) => {

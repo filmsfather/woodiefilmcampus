@@ -322,7 +322,6 @@ const printRequestSchema = z
       .min(1, '부수는 1권 이상이어야 합니다.')
       .max(50, '부수는 50권 이하로 입력해주세요.'),
     colorMode: z.enum(['bw', 'color']).default('bw'),
-    bundleMode: z.enum(['merged', 'separate']).default('merged'),
     notes: z
       .string()
       .max(500, '요청 메모는 500자 이하로 입력해주세요.')
@@ -488,6 +487,7 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
 
     const desiredDate = payload.desiredDate ? new Date(payload.desiredDate) : null
     const formattedDate = desiredDate ? desiredDate.toISOString().slice(0, 10) : null
+    const bundleMode: 'merged' | 'separate' = 'merged'
 
     const primaryStudentTaskId =
       explicitTaskIds.length === 1 ? explicitTaskIds[0] : payload.studentTaskId ?? null
@@ -504,7 +504,7 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
         color_mode: payload.colorMode,
         status: 'requested',
         notes: payload.notes ?? null,
-        bundle_mode: payload.bundleMode,
+        bundle_mode: bundleMode,
         bundle_status: 'pending',
       })
       .select('id')
@@ -544,6 +544,82 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
   } catch (error) {
     console.error('[teacher] createPrintRequest unexpected error', error)
     return { error: '인쇄 요청 처리 중 예상치 못한 문제가 발생했습니다.' }
+  }
+}
+
+const cancelPrintRequestSchema = z.object({
+  requestId: z.string().uuid('유효한 인쇄 요청 ID가 아닙니다.'),
+})
+
+type CancelPrintRequestInput = z.infer<typeof cancelPrintRequestSchema>
+
+export async function cancelPrintRequest(input: CancelPrintRequestInput) {
+  const { profile } = await getAuthContext()
+
+  if (!isTeacherOrPrincipal(profile)) {
+    return { error: '교사 또는 원장 계정으로만 취소할 수 있습니다.' }
+  }
+
+  const parsed = cancelPrintRequestSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '인쇄 요청 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  const supabase = createServerSupabase()
+
+  try {
+    const { data: request, error: fetchError } = await supabase
+      .from('print_requests')
+      .select('id, teacher_id, assignment_id, status')
+      .eq('id', payload.requestId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[teacher] cancelPrintRequest fetch error', fetchError)
+      return { error: '인쇄 요청 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!request) {
+      return { error: '인쇄 요청을 찾을 수 없습니다.' }
+    }
+
+    if (request.status !== 'requested') {
+      return { error: '이미 처리된 인쇄 요청입니다.' }
+    }
+
+    const isOwner = request.teacher_id === profile.id
+    if (!isOwner && profile.role !== 'principal') {
+      return { error: '해당 인쇄 요청을 취소할 권한이 없습니다.' }
+    }
+
+    const { error: updateError } = await supabase
+      .from('print_requests')
+      .update({
+        status: 'canceled',
+        bundle_status: 'failed',
+        bundle_error: '교사에 의해 취소되었습니다.',
+      })
+      .eq('id', payload.requestId)
+
+    if (updateError) {
+      console.error('[teacher] cancelPrintRequest update error', updateError)
+      return { error: '인쇄 요청 취소에 실패했습니다.' }
+    }
+
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath('/dashboard/manager')
+    if (request.assignment_id) {
+      revalidatePath(`/dashboard/teacher/assignments/${request.assignment_id}`)
+    }
+    revalidatePath('/dashboard/teacher/review')
+
+    return { success: true as const }
+  } catch (error) {
+    console.error('[teacher] cancelPrintRequest unexpected error', error)
+    return { error: '인쇄 요청 취소 중 문제가 발생했습니다.' }
   }
 }
 

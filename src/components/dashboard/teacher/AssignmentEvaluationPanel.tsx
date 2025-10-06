@@ -22,6 +22,7 @@ import {
   toggleStudentTaskStatus,
   createPrintRequest,
   deleteStudentTask,
+  cancelPrintRequest,
 } from '@/app/dashboard/teacher/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -487,7 +488,30 @@ function PrintRequestList({
   requests: PrintRequestSummary[]
   studentLookup: Map<string, { name: string; className: string }>
 }) {
-  if (requests.length === 0) {
+  const activeRequests = useMemo(
+    () => requests.filter((request) => request.status !== 'canceled'),
+    [requests]
+  )
+
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null)
+  const [cancelPendingId, setCancelPendingId] = useState<string | null>(null)
+  const [isCancelPending, startCancelTransition] = useTransition()
+
+  const handleCancel = useCallback((requestId: string) => {
+    setCancelMessage(null)
+    setCancelPendingId(requestId)
+    startCancelTransition(async () => {
+      const result = await cancelPrintRequest({ requestId })
+      if (result?.error) {
+        setCancelMessage(result.error)
+      } else {
+        setCancelMessage('인쇄 요청을 취소했습니다.')
+      }
+      setCancelPendingId(null)
+    })
+  }, [])
+
+  if (activeRequests.length === 0) {
     return null
   }
 
@@ -495,10 +519,20 @@ function PrintRequestList({
     <Card className="border-primary/50 bg-primary/5">
       <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <CardTitle className="text-sm text-slate-900">인쇄 요청 현황</CardTitle>
-        <span className="text-xs text-slate-500">총 {requests.length}건</span>
+        <span className="text-xs text-slate-500">총 {activeRequests.length}건</span>
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-slate-600">
-        {requests.map((request) => {
+        {cancelMessage && (
+          <div className={`rounded-md border px-3 py-2 text-xs ${
+            cancelMessage.includes('실패') || cancelMessage.includes('없') || cancelMessage.includes('오류')
+              ? 'border-destructive/40 bg-destructive/10 text-destructive'
+              : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+          }`}
+          >
+            {cancelMessage}
+          </div>
+        )}
+        {activeRequests.map((request) => {
           const targetTaskIds = request.studentTaskIds.length > 0
             ? request.studentTaskIds
             : request.studentTaskId
@@ -548,10 +582,22 @@ function PrintRequestList({
                 </p>
               </div>
               <div className="flex flex-col items-end gap-2">
-                <Badge variant={request.status === 'requested' ? 'destructive' : 'secondary'}>
-                  {request.status === 'requested' ? '대기' : request.status === 'done' ? '완료' : '취소'}
-                </Badge>
-                <Badge variant={bundleBadgeVariant}>{bundleStatusLabel}</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={request.status === 'requested' ? 'destructive' : 'secondary'}>
+                    {request.status === 'requested' ? '대기' : request.status === 'done' ? '완료' : '취소'}
+                  </Badge>
+                  <Badge variant={bundleBadgeVariant}>{bundleStatusLabel}</Badge>
+                </div>
+                {request.status === 'requested' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={isCancelPending && cancelPendingId === request.id}
+                    onClick={() => handleCancel(request.id)}
+                  >
+                    취소
+                  </Button>
+                )}
               </div>
             </div>
           )
@@ -781,7 +827,6 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
         desiredPeriod: printState.desiredPeriod,
         copies: printState.copies,
         colorMode: printState.colorMode,
-        bundleMode: 'merged',
         notes: printState.notes,
       })
 
