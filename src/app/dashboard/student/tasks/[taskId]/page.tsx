@@ -175,7 +175,16 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
       )
       break
     case 'film':
-      taskContent = <FilmTaskRunner task={task} />
+      taskContent = (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button asChild size="sm" variant="outline">
+              <Link href={`/dashboard/student/tasks/${task.id}/history`}>감상지 히스토리 보기</Link>
+            </Button>
+          </div>
+          <FilmTaskRunner task={task} />
+        </div>
+      )
       break
     case 'lecture':
       taskContent = (

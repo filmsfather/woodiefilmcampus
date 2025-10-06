@@ -10,67 +10,20 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  FILM_NOTE_FIELDS,
+  FILM_NOTE_TEXT_AREAS,
+  coerceFilmEntry,
+  createEmptyFilmEntry,
+  sanitizeFilmEntry,
+  type FilmNoteEntry,
+  type FilmNoteFieldKey,
+} from '@/lib/film-notes'
 import type { StudentTaskDetail } from '@/types/student-task'
-
-const FILM_FIELDS: Array<{
-  key: 'title' | 'director' | 'releaseYear' | 'genre' | 'country'
-  label: string
-  placeholder: string
-  inputMode?: 'numeric'
-}> = [
-  { key: 'title', label: '영화 제목', placeholder: '예: 기생충' },
-  { key: 'director', label: '감독', placeholder: '예: 봉준호' },
-  { key: 'releaseYear', label: '개봉 연도', placeholder: '예: 2019', inputMode: 'numeric' },
-  { key: 'genre', label: '장르', placeholder: '예: 드라마' },
-  { key: 'country', label: '국가', placeholder: '예: 한국' },
-]
-
-const FILM_TEXTAREAS = [
-  { key: 'summary', label: '줄거리 요약 (3문장 이상)', placeholder: '핵심 줄거리를 최소 3문장으로 작성해주세요.', rows: 4 },
-  {
-    key: 'favoriteScene',
-    label: '연출적으로 좋았던 장면',
-    placeholder: '인상 깊었던 장면과 이유를 작성해주세요.',
-    rows: 4,
-  },
-] as const
-
-type FilmFieldKey = (typeof FILM_FIELDS[number] | typeof FILM_TEXTAREAS[number])['key']
-
-type FilmEntryValues = Record<FilmFieldKey, string>
-
-function createEmptyEntry(): FilmEntryValues {
-  return {
-    title: '',
-    director: '',
-    releaseYear: '',
-    genre: '',
-    country: '',
-    summary: '',
-    favoriteScene: '',
-  }
-}
-
-function coerceFilmEntry(raw: unknown): FilmEntryValues {
-  const base = createEmptyEntry()
-
-  if (!raw || typeof raw !== 'object') {
-    return base
-  }
-
-  for (const key of [...FILM_FIELDS.map((field) => field.key), ...FILM_TEXTAREAS.map((field) => field.key)] as FilmFieldKey[]) {
-    const value = (raw as Record<string, unknown>)[key]
-    if (typeof value === 'string') {
-      base[key] = value
-    }
-  }
-
-  return base
-}
 
 function decodeFilmSubmission(
   content: string | null
-): { entries: FilmEntryValues[]; noteCount?: number } | null {
+): { entries: FilmNoteEntry[]; noteCount?: number } | null {
   if (!content) {
     return null
   }
@@ -102,25 +55,11 @@ function decodeFilmSubmission(
   return null
 }
 
-function sanitizeValue(value: string): string {
-  return value.replace(/\r/g, '').replace(/\u00a0/g, ' ').trim()
-}
-
-function sanitizeEntry(entry: FilmEntryValues): FilmEntryValues {
-  const normalized = createEmptyEntry()
-
-  for (const key of [...FILM_FIELDS.map((field) => field.key), ...FILM_TEXTAREAS.map((field) => field.key)] as FilmFieldKey[]) {
-    normalized[key] = sanitizeValue(entry[key])
-  }
-
-  return normalized
-}
-
-function hasAnyValue(entry: FilmEntryValues): boolean {
+function hasAnyValue(entry: FilmNoteEntry): boolean {
   return (Object.values(entry) as string[]).some((value) => value.trim().length > 0)
 }
 
-function isEntryComplete(entry: FilmEntryValues): boolean {
+function isEntryComplete(entry: FilmNoteEntry): boolean {
   return (Object.values(entry) as string[]).every((value) => value.trim().length > 0)
 }
 
@@ -148,17 +87,17 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
 
     if (primary?.entries?.length) {
       return {
-        entries: primary.entries.map(sanitizeEntry),
+        entries: primary.entries.map(sanitizeFilmEntry),
         noteCount: primary.noteCount,
       }
     }
 
-    const collected: FilmEntryValues[] = []
+    const collected: FilmNoteEntry[] = []
 
     for (const item of items) {
       const parsed = decodeFilmSubmission(item.submission?.content ?? null)
       if (parsed?.entries?.length) {
-        collected.push(...parsed.entries.map(sanitizeEntry))
+        collected.push(...parsed.entries.map(sanitizeFilmEntry))
       }
     }
 
@@ -185,17 +124,17 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
   const initialEntries = useMemo(() => {
     return Array.from({ length: noteCount }, (_, index) => {
       const source = decodedEntries.entries[index]
-      return source ? { ...source } : createEmptyEntry()
+      return source ? { ...source } : createEmptyFilmEntry()
     })
   }, [noteCount, decodedEntries])
 
-  const [entries, setEntries] = useState<FilmEntryValues[]>(initialEntries)
+  const [entries, setEntries] = useState<FilmNoteEntry[]>(initialEntries)
 
   useEffect(() => {
     setEntries(initialEntries)
   }, [initialEntries])
 
-  const handleFieldChange = (entryIndex: number, key: FilmFieldKey, value: string) => {
+  const handleFieldChange = (entryIndex: number, key: FilmNoteFieldKey, value: string) => {
     setEntries((prev) =>
       prev.map((entry, index) => {
         if (index !== entryIndex) {
@@ -213,7 +152,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
   }
 
   const handleClearEntry = (entryIndex: number) => {
-    setEntries((prev) => prev.map((entry, index) => (index === entryIndex ? createEmptyEntry() : entry)))
+    setEntries((prev) => prev.map((entry, index) => (index === entryIndex ? createEmptyFilmEntry() : entry)))
     setErrorMessage(null)
     setSuccessMessage(null)
   }
@@ -234,7 +173,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
           studentTaskItemId: baseItem.id,
           workbookItemId: baseItem.workbookItem.id,
           noteCount,
-          entries: entries.map((entry) => sanitizeEntry(entry)),
+          entries: entries.map((entry) => sanitizeFilmEntry(entry)),
         }
 
         const response = await submitFilmResponses(payload)
@@ -302,7 +241,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
-                  {FILM_FIELDS.map((field) => (
+                  {FILM_NOTE_FIELDS.map((field) => (
                     <div key={field.key} className="space-y-2">
                       <label
                         className="text-sm font-medium text-slate-700"
@@ -323,7 +262,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
                 </div>
 
                 <div className="space-y-4">
-                  {FILM_TEXTAREAS.map((field) => (
+                  {FILM_NOTE_TEXT_AREAS.map((field) => (
                     <div key={field.key} className="space-y-2">
                       <label
                         className="text-sm font-medium text-slate-700"

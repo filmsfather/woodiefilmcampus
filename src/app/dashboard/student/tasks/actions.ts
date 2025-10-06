@@ -340,8 +340,21 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
     }, {} as Record<(typeof FILM_REQUIRED_KEYS)[number], string>)
   })
 
+  const entryStates = normalizedEntries.map((entry) => {
+    const hasAnyValue = FILM_REQUIRED_KEYS.some((key) => entry[key].length > 0)
+    const missingKeys = FILM_REQUIRED_KEYS.filter((key) => entry[key].length === 0)
+    const isComplete = hasAnyValue && missingKeys.length === 0
+
+    return {
+      hasAnyValue,
+      isComplete,
+      missingKeys,
+    }
+  })
+
   for (let index = 0; index < normalizedEntries.length; index += 1) {
     const entry = normalizedEntries[index]
+    const state = entryStates[index]
 
     if (!isReleaseYearValid(entry.releaseYear)) {
       return {
@@ -350,11 +363,8 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
       }
     }
 
-    const hasAnyValue = FILM_REQUIRED_KEYS.some((key) => entry[key].length > 0)
-    const missingKeys = FILM_REQUIRED_KEYS.filter((key) => entry[key].length === 0)
-
-    if (hasAnyValue && missingKeys.length > 0) {
-      const labels = missingKeys.map((key) => FILM_FIELD_LABELS[key]).join(', ')
+    if (state.hasAnyValue && !state.isComplete) {
+      const labels = state.missingKeys.map((key) => FILM_FIELD_LABELS[key]).join(', ')
       return {
         success: false as const,
         error: `감상지 ${index + 1}: ${labels} 항목을 모두 작성해주세요.`,
@@ -362,13 +372,9 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
     }
   }
 
-  const hasAnyValue = normalizedEntries.some((entry) =>
-    FILM_REQUIRED_KEYS.some((key) => entry[key].length > 0)
-  )
+  const hasAnyValue = entryStates.some((state) => state.hasAnyValue)
 
-  const completedEntries = normalizedEntries.filter((entry) =>
-    FILM_REQUIRED_KEYS.every((key) => entry[key].length > 0)
-  ).length
+  const completedEntries = entryStates.filter((state) => state.isComplete).length
 
   const { data: existingSubmission, error: existingSubmissionError } = await supabase
     .from('task_submissions')
@@ -470,6 +476,36 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
   if (taskRowError) {
     console.error('[submitFilmResponses] failed to load student_task progress meta', taskRowError)
     return { success: false as const, error: '과제 상태를 업데이트하지 못했습니다.' }
+  }
+
+  const rowsForUpsert = normalizedEntries.map((entry, index) => ({
+    student_task_id: payload.studentTaskId,
+    workbook_item_id: payload.workbookItemId,
+    note_index: index,
+    content: entry,
+    completed: entryStates[index]?.isComplete ?? false,
+    updated_at: now,
+  }))
+
+  const { error: upsertError } = await supabase
+    .from('film_note_histories')
+    .upsert(rowsForUpsert, { onConflict: 'student_task_id,workbook_item_id,note_index' })
+
+  if (upsertError) {
+    console.error('[submitFilmResponses] failed to upsert film_note_histories', upsertError)
+    return { success: false as const, error: '감상지 기록을 저장하지 못했습니다.' }
+  }
+
+  const { error: cleanupError } = await supabase
+    .from('film_note_histories')
+    .delete()
+    .eq('student_task_id', payload.studentTaskId)
+    .eq('workbook_item_id', payload.workbookItemId)
+    .gt('note_index', payload.noteCount - 1)
+
+  if (cleanupError) {
+    console.error('[submitFilmResponses] failed to cleanup film_note_histories', cleanupError)
+    return { success: false as const, error: '감상지 기록 정리 중 오류가 발생했습니다.' }
   }
 
   const currentProgress = (taskRow?.progress_meta as Record<string, unknown> | null) ?? {}
