@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -92,47 +93,54 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-slate-900">{workbook.title}</h1>
-            <Badge variant="secondary">{readableType}</Badge>
-            <Badge variant="outline">{workbook.subject}</Badge>
+      <div className="space-y-4">
+        <DashboardBackLink fallbackHref="/dashboard/workbooks" label="문제집 목록으로 돌아가기" />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold text-slate-900">{workbook.title}</h1>
+              <Badge variant="secondary">{readableType}</Badge>
+              <Badge variant="outline">{workbook.subject}</Badge>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+              {workbook.week_label && <span className="rounded bg-slate-100 px-2 py-1">{workbook.week_label}</span>}
+              {(workbook.tags ?? []).map((tag: string) => (
+                <span key={tag} className="rounded bg-slate-100 px-2 py-1">#{tag}</span>
+              ))}
+            </div>
+            <div className="text-xs text-slate-500">
+              <p>생성일: {formatDate(workbook.created_at)}</p>
+              <p>수정일: {formatDate(workbook.updated_at)}</p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-            {workbook.week_label && <span className="rounded bg-slate-100 px-2 py-1">{workbook.week_label}</span>}
-            {(workbook.tags ?? []).map((tag: string) => (
-              <span key={tag} className="rounded bg-slate-100 px-2 py-1">#{tag}</span>
-            ))}
-          </div>
-          <div className="text-xs text-slate-500">
-            <p>생성일: {formatDate(workbook.created_at)}</p>
-            <p>수정일: {formatDate(workbook.updated_at)}</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <form action={async () => {
-            'use server'
-            await duplicateWorkbook(workbook.id)
-          }}>
-            <Button type="submit" variant="outline">
-              복제
+          <div className="flex flex-wrap gap-2">
+            <form
+              action={async () => {
+                'use server'
+                await duplicateWorkbook(workbook.id)
+              }}
+            >
+              <Button type="submit" variant="outline">
+                복제
+              </Button>
+            </form>
+            <form
+              action={async () => {
+                'use server'
+                await deleteWorkbook(workbook.id)
+              }}
+            >
+              <Button type="submit" variant="destructive">
+                삭제
+              </Button>
+            </form>
+            <Button asChild variant="outline">
+              <Link href={`/dashboard/workbooks/${workbook.id}/edit`}>편집</Link>
             </Button>
-          </form>
-          <form action={async () => {
-            'use server'
-            await deleteWorkbook(workbook.id)
-          }}>
-            <Button type="submit" variant="destructive">
-              삭제
+            <Button asChild>
+              <Link href={`/dashboard/assignments/new?workbookId=${workbook.id}`}>출제하기</Link>
             </Button>
-          </form>
-          <Button asChild variant="outline">
-            <Link href={`/dashboard/workbooks/${workbook.id}/edit`}>편집</Link>
-          </Button>
-          <Button asChild>
-            <Link href={`/dashboard/assignments/new?workbookId=${workbook.id}`}>출제하기</Link>
-          </Button>
+          </div>
         </div>
       </div>
 

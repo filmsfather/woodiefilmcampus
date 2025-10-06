@@ -1,3 +1,4 @@
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -332,5 +333,10 @@ export default async function TeacherReviewOverviewPage() {
     }
   )
 
-  return <ClassOverviewGrid summary={overviewSummary} items={overviewItems} />
+  return (
+    <div className="space-y-6">
+      <DashboardBackLink fallbackHref="/dashboard/teacher" label="교사용 허브로 돌아가기" />
+      <ClassOverviewGrid summary={overviewSummary} items={overviewItems} />
+    </div>
+  )
 }

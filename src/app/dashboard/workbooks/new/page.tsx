@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import WorkbookWizard from '@/components/dashboard/workbooks/WorkbookWizard'
 import { requireAuthForDashboard } from '@/lib/auth'
 
@@ -13,6 +14,7 @@ export default async function WorkbookCreatePage() {
 
   return (
     <section className="space-y-6">
+      <DashboardBackLink fallbackHref="/dashboard/workbooks" label="문제집 목록으로 돌아가기" />
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold text-slate-900">문제집 생성</h1>
         <p className="text-sm text-slate-600">

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -234,14 +235,17 @@ export default async function TeacherClassReviewPage({
   const initialAssignmentId = typeof searchParams.assignment === 'string' ? searchParams.assignment : null
 
   return (
-    <ClassDashboard
-      classId={classInfo.id}
-      className={classInfo.name}
-      teacherName={profile.name ?? profile.email ?? null}
-      assignments={assignments}
-      summary={summary}
-      initialAssignmentId={initialAssignmentId}
-    />
+    <div className="space-y-4">
+      <DashboardBackLink fallbackHref="/dashboard/teacher/review" label="반 개요로 돌아가기" />
+      <ClassDashboard
+        classId={classInfo.id}
+        className={classInfo.name}
+        teacherName={profile.name ?? profile.email ?? null}
+        assignments={assignments}
+        summary={summary}
+        initialAssignmentId={initialAssignmentId}
+      />
+    </div>
   )
 }
 

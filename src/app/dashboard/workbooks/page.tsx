@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -69,16 +70,19 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">내 문제집</h1>
-          <p className="text-sm text-slate-600">
-            생성한 문제집을 한눈에 확인하고, 문항 수와 마지막 수정일을 점검하세요.
-          </p>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/teacher" label="교사용 허브로 돌아가기" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-slate-900">내 문제집</h1>
+            <p className="text-sm text-slate-600">
+              생성한 문제집을 한눈에 확인하고, 문항 수와 마지막 수정일을 점검하세요.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/dashboard/workbooks/new">문제집 만들기</Link>
+          </Button>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/workbooks/new">문제집 만들기</Link>
-        </Button>
       </div>
 
       <WorkbookFilters

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import AssignmentForm from '@/components/dashboard/assignments/AssignmentForm'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -243,11 +244,14 @@ export default async function AssignmentCreatePage() {
 
   return (
     <section className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">과제 출제</h1>
-        <p className="text-sm text-slate-600">
-          준비된 문제집을 선택하고 담당 반 또는 개별 학생에게 과제를 배정하세요.
-        </p>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/teacher" label="교사용 허브로 돌아가기" />
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-slate-900">과제 출제</h1>
+          <p className="text-sm text-slate-600">
+            준비된 문제집을 선택하고 담당 반 또는 개별 학생에게 과제를 배정하세요.
+          </p>
+        </div>
       </div>
 
       {showWorkbookHint && (

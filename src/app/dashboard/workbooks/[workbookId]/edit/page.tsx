@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import WorkbookMetadataForm from '@/components/dashboard/workbooks/WorkbookMetadataForm'
 import WorkbookItemsEditor, {
   type WorkbookItemsEditorItem,
@@ -108,16 +109,19 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
 
   return (
     <section className="space-y-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">문제집 편집</h1>
-          <p className="text-sm text-slate-600">
-            {workbook.title} · {WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}
-          </p>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/workbooks" label="문제집 목록으로 돌아가기" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-slate-900">문제집 편집</h1>
+            <p className="text-sm text-slate-600">
+              {workbook.title} · {WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
+          </Button>
         </div>
-        <Button asChild variant="outline">
-          <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
-        </Button>
       </div>
 
       <div className="space-y-6">
