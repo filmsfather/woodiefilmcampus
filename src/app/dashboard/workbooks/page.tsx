@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -103,48 +103,65 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {workbooks.map((workbook) => {
-            const itemCount = workbook.workbook_items?.[0]?.count ?? 0
-            const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
+        <Card className="border-slate-200">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] table-fixed border-collapse text-sm">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr className="border-b border-slate-200">
+                    <th className="px-4 py-3 text-left font-medium">제목</th>
+                    <th className="px-4 py-3 text-left font-medium">유형</th>
+                    <th className="px-4 py-3 text-left font-medium">과목</th>
+                    <th className="px-4 py-3 text-left font-medium">문항 수</th>
+                    <th className="px-4 py-3 text-left font-medium">태그</th>
+                    <th className="px-4 py-3 text-left font-medium">수정일</th>
+                    <th className="px-4 py-3 text-right font-medium">작업</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workbooks.map((workbook) => {
+                    const itemCount = workbook.workbook_items?.[0]?.count ?? 0
+                    const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
 
-            return (
-              <Card key={workbook.id} className="border-slate-200">
-                <CardHeader className="space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-lg font-semibold text-slate-900">{workbook.title}</CardTitle>
-                    <Badge variant="secondary">{readableType}</Badge>
-                  </div>
-                  <p className="text-sm text-slate-500">과목: {workbook.subject}</p>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-slate-600">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                      문항 {itemCount}개
-                    </span>
-                    {workbook.week_label && (
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                        {workbook.week_label}
-                      </span>
-                    )}
-                    {(workbook.tags ?? []).map((tag) => (
-                      <span key={tag} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="text-xs text-slate-500">
-                    <p>생성일: {formatDate(workbook.created_at)}</p>
-                    <p>수정일: {formatDate(workbook.updated_at)}</p>
-                  </div>
-                  <Button asChild variant="outline" size="sm" className="mt-2 w-full">
-                    <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+                    return (
+                      <tr key={workbook.id} className="border-b border-slate-100 last:border-none hover:bg-slate-50">
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex flex-col gap-1">
+                            <span className="font-medium text-slate-900">{workbook.title}</span>
+                            {workbook.week_label && (
+                              <span className="text-xs text-slate-500">주차: {workbook.week_label}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <Badge variant="secondary">{readableType}</Badge>
+                        </td>
+                        <td className="px-4 py-3 align-top text-slate-600">{workbook.subject}</td>
+                        <td className="px-4 py-3 align-top text-slate-600">{itemCount.toLocaleString()}개</td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex flex-wrap gap-1 text-xs text-slate-500">
+                            {(workbook.tags ?? []).length === 0 ? <span className="text-slate-400">-</span> : null}
+                            {(workbook.tags ?? []).map((tag) => (
+                              <span key={tag} className="rounded bg-slate-100 px-2 py-0.5">#{tag}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 align-top text-xs text-slate-500 whitespace-nowrap">
+                          {formatDate(workbook.updated_at)}
+                        </td>
+                        <td className="px-4 py-3 align-top text-right">
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </section>
   )
