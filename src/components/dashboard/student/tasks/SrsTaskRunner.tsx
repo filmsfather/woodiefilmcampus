@@ -135,7 +135,16 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     return true
   }, [task.assignment?.workbook.config])
 
-  const dueItems = useMemo(() => getAvailableItems(task.items), [task.items])
+  const dueItems = useMemo(() => {
+    return getAvailableItems(task.items).sort((a, b) => {
+      const aTime = a.nextReviewAt ? new Date(a.nextReviewAt).getTime() : Number.POSITIVE_INFINITY
+      const bTime = b.nextReviewAt ? new Date(b.nextReviewAt).getTime() : Number.POSITIVE_INFINITY
+      if (aTime === bTime) {
+        return a.workbookItem.position - b.workbookItem.position
+      }
+      return aTime - bTime
+    })
+  }, [task.items])
   const hasDueItems = dueItems.length > 0
   const displayItems = hasDueItems ? dueItems : []
   const nextScheduledItem = useMemo(() => getNextScheduledItem(task.items), [task.items])

@@ -47,7 +47,7 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
       {
         label: '입시자료 아카이브',
         href: '/dashboard/teacher/admission-materials',
-        description: '입시 대비 자료를 정리하고 공유할 예정입니다.',
+        description: '입시 대비 자료와 일정을 관리하고 학생과 공유하세요.',
         variant: 'outline',
       },
     ],
