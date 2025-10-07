@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { LearningJournalStudentSnapshot } from '@/types/learning-journal'
+import { DebugAlert } from '@/components/dashboard/teacher/learning-journal/DebugAlert'
 
 function toProgressLabel(submitted: number, total: number) {
   if (total === 0) {
@@ -68,6 +69,13 @@ export default async function TeacherLearningJournalPage({
     ? studentSnapshotsByPeriod.get(selectedPeriod.id) ?? []
     : []
   const selectedStats = selectedPeriod ? stats.get(selectedPeriod.id) ?? null : null
+  const debugMessages = selectedSnapshots
+    .filter((snapshot) => !snapshot.name)
+    .map((snapshot) => {
+      const base = `학생 ID: ${snapshot.studentId}`
+      const emailInfo = snapshot.email ? `, 이메일: ${snapshot.email}` : ''
+      return `${base} · 이름 정보 없음${emailInfo}`
+    })
 
   return (
     <section className="space-y-8">
@@ -222,9 +230,10 @@ export default async function TeacherLearningJournalPage({
                 </div>
               )}
             </div>
-          ) : null}
+         ) : null}
         </div>
       )}
+      {debugMessages.length > 0 ? <DebugAlert messages={debugMessages} /> : null}
     </section>
   )
 }
