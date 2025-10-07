@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Eye, EyeOff, RotateCcw } from 'lucide-react'
 
@@ -44,6 +44,27 @@ function getNextScheduledItem(items: StudentTaskItemDetail[]) {
     .filter((item) => item.nextReviewAt && new Date(item.nextReviewAt).getTime() > nowMs)
     .sort((a, b) => new Date(a.nextReviewAt ?? 0).getTime() - new Date(b.nextReviewAt ?? 0).getTime())
     .at(0)
+}
+
+function formatRemainingTimeMs(ms: number) {
+  if (ms <= 0) {
+    return '곧 시작됩니다'
+  }
+
+  const totalSeconds = Math.floor(ms / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분 ${seconds}초`
+  }
+
+  if (minutes > 0) {
+    return `${minutes}분 ${seconds}초`
+  }
+
+  return `${seconds}초`
 }
 
 function computeCorrectChoiceIds(item: StudentTaskItemDetail) {
@@ -116,7 +137,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
 
   const dueItems = useMemo(() => getAvailableItems(task.items), [task.items])
   const hasDueItems = dueItems.length > 0
-  const displayItems = hasDueItems ? dueItems : task.items
+  const displayItems = hasDueItems ? dueItems : []
   const nextScheduledItem = useMemo(() => getNextScheduledItem(task.items), [task.items])
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -133,6 +154,9 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showAnswer, setShowAnswer] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [hasSubmitted, setHasSubmitted] = useState(false)
+  const [remainingTimeLabel, setRemainingTimeLabel] = useState<string | null>(null)
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const shortFieldCount = currentItem?.workbookItem.shortFields.length ?? 0
 
@@ -142,7 +166,41 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     setResult(null)
     setErrorMessage(null)
     setShowAnswer(false)
+    setHasSubmitted(false)
+
+    if (autoAdvanceTimerRef.current) {
+      clearTimeout(autoAdvanceTimerRef.current)
+      autoAdvanceTimerRef.current = null
+    }
   }, [currentItem?.id, shortFieldCount])
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const targetIso = nextScheduledItem?.nextReviewAt ?? null
+
+    if (!hasDueItems && targetIso) {
+      const targetMs = new Date(targetIso).getTime()
+
+      const updateLabel = () => {
+        const now = DateUtil.nowUTC().getTime()
+        setRemainingTimeLabel(formatRemainingTimeMs(targetMs - now))
+      }
+
+      updateLabel()
+      const interval = setInterval(updateLabel, 1000)
+      return () => clearInterval(interval)
+    }
+
+    setRemainingTimeLabel(null)
+    return undefined
+  }, [hasDueItems, nextScheduledItem?.nextReviewAt])
 
   const answerType = currentItem?.workbookItem.answerType ?? 'multiple_choice'
 
@@ -152,13 +210,17 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     }
 
     if (answerType === 'multiple_choice') {
-      return selectedChoiceIds.length > 0
+      return selectedChoiceIds.length > 0 && !hasSubmitted
     }
 
-    return shortInputs.every((value) => value.trim().length > 0)
-  }, [currentItem, answerType, selectedChoiceIds, shortInputs])
+    return shortInputs.every((value) => value.trim().length > 0) && !hasSubmitted
+  }, [currentItem, answerType, selectedChoiceIds, shortInputs, hasSubmitted])
 
   const handleToggleChoice = (choiceId: string) => {
+    if (hasSubmitted) {
+      return
+    }
+
     setResult(null)
     setShowAnswer(false)
 
@@ -176,6 +238,10 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   }
 
   const handleShortInputChange = (value: string, index: number) => {
+    if (hasSubmitted) {
+      return
+    }
+
     setResult(null)
     setShowAnswer(false)
     setShortInputs((prev) => prev.map((input, idx) => (idx === index ? value : input)))
@@ -192,11 +258,12 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   }
 
   const handleSubmit = async () => {
-    if (!currentItem) {
+    if (!currentItem || hasSubmitted) {
       return
     }
 
     setErrorMessage(null)
+    setHasSubmitted(true)
 
     let isCorrect = false
 
@@ -212,15 +279,26 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
 
       if (!response.success) {
         setErrorMessage(response.error ?? '제출 중 오류가 발생했습니다.')
+        setHasSubmitted(false)
         return
       }
 
       setResult(isCorrect ? 'correct' : 'incorrect')
-      setShowAnswer(true)
+      if (!isCorrect) {
+        setShowAnswer(true)
+      }
       router.refresh()
+
+      if (isCorrect) {
+        autoAdvanceTimerRef.current = setTimeout(() => {
+          autoAdvanceTimerRef.current = null
+          moveToNextItem()
+        }, 1000)
+      }
     } catch (error) {
       console.error('[SrsTaskRunner] submit failed', error)
       setErrorMessage('제출 중 오류가 발생했습니다. 다시 시도해주세요.')
+      setHasSubmitted(false)
     } finally {
       setIsSubmitting(false)
     }
@@ -261,6 +339,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
             </strong>
           </p>
         )}
+        {remainingTimeLabel && <p>다음 문항까지: {remainingTimeLabel}</p>}
         <Button variant="outline" size="sm" onClick={() => router.refresh()} className="mt-2 w-full sm:w-auto">
           <RotateCcw className="mr-2 h-4 w-4" /> 새로고침
         </Button>
@@ -320,6 +399,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
                       key={choice.id}
                       type="button"
                       onClick={() => handleToggleChoice(choice.id)}
+                      disabled={hasSubmitted}
                       className={cn(
                         'flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition',
                         isSelected
@@ -349,7 +429,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
                       value={shortInputs[index] ?? ''}
                       onChange={(event) => handleShortInputChange(event.target.value, index)}
                       placeholder={`정답을 입력하세요 (${index + 1})`}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || hasSubmitted}
                     />
                   </div>
                 ))
@@ -373,16 +453,22 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
                 type="button"
                 variant="outline"
                 onClick={() => setShowAnswer((prev) => !prev)}
+                disabled={result === 'incorrect'}
                 className="flex items-center gap-1"
               >
                 {showAnswer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 정답 보기
               </Button>
-          {displayItems.length > 1 && (
-            <Button type="button" variant="ghost" onClick={moveToNextItem}>
-              다음 문항
-            </Button>
-          )}
+              {displayItems.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={moveToNextItem}
+                  disabled={!hasSubmitted || isSubmitting}
+                >
+                  다음 문항
+                </Button>
+              )}
             </div>
             {result && (
               <div
@@ -420,9 +506,9 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
               ))}
             </ul>
           )}
-          {currentItem.workbookItem.explanation && (
-            <p className="pt-2 text-slate-600">{currentItem.workbookItem.explanation}</p>
-          )}
+              {currentItem.workbookItem.explanation && (
+                <p className="pt-2 text-slate-600">{currentItem.workbookItem.explanation}</p>
+              )}
         </div>
       )}
     </div>
