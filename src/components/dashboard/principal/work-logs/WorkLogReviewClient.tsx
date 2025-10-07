@@ -99,7 +99,9 @@ function getSubstituteSummary(
   if (entry.substituteType === 'external') {
     const name = entry.externalTeacherName ?? '외부 선생님'
     const phone = entry.externalTeacherPhone ? ` (${entry.externalTeacherPhone})` : ''
-    return `외부 선생님 · ${name}${phone}`
+    const hoursLabel =
+      typeof entry.externalTeacherHours === 'number' ? ` · ${formatHours(entry.externalTeacherHours ?? 0)}` : ''
+    return `외부 선생님 · ${name}${phone}${hoursLabel}`
   }
   return '대타 정보 미입력'
 }
@@ -321,6 +323,28 @@ export function WorkLogReviewClient({
                           <TableCell colSpan={7} className="bg-slate-50">
                             <div className="grid gap-4 p-4 text-sm text-slate-600 md:grid-cols-2">
                               <div className="space-y-2">
+                                {entry.status === 'substitute' ? (
+                                  <div className="rounded-md border border-slate-200 bg-white p-3 text-xs">
+                                    <p className="font-semibold text-slate-800">대타 정보</p>
+                                    <p className="text-slate-600">
+                                      유형: {entry.substituteType === 'internal' ? '학원 선생님' : '외부 선생님'}
+                                    </p>
+                                    {entry.substituteType === 'internal' ? (
+                                      <p className="text-slate-600">
+                                        담당: {teacherDirectory[entry.substituteTeacherId ?? '']?.name ?? teacherDirectory[entry.substituteTeacherId ?? '']?.email ?? '선택됨'}
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        <p className="text-slate-600">성함: {entry.externalTeacherName ?? '-'}</p>
+                                        <p className="text-slate-600">연락처: {entry.externalTeacherPhone ?? '-'}</p>
+                                        <p className="text-slate-600">은행/계좌: {entry.externalTeacherBank ?? '-'} / {entry.externalTeacherAccount ?? '-'}</p>
+                                        <p className="text-slate-600">
+                                          근무 시간: {typeof entry.externalTeacherHours === 'number' ? formatHours(entry.externalTeacherHours) : '-'}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : null}
                                 <p className="font-semibold text-slate-800">근무 메모</p>
                                 <p className="rounded-md border border-slate-200 bg-white p-3 min-h-[60px]">
                                   {entry.notes?.length ? entry.notes : '메모가 없습니다.'}

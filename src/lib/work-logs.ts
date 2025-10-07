@@ -14,6 +14,7 @@ export interface WorkLogEntry {
   externalTeacherPhone: string | null
   externalTeacherBank: string | null
   externalTeacherAccount: string | null
+  externalTeacherHours: number | null
   notes: string | null
   reviewStatus: WorkLogReviewStatus
   reviewNote: string | null
@@ -39,6 +40,7 @@ export interface WorkLogEntryRow {
   external_teacher_phone: string | null
   external_teacher_bank: string | null
   external_teacher_account: string | null
+  external_teacher_hours: number | null
   notes: string | null
   review_status: WorkLogReviewStatus
   review_note: string | null
@@ -60,6 +62,7 @@ export const WORK_LOG_ENTRY_SELECT_FIELDS = `
   external_teacher_phone,
   external_teacher_bank,
   external_teacher_account,
+  external_teacher_hours,
   notes,
   review_status,
   review_note,
@@ -121,6 +124,7 @@ export function mapWorkLogRow(row: WorkLogEntryRow): WorkLogEntry {
     externalTeacherPhone: row.external_teacher_phone,
     externalTeacherBank: row.external_teacher_bank,
     externalTeacherAccount: row.external_teacher_account,
+    externalTeacherHours: row.external_teacher_hours,
     notes: row.notes,
     reviewStatus: row.review_status,
     reviewNote: row.review_note,

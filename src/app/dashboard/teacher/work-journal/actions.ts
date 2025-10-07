@@ -103,6 +103,23 @@ const formSchema = z
         }
         return value.trim()
       }),
+    externalTeacherHours: z
+      .string()
+      .optional()
+      .transform((value) => {
+        if (!value) {
+          return null
+        }
+        const trimmed = value.trim()
+        if (!trimmed) {
+          return null
+        }
+        const parsed = Number(trimmed)
+        if (Number.isNaN(parsed)) {
+          return Number.NaN
+        }
+        return Math.round(parsed * 100) / 100
+      }),
     notes: z
       .string()
       .optional()
@@ -196,6 +213,19 @@ const formSchema = z
             message: '계좌번호를 입력해주세요.',
           })
         }
+        if (value.externalTeacherHours === null || Number.isNaN(value.externalTeacherHours)) {
+          ctx.addIssue({
+            path: ['externalTeacherHours'],
+            code: z.ZodIssueCode.custom,
+            message: '외부 선생님 근무 시간을 숫자로 입력해주세요.',
+          })
+        } else if (value.externalTeacherHours < 0 || value.externalTeacherHours > 24) {
+          ctx.addIssue({
+            path: ['externalTeacherHours'],
+            code: z.ZodIssueCode.custom,
+            message: '외부 선생님 근무 시간은 0 이상 24 이하로 입력해주세요.',
+          })
+        }
       }
     } else if (value.substituteType) {
       ctx.addIssue({
@@ -270,11 +300,13 @@ export async function saveWorkLogEntry(formData: FormData): Promise<ActionResult
     return { error: '승인 완료된 근무일지는 수정할 수 없습니다.' }
   }
 
+  const shouldStoreWorkHours = input.status === 'work' || input.status === 'tardy'
+
   const payload = {
     teacher_id: profile.id,
     work_date: input.workDate,
     status: input.status,
-    work_hours: input.workHours ?? null,
+    work_hours: shouldStoreWorkHours ? input.workHours ?? null : null,
     substitute_type: input.status === 'substitute' ? input.substituteType : null,
     substitute_teacher_id:
       input.status === 'substitute' && input.substituteType === 'internal' ? input.substituteTeacherId : null,
@@ -286,6 +318,8 @@ export async function saveWorkLogEntry(formData: FormData): Promise<ActionResult
       input.status === 'substitute' && input.substituteType === 'external' ? input.externalTeacherBank : null,
     external_teacher_account:
       input.status === 'substitute' && input.substituteType === 'external' ? input.externalTeacherAccount : null,
+    external_teacher_hours:
+      input.status === 'substitute' && input.substituteType === 'external' ? input.externalTeacherHours ?? null : null,
     notes: input.notes ?? null,
     review_status: 'pending' as const,
     review_note: null,

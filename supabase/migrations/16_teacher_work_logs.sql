@@ -46,6 +46,7 @@ create table if not exists public.work_log_entries (
   external_teacher_phone text,
   external_teacher_bank text,
   external_teacher_account text,
+  external_teacher_hours numeric(5, 2),
   notes text,
   review_status public.work_log_review_status not null default 'pending',
   review_note text,
@@ -74,6 +75,7 @@ create table if not exists public.work_log_entries (
         and external_teacher_phone is null
         and external_teacher_bank is null
         and external_teacher_account is null
+        and external_teacher_hours is null
       )
     ),
   constraint work_log_entries_external_substitute_check
@@ -85,7 +87,13 @@ create table if not exists public.work_log_entries (
         and external_teacher_phone is not null
         and external_teacher_bank is not null
         and external_teacher_account is not null
+        and external_teacher_hours is not null
       )
+    ),
+  constraint work_log_entries_external_hours_check
+    check (
+      external_teacher_hours is null
+      or (external_teacher_hours >= 0 and external_teacher_hours <= 24)
     )
 );
 

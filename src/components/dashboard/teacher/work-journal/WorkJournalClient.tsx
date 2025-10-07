@@ -48,6 +48,7 @@ type FormValues = {
   externalTeacherPhone: string
   externalTeacherBank: string
   externalTeacherAccount: string
+  externalTeacherHours: string
   notes: string
 }
 
@@ -162,7 +163,17 @@ function formatWeekLabel(start: Date, end: Date): string {
   return `${formatter.format(start)} ~ ${formatter.format(end)}`
 }
 
-function summarizeWeeks(entries: EntryMap, days: CalendarDay[]): WeekSummary[] {
+function clampDate(value: Date, min: Date, max: Date): Date {
+  if (value.getTime() < min.getTime()) {
+    return new Date(min.getTime())
+  }
+  if (value.getTime() > max.getTime()) {
+    return new Date(max.getTime())
+  }
+  return value
+}
+
+function summarizeWeeks(entries: EntryMap, days: CalendarDay[], monthStart: Date, monthEnd: Date): WeekSummary[] {
   const result = new Map<string, WeekSummary>()
   for (const day of days) {
     if (!day.isCurrentMonth) {
@@ -175,7 +186,9 @@ function summarizeWeeks(entries: EntryMap, days: CalendarDay[]): WeekSummary[] {
     const start = weekStart(day.date)
     const end = new Date(start)
     end.setDate(start.getDate() + 6)
-    const key = `${toDateToken(start)}:${toDateToken(end)}`
+    const key = toDateToken(start)
+    const clampedStart = clampDate(start, monthStart, monthEnd)
+    const clampedEnd = clampDate(end, monthStart, monthEnd)
     const existing = result.get(key)
     const hours = Number(entry.workHours)
     if (existing) {
@@ -183,8 +196,8 @@ function summarizeWeeks(entries: EntryMap, days: CalendarDay[]): WeekSummary[] {
     } else {
       result.set(key, {
         key,
-        start,
-        end,
+        start: clampedStart,
+        end: clampedEnd,
         totalHours: hours,
       })
     }
@@ -216,7 +229,24 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
   const activeEntry = entryMap[selectedDate] ?? null
   const isLocked = activeEntry?.reviewStatus === 'approved'
 
-  const weeklySummaries = useMemo(() => summarizeWeeks(entryMap, days), [entryMap, days])
+  const monthBounds = useMemo(() => {
+    const [yearToken, monthTokenPart] = monthStartDate.split('-')
+    const year = Number.parseInt(yearToken, 10)
+    const monthIndex = Number.parseInt(monthTokenPart, 10) - 1
+    const start = new Date(year, monthIndex, 1)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(year, monthIndex + 1, 0)
+    end.setHours(23, 59, 59, 999)
+    return { start, end }
+  }, [monthStartDate])
+
+  const monthStartBound = monthBounds.start
+  const monthEndBound = monthBounds.end
+
+  const weeklySummaries = useMemo(
+    () => summarizeWeeks(entryMap, days, monthStartBound, monthEndBound),
+    [entryMap, days, monthStartBound, monthEndBound]
+  )
   const monthlyTotal = useMemo(() => getMonthlyTotal(entryMap), [entryMap])
 
   const form = useForm<FormValues>({
@@ -229,6 +259,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
       externalTeacherPhone: activeEntry?.externalTeacherPhone ?? '',
       externalTeacherBank: activeEntry?.externalTeacherBank ?? '',
       externalTeacherAccount: activeEntry?.externalTeacherAccount ?? '',
+      externalTeacherHours: activeEntry?.externalTeacherHours ? String(activeEntry.externalTeacherHours) : '',
       notes: activeEntry?.notes ?? '',
     },
   })
@@ -251,6 +282,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
       externalTeacherPhone: nextEntry?.externalTeacherPhone ?? '',
       externalTeacherBank: nextEntry?.externalTeacherBank ?? '',
       externalTeacherAccount: nextEntry?.externalTeacherAccount ?? '',
+      externalTeacherHours: nextEntry?.externalTeacherHours ? String(nextEntry.externalTeacherHours) : '',
       notes: nextEntry?.notes ?? '',
     })
     setFeedback(null)
@@ -276,6 +308,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
       externalTeacherPhone: entry?.externalTeacherPhone ?? '',
       externalTeacherBank: entry?.externalTeacherBank ?? '',
       externalTeacherAccount: entry?.externalTeacherAccount ?? '',
+      externalTeacherHours: entry?.externalTeacherHours ? String(entry.externalTeacherHours) : '',
       notes: entry?.notes ?? '',
     })
     setFeedback(null)
@@ -311,6 +344,9 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
     if (values.externalTeacherAccount) {
       formData.append('externalTeacherAccount', values.externalTeacherAccount)
     }
+    if (values.externalTeacherHours) {
+      formData.append('externalTeacherHours', values.externalTeacherHours)
+    }
     if (values.notes) {
       formData.append('notes', values.notes)
     }
@@ -335,6 +371,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
         externalTeacherPhone: updatedEntry.externalTeacherPhone ?? '',
         externalTeacherBank: updatedEntry.externalTeacherBank ?? '',
         externalTeacherAccount: updatedEntry.externalTeacherAccount ?? '',
+        externalTeacherHours: updatedEntry.externalTeacherHours ? String(updatedEntry.externalTeacherHours) : '',
         notes: updatedEntry.notes ?? '',
       })
       setFeedback({ type: 'success', message: '근무일지가 저장되었습니다. 원장 승인 대기 상태로 전환됩니다.' })
@@ -364,6 +401,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
         externalTeacherPhone: '',
         externalTeacherBank: '',
         externalTeacherAccount: '',
+        externalTeacherHours: '',
         notes: '',
       })
       setFeedback({ type: 'success', message: '근무일지가 삭제되었습니다.' })
@@ -433,7 +471,11 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
                             대타 ·{' '}
                             {entry.substituteType === 'internal'
                               ? '학원 선생님'
-                              : '외부 선생님'}
+                              : `외부 선생님${
+                                  entry.externalTeacherHours
+                                    ? ` · ${formatHours(entry.externalTeacherHours)}시간`
+                                    : ''
+                                }`}
                           </span>
                         ) : null}
                         {reviewChip ? (
@@ -652,6 +694,28 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
                               <FormControl>
                                 <Input disabled={isLocked || isPending} placeholder="계좌번호" {...field} />
                               </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="externalTeacherHours"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>외부 선생님 근무 시간</FormLabel>
+                              <FormControl>
+                                <Input
+                                  disabled={isLocked || isPending}
+                                  type="number"
+                                  min="0"
+                                  max="24"
+                                  step="0.5"
+                                  placeholder="예: 3 또는 3.5"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormDescription>외부 선생님 지급 기준 시간이며, 본인 근무 시간 합계에는 포함되지 않습니다.</FormDescription>
                               <FormMessage />
                             </FormItem>
                           )}
