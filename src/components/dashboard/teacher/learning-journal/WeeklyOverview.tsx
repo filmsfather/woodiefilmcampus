@@ -1,11 +1,22 @@
 import { Badge } from '@/components/ui/badge'
-import type { LearningJournalWeeklyData } from '@/types/learning-journal'
+import type { LearningJournalWeeklyData, LearningJournalSubject } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS } from '@/types/learning-journal'
 
 const SUBJECT_LABELS: Record<(typeof LEARNING_JOURNAL_SUBJECTS)[number], string> = {
   directing: '연출론',
   screenwriting: '작법론',
   film_research: '영화연구',
+}
+
+const DISPLAY_SUBJECTS: LearningJournalSubject[] = LEARNING_JOURNAL_SUBJECTS.filter(
+  (subject) => subject !== 'film_research'
+)
+
+const STATUS_LABEL: Record<string, string> = {
+  completed: '완료',
+  in_progress: '진행 중',
+  not_started: '미시작',
+  pending: '대기',
 }
 
 interface WeeklyOverviewProps {
@@ -24,8 +35,8 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
             </p>
           </header>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            {LEARNING_JOURNAL_SUBJECTS.map((subject) => {
+          <div className="grid gap-4 md:grid-cols-2">
+            {DISPLAY_SUBJECTS.map((subject) => {
               const data = week.subjects[subject]
 
               return (
@@ -33,30 +44,29 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
                   <h4 className="text-sm font-semibold text-slate-900">{SUBJECT_LABELS[subject]}</h4>
 
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-slate-500">수업 자료</p>
+                    <p className="text-xs font-medium text-slate-500">수업 내용</p>
                     {data.materials.length === 0 ? (
                       <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
-                        등록된 수업 자료가 없습니다.
+                        등록된 수업 내용이 없습니다.
                       </div>
                     ) : (
-                      <ul className="space-y-2">
+                      <ul className="space-y-1 text-xs text-slate-600">
                         {data.materials.map((item, index) => (
-                          <li key={`${subject}-material-${index}`} className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-2 text-xs text-slate-600">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-slate-800">{item.title}</span>
-                              <Badge variant="outline" className="text-[10px]">
-                                {item.sourceType === 'class_material' ? '아카이브' : '직접 입력'}
-                              </Badge>
-                            </div>
-                            {item.note ? <p className="text-[11px] text-slate-500">{item.note}</p> : null}
+                          <li key={`${subject}-material-${index}`} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                            <span className="font-medium text-slate-800">{item.title}</span>
                           </li>
                         ))}
                       </ul>
                     )}
+                    {data.summaryNote ? (
+                      <p className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">
+                        {data.summaryNote}
+                      </p>
+                    ) : null}
                   </div>
 
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-slate-500">과제 현황</p>
+                    <p className="text-xs font-medium text-slate-500">과제</p>
                     {data.assignments.length === 0 ? (
                       <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
                         등록된 과제가 없습니다.
@@ -65,24 +75,12 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
                       <ul className="space-y-2">
                         {data.assignments.map((assignment) => (
                           <li key={assignment.id} className="space-y-1 rounded-md border border-slate-200 bg-white p-2 text-xs">
-                            <div className="flex items-center justify-between">
+                            <div className="flex items-center justify-between gap-2">
                               <span className="font-medium text-slate-800">{assignment.title}</span>
                               <Badge variant={assignment.status === 'completed' ? 'default' : 'outline'} className="text-[10px]">
-                                {assignment.status === 'completed'
-                                  ? '완료'
-                                  : assignment.status === 'in_progress'
-                                    ? '진행 중'
-                                    : assignment.status === 'not_started'
-                                      ? '미시작'
-                                      : '대기'}
+                                {STATUS_LABEL[assignment.status] ?? assignment.status}
                               </Badge>
                             </div>
-                            <div className="flex flex-wrap gap-2 text-[10px] text-slate-500">
-                              {assignment.dueDate ? <span>마감: {assignment.dueDate}</span> : null}
-                              {assignment.submittedAt ? <span>제출: {assignment.submittedAt}</span> : null}
-                              {assignment.score !== null ? <span>점수: {assignment.score}</span> : null}
-                            </div>
-                            {assignment.note ? <p className="text-[11px] text-slate-500">{assignment.note}</p> : null}
                           </li>
                         ))}
                       </ul>
