@@ -14,6 +14,8 @@ interface MaterialOption {
   title: string
   description: string | null
   subject: string
+  display: string
+  weekLabel: string | null
 }
 
 interface SelectedMaterial {
@@ -61,7 +63,7 @@ export function ClassTemplateMaterialDialog({
     }
     const tokens = query.trim().toLowerCase().split(/\s+/)
     return options.filter((option) => {
-      const haystack = `${option.title} ${option.description ?? ''}`.toLowerCase()
+      const haystack = `${option.display} ${option.description ?? ''} ${option.weekLabel ?? ''}`.toLowerCase()
       return tokens.every((token) => haystack.includes(token))
     })
   }, [options, query])
@@ -74,7 +76,7 @@ export function ClassTemplateMaterialDialog({
       } else {
         next.add(material.id)
         if (!editedTitles.has(material.id)) {
-          setEditedTitles((titles) => new Map(titles).set(material.id, material.title))
+          setEditedTitles((titles) => new Map(titles).set(material.id, material.display))
         }
       }
       return next
@@ -130,8 +132,11 @@ export function ClassTemplateMaterialDialog({
                     )}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-medium">{option.title}</span>
-                      {isSelected ? <Badge variant="default">선택됨</Badge> : null}
+                      <span className="font-medium">{option.display}</span>
+                      <div className="flex items-center gap-2">
+                        {option.weekLabel ? <Badge variant="outline">{option.weekLabel}</Badge> : null}
+                        {isSelected ? <Badge variant="default">선택됨</Badge> : null}
+                      </div>
                     </div>
                     {option.description ? (
                       <p className="mt-1 text-xs text-slate-500 line-clamp-2">{option.description}</p>

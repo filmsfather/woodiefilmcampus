@@ -16,6 +16,8 @@ interface MaterialOption {
   title: string
   description: string | null
   subject: LearningJournalSubject
+  display: string
+  weekLabel: string | null
 }
 
 interface ClassTemplateEditorClientProps {

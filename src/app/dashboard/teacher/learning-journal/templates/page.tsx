@@ -47,7 +47,7 @@ export default async function LearningJournalTemplatePage({
   const supabase = createServerSupabase()
   const { data: materialRows, error: materialError } = await supabase
     .from('class_material_posts')
-    .select('id, subject, title, description')
+    .select('id, subject, title, description, week_label')
     .in('subject', LEARNING_JOURNAL_SUBJECTS)
     .order('created_at', { ascending: false })
     .limit(120)
@@ -56,11 +56,24 @@ export default async function LearningJournalTemplatePage({
     console.error('[learning-journal] template material fetch error', materialError)
   }
 
-  const materials: Record<LearningJournalSubject, Array<{ id: string; title: string; description: string | null; subject: LearningJournalSubject }>> =
-    LEARNING_JOURNAL_SUBJECTS.reduce((acc, subject) => {
-      acc[subject] = []
-      return acc
-    }, {} as Record<LearningJournalSubject, Array<{ id: string; title: string; description: string | null; subject: LearningJournalSubject }>>)
+  const materials: Record<LearningJournalSubject, Array<{
+    id: string
+    title: string
+    description: string | null
+    subject: LearningJournalSubject
+    display: string
+    weekLabel: string | null
+  }>> = LEARNING_JOURNAL_SUBJECTS.reduce((acc, subject) => {
+    acc[subject] = []
+    return acc
+  }, {} as Record<LearningJournalSubject, Array<{
+    id: string
+    title: string
+    description: string | null
+    subject: LearningJournalSubject
+    display: string
+    weekLabel: string | null
+  }>>)
 
   for (const row of materialRows ?? []) {
     const subject = row.subject as LearningJournalSubject
@@ -68,11 +81,18 @@ export default async function LearningJournalTemplatePage({
       continue
     }
 
+    const display = row.description && row.description.trim().length > 0
+      ? `${row.title} - ${row.description}`
+      : row.title
+    const weekLabel = row.week_label ? String(row.week_label) : null
+
     materials[subject].push({
       id: row.id,
       title: row.title,
       description: row.description ?? null,
       subject,
+      display,
+      weekLabel,
     })
   }
 
