@@ -91,7 +91,7 @@ export default async function EditAdmissionMaterialPage({
         }}
         submitLabel="변경 사항 저장"
         onSubmit={updateAdmissionMaterialPost}
-        onDelete={() => deleteAdmissionMaterialPost(params.postId)}
+        onDelete={deleteAdmissionMaterialPost.bind(null, params.postId)}
       />
     </section>
   )
