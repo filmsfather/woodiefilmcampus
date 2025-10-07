@@ -233,15 +233,33 @@ function pickProfile(row: ClassStudentRow['profiles']): {
   return row
 }
 
+function resolveEntryStudent(
+  relation: LearningJournalEntryRow['student']
+): { id: string; name: string | null; email: string | null } | null {
+  if (!relation) {
+    return null
+  }
+
+  if (Array.isArray(relation)) {
+    return relation[0] ?? null
+  }
+
+  return relation
+}
+
 function toStudentSnapshot(
   profile: { id: string; name: string | null; email: string | null },
   entry: LearningJournalEntryRow | null
 ): LearningJournalStudentSnapshot {
+  const entryStudent = entry ? resolveEntryStudent(entry.student) : null
+  const name = profile.name ?? entryStudent?.name ?? entryStudent?.email ?? null
+  const email = profile.email ?? entryStudent?.email ?? null
+
   return {
     entryId: entry?.id ?? null,
     studentId: profile.id,
-    name: profile.name,
-    email: profile.email,
+    name,
+    email,
     completionRate: entry?.completion_rate ?? null,
     status: entry?.status ?? 'draft',
     submittedAt: entry?.submitted_at ?? null,
@@ -454,9 +472,17 @@ export async function fetchTeacherLearningJournalOverview(teacherId: string) {
   const snapshotsByPeriod = new Map<string, LearningJournalStudentSnapshot[]>()
 
   for (const period of periods) {
-    const classStudents = studentsByClass.get(period.classId) ?? []
+    let classStudents = studentsByClass.get(period.classId) ?? []
     const entries = entriesByPeriod.get(period.id) ?? []
     const entryMap = new Map(entries.map((entry) => [entry.student_id, entry] as const))
+
+    if (classStudents.length === 0 && entries.length > 0) {
+      classStudents = entries.map((entry) => ({
+        class_id: period.classId,
+        student_id: entry.student_id,
+        profiles: entry.student ?? null,
+      }))
+    }
 
     const snapshots: LearningJournalStudentSnapshot[] = classStudents.map((studentRow) => {
       const profile = pickProfile(studentRow.profiles) ?? {
