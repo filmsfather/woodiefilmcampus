@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import type { LearningJournalWeeklyData, LearningJournalSubject } from '@/types/learning-journal'
+import type { LearningJournalWeeklyData } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS } from '@/types/learning-journal'
 
 const SUBJECT_LABELS: Record<(typeof LEARNING_JOURNAL_SUBJECTS)[number], string> = {
@@ -7,10 +7,6 @@ const SUBJECT_LABELS: Record<(typeof LEARNING_JOURNAL_SUBJECTS)[number], string>
   screenwriting: '작법론',
   film_research: '영화연구',
 }
-
-const DISPLAY_SUBJECTS: LearningJournalSubject[] = LEARNING_JOURNAL_SUBJECTS.filter(
-  (subject) => subject !== 'film_research'
-)
 
 const STATUS_LABEL: Record<string, string> = {
   completed: '완료',
@@ -36,7 +32,7 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
           </header>
 
           <div className="grid gap-4 md:grid-cols-2">
-            {DISPLAY_SUBJECTS.map((subject) => {
+            {LEARNING_JOURNAL_SUBJECTS.map((subject) => {
               const data = week.subjects[subject]
 
               return (
