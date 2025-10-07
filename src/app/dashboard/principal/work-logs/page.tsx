@@ -108,7 +108,7 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
         <h1 className="text-3xl font-semibold text-slate-900">근무일지 승인</h1>
         <p className="text-sm text-slate-600">선생님이 제출한 근무일지를 검토하고 승인 상태를 관리하세요.</p>
       </header>
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+      <div className="space-y-6">
         <WorkLogReviewClient
           entries={entries}
           monthToken={monthToken}

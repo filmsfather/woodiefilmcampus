@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -253,14 +253,13 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
   }
 
   return (
-    <Card className="border-slate-200">
-      <CardHeader>
-        <CardTitle className="text-lg text-slate-900">교사 근무 달력</CardTitle>
-        <CardDescription>교사를 선택하면 해당 월의 근무일지를 달력으로 확인할 수 있습니다.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <span className="block text-xs font-medium text-slate-500">교사 선택</span>
+    <div className="space-y-6">
+      <Card className="border-slate-200">
+        <CardHeader>
+          <CardTitle className="text-lg text-slate-900">교사 선택</CardTitle>
+          <CardDescription>달력을 확인할 선생님을 선택하세요.</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -288,10 +287,17 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
               )
             })}
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-          <span>{monthLabel}</span>
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-lg text-slate-900">
+              {selectedTeacher ? `${selectedTeacher.name ?? selectedTeacher.email ?? '교사'} 근무 달력` : '근무 달력'}
+            </CardTitle>
+            <CardDescription>{monthLabel}</CardDescription>
+          </div>
           <div className="flex gap-2">
             <Button type="button" size="sm" variant="outline" onClick={() => shiftMonth(-1)} disabled={isPending}>
               이전 달
@@ -300,22 +306,21 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
               다음 달
             </Button>
           </div>
-        </div>
-
-        {!selectedTeacher ? (
-          <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-            달력을 보려면 상단에서 교사를 선택하세요.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-md border border-slate-200 bg-white p-4">
-              <div className="text-sm text-slate-600">
-                {selectedTeacher.name ?? selectedTeacher.email ?? '이름 미기재'} 선생님 근무 기록
-              </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {!selectedTeacher ? (
+            <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
+              상단에서 교사를 선택하면 달력이 표시됩니다.
             </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="rounded-md border border-slate-200 bg-white p-4">
+                <div className="text-sm text-slate-600">
+                  {selectedTeacher.name ?? selectedTeacher.email ?? '이름 미기재'} 선생님 근무 요약
+                </div>
+              </div>
 
-            <div className="grid gap-4 xl:grid-cols-[2fr_3fr]">
-              <div className="space-y-4">
+              <div className="rounded-md border border-slate-200 bg-white p-2">
                 <div className="grid grid-cols-7 gap-px rounded-md border border-slate-200 bg-slate-200 text-xs">
                   {['일', '월', '화', '수', '목', '금', '토'].map((label) => (
                     <div key={label} className="bg-slate-100 py-2 text-center font-medium text-slate-600">
@@ -379,156 +384,123 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
               </div>
 
               <div className="space-y-4">
-                <Card className="border-slate-200">
-                  <CardHeader>
-                    <CardTitle className="text-base text-slate-900">{selectedDate} 근무 상세</CardTitle>
-                    <CardDescription>
-                      {selectedEntry
-                        ? `${WORK_LOG_STATUS_OPTIONS.find((option) => option.value === selectedEntry.status)?.description ?? ''}`
-                        : '선택한 날짜의 근무 기록이 없습니다.'}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-slate-600">
-                    {!selectedEntry ? (
-                      <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-                        기록이 없어요.
+                <div className="rounded-md border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 font-medium text-slate-700">
+                        상태: {selectedEntry ? WORK_LOG_REVIEW_STATUS_LABEL[selectedEntry.reviewStatus] : '기록 없음'}
+                      </span>
+                      {selectedEntry && requiresWorkHours(selectedEntry.status) && selectedEntry.workHours ? (
+                        <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">
+                          근무 시간: {formatHours(selectedEntry.workHours)}시간
+                        </span>
+                      ) : null}
+                      {selectedEntry && selectedEntry.status === 'substitute' && selectedEntry.substituteType === 'external' && selectedEntry.externalTeacherHours ? (
+                        <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">
+                          외부 대타 시간: {formatHours(selectedEntry.externalTeacherHours)}시간
+                        </span>
+                      ) : null}
+                    </div>
+                    {selectedEntry ? (
+                      <div className="space-y-2 text-xs">
+                        {selectedEntry.status === 'substitute' ? (
+                          <Fragment>
+                            <span className="font-semibold text-slate-700">대타 정보</span>
+                            {selectedEntry.substituteType === 'internal' ? (
+                              <span className="text-slate-600">
+                                학원 선생님: {teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.name ?? teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.email ?? '선택됨'}
+                              </span>
+                            ) : (
+                              <div className="space-y-1 text-slate-600">
+                                <span>성함: {selectedEntry.externalTeacherName ?? '-'}</span>
+                                <span>연락처: {selectedEntry.externalTeacherPhone ?? '-'}</span>
+                                <span>은행/계좌: {selectedEntry.externalTeacherBank ?? '-'} / {selectedEntry.externalTeacherAccount ?? '-'}</span>
+                              </div>
+                            )}
+                          </Fragment>
+                        ) : null}
+                        <div>
+                          <span className="font-semibold text-slate-700">근무 메모</span>
+                          <p className="mt-1 rounded-md border border-slate-200 bg-white p-3 min-h-[48px]">{selectedEntry.notes?.length ? selectedEntry.notes : '메모가 없습니다.'}</p>
+                        </div>
+                        {selectedEntry.reviewNote ? (
+                          <div>
+                            <span className="font-semibold text-slate-700">원장 메모</span>
+                            <p className="mt-1 rounded-md border border-slate-200 bg-white p-3 min-h-[48px]">{selectedEntry.reviewNote}</p>
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 font-medium text-slate-700">
-                            상태: {WORK_LOG_REVIEW_STATUS_LABEL[selectedEntry.reviewStatus]}
-                          </span>
-                          {requiresWorkHours(selectedEntry.status) && selectedEntry.workHours ? (
-                            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">
-                              근무 시간: {formatHours(selectedEntry.workHours)}시간
-                            </span>
-                          ) : null}
-                          {selectedEntry.status === 'substitute' && selectedEntry.substituteType === 'external' && selectedEntry.externalTeacherHours ? (
-                            <span className="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-slate-600">
-                              외부 대타 시간: {formatHours(selectedEntry.externalTeacherHours)}시간
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="grid gap-2 text-xs">
-                          {selectedEntry.status === 'substitute' ? (
-                            <Fragment>
-                              <span className="font-semibold text-slate-700">대타 정보</span>
-                              {selectedEntry.substituteType === 'internal' ? (
-                                <span className="text-slate-600">
-                                  학원 선생님: {teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.name ?? teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.email ?? '선택됨'}
-                                </span>
-                              ) : (
-                                <div className="space-y-1 text-slate-600">
-                                  <span>성함: {selectedEntry.externalTeacherName ?? '-'}</span>
-                                  <span>연락처: {selectedEntry.externalTeacherPhone ?? '-'}</span>
-                                  <span>은행/계좌: {selectedEntry.externalTeacherBank ?? '-'} / {selectedEntry.externalTeacherAccount ?? '-'}</span>
-                                </div>
-                              )}
-                            </Fragment>
-                          ) : null}
-                          <div>
-                            <span className="font-semibold text-slate-700">근무 메모</span>
-                            <p className="mt-1 rounded-md border border-slate-200 bg-white p-3 min-h-[48px]">
-                              {selectedEntry.notes?.length ? selectedEntry.notes : '메모가 없습니다.'}
-                            </p>
-                          </div>
-                          {selectedEntry.reviewNote ? (
-                            <div>
-                              <span className="font-semibold text-slate-700">원장 메모</span>
-                              <p className="mt-1 rounded-md border border-slate-200 bg-white p-3 min-h-[48px]">
-                                {selectedEntry.reviewNote}
-                              </p>
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
+                      <p className="text-xs text-slate-500">선택한 날짜의 근무 기록이 없습니다.</p>
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                <Card className="border-slate-200">
-                  <CardHeader>
-                    <CardTitle className="text-base text-slate-900">주차별 근무 시간</CardTitle>
-                    <CardDescription>근무/지각 기록만 합산됩니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
+                <div className="rounded-md border border-slate-200 bg-white p-4">
+                  <div className="flex flex-col gap-2 text-sm">
+                    <span className="font-semibold text-slate-700">주차별 근무 시간</span>
                     {weeklySummaries.length === 0 ? (
                       <p className="text-slate-500">이번 달 근무 시간이 없습니다.</p>
                     ) : (
                       weeklySummaries.map((week) => (
-                        <div key={week.key} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2">
+                        <div key={week.key} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs">
                           <span className="text-slate-600">{`${week.start.getMonth() + 1}/${week.start.getDate()} ~ ${week.end.getMonth() + 1}/${week.end.getDate()}`}</span>
                           <span className="font-semibold text-slate-900">{formatHours(week.totalHours)}시간</span>
                         </div>
                       ))
                     )}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                <Card className="border-slate-200">
-                  <CardHeader>
-                    <CardTitle className="text-base text-slate-900">월간 근무 시간</CardTitle>
-                    <CardDescription>근무/지각 기록의 총합입니다.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                      <p className="text-sm text-slate-500">총 근무 시간</p>
-                      <p className="text-2xl font-semibold text-slate-900">{formatHours(monthlyTotal)}시간</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="rounded-md border border-slate-200 bg-white p-4">
+                  <span className="text-sm text-slate-500">월간 근무 시간</span>
+                  <p className="text-2xl font-semibold text-slate-900">{formatHours(monthlyTotal)}시간</p>
+                </div>
+
+                <div className="rounded-md border border-slate-200 bg-white">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="w-32">근무일</TableHead>
+                        <TableHead className="w-28">유형</TableHead>
+                        <TableHead className="w-24">근무 시간</TableHead>
+                        <TableHead className="w-32">승인 상태</TableHead>
+                        <TableHead>메모</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {teacherEntries.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={5} className="py-6 text-center text-sm text-slate-500">
+                            기록이 없습니다.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        teacherEntries.map((entry) => {
+                          const statusMeta = getStatusMeta(entry.status)
+                          return (
+                            <TableRow key={entry.id} className={cn(selectedDate === entry.workDate && 'bg-slate-50')}>
+                              <TableCell>{entry.workDate}</TableCell>
+                              <TableCell>{statusMeta?.label ?? entry.status}</TableCell>
+                              <TableCell>
+                                {requiresWorkHours(entry.status) && entry.workHours
+                                  ? `${formatHours(entry.workHours)}시간`
+                                  : '-'}
+                              </TableCell>
+                              <TableCell>{WORK_LOG_REVIEW_STATUS_LABEL[entry.reviewStatus]}</TableCell>
+                              <TableCell className="max-w-[260px] truncate text-slate-500">{entry.notes ?? '-'}</TableCell>
+                            </TableRow>
+                          )
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             </div>
-
-            <Card className="border-slate-200">
-              <CardHeader>
-                <CardTitle className="text-base text-slate-900">근무 요약 표</CardTitle>
-                <CardDescription>날짜별 승인 상태와 근무 시간을 간단히 확인하세요.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50">
-                      <TableHead className="w-32">근무일</TableHead>
-                      <TableHead className="w-28">유형</TableHead>
-                      <TableHead className="w-24">근무 시간</TableHead>
-                      <TableHead className="w-32">승인 상태</TableHead>
-                      <TableHead>메모</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {teacherEntries.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="py-6 text-center text-sm text-slate-500">
-                          기록이 없습니다.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      teacherEntries.map((entry) => {
-                        const statusMeta = getStatusMeta(entry.status)
-                        return (
-                          <TableRow key={entry.id} className={cn(selectedDate === entry.workDate && 'bg-slate-50')}>
-                            <TableCell>{entry.workDate}</TableCell>
-                            <TableCell>{statusMeta?.label ?? entry.status}</TableCell>
-                            <TableCell>
-                              {requiresWorkHours(entry.status) && entry.workHours
-                                ? `${formatHours(entry.workHours)}시간`
-                                : '-'}
-                            </TableCell>
-                            <TableCell>{WORK_LOG_REVIEW_STATUS_LABEL[entry.reviewStatus]}</TableCell>
-                            <TableCell className="max-w-[260px] truncate text-slate-500">{entry.notes ?? '-'}</TableCell>
-                          </TableRow>
-                        )
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
