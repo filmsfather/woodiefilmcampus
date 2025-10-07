@@ -297,8 +297,11 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
     })
 
     if (insertError) {
+      const categoryCodes = Array.from(category ?? '').map((char) => char.charCodeAt(0)).join(', ')
       const debugInfo = [
-        `[디버그] 카테고리=${category}`,
+        `[디버그] 카테고리=${JSON.stringify(category)}`,
+        `[길이=${category?.length ?? 0}]`,
+        `[코드=${categoryCodes || '없음'}]`,
         `오류코드=${insertError.code ?? '없음'}`,
         `메시지=${insertError.message ?? '없음'}`,
       ]
