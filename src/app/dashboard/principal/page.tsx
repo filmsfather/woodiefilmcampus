@@ -31,10 +31,13 @@ export default async function PrincipalDashboardPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">학습일지 현황</CardTitle>
-            <CardDescription>월별 인사말을 작성하고 반별 학습일지 제출 현황을 확인하세요.</CardDescription>
+            <CardDescription>월별 인사말을 작성하고 승인 대기 학습일지를 검토하세요.</CardDescription>
           </CardHeader>
-          <CardContent className="flex justify-end">
-            <Button asChild>
+          <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/principal/learning-journal/review">승인 대기 목록</Link>
+            </Button>
+            <Button asChild size="sm">
               <Link href="/dashboard/principal/learning-journal">학습일지 관리</Link>
             </Button>
           </CardContent>
