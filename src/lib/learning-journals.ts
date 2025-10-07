@@ -11,7 +11,11 @@ import {
   type LearningJournalPeriod,
   type LearningJournalPeriodWithClass,
   type LearningJournalStudentSnapshot,
+  type LearningJournalWeekTemplate,
+  type ClassLearningJournalTemplate,
 } from '@/types/learning-journal'
+import type { LearningJournalSubject } from '@/types/learning-journal'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 interface LearningJournalPeriodRow {
   id: string
@@ -233,6 +237,59 @@ function pickProfile(row: ClassStudentRow['profiles']): {
   return row
 }
 
+interface ClassLearningJournalWeekRow {
+  id: string
+  class_id: string
+  period_id: string
+  week_index: number
+  subject: LearningJournalSubject
+  material_ids: string[] | null
+  material_titles: string[] | null
+  material_notes: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface UpsertClassLearningJournalWeekInput {
+  classId: string
+  periodId: string
+  weekIndex: number
+  subject: LearningJournalSubject
+  materialIds: string[]
+  materialTitles: string[]
+  materialNotes: string | null
+  actorId: string
+}
+
+export interface WeeklyRange {
+  weekIndex: number
+  startDate: string
+  endDate: string
+}
+
+function normalizeArray<T>(value: T[] | null | undefined): T[] {
+  if (!value) {
+    return []
+  }
+
+  return value.filter((item): item is T => item !== null && item !== undefined)
+}
+
+function toWeekTemplate(row: ClassLearningJournalWeekRow): LearningJournalWeekTemplate {
+  return {
+    id: row.id,
+    classId: row.class_id,
+    periodId: row.period_id,
+    weekIndex: row.week_index,
+    subject: row.subject,
+    materialIds: normalizeArray(row.material_ids ?? []),
+    materialTitles: normalizeArray(row.material_titles ?? []),
+    materialNotes: row.material_notes,
+    updatedAt: row.updated_at,
+  }
+}
+
 function resolveEntryStudent(
   relation: LearningJournalEntryRow['student']
 ): { id: string; name: string | null; email: string | null } | null {
@@ -381,6 +438,187 @@ export async function fetchLearningJournalPeriodsForClasses(
     const studentCount = studentMap.get(row.class_id)?.length ?? 0
     return toPeriodWithClass(row, studentCount)
   })
+}
+
+function createEmptyTemplateWeek(weekIndex: number) {
+  return {
+    weekIndex,
+    subjects: LEARNING_JOURNAL_SUBJECTS.reduce<Record<LearningJournalSubject, {
+      templateId: string | null
+      materialIds: string[]
+      materialTitles: string[]
+      materialNotes: string | null
+    }>>((acc, subject) => {
+      acc[subject] = {
+        templateId: null,
+        materialIds: [],
+        materialTitles: [],
+        materialNotes: null,
+      }
+      return acc
+    }, {} as Record<LearningJournalSubject, {
+      templateId: string | null
+      materialIds: string[]
+      materialTitles: string[]
+      materialNotes: string | null
+    }>)
+  }
+}
+
+export async function fetchClassLearningJournalTemplate(
+  classId: string,
+  periodId: string
+): Promise<ClassLearningJournalTemplate> {
+  const supabase = createServerSupabase()
+
+  const { data, error } = await supabase
+    .from('class_learning_journal_weeks')
+    .select(
+      `id,
+       class_id,
+       period_id,
+       week_index,
+       subject,
+       material_ids,
+       material_titles,
+       material_notes,
+       created_by,
+       created_at,
+       updated_at`
+    )
+    .eq('class_id', classId)
+    .eq('period_id', periodId)
+
+  if (error) {
+    console.error('[learning-journal] fetch class template error', error)
+    return {
+      classId,
+      periodId,
+      weeks: [1, 2, 3, 4].map(createEmptyTemplateWeek),
+    }
+  }
+
+  const rows = (data ?? []) as ClassLearningJournalWeekRow[]
+  const lookup = new Map<string, LearningJournalWeekTemplate>()
+
+  for (const row of rows) {
+    const template = toWeekTemplate(row)
+    const key = `${template.weekIndex}:${template.subject}`
+    lookup.set(key, template)
+  }
+
+  const weeks = [1, 2, 3, 4].map((weekIndex) => {
+    const week = createEmptyTemplateWeek(weekIndex)
+    for (const subject of LEARNING_JOURNAL_SUBJECTS) {
+      const key = `${weekIndex}:${subject}`
+      const template = lookup.get(key)
+      if (template) {
+        week.subjects[subject] = {
+          templateId: template.id,
+          materialIds: template.materialIds,
+          materialTitles: template.materialTitles,
+          materialNotes: template.materialNotes,
+        }
+      }
+    }
+    return week
+  })
+
+  return {
+    classId,
+    periodId,
+    weeks,
+  }
+}
+
+export function resolveWeeklyRanges(period: LearningJournalPeriod): WeeklyRange[] {
+  const startDate = DateUtil.toUTCDate(period.startDate)
+  const weeks: WeeklyRange[] = []
+
+  for (let index = 0; index < 4; index += 1) {
+    const start = new Date(startDate)
+    start.setUTCDate(start.getUTCDate() + index * 7)
+    const end = new Date(start)
+    end.setUTCDate(end.getUTCDate() + 6)
+
+    weeks.push({
+      weekIndex: index + 1,
+      startDate: DateUtil.formatISODate(start),
+      endDate: DateUtil.formatISODate(end),
+    })
+  }
+
+  return weeks
+}
+
+export async function upsertClassLearningJournalWeek(
+  input: UpsertClassLearningJournalWeekInput
+): Promise<LearningJournalWeekTemplate | null> {
+  const admin = createAdminClient()
+
+  const payload = {
+    class_id: input.classId,
+    period_id: input.periodId,
+    week_index: input.weekIndex,
+    subject: input.subject,
+    material_ids: input.materialIds ?? [],
+    material_titles: input.materialTitles ?? [],
+    material_notes: input.materialNotes ?? null,
+    created_by: input.actorId,
+  }
+
+  const { data, error } = await admin
+    .from('class_learning_journal_weeks')
+    .upsert(payload, { onConflict: 'class_id,period_id,week_index,subject' })
+    .select(
+      `id,
+       class_id,
+       period_id,
+       week_index,
+       subject,
+       material_ids,
+       material_titles,
+       material_notes,
+       created_by,
+       created_at,
+       updated_at`
+    )
+    .maybeSingle()
+
+  if (error) {
+    console.error('[learning-journal] upsert class template error', error)
+    return null
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return toWeekTemplate(data as ClassLearningJournalWeekRow)
+}
+
+export async function deleteClassLearningJournalWeek(
+  classId: string,
+  periodId: string,
+  weekIndex: number,
+  subject: LearningJournalSubject
+): Promise<boolean> {
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('class_learning_journal_weeks')
+    .delete()
+    .eq('class_id', classId)
+    .eq('period_id', periodId)
+    .eq('week_index', weekIndex)
+    .eq('subject', subject)
+
+  if (error) {
+    console.error('[learning-journal] delete class template error', error)
+    return false
+  }
+
+  return true
 }
 
 export async function fetchTeacherLearningJournalOverview(teacherId: string) {

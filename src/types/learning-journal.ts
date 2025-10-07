@@ -115,3 +115,81 @@ export interface LearningJournalStudentSnapshot {
   submittedAt: string | null
   publishedAt: string | null
 }
+
+export interface LearningJournalWeeklyMaterialHydrated {
+  templateId: string | null
+  title: string
+  note: string | null
+  sourceType: 'class_material' | 'custom'
+  sourceId: string | null
+}
+
+export interface LearningJournalWeeklySubjectData {
+  materials: LearningJournalWeeklyMaterialHydrated[]
+  assignments: LearningJournalWeekAssignmentItem[]
+  summaryNote?: string | null
+}
+
+export interface LearningJournalWeeklyData {
+  weekIndex: number
+  startDate: string
+  endDate: string
+  subjects: Record<LearningJournalSubject, LearningJournalWeeklySubjectData>
+}
+
+export interface LearningJournalWeekTemplate {
+  id: string
+  classId: string
+  periodId: string
+  weekIndex: number
+  subject: LearningJournalSubject
+  materialIds: string[]
+  materialTitles: string[]
+  materialNotes: string | null
+  updatedAt: string
+}
+
+export interface LearningJournalWeekMaterialItem {
+  id: string | null
+  title: string
+  note: string | null
+  sourceType: 'class_material' | 'custom'
+  sourceId: string | null
+}
+
+export interface LearningJournalWeekAssignmentItem {
+  id: string
+  title: string
+  status: 'completed' | 'in_progress' | 'not_started' | 'pending'
+  dueDate: string | null
+  submittedAt: string | null
+  score: number | null
+  note: string | null
+}
+
+export interface LearningJournalWeekSubjectSnapshot {
+  materials: LearningJournalWeekMaterialItem[]
+  assignments: LearningJournalWeekAssignmentItem[]
+  summaryNote?: string | null
+}
+
+export interface LearningJournalWeekSnapshot {
+  weekIndex: number
+  startDate: string
+  endDate: string
+  subjects: Record<LearningJournalSubject, LearningJournalWeekSubjectSnapshot>
+}
+
+export interface ClassLearningJournalTemplate {
+  classId: string
+  periodId: string
+  weeks: Array<{
+    weekIndex: number
+    subjects: Record<LearningJournalSubject, {
+      templateId: string | null
+      materialIds: string[]
+      materialTitles: string[]
+      materialNotes: string | null
+    }>
+  }>
+}

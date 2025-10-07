@@ -128,3 +128,46 @@ export type UpsertLearningJournalGreetingInput = z.infer<typeof upsertLearningJo
 export type UpsertLearningJournalAcademicEventInput = z.infer<typeof upsertLearningJournalAcademicEventSchema>
 export type SaveLearningJournalCommentInput = z.infer<typeof saveLearningJournalCommentSchema>
 export type UpdateLearningJournalEntryStatusInput = z.infer<typeof updateLearningJournalEntryStatusSchema>
+
+export const upsertClassLearningJournalWeekSchema = z
+  .object({
+    classId: uuidSchema,
+    periodId: uuidSchema,
+    weekIndex: z
+      .number()
+      .int('주차는 정수여야 합니다.')
+      .min(1, '1주차부터 선택할 수 있습니다.')
+      .max(4, '4주차까지만 입력할 수 있습니다.'),
+    subject: z.enum(LEARNING_JOURNAL_SUBJECTS),
+    materialIds: z.array(z.string().uuid()).max(20, '자료는 최대 20개까지 선택할 수 있습니다.'),
+    materialTitles: z.array(z.string().trim().max(200, '자료 제목은 200자 이하여야 합니다.')),
+    materialNotes: z
+      .string()
+      .trim()
+      .max(2000, '메모는 최대 2000자까지 입력할 수 있습니다.')
+      .optional()
+      .or(z.literal('').transform(() => null)),
+  })
+  .superRefine((value, ctx) => {
+    if (value.materialIds.length !== value.materialTitles.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['materialTitles'],
+        message: '자료 제목의 개수가 선택한 자료 수와 일치하지 않습니다.',
+      })
+    }
+  })
+
+export const deleteClassLearningJournalWeekSchema = z.object({
+  classId: uuidSchema,
+  periodId: uuidSchema,
+  weekIndex: z
+    .number()
+    .int('주차는 정수여야 합니다.')
+    .min(1)
+    .max(4),
+  subject: z.enum(LEARNING_JOURNAL_SUBJECTS),
+})
+
+export type UpsertClassLearningJournalWeekInputDto = z.infer<typeof upsertClassLearningJournalWeekSchema>
+export type DeleteClassLearningJournalWeekInputDto = z.infer<typeof deleteClassLearningJournalWeekSchema>

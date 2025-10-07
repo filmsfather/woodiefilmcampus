@@ -33,6 +33,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '반별 학습일지를 작성하고 제출 상태를 관리하세요.',
         variant: 'outline',
       },
+      {
+        label: '학습일지 템플릿',
+        href: '/dashboard/teacher/learning-journal/templates',
+        description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
+        variant: 'outline',
+      },
     ],
   },
   {
