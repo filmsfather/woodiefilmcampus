@@ -85,7 +85,7 @@ export default async function EditClassMaterialPage({
         defaults={defaults}
         submitLabel="자료 수정"
         onSubmit={updateClassMaterialPost}
-        onDelete={() => deleteClassMaterialPost(params.postId)}
+        onDelete={deleteClassMaterialPost.bind(null, params.postId)}
       />
     </section>
   )
