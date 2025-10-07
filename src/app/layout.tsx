@@ -1,4 +1,3 @@
-import Link from "next/link"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
@@ -35,16 +34,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} bg-slate-50 antialiased`}>
         <ClientClockInitializer serverNow={serverNow} />
-        <div className="min-h-screen">
-          <header className="border-b border-slate-200 bg-white">
-            <div className="mx-auto flex max-w-6xl items-center px-4 py-3">
-              <Link href="/dashboard" className="text-lg font-semibold text-slate-900 hover:text-slate-600">
-                woodiefilmcampus
-              </Link>
-            </div>
-          </header>
-          <main>{children}</main>
-        </div>
+        {children}
       </body>
     </html>
   )

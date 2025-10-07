@@ -1,16 +1,17 @@
 'use client'
 
+import Link from 'next/link'
 import { ReactNode } from 'react'
 import { UserRole } from '@/types/user'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { LogOut, Settings, User } from 'lucide-react'
 
@@ -52,9 +53,9 @@ export function DashboardLayout({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-xl font-semibold text-gray-900">
+              <Link href="/dashboard" className="text-xl font-semibold text-gray-900 hover:text-gray-600">
                 학습관리 플랫폼
-              </h1>
+              </Link>
               <Badge className={roleColors[userRole]}>
                 {roleNames[userRole]}
               </Badge>
