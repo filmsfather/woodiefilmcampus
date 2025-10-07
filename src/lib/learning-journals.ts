@@ -470,6 +470,7 @@ export async function fetchTeacherLearningJournalOverview(teacherId: string) {
   }
 
   const snapshotsByPeriod = new Map<string, LearningJournalStudentSnapshot[]>()
+  const studentsMissingProfile = new Set<string>()
 
   for (const period of periods) {
     let classStudents = studentsByClass.get(period.classId) ?? []
@@ -492,10 +493,54 @@ export async function fetchTeacherLearningJournalOverview(teacherId: string) {
       }
 
       const entry = entryMap.get(profile.id) ?? null
-      return toStudentSnapshot(profile, entry ?? null)
+      const snapshot = toStudentSnapshot(profile, entry ?? null)
+
+      if (!snapshot.name) {
+        studentsMissingProfile.add(snapshot.studentId)
+      }
+
+      return snapshot
     })
 
     snapshotsByPeriod.set(period.id, snapshots)
+  }
+
+  if (studentsMissingProfile.size > 0) {
+    try {
+      const { data: missingProfiles, error: missingProfileError } = await supabase
+        .from('profiles')
+        .select('id, name, email')
+        .in('id', Array.from(studentsMissingProfile))
+
+      if (missingProfileError) {
+        console.error('[learning-journal] missing profile fetch error', missingProfileError)
+      }
+
+      const profileLookup = new Map<string, { id: string; name: string | null; email: string | null }>()
+      for (const profile of missingProfiles ?? []) {
+        profileLookup.set(profile.id, {
+          id: profile.id,
+          name: profile.name ?? null,
+          email: profile.email ?? null,
+        })
+      }
+
+      for (const snapshots of snapshotsByPeriod.values()) {
+        for (const snapshot of snapshots) {
+          if (snapshot.name) {
+            continue
+          }
+
+          const profile = profileLookup.get(snapshot.studentId)
+          if (profile) {
+            snapshot.name = profile.name ?? snapshot.name
+            snapshot.email = profile.email ?? snapshot.email
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[learning-journal] missing profile unexpected error', error)
+    }
   }
 
   return {
