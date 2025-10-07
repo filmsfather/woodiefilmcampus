@@ -1,16 +1,22 @@
 import Link from 'next/link'
 
+import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { requireAuthForDashboard } from '@/lib/auth'
-import {
-  fetchLearningJournalEntriesForReview,
-  fetchLearningJournalEntryDetail,
-  fetchLearningJournalComments,
-} from '@/lib/learning-journals'
+import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { updateEntryStatusByPrincipalAction } from '@/app/dashboard/principal/learning-journal/actions'
+import type { LearningJournalAcademicEvent, LearningJournalGreeting } from '@/types/learning-journal'
+import {
+  deriveMonthTokensForRange,
+  fetchLearningJournalAcademicEvents,
+  fetchLearningJournalEntriesForReview,
+  fetchLearningJournalEntryDetail,
+  fetchLearningJournalGreeting,
+  fetchLearningJournalComments,
+} from '@/lib/learning-journals'
 
 const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', string> = {
   submitted: '승인 대기',
@@ -60,6 +66,27 @@ export default async function PrincipalLearningJournalReviewPage({
 
   const targetEntry = entryIdParam ? await fetchLearningJournalEntryDetail(entryIdParam) : null
   const comments = entryIdParam ? await fetchLearningJournalComments(entryIdParam) : []
+  const targetSummary = targetEntry ? entries.find((item) => item.id === targetEntry.id) : null
+
+  let greeting: LearningJournalGreeting | null = null
+  let academicEvents: LearningJournalAcademicEvent[] = []
+
+  if (targetEntry && targetSummary) {
+    const monthTokens = deriveMonthTokensForRange(
+      targetSummary.periodStartDate,
+      targetSummary.periodEndDate
+    )
+
+    if (monthTokens.length > 0) {
+      const [fetchedGreeting, fetchedEvents] = await Promise.all([
+        fetchLearningJournalGreeting(monthTokens[0]),
+        fetchLearningJournalAcademicEvents(monthTokens),
+      ])
+
+      greeting = fetchedGreeting
+      academicEvents = fetchedEvents
+    }
+  }
 
   const publishAction = async (formData: FormData) => {
     'use server'
@@ -211,79 +238,56 @@ export default async function PrincipalLearningJournalReviewPage({
             </div>
           </CardContent>
         </Card>
-
-        <Card className="border-slate-200">
-          <CardHeader>
-            <CardTitle className="text-lg text-slate-900">상세 보기</CardTitle>
-            <CardDescription>학습일지 내용을 확인하고 승인 또는 반려를 선택하세요.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-slate-600">
-            {!targetEntry ? (
-              <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                왼쪽 목록에서 학습일지를 선택하세요.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {(() => {
-                  const summary = entries.find((item) => item.id === targetEntry.id)
-                  return (
-                    <section className="space-y-1">
-                      <h2 className="text-base font-semibold text-slate-900">
-                        {summary?.studentName ?? '학생 정보 없음'}
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        {summary?.className ?? '-'} ·{' '}
-                        {summary?.periodLabel ?? `${summary?.periodStartDate ?? ''} ~ ${summary?.periodEndDate ?? ''}`}
-                      </p>
-                    </section>
-                  )
-                })()}
-
-                <section className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">월간 요약</h3>
-                  {targetEntry.summary ? (
-                    <pre className="max-h-64 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-700">
-                      {JSON.stringify(targetEntry.summary, null, 2)}
-                    </pre>
-                  ) : (
-                    <p className="text-xs text-slate-500">요약 정보가 없습니다.</p>
-                  )}
-                </section>
-
-                <section className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">주차별 데이터</h3>
-                  {targetEntry.weekly ? (
-                    <pre className="max-h-64 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-700">
-                      {JSON.stringify(targetEntry.weekly, null, 2)}
-                    </pre>
-                  ) : (
-                    <p className="text-xs text-slate-500">주차별 데이터가 없습니다.</p>
-                  )}
-                </section>
-
-                <section className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">코멘트</h3>
-                  {comments.length === 0 ? (
-                    <p className="text-xs text-slate-500">등록된 코멘트가 없습니다.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {comments.map((comment) => (
-                        <li key={comment.id} className="rounded-md border border-slate-200 bg-white p-2 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-medium text-slate-800">
-                              {comment.roleScope === 'homeroom'
-                                ? '담임 코멘트'
-                                : `${comment.subject === 'directing' ? '연출론' : comment.subject === 'screenwriting' ? '작법론' : '영화연구'} 코멘트`}
-                            </span>
-                          </div>
-                          <p className="mt-1 whitespace-pre-wrap text-slate-600">{comment.body ?? ''}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-
-                <section className="flex flex-wrap gap-2 pt-2">
+        <div className="space-y-4 text-sm text-slate-600">
+          {!targetEntry || !targetSummary ? (
+            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
+              왼쪽 목록에서 학습일지를 선택하세요.
+            </div>
+          ) : (
+            <LearningJournalEntryContent
+              header={{
+                title: targetSummary.studentName ?? targetSummary.studentEmail ?? '학생 정보 없음',
+                subtitle: `${targetSummary.className ?? '-'} · ${
+                  targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
+                }`,
+                meta: [
+                  {
+                    label: '제출 상태',
+                    value: STATUS_LABEL[targetEntry.status] ?? targetEntry.status,
+                  },
+                  {
+                    label: '공개일',
+                    value: targetEntry.publishedAt
+                      ? DateUtil.formatForDisplay(targetEntry.publishedAt, {
+                          locale: 'ko-KR',
+                          timeZone: 'Asia/Seoul',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '미기록',
+                  },
+                  {
+                    label: '최근 업데이트',
+                    value: DateUtil.formatForDisplay(targetEntry.updatedAt, {
+                      locale: 'ko-KR',
+                      timeZone: 'Asia/Seoul',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    }),
+                  },
+                ],
+              }}
+              greeting={greeting}
+              academicEvents={academicEvents}
+              summary={targetEntry.summary}
+              weekly={targetEntry.weekly}
+              comments={comments}
+              actionPanel={
+                <>
                   <form action={publishAction}>
                     <input type="hidden" name="entryId" value={targetEntry.id} />
                     <input type="hidden" name="status" value="published" />
@@ -298,11 +302,11 @@ export default async function PrincipalLearningJournalReviewPage({
                       작성 중으로 되돌리기
                     </Button>
                   </form>
-                </section>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                </>
+              }
+            />
+          )}
+        </div>
       </div>
     </section>
   )
