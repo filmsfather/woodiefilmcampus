@@ -129,10 +129,10 @@ export function AdmissionMaterialPostForm({
   const headerDescription = isGuideline
     ? '대학교 이름과 전형을 선택하고 요강 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
     : '준비 대상과 제목을 입력하고 필요한 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
-  const targetLabel = isGuideline ? '대학교 이름 (선택)' : '준비 대상 (선택)'
+  const targetLabel = isGuideline ? '대학교 이름' : '준비 대상 (선택)'
   const targetPlaceholder = isGuideline ? '예: 중앙대학교 영화과' : '예: 영화과 3학년, 수시 준비반'
   const targetHelper = isGuideline
-    ? '대학교 이름을 입력하면 검색이 쉬워집니다.'
+    ? '달력과 목록에 표시될 학교/학과 이름을 입력하세요.'
     : '자료가 어떤 학생을 위한 것인지 표시하면 검색이 쉬워집니다.'
   const descriptionLabel = isGuideline ? '입시 요강 (선택)' : '자료 설명 (선택)'
   const descriptionPlaceholder = isGuideline
@@ -169,6 +169,13 @@ export function AdmissionMaterialPostForm({
 
     const guideFile = formData.get('guideFile')
     const resourceFile = formData.get('resourceFile')
+    const targetLevelValue = formData.get('targetLevel')
+    const trimmedTargetLevel =
+      typeof targetLevelValue === 'string' ? targetLevelValue.trim() : ''
+
+    if (typeof targetLevelValue === 'string') {
+      formData.set('targetLevel', trimmedTargetLevel)
+    }
 
     if (guideFile instanceof File && guideFile.size > MAX_UPLOAD_SIZE) {
       setError(`가이드 파일은 최대 ${maxSizeLabel}까지 업로드할 수 있습니다.`)
@@ -181,6 +188,11 @@ export function AdmissionMaterialPostForm({
     }
 
     if (isGuideline) {
+      if (trimmedTargetLevel.length === 0) {
+        setError('대학교 이름을 입력해주세요.')
+        return
+      }
+
       const selections: string[] = []
       if (guidelineSelection.susi) {
         selections.push('수시')
@@ -211,9 +223,6 @@ export function AdmissionMaterialPostForm({
 
       if (result?.error) {
         setError(result.error)
-        if (typeof window !== 'undefined') {
-          window.alert(result.error)
-        }
         return
       }
 
@@ -335,6 +344,7 @@ export function AdmissionMaterialPostForm({
               defaultValue={defaults?.targetLevel ?? ''}
               maxLength={120}
               disabled={isPending}
+              required={isGuideline}
             />
             <p className="text-xs text-slate-500">{targetHelper}</p>
           </div>

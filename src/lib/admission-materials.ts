@@ -48,3 +48,14 @@ export function getAdmissionCategoryLabel(category: AdmissionMaterialCategory) {
 export function getAdmissionCategoryDescription(category: AdmissionMaterialCategory) {
   return ADMISSION_MATERIAL_CATEGORIES[category].description
 }
+
+export function extractAdmissionTypeTags(raw: string | null | undefined): string[] {
+  if (!raw) {
+    return []
+  }
+
+  return raw
+    .split(/[·,/]/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+}

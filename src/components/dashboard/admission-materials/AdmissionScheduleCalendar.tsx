@@ -7,7 +7,6 @@ import { ADMISSION_MATERIAL_CATEGORIES, type AdmissionMaterialCategory } from '@
 import type { AdmissionCalendarEvent } from '@/app/dashboard/teacher/admission-materials/actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 
 interface AdmissionScheduleCalendarProps {
   initialEvents: AdmissionCalendarEvent[]
@@ -70,14 +69,6 @@ function createDay(date: Date, isCurrentMonth: boolean): CalendarDay {
     isCurrentMonth,
     isToday,
   }
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
 }
 
 function formatMonthTitle(date: Date) {
@@ -202,14 +193,12 @@ export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCa
                       href={`/dashboard/teacher/admission-materials/${event.category}/${event.postId}`}
                       className="block rounded-md border border-slate-200 bg-slate-50 p-2 hover:border-slate-400"
                     >
-                      <div className="flex items-center justify-between gap-1 text-[11px]">
-                        <Badge variant="outline" className="text-[10px]">
-                          {ADMISSION_MATERIAL_CATEGORIES[event.category].label}
-                        </Badge>
-                        <span className="text-[10px] text-slate-500">{formatTime(event.startAt)}</span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-[12px] font-medium text-slate-700">{event.scheduleTitle}</p>
-                      <p className="line-clamp-1 text-[11px] text-slate-500">{event.postTitle}</p>
+                      <p className="line-clamp-1 text-[12px] font-semibold text-slate-800">
+                        {event.postTargetLevel && event.postTargetLevel.trim().length > 0
+                          ? event.postTargetLevel
+                          : event.postTitle}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-[11px] text-slate-600">{event.scheduleTitle}</p>
                     </Link>
                   ))}
                   {events.length > 2 ? (

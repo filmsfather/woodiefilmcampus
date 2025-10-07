@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import DateUtil from '@/lib/date-util'
 import {
   ADMISSION_MATERIALS_BUCKET,
+  extractAdmissionTypeTags,
   getAdmissionCategoryLabel,
   isAdmissionMaterialCategory,
 } from '@/lib/admission-materials'
@@ -179,6 +180,11 @@ export default async function AdmissionMaterialDetailPage({
   }
 
   const title = getAdmissionCategoryLabel(category)
+  const isGuidelineCategoryView = category === 'guideline'
+  const admissionTypeTags = isGuidelineCategoryView ? extractAdmissionTypeTags(detail.title) : []
+  const detailTitle = isGuidelineCategoryView
+    ? detail.target_level ?? detail.title
+    : detail.title
 
   const formatDateTime = (value: string) =>
     DateUtil.formatForDisplay(value, {
@@ -203,13 +209,21 @@ export default async function AdmissionMaterialDetailPage({
           <Badge variant="outline" className="text-xs text-slate-600">
             {title}
           </Badge>
-          {detail.target_level ? (
+          {isGuidelineCategoryView ? (
+            admissionTypeTags.length > 0 ? (
+              admissionTypeTags.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs text-slate-700">
+                  {tag}
+                </Badge>
+              ))
+            ) : null
+          ) : detail.target_level ? (
             <Badge variant="secondary" className="text-xs text-slate-700">
               {detail.target_level}
             </Badge>
           ) : null}
         </div>
-        <h1 className="text-2xl font-semibold text-slate-900">{detail.title}</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">{detailTitle || '입시 자료'}</h1>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
           <span>
             작성자 {detail.author?.name ?? detail.author?.email ?? '미상'}

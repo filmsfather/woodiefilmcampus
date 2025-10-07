@@ -50,6 +50,7 @@ export type AdmissionCalendarEvent = {
   category: AdmissionMaterialCategory
   categoryLabel: string
   postTitle: string
+  postTargetLevel: string | null
   scheduleTitle: string
   startAt: string
   endAt: string | null
@@ -256,6 +257,13 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
     return { error: '참고 자료 파일 용량이 제한을 초과했습니다.' }
   }
 
+  const trimmedTargetLevel =
+    typeof targetLevelValue === 'string' && targetLevelValue.trim().length > 0 ? targetLevelValue.trim() : null
+
+  if (category === 'guideline' && !trimmedTargetLevel) {
+    return { error: '대학교 이름을 입력해주세요.' }
+  }
+
   let schedules: AdmissionScheduleInput[] = []
   try {
     schedules = parseSchedulePayload(schedulesRaw)
@@ -288,7 +296,7 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
     const { error: insertError } = await supabase.from('admission_material_posts').insert({
       id: postId,
       category,
-      target_level: typeof targetLevelValue === 'string' && targetLevelValue.trim().length > 0 ? targetLevelValue.trim() : null,
+      target_level: trimmedTargetLevel,
       title,
       description: typeof descriptionValue === 'string' && descriptionValue.trim().length > 0 ? descriptionValue.trim() : null,
       guide_asset_id: guideAssetId,
@@ -297,22 +305,8 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
     })
 
     if (insertError) {
-      const categoryCodes = Array.from(category ?? '').map((char) => char.charCodeAt(0)).join(', ')
-      const debugInfo = [
-        `[디버그] 카테고리=${JSON.stringify(category)}`,
-        `[길이=${category?.length ?? 0}]`,
-        `[코드=${categoryCodes || '없음'}]`,
-        `오류코드=${insertError.code ?? '없음'}`,
-        `메시지=${insertError.message ?? '없음'}`,
-      ]
-      if (insertError.details) {
-        debugInfo.push(`세부사항=${insertError.details}`)
-      }
-      if (insertError.hint) {
-        debugInfo.push(`힌트=${insertError.hint}`)
-      }
       console.error('[admission-materials] failed to insert post', insertError, { category, postId })
-      throw new Error(`입시 자료를 저장하지 못했습니다. ${debugInfo.join(', ')}`)
+      throw new Error('입시 자료를 저장하지 못했습니다.')
     }
 
     if (schedules.length > 0) {
@@ -391,6 +385,13 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
     return { error: '참고 자료 파일 용량이 제한을 초과했습니다.' }
   }
 
+  const trimmedTargetLevel =
+    typeof targetLevelValue === 'string' && targetLevelValue.trim().length > 0 ? targetLevelValue.trim() : null
+
+  if (category === 'guideline' && !trimmedTargetLevel) {
+    return { error: '대학교 이름을 입력해주세요.', postId }
+  }
+
   let schedules: AdmissionScheduleInput[] = []
   try {
     schedules = parseSchedulePayload(schedulesRaw)
@@ -463,7 +464,7 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
     const { error: updateError } = await supabase
       .from('admission_material_posts')
       .update({
-        target_level: typeof targetLevelValue === 'string' && targetLevelValue.trim().length > 0 ? targetLevelValue.trim() : null,
+        target_level: trimmedTargetLevel,
         title,
         description: typeof descriptionValue === 'string' && descriptionValue.trim().length > 0 ? descriptionValue.trim() : null,
         guide_asset_id: guideAssetId,
@@ -605,7 +606,8 @@ export async function listAdmissionScheduleEvents(params: {
        admission_material_posts!inner (
          id,
          category,
-         title
+         title,
+         target_level
        )
       `
     )
@@ -633,6 +635,10 @@ export async function listAdmissionScheduleEvents(params: {
       : row.admission_material_posts
 
     const category = String(postRelation?.category ?? 'notice') as AdmissionMaterialCategory
+    const targetLevel =
+      postRelation && typeof postRelation === 'object' && 'target_level' in postRelation
+        ? (postRelation.target_level ? String(postRelation.target_level) : null)
+        : null
 
     return {
       id: String(row.id),
@@ -640,6 +646,7 @@ export async function listAdmissionScheduleEvents(params: {
       category,
       categoryLabel: getAdmissionCategoryLabel(category),
       postTitle: postRelation?.title ? String(postRelation.title) : '입시 자료',
+      postTargetLevel: targetLevel,
       scheduleTitle: String(row.title),
       startAt: String(row.start_at),
       endAt: row.end_at ? String(row.end_at) : null,
