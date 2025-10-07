@@ -731,33 +731,61 @@ export async function deleteClassLearningJournalWeek(
   return true
 }
 
-export async function fetchTeacherLearningJournalOverview(teacherId: string) {
+export async function fetchTeacherLearningJournalOverview(
+  teacherId: string,
+  options?: { includeAllClasses?: boolean }
+) {
   const supabase = createServerSupabase()
 
-  const { data: teacherClassRows, error: teacherClassError } = await supabase
-    .from('class_teachers')
-    .select(
-      `class_id,
-       is_homeroom,
-       classes:classes!class_teachers_class_id_fkey(id, name, description)
-      `
-    )
-    .eq('teacher_id', teacherId)
+  let teacherClasses: Array<{
+    classId: string
+    className: string
+    description: string | null
+    isHomeroom: boolean
+  }> = []
 
-  if (teacherClassError) {
-    console.error('[learning-journal] teacher class fetch error', teacherClassError)
-    return { periods: [], classes: [] }
-  }
+  if (options?.includeAllClasses) {
+    const { data: classRows, error: classError } = await supabase
+      .from('classes')
+      .select('id, name, description')
+      .order('name', { ascending: true })
 
-  const teacherClasses = (teacherClassRows ?? []).map((row) => {
-    const classRelation = Array.isArray(row.classes) ? row.classes[0] : row.classes
-    return {
-      classId: row.class_id,
-      className: classRelation?.name ?? '반 미지정',
-      description: classRelation?.description ?? null,
-      isHomeroom: Boolean(row.is_homeroom),
+    if (classError) {
+      console.error('[learning-journal] class list fetch error', classError)
+    } else {
+      teacherClasses = (classRows ?? []).map((row) => ({
+        classId: row.id,
+        className: row.name ?? '반 미지정',
+        description: row.description ?? null,
+        isHomeroom: false,
+      }))
     }
-  })
+  } else {
+    const { data: teacherClassRows, error: teacherClassError } = await supabase
+      .from('class_teachers')
+      .select(
+        `class_id,
+         is_homeroom,
+         classes:classes!class_teachers_class_id_fkey(id, name, description)
+        `
+      )
+      .eq('teacher_id', teacherId)
+
+    if (teacherClassError) {
+      console.error('[learning-journal] teacher class fetch error', teacherClassError)
+      return { periods: [], classes: [] }
+    }
+
+    teacherClasses = (teacherClassRows ?? []).map((row) => {
+      const classRelation = Array.isArray(row.classes) ? row.classes[0] : row.classes
+      return {
+        classId: row.class_id,
+        className: classRelation?.name ?? '반 미지정',
+        description: classRelation?.description ?? null,
+        isHomeroom: Boolean(row.is_homeroom),
+      }
+    })
+  }
 
   const classIds = teacherClasses.map((item) => item.classId)
   const periods = await fetchLearningJournalPeriodsForClasses(classIds)

@@ -127,13 +127,15 @@ export async function saveLearningJournalCommentAction(
   const subjectValue = parsed.data.roleScope === 'homeroom' ? null : parsed.data.subject ?? null
 
   try {
-    const { data: existing, error: fetchError } = await supabase
+    let fetchQuery = supabase
       .from('learning_journal_comments')
       .select('id')
       .eq('entry_id', parsed.data.entryId)
       .eq('role_scope', parsed.data.roleScope)
-      .eq('subject', subjectValue)
-      .maybeSingle()
+
+    fetchQuery = subjectValue === null ? fetchQuery.is('subject', null) : fetchQuery.eq('subject', subjectValue)
+
+    const { data: existing, error: fetchError } = await fetchQuery.maybeSingle()
 
     if (fetchError) {
       console.error('[learning-journal] comment select error', fetchError)

@@ -52,7 +52,8 @@ export default async function TeacherLearningJournalPage({
     return null
   }
 
-  const overview = await fetchTeacherLearningJournalOverview(profile.id)
+  const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
+  const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })
   const periods = overview.periods
   const periodIds = periods.map((period) => period.id)
   const stats = await fetchLearningJournalPeriodStats(periodIds)
@@ -80,7 +81,9 @@ export default async function TeacherLearningJournalPage({
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">학습일지</h1>
         <p className="text-sm text-slate-600">
-          {profile.name ?? profile.email} 님, 담당 반의 학습일지를 작성하고 제출 현황을 확인하세요.
+          {includeAllClasses
+            ? '원장 권한으로 모든 반의 학습일지를 확인하고 관리할 수 있습니다.'
+            : `${profile.name ?? profile.email} 님, 담당 반의 학습일지를 작성하고 제출 현황을 확인하세요.`}
         </p>
       </header>
 

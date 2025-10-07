@@ -17,13 +17,18 @@ export default async function LearningJournalTemplatePage({
 }) {
   const { profile } = await requireAuthForDashboard('teacher')
 
-  const overview = await fetchTeacherLearningJournalOverview(profile.id)
+  const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
+  const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })
 
   if (!overview.classes || overview.classes.length === 0) {
     return (
       <section className="space-y-4">
         <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
-        <p className="text-sm text-slate-600">담당 반이 있어야 템플릿을 구성할 수 있습니다.</p>
+        <p className="text-sm text-slate-600">
+          {includeAllClasses
+            ? '등록된 반이 없어 템플릿을 구성할 수 없습니다.'
+            : '담당 반이 있어야 템플릿을 구성할 수 있습니다.'}
+        </p>
       </section>
     )
   }
