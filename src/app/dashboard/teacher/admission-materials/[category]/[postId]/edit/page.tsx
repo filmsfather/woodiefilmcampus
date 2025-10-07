@@ -86,7 +86,6 @@ export default async function EditAdmissionMaterialPage({
             title: String(schedule.title),
             startAt: String(schedule.start_at),
             endAt: schedule.end_at ? String(schedule.end_at) : null,
-            location: schedule.location ? String(schedule.location) : null,
             memo: schedule.memo ? String(schedule.memo) : null,
           })),
         }}
