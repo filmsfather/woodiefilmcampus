@@ -211,6 +211,9 @@ export function AdmissionMaterialPostForm({
 
       if (result?.error) {
         setError(result.error)
+        if (typeof window !== 'undefined') {
+          window.alert(result.error)
+        }
         return
       }
 

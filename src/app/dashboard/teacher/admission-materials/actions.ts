@@ -297,8 +297,19 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
     })
 
     if (insertError) {
-      console.error('[admission-materials] failed to insert post', insertError)
-      throw new Error('입시 자료를 저장하지 못했습니다.')
+      const debugInfo = [
+        `[디버그] 카테고리=${category}`,
+        `오류코드=${insertError.code ?? '없음'}`,
+        `메시지=${insertError.message ?? '없음'}`,
+      ]
+      if (insertError.details) {
+        debugInfo.push(`세부사항=${insertError.details}`)
+      }
+      if (insertError.hint) {
+        debugInfo.push(`힌트=${insertError.hint}`)
+      }
+      console.error('[admission-materials] failed to insert post', insertError, { category, postId })
+      throw new Error(`입시 자료를 저장하지 못했습니다. ${debugInfo.join(', ')}`)
     }
 
     if (schedules.length > 0) {
