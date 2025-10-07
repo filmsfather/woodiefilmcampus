@@ -19,6 +19,23 @@ type TeacherDashboardSection = {
 
 const TEACHER_SECTIONS: TeacherDashboardSection[] = [
   {
+    title: '근무관리',
+    description: '근무일지를 작성하고 승인 현황을 확인하세요.',
+    actions: [
+      {
+        label: '근무일지 작성',
+        href: '/dashboard/teacher/work-journal',
+        description: '월별 근무 기록을 작성하고 원장 승인 상태를 확인합니다.',
+      },
+      {
+        label: '학습일지',
+        href: '/dashboard/teacher/learning-journal',
+        description: '학습일지 기능은 곧 제공될 예정입니다.',
+        variant: 'outline',
+      },
+    ],
+  },
+  {
     title: '문제집 아카이브',
     description: '문제집을 생성·편집하고 저장된 워크북을 관리하세요.',
     actions: [
