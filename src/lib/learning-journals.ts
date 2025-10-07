@@ -32,7 +32,6 @@ const SUBJECT_ALIAS: Record<string, LearningJournalSubject> = {
   film_research: 'film_research',
   '연구': 'film_research',
   '영화연구': 'film_research',
-  통합여부: 'film_research',
 }
 
 function isLearningJournalSubject(value: unknown): value is LearningJournalSubject {
