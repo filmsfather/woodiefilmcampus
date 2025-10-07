@@ -26,12 +26,12 @@ type SubmissionResult = 'correct' | 'incorrect' | null
 function getAvailableItems(items: StudentTaskItemDetail[]) {
   const nowMs = DateUtil.nowUTC().getTime()
   return items.filter((item) => {
-    if (!item.completedAt) {
-      return true
+    if (item.completedAt) {
+      return false
     }
 
     if (!item.nextReviewAt) {
-      return false
+      return true
     }
 
     return new Date(item.nextReviewAt).getTime() <= nowMs
@@ -187,6 +187,11 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
 
     if (!hasDueItems && targetIso) {
       const targetMs = new Date(targetIso).getTime()
+
+      if (!Number.isFinite(targetMs)) {
+        setRemainingTimeLabel(null)
+        return undefined
+      }
 
       const updateLabel = () => {
         const now = DateUtil.nowUTC().getTime()
