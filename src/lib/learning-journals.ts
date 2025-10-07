@@ -22,8 +22,34 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 const WEEK_INDICES = [1, 2, 3, 4] as const
 
+const SUBJECT_ALIAS: Record<string, LearningJournalSubject> = {
+  directing: 'directing',
+  '연출': 'directing',
+  '연출론': 'directing',
+  screenwriting: 'screenwriting',
+  '작법': 'screenwriting',
+  '작법론': 'screenwriting',
+  film_research: 'film_research',
+  '연구': 'film_research',
+  '영화연구': 'film_research',
+  '통합': 'film_research',
+}
+
 function isLearningJournalSubject(value: unknown): value is LearningJournalSubject {
   return typeof value === 'string' && (LEARNING_JOURNAL_SUBJECTS as readonly string[]).includes(value)
+}
+
+function resolveLearningJournalSubject(value: unknown): LearningJournalSubject | null {
+  if (isLearningJournalSubject(value)) {
+    return value
+  }
+
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim().toLowerCase()
+  return SUBJECT_ALIAS[normalized] ?? null
 }
 
 function toArray<T>(value: T | T[] | null | undefined): T[] {
@@ -31,24 +57,6 @@ function toArray<T>(value: T | T[] | null | undefined): T[] {
     return []
   }
   return Array.isArray(value) ? value : [value]
-}
-
-function extractWeekIndex(label: string | null | undefined): number | null {
-  if (!label) {
-    return null
-  }
-  const match = label.match(/\d+/)
-  if (!match) {
-    return null
-  }
-  const numeric = Number.parseInt(match[0] ?? '', 10)
-  if (!Number.isFinite(numeric)) {
-    return null
-  }
-  if (numeric < 1 || numeric > 4) {
-    return null
-  }
-  return numeric
 }
 
 function deriveWeekIndexFromDate(
@@ -1094,6 +1102,7 @@ interface StudentTaskWeeklyRow {
     | {
         id: string
         due_at: string | null
+        created_at: string
         target_scope: string | null
         workbook?:
           | {
@@ -1123,6 +1132,7 @@ interface StudentTaskWeeklyRow {
     | Array<{
         id: string
         due_at: string | null
+        created_at: string
         target_scope: string | null
         workbook?:
           | {
@@ -1262,6 +1272,7 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
        assignments:assignments!student_tasks_assignment_id_fkey(
          id,
          due_at,
+         created_at,
          target_scope,
          workbook:workbooks!assignments_workbook_id_fkey(
            id,
@@ -1291,9 +1302,9 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
     }
 
     const workbook = pickSingleRelation(assignmentRelation.workbook)
-    const subjectRaw = workbook?.subject ?? null
+    const subjectNormalized = resolveLearningJournalSubject(workbook?.subject ?? null)
 
-    if (!isLearningJournalSubject(subjectRaw)) {
+    if (!subjectNormalized) {
       continue
     }
 
@@ -1310,9 +1321,9 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
       continue
     }
 
-    const weekIndexFromLabel = extractWeekIndex(workbook?.week_label ?? null)
-    const weekIndexFromDate = deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
-    const weekIndex = weekIndexFromLabel ?? weekIndexFromDate
+    const weekIndexFromCreatedAt = deriveWeekIndexFromDate(assignmentRelation.created_at, weeklyRanges)
+    const weekIndexFromDueAt = deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
+    const weekIndex = weekIndexFromCreatedAt ?? weekIndexFromDueAt
 
     if (!weekIndex || weekIndex < 1 || weekIndex > 4) {
       continue
@@ -1323,10 +1334,10 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
         assignmentMap.set(weekIndex, new Map())
       }
       const weekBucket = assignmentMap.get(weekIndex) as Map<LearningJournalSubject, LearningJournalWeekAssignmentItem[]>
-      if (!weekBucket.has(subjectRaw)) {
-        weekBucket.set(subjectRaw, [])
+      if (!weekBucket.has(subjectNormalized)) {
+        weekBucket.set(subjectNormalized, [])
       }
-      return weekBucket.get(subjectRaw) as LearningJournalWeekAssignmentItem[]
+      return weekBucket.get(subjectNormalized) as LearningJournalWeekAssignmentItem[]
     })()
 
     const progressMeta = (row.progress_meta ?? null) as Record<string, unknown> | null
