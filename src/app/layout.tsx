@@ -1,3 +1,4 @@
+import Link from "next/link"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 
@@ -34,7 +35,19 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ClientClockInitializer serverNow={serverNow} />
-        {children}
+        <div className="min-h-screen bg-slate-50">
+          <header className="border-b border-slate-200 bg-white">
+            <div className="mx-auto flex max-w-6xl items-center justify-end px-4 py-3">
+              <Link
+                href="/dashboard"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
+              >
+                대시보드로 이동
+              </Link>
+            </div>
+          </header>
+          <main>{children}</main>
+        </div>
       </body>
     </html>
   )
