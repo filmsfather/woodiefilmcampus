@@ -11,12 +11,20 @@ import {
   fetchLearningJournalGreeting,
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
 } from '@/lib/learning-journals'
+import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CommentEditor } from '@/components/dashboard/teacher/learning-journal/CommentEditor'
 import { EntryStatusPanel } from '@/components/dashboard/teacher/learning-journal/EntryStatusPanel'
 
 interface PageParams {
   entryId: string
+}
+
+const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', string> = {
+  submitted: '승인 대기',
+  draft: '작성 중',
+  published: '공개 완료',
+  archived: '보관',
 }
 
 export default async function TeacherLearningJournalEntryPage({ params }: { params: PageParams }) {
@@ -82,90 +90,90 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
 
   return (
     <section className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-slate-900">{studentName} 학습일지</h1>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold text-slate-900">학습일지 작성</h1>
         <p className="text-sm text-slate-600">
-          {classInfo?.name ?? '반 미지정'} · {periodRow.start_date} ~ {periodRow.end_date}
+          학생에게 공개될 화면을 확인하고 필요한 코멘트를 작성하세요.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-6">
-          <Card className="border-slate-200">
-            <CardHeader>
-              <CardTitle className="text-lg text-slate-900">월간 요약</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {greeting ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">원장 인사말</h3>
-                  <p className="whitespace-pre-wrap text-sm text-slate-600">{greeting.message}</p>
-                </div>
-              ) : null}
-
-              {academicEvents.length > 0 ? (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-semibold text-slate-900">주요 학사 일정</h3>
-                  <ul className="space-y-1 text-sm text-slate-600">
-                    {academicEvents.map((event) => (
-                      <li key={event.id}>
-                        <span className="font-medium text-slate-900">
-                          {event.startDate}
-                          {event.endDate ? ` ~ ${event.endDate}` : ''}
-                        </span>{' '}
-                        {event.title}
-                        {event.memo ? <span className="text-slate-500"> · {event.memo}</span> : null}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {!greeting && academicEvents.length === 0 ? (
-                <p className="text-sm text-slate-500">등록된 인사말이나 일정이 없습니다.</p>
-              ) : null}
-
-              <div className="h-px w-full bg-slate-200" />
-
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold text-slate-900">자동 요약</h3>
-                {entry.summary ? (
-                  <pre className="max-h-64 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-                    {JSON.stringify(entry.summary, null, 2)}
-                  </pre>
-                ) : (
-                  <p className="text-sm text-slate-500">
-                    아직 자동 요약 데이터가 생성되지 않았습니다. 추후 자동 채우기 기능이 제공될 예정입니다.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <CommentEditor
-            entryId={entry.id}
-            roleScope="homeroom"
-            label="담임 코멘트"
-            description="학생의 전반적인 학습 태도와 전달 사항을 작성하세요."
-            defaultValue={commentLookup.get('homeroom') ?? ''}
+          <LearningJournalEntryContent
+            header={{
+              title: studentName,
+              subtitle: `${classInfo?.name ?? '반 미지정'} · ${
+                periodRow.label ?? `${periodRow.start_date} ~ ${periodRow.end_date}`
+              }`,
+              meta: [
+                {
+                  label: '제출 상태',
+                  value: STATUS_LABEL[entry.status] ?? entry.status,
+                },
+                {
+                  label: '공개일',
+                  value: entry.publishedAt
+                    ? DateUtil.formatForDisplay(entry.publishedAt, {
+                        locale: 'ko-KR',
+                        timeZone: 'Asia/Seoul',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
+                    : '미기록',
+                },
+                {
+                  label: '최근 업데이트',
+                  value: DateUtil.formatForDisplay(entry.updatedAt, {
+                    locale: 'ko-KR',
+                    timeZone: 'Asia/Seoul',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  }),
+                },
+              ],
+            }}
+            greeting={greeting}
+            academicEvents={academicEvents}
+            summary={entry.summary}
+            weekly={entry.weekly}
+            comments={comments}
           />
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {LEARNING_JOURNAL_SUBJECT_OPTIONS.map((option) => {
-              const key = `subject:${option.value}`
-              return (
-                <CommentEditor
-                  key={option.value}
-                  entryId={entry.id}
-                  roleScope="subject"
-                  subject={option.value}
-                  label={`${option.label} 코멘트`}
-                  description="수업 참여도, 과제 피드백 등을 기록하세요."
-                  defaultValue={commentLookup.get(key) ?? ''}
-                />
-              )
-            })}
-          </div>
+          <section className="space-y-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold text-slate-900">코멘트 작성</h2>
+              <p className="text-sm text-slate-500">수정 후 저장하면 위 미리보기가 즉시 갱신됩니다.</p>
+            </div>
+
+            <CommentEditor
+              entryId={entry.id}
+              roleScope="homeroom"
+              label="담임 코멘트"
+              description="학생의 전반적인 학습 태도와 전달 사항을 작성하세요."
+              defaultValue={commentLookup.get('homeroom') ?? ''}
+            />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {LEARNING_JOURNAL_SUBJECT_OPTIONS.map((option) => {
+                const key = `subject:${option.value}`
+                return (
+                  <CommentEditor
+                    key={option.value}
+                    entryId={entry.id}
+                    roleScope="subject"
+                    subject={option.value}
+                    label={`${option.label} 코멘트`}
+                    description="수업 참여도, 과제 피드백 등을 기록하세요."
+                    defaultValue={commentLookup.get(key) ?? ''}
+                  />
+                )
+              })}
+            </div>
+          </section>
         </div>
 
         <div className="space-y-6">
@@ -178,7 +186,7 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
             <CardContent className="space-y-3 text-sm text-slate-600">
               <div className="flex justify-between">
                 <span className="text-slate-500">작성 상태</span>
-                <span className="font-medium text-slate-900">{entry.status}</span>
+                <span className="font-medium text-slate-900">{STATUS_LABEL[entry.status] ?? entry.status}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">완료율</span>
