@@ -25,7 +25,19 @@ export function ManagerQuickLinks() {
           </Button>
         </CardFooter>
       </Card>
+      <Card>
+        <CardHeader className="gap-2">
+          <CardTitle className="text-lg">학습일지 관리</CardTitle>
+          <CardDescription>
+            반별 4주 주기를 설정하고 주요 학사 일정을 등록해 교사 학습일지 작성을 지원하세요.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/dashboard/manager/learning-journal">학습일지 관리</Link>
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   )
 }
-

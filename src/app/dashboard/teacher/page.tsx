@@ -30,7 +30,7 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
       {
         label: '학습일지',
         href: '/dashboard/teacher/learning-journal',
-        description: '학습일지 기능은 곧 제공될 예정입니다.',
+        description: '반별 학습일지를 작성하고 제출 상태를 관리하세요.',
         variant: 'outline',
       },
     ],
