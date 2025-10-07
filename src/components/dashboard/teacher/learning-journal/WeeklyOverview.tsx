@@ -1,5 +1,3 @@
-'use client'
-
 import { Badge } from '@/components/ui/badge'
 import type { LearningJournalWeeklyData } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS } from '@/types/learning-journal'

@@ -17,6 +17,7 @@ import {
   fetchLearningJournalGreeting,
   fetchLearningJournalComments,
 } from '@/lib/learning-journals'
+import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 
 const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', string> = {
   submitted: '승인 대기',
@@ -302,6 +303,7 @@ export default async function PrincipalLearningJournalReviewPage({
                       작성 중으로 되돌리기
                     </Button>
                   </form>
+                  <RegenerateWeeklyButton entryId={targetEntry.id} />
                 </>
               }
             />

@@ -15,6 +15,7 @@ import { LearningJournalEntryContent } from '@/components/dashboard/learning-jou
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CommentEditor } from '@/components/dashboard/teacher/learning-journal/CommentEditor'
 import { EntryStatusPanel } from '@/components/dashboard/teacher/learning-journal/EntryStatusPanel'
+import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 
 interface PageParams {
   entryId: string
@@ -142,6 +143,8 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
             weekly={entry.weekly}
             comments={comments}
           />
+
+          <RegenerateWeeklyButton entryId={entry.id} />
 
           <section className="space-y-4">
             <div className="space-y-1">

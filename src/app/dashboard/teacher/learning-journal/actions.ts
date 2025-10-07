@@ -13,6 +13,7 @@ import {
   type UpdateLearningJournalEntryStatusInput,
 } from '@/lib/validation/learning-journal'
 import type { ActionState } from '@/app/dashboard/manager/classes/action-state'
+import { refreshLearningJournalWeeklyData } from '@/lib/learning-journals'
 
 const TEACHER_LEARNING_JOURNAL_PATH = '/dashboard/teacher/learning-journal'
 function revalidateEntryPath(entryId: string) {
@@ -240,5 +241,38 @@ export async function updateLearningJournalEntryStatusAction(
   } catch (caughtError) {
     console.error('[learning-journal] entry status unexpected error', caughtError)
     return makeErrorState('상태를 변경하는 중 문제가 발생했습니다.')
+  }
+}
+
+export async function regenerateLearningJournalWeeklyAction(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const { profile } = await getAuthContext()
+
+  if (!profile || !canManageLearningJournal(profile.role)) {
+    return makeErrorState('주차별 데이터를 재생성할 권한이 없습니다.')
+  }
+
+  const entryId = formData.get('entryId')?.toString() ?? ''
+
+  if (!entryId) {
+    return makeErrorState('학습일지 정보를 확인하지 못했습니다.')
+  }
+
+  try {
+    const weeklyData = await refreshLearningJournalWeeklyData(entryId)
+
+    if (!weeklyData) {
+      return makeErrorState('주차별 데이터를 생성하지 못했습니다.')
+    }
+
+    revalidatePath(TEACHER_LEARNING_JOURNAL_PATH)
+    revalidateEntryPath(entryId)
+
+    return makeSuccessState('주차별 데이터를 최신 정보로 갱신했습니다.')
+  } catch (error) {
+    console.error('[learning-journal] weekly regenerate error', error)
+    return makeErrorState('주차별 데이터를 생성하는 중 문제가 발생했습니다.')
   }
 }

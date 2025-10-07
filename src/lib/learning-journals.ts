@@ -12,10 +12,80 @@ import {
   type LearningJournalPeriodWithClass,
   type LearningJournalStudentSnapshot,
   type LearningJournalWeekTemplate,
+  type LearningJournalWeeklyData,
+  type LearningJournalWeekAssignmentItem,
+  type LearningJournalWeeklySubjectData,
   type ClassLearningJournalTemplate,
 } from '@/types/learning-journal'
 import type { LearningJournalSubject } from '@/types/learning-journal'
 import { createAdminClient } from '@/lib/supabase/admin'
+
+const WEEK_INDICES = [1, 2, 3, 4] as const
+
+function isLearningJournalSubject(value: unknown): value is LearningJournalSubject {
+  return typeof value === 'string' && (LEARNING_JOURNAL_SUBJECTS as readonly string[]).includes(value)
+}
+
+function toArray<T>(value: T | T[] | null | undefined): T[] {
+  if (!value) {
+    return []
+  }
+  return Array.isArray(value) ? value : [value]
+}
+
+function extractWeekIndex(label: string | null | undefined): number | null {
+  if (!label) {
+    return null
+  }
+  const match = label.match(/\d+/)
+  if (!match) {
+    return null
+  }
+  const numeric = Number.parseInt(match[0] ?? '', 10)
+  if (!Number.isFinite(numeric)) {
+    return null
+  }
+  if (numeric < 1 || numeric > 4) {
+    return null
+  }
+  return numeric
+}
+
+function deriveWeekIndexFromDate(
+  isoDate: string | null,
+  ranges: Array<{ weekIndex: number; startDate: string; endDate: string }>
+): number | null {
+  if (!isoDate) {
+    return null
+  }
+
+  const target = DateUtil.toUTCDate(isoDate)
+
+  for (const range of ranges) {
+    const start = DateUtil.toUTCDate(range.startDate)
+    const end = DateUtil.toUTCDate(range.endDate)
+    if (target >= start && target <= end) {
+      return range.weekIndex
+    }
+  }
+
+  return null
+}
+
+function normalizeAssignmentStatus(status: string | null | undefined): LearningJournalWeekAssignmentItem['status'] {
+  switch (status) {
+    case 'completed':
+      return 'completed'
+    case 'in_progress':
+      return 'in_progress'
+    case 'not_started':
+      return 'not_started'
+    case 'pending':
+      return 'pending'
+    default:
+      return 'pending'
+  }
+}
 
 interface LearningJournalPeriodRow {
   id: string
@@ -981,6 +1051,383 @@ export async function fetchLearningJournalEntryDetail(entryId: string): Promise<
     updatedAt: entry.updated_at,
   }
 }
+
+interface EntryWeeklyGenerationRow {
+  id: string
+  student_id: string
+  period_id: string
+  status: string
+  period?:
+    | {
+        id: string
+        class_id: string
+        start_date: string
+        end_date: string
+        label: string | null
+        status: string
+        created_by: string
+        locked_at: string | null
+        created_at: string
+        updated_at: string
+      }
+    | Array<{
+        id: string
+        class_id: string
+        start_date: string
+        end_date: string
+        label: string | null
+        status: string
+        created_by: string
+        locked_at: string | null
+        created_at: string
+        updated_at: string
+      }>
+    | null
+}
+
+interface StudentTaskWeeklyRow {
+  id: string
+  status: string
+  completion_at: string | null
+  progress_meta: Record<string, unknown> | null
+  assignments?:
+    | {
+        id: string
+        due_at: string | null
+        target_scope: string | null
+        workbook?:
+          | {
+              id: string
+              title: string | null
+              subject: string | null
+              week_label: string | null
+            }
+          | Array<{
+              id: string
+              title: string | null
+              subject: string | null
+              week_label: string | null
+            }>
+          | null
+        assignment_targets?:
+          | Array<{
+              class_id: string | null
+              student_id: string | null
+            }>
+          | {
+              class_id: string | null
+              student_id: string | null
+            }
+          | null
+      }
+    | Array<{
+        id: string
+        due_at: string | null
+        target_scope: string | null
+        workbook?:
+          | {
+              id: string
+              title: string | null
+              subject: string | null
+              week_label: string | null
+            }
+          | Array<{
+              id: string
+              title: string | null
+              subject: string | null
+              week_label: string | null
+            }>
+          | null
+        assignment_targets?:
+          | Array<{
+              class_id: string | null
+              student_id: string | null
+            }>
+          | {
+              class_id: string | null
+              student_id: string | null
+            }
+          | null
+      }>
+    | null
+}
+
+function pickSingleRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) {
+    return null
+  }
+  return Array.isArray(value) ? value[0] ?? null : value
+}
+
+function initializeWeeklySubjectData(): Record<LearningJournalSubject, LearningJournalWeeklySubjectData> {
+  return LEARNING_JOURNAL_SUBJECTS.reduce((acc, subject) => {
+    acc[subject] = {
+      materials: [],
+      assignments: [],
+    }
+    return acc
+  }, {} as Record<LearningJournalSubject, LearningJournalWeeklySubjectData>)
+}
+
+function extractScore(meta: Record<string, unknown> | null): number | null {
+  if (!meta) {
+    return null
+  }
+
+  const raw = meta.score ?? meta.totalScore ?? meta.finalScore
+
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw
+  }
+
+  if (typeof raw === 'string') {
+    const parsed = Number.parseFloat(raw)
+    if (!Number.isNaN(parsed)) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+export async function generateLearningJournalWeeklyData(entryId: string): Promise<LearningJournalWeeklyData[] | null> {
+  if (!entryId) {
+    return null
+  }
+
+  const supabase = createServerSupabase()
+
+  const { data: entryRow, error: entryError } = await supabase
+    .from('learning_journal_entries')
+    .select(
+      `id,
+       student_id,
+       period_id,
+       status,
+       period:learning_journal_periods!inner(
+         id,
+         class_id,
+         start_date,
+         end_date,
+         label,
+         status,
+         created_by,
+         locked_at,
+         created_at,
+         updated_at
+       )
+      `
+    )
+    .eq('id', entryId)
+    .maybeSingle<EntryWeeklyGenerationRow>()
+
+  if (entryError) {
+    console.error('[learning-journal] weekly entry fetch error', entryError)
+    return null
+  }
+
+  if (!entryRow) {
+    return null
+  }
+
+  const periodRelation = pickSingleRelation(entryRow.period)
+
+  if (!periodRelation) {
+    return null
+  }
+
+  const period: LearningJournalPeriod = {
+    id: periodRelation.id,
+    classId: periodRelation.class_id,
+    startDate: periodRelation.start_date,
+    endDate: periodRelation.end_date,
+    label: periodRelation.label ?? null,
+    status: (periodRelation.status ?? 'draft') as LearningJournalPeriod['status'],
+    createdBy: periodRelation.created_by,
+    lockedAt: periodRelation.locked_at,
+    createdAt: periodRelation.created_at,
+    updatedAt: periodRelation.updated_at,
+  }
+
+  const template = await fetchClassLearningJournalTemplate(period.classId, period.id)
+  const weeklyRanges = resolveWeeklyRanges(period)
+
+  const { data: taskRows, error: taskError } = await supabase
+    .from('student_tasks')
+    .select(
+      `id,
+       status,
+       completion_at,
+       progress_meta,
+       assignments:assignments!student_tasks_assignment_id_fkey(
+         id,
+         due_at,
+         target_scope,
+         workbook:workbooks!assignments_workbook_id_fkey(
+           id,
+           title,
+           subject,
+           week_label
+         ),
+         assignment_targets:assignment_targets!assignment_targets_assignment_id_fkey(
+           class_id,
+           student_id
+         )
+       )
+      `
+    )
+    .eq('student_id', entryRow.student_id)
+
+  if (taskError) {
+    console.error('[learning-journal] weekly student task fetch error', taskError)
+  }
+
+  const assignmentMap = new Map<number, Map<LearningJournalSubject, LearningJournalWeekAssignmentItem[]>>()
+
+  for (const row of (taskRows ?? []) as StudentTaskWeeklyRow[]) {
+    const assignmentRelation = pickSingleRelation(row.assignments)
+    if (!assignmentRelation) {
+      continue
+    }
+
+    const workbook = pickSingleRelation(assignmentRelation.workbook)
+    const subjectRaw = workbook?.subject ?? null
+
+    if (!isLearningJournalSubject(subjectRaw)) {
+      continue
+    }
+
+    const targets = toArray(assignmentRelation.assignment_targets)
+    const hasMatchingTarget =
+      targets.length === 0 ||
+      targets.some((target) => {
+        const classMatch = target?.class_id ? target.class_id === period.classId : false
+        const studentMatch = target?.student_id ? target.student_id === entryRow.student_id : false
+        return classMatch || studentMatch
+      })
+
+    if (!hasMatchingTarget) {
+      continue
+    }
+
+    const weekIndexFromLabel = extractWeekIndex(workbook?.week_label ?? null)
+    const weekIndexFromDate = deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
+    const weekIndex = weekIndexFromLabel ?? weekIndexFromDate
+
+    if (!weekIndex || weekIndex < 1 || weekIndex > 4) {
+      continue
+    }
+
+    const subjectAssignments = (() => {
+      if (!assignmentMap.has(weekIndex)) {
+        assignmentMap.set(weekIndex, new Map())
+      }
+      const weekBucket = assignmentMap.get(weekIndex) as Map<LearningJournalSubject, LearningJournalWeekAssignmentItem[]>
+      if (!weekBucket.has(subjectRaw)) {
+        weekBucket.set(subjectRaw, [])
+      }
+      return weekBucket.get(subjectRaw) as LearningJournalWeekAssignmentItem[]
+    })()
+
+    const progressMeta = (row.progress_meta ?? null) as Record<string, unknown> | null
+
+    subjectAssignments.push({
+      id: row.id,
+      title: workbook?.title ?? '과제',
+      status: normalizeAssignmentStatus(row.status),
+      dueDate: assignmentRelation.due_at,
+      submittedAt: row.completion_at,
+      score: extractScore(progressMeta),
+      note: null,
+    })
+  }
+
+  const weeks: LearningJournalWeeklyData[] = WEEK_INDICES.map((weekIndex) => {
+    const range = weeklyRanges.find((item) => item.weekIndex === weekIndex)
+    const templateWeek = template.weeks.find((item) => item.weekIndex === weekIndex)
+    const subjects = initializeWeeklySubjectData()
+    const assignmentBucket = assignmentMap.get(weekIndex)
+
+    for (const subject of LEARNING_JOURNAL_SUBJECTS) {
+      const config = templateWeek?.subjects[subject]
+      const assignments = assignmentBucket?.get(subject) ?? []
+      assignments.sort((a, b) => {
+        const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY
+        const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY
+        return aTime - bTime
+      })
+
+      if (config) {
+        const materials: LearningJournalWeeklySubjectData['materials'] = []
+        const maxLength = Math.max(config.materialIds.length, config.materialTitles.length)
+
+        for (let index = 0; index < maxLength; index += 1) {
+          const materialTitle = config.materialTitles[index] ?? ''
+          if (!materialTitle) {
+            continue
+          }
+
+          const materialId = config.materialIds[index] ?? null
+
+          materials.push({
+            templateId: config.templateId,
+            title: materialTitle,
+            note: config.materialNotes ?? null,
+            sourceType: materialId ? 'class_material' : 'custom',
+            sourceId: materialId,
+          })
+        }
+
+        subjects[subject] = {
+          materials,
+          assignments,
+          summaryNote: config.materialNotes ?? null,
+        }
+      } else {
+        subjects[subject] = {
+          materials: [],
+          assignments,
+        }
+      }
+    }
+
+    return {
+      weekIndex,
+      startDate: range?.startDate ?? period.startDate,
+      endDate: range?.endDate ?? period.endDate,
+      subjects,
+    }
+  })
+
+  return weeks
+}
+
+export async function refreshLearningJournalWeeklyData(entryId: string): Promise<LearningJournalWeeklyData[] | null> {
+  const weeklyData = await generateLearningJournalWeeklyData(entryId)
+
+  if (!weeklyData) {
+    return null
+  }
+
+  const supabase = createServerSupabase()
+  const nowIso = DateUtil.toISOString(new Date())
+
+  const { error } = await supabase
+    .from('learning_journal_entries')
+    .update({
+      weekly_json: weeklyData,
+      last_generated_at: nowIso,
+    })
+    .eq('id', entryId)
+
+  if (error) {
+    console.error('[learning-journal] weekly update error', error)
+    return null
+  }
+
+  return weeklyData
+}
+
 
 function pickPeriod(row: StudentEntryRow['period']) {
   if (!row) {

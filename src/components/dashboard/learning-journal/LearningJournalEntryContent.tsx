@@ -2,10 +2,12 @@ import type { ReactNode } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LEARNING_JOURNAL_SUBJECT_OPTIONS } from '@/lib/learning-journals'
+import { WeeklyOverview } from '@/components/dashboard/teacher/learning-journal/WeeklyOverview'
 import type {
   LearningJournalAcademicEvent,
   LearningJournalComment,
   LearningJournalGreeting,
+  LearningJournalWeeklyData,
 } from '@/types/learning-journal'
 
 interface HeaderMetaItem {
@@ -51,6 +53,26 @@ function renderStructuredContent(data: unknown) {
   }
 }
 
+function isLearningJournalWeeklyDataArray(value: unknown): value is LearningJournalWeeklyData[] {
+  if (!Array.isArray(value)) {
+    return false
+  }
+
+  return value.every((item) => {
+    if (!item || typeof item !== 'object') {
+      return false
+    }
+
+    const candidate = item as Partial<LearningJournalWeeklyData>
+    return (
+      typeof candidate.weekIndex === 'number' &&
+      typeof candidate.startDate === 'string' &&
+      typeof candidate.endDate === 'string' &&
+      candidate.subjects && typeof candidate.subjects === 'object'
+    )
+  })
+}
+
 export function LearningJournalEntryContent({
   header,
   greeting,
@@ -75,6 +97,7 @@ export function LearningJournalEntryContent({
 
   const renderedSummary = renderStructuredContent(summary)
   const renderedWeekly = renderStructuredContent(weekly)
+  const weeklyStructured = isLearningJournalWeeklyDataArray(weekly) ? weekly : null
 
   return (
     <section className="space-y-6">
@@ -173,7 +196,9 @@ export function LearningJournalEntryContent({
           <CardTitle className="text-lg text-slate-900">주차별 학습 현황</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-slate-600">
-          {renderedWeekly ? (
+          {weeklyStructured && weeklyStructured.length > 0 ? (
+            <WeeklyOverview weeks={weeklyStructured} />
+          ) : renderedWeekly ? (
             <pre className="max-h-72 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-600">
               {renderedWeekly}
             </pre>
