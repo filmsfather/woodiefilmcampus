@@ -11,6 +11,7 @@ import {
   type WorkLogEntryWithTeacher,
 } from '@/lib/work-logs'
 import { WorkLogReviewClient } from '@/components/dashboard/principal/work-logs/WorkLogReviewClient'
+import { WorkLogCalendarPanel } from '@/components/dashboard/principal/work-logs/WorkLogCalendarPanel'
 
 interface WorkLogEntryWithTeacherRow extends WorkLogEntryRow {
   teacher?: {
@@ -30,6 +31,7 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
   await requireAuthForDashboard('principal')
 
   const monthTokenParam = typeof searchParams?.month === 'string' ? searchParams.month : null
+  const teacherFilterParam = typeof searchParams?.teacher === 'string' ? searchParams.teacher : null
   const statusToken = typeof searchParams?.status === 'string' ? searchParams.status : 'pending'
   const statusFilter = STATUS_OPTIONS.has(statusToken) ? statusToken : 'pending'
 
@@ -43,13 +45,18 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
     teacher:profiles!work_log_entries_teacher_id_fkey(id, name, email)
   `
 
-  const { data: rows, error: fetchError } = await supabase
+  let baseQuery = supabase
     .from('work_log_entries')
     .select(selectFields)
     .gte('work_date', monthRange.startDate)
     .lt('work_date', monthRange.endExclusiveDate)
     .order('work_date', { ascending: true })
-    .returns<WorkLogEntryWithTeacherRow[]>()
+
+  if (teacherFilterParam) {
+    baseQuery = baseQuery.eq('teacher_id', teacherFilterParam)
+  }
+
+  const { data: rows, error: fetchError } = await baseQuery.returns<WorkLogEntryWithTeacherRow[]>()
 
   if (fetchError) {
     console.error('[principal-work-journal] fetch error', fetchError)
@@ -101,13 +108,22 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
         <h1 className="text-3xl font-semibold text-slate-900">근무일지 승인</h1>
         <p className="text-sm text-slate-600">선생님이 제출한 근무일지를 검토하고 승인 상태를 관리하세요.</p>
       </header>
-      <WorkLogReviewClient
-        entries={entries}
-        monthToken={monthToken}
-        monthLabel={monthRange.label}
-        statusFilter={statusFilter as 'pending' | 'approved' | 'rejected' | 'all'}
-        teacherDirectory={teacherDirectory}
-      />
+      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+        <WorkLogReviewClient
+          entries={entries}
+          monthToken={monthToken}
+          monthLabel={monthRange.label}
+          statusFilter={statusFilter as 'pending' | 'approved' | 'rejected' | 'all'}
+          teacherDirectory={teacherDirectory}
+        />
+        <WorkLogCalendarPanel
+          entries={entries}
+          monthToken={monthToken}
+          monthLabel={monthRange.label}
+          teacherDirectory={teacherDirectory}
+          activeTeacherId={teacherFilterParam ?? null}
+        />
+      </div>
     </section>
   )
 }
