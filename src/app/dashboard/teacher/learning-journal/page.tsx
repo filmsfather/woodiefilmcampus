@@ -11,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { LearningJournalStudentSnapshot } from '@/types/learning-journal'
-import { DebugAlert } from '@/components/dashboard/teacher/learning-journal/DebugAlert'
 
 function toProgressLabel(submitted: number, total: number) {
   if (total === 0) {
@@ -72,9 +71,8 @@ export default async function TeacherLearningJournalPage({
   const debugMessages = selectedSnapshots
     .filter((snapshot) => !snapshot.name)
     .map((snapshot) => {
-      const base = `학생 ID: ${snapshot.studentId}`
-      const emailInfo = snapshot.email ? `, 이메일: ${snapshot.email}` : ''
-      return `${base} · 이름 정보 없음${emailInfo}`
+      const emailInfo = snapshot.email ? ` 이메일: ${snapshot.email}` : ''
+      return `학생 ID: ${snapshot.studentId}${emailInfo}`
     })
 
   return (
@@ -233,7 +231,18 @@ export default async function TeacherLearningJournalPage({
          ) : null}
         </div>
       )}
-      {debugMessages.length > 0 ? <DebugAlert messages={debugMessages} /> : null}
+      {debugMessages.length > 0 ? (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-700">
+          <p className="font-semibold">이름이 비어 있는 학생이 있습니다.</p>
+          <ul className="mt-2 list-disc space-y-1 pl-4">
+            {debugMessages.map((message) => (
+              <li key={message} className="font-mono text-xs">
+                {message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   )
 }
