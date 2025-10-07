@@ -12,6 +12,7 @@ import {
 import type { ActionState } from '@/app/dashboard/manager/classes/action-state'
 
 const PRINCIPAL_LEARNING_JOURNAL_PATH = '/dashboard/principal/learning-journal'
+const PRINCIPAL_REVIEW_PATH = '/dashboard/principal/learning-journal/review'
 
 function makeErrorState(message: string, fieldErrors?: Record<string, string[]>): ActionState {
   return {
@@ -130,4 +131,89 @@ export async function deleteLearningJournalGreetingAction(
     console.error('[learning-journal] greeting delete unexpected error', caughtError)
     return makeErrorState('인사말을 삭제하는 중 문제가 발생했습니다.')
   }
+}
+
+async function insertEntryLog(
+  admin: ReturnType<typeof createAdminClient>,
+  entryId: string,
+  previousStatus: string | null,
+  nextStatus: string,
+  actorId: string
+) {
+  const { error } = await admin.from('learning_journal_entry_logs').insert({
+    entry_id: entryId,
+    previous_status: previousStatus,
+    next_status: nextStatus,
+    changed_by: actorId,
+    created_at: new Date().toISOString(),
+  })
+
+  if (error) {
+    console.error('[learning-journal] insert log error', error)
+  }
+}
+
+export async function updateEntryStatusByPrincipalAction(formData: FormData) {
+  const profile = await ensurePrincipalProfile()
+
+  if (!profile) {
+    return { error: '학습일지 상태를 변경할 권한이 없습니다.' }
+  }
+
+  const entryId = formData.get('entryId')?.toString() ?? ''
+  const status = formData.get('status')?.toString() ?? ''
+
+  if (!entryId || !['published', 'draft', 'submitted'].includes(status)) {
+    return { error: '유효한 상태가 아닙니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: current, error: fetchError } = await admin
+    .from('learning_journal_entries')
+    .select('status, submitted_at, published_at')
+    .eq('id', entryId)
+    .maybeSingle()
+
+  if (fetchError || !current) {
+    console.error('[learning-journal] principal review fetch error', fetchError)
+    return { error: '현재 상태를 불러오지 못했습니다.' }
+  }
+
+  const nowIso = new Date().toISOString()
+
+  const updatePayload: Record<string, unknown> = {
+    status,
+    updated_at: nowIso,
+  }
+
+  if (status === 'published') {
+    updatePayload.published_at = nowIso
+    updatePayload.submitted_at = current.submitted_at ?? nowIso
+  }
+
+  if (status === 'draft') {
+    updatePayload.published_at = null
+  }
+
+  if (status === 'submitted' && !current.submitted_at) {
+    updatePayload.submitted_at = nowIso
+  }
+
+  const { error: updateError } = await admin
+    .from('learning_journal_entries')
+    .update(updatePayload)
+    .eq('id', entryId)
+
+  if (updateError) {
+    console.error('[learning-journal] principal review update error', updateError)
+    return { error: '상태를 변경하지 못했습니다.' }
+  }
+
+  await insertEntryLog(admin, entryId, current.status ?? null, status, profile.id)
+
+  revalidatePath(PRINCIPAL_REVIEW_PATH)
+  revalidatePath(PRINCIPAL_LEARNING_JOURNAL_PATH)
+
+  return { success: true }
 }

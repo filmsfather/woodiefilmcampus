@@ -126,6 +126,116 @@ interface StudentEntryRow extends LearningJournalEntryRow {
     | null
 }
 
+interface ReviewEntryRow {
+  id: string
+  status: LearningJournalEntryStatus
+  completion_rate: number | null
+  submitted_at: string | null
+  published_at: string | null
+  created_at: string
+  updated_at: string
+  student:
+    | {
+        id: string
+        name: string | null
+        email: string | null
+      }
+    | Array<{
+        id: string
+        name: string | null
+        email: string | null
+      }>
+    | null
+  period:
+    | {
+        id: string
+        start_date: string
+        end_date: string
+        label: string | null
+        class_id: string | null
+        classes:
+          | {
+              id: string
+              name: string | null
+            }
+          | Array<{
+              id: string
+              name: string | null
+            }>
+          | null
+      }
+    | Array<{
+        id: string
+        start_date: string
+        end_date: string
+        label: string | null
+        class_id: string | null
+        classes:
+          | {
+              id: string
+              name: string | null
+            }
+          | Array<{
+              id: string
+              name: string | null
+            }>
+          | null
+      }>
+    | null
+}
+
+export interface ReviewEntrySummary {
+  id: string
+  status: LearningJournalEntryStatus
+  completionRate: number | null
+  submittedAt: string | null
+  publishedAt: string | null
+  studentId: string
+  studentName: string | null
+  studentEmail: string | null
+  classId: string | null
+  className: string | null
+  periodId: string
+  periodLabel: string | null
+  periodStartDate: string
+  periodEndDate: string
+  updatedAt: string
+}
+
+function pickSingle<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) {
+    return null
+  }
+  if (Array.isArray(value)) {
+    return value[0] ?? null
+  }
+  return value
+}
+
+function toReviewEntry(row: ReviewEntryRow): ReviewEntrySummary {
+  const period = pickSingle(row.period)
+  const classInfo = pickSingle(period?.classes ?? null)
+  const student = pickSingle(row.student)
+
+  return {
+    id: row.id,
+    status: row.status,
+    completionRate: row.completion_rate ?? null,
+    submittedAt: row.submitted_at ?? null,
+    publishedAt: row.published_at ?? null,
+    studentId: student?.id ?? '',
+    studentName: student?.name ?? student?.email ?? null,
+    studentEmail: student?.email ?? null,
+    classId: classInfo?.id ?? period?.class_id ?? null,
+    className: classInfo?.name ?? null,
+    periodId: period?.id ?? '',
+    periodLabel: period?.label ?? null,
+    periodStartDate: period?.start_date ?? '',
+    periodEndDate: period?.end_date ?? '',
+    updatedAt: row.updated_at,
+  }
+}
+
 export interface StudentLearningJournalSnapshot {
   entry: LearningJournalEntryDetail
   period: {
@@ -957,6 +1067,65 @@ export async function fetchLatestPublishedLearningJournalEntry(
       status: pickedPeriod.status as LearningJournalPeriod['status'],
     },
   }
+}
+
+export async function fetchLearningJournalEntriesForReview(params: {
+  status?: 'submitted' | 'published' | 'draft' | 'all'
+  classId?: string | null
+  periodId?: string | null
+}): Promise<ReviewEntrySummary[]> {
+  const supabase = createServerSupabase()
+
+  let query = supabase
+    .from('learning_journal_entries')
+    .select(
+      `id,
+       status,
+       completion_rate,
+       submitted_at,
+       published_at,
+       created_at,
+       updated_at,
+       student:profiles!learning_journal_entries_student_id_fkey(id, name, email),
+       period:learning_journal_periods!learning_journal_entries_period_id_fkey(
+         id,
+         start_date,
+         end_date,
+         label,
+         class_id,
+         classes:classes!learning_journal_periods_class_id_fkey(id, name)
+       )`
+    )
+
+  const statusFilter = params.status ?? 'submitted'
+
+  if (statusFilter !== 'all') {
+    query = query.eq('status', statusFilter)
+  }
+
+  if (params.periodId) {
+    query = query.eq('period_id', params.periodId)
+  } else if (params.classId) {
+    const { data: periodRows, error: periodError } = await supabase
+      .from('learning_journal_periods')
+      .select('id')
+      .eq('class_id', params.classId)
+
+    if (periodError) {
+      console.error('[learning-journal] review period fetch error', periodError)
+    } else if (periodRows && periodRows.length > 0) {
+      query = query.in('period_id', periodRows.map((period) => period.id))
+    }
+  }
+
+  const { data, error } = await query.order('submitted_at', { ascending: false, nullsFirst: false })
+
+  if (error) {
+    console.error('[learning-journal] fetch review entries error', error)
+    return []
+  }
+
+  return (data ?? []).map((row) => toReviewEntry(row as ReviewEntryRow))
 }
 
 export async function fetchLearningJournalPeriodStats(
