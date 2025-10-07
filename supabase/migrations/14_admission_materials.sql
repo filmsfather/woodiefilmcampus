@@ -4,7 +4,7 @@ begin;
 
 create table if not exists public.admission_material_posts (
   id uuid primary key default gen_random_uuid(),
-  category text not null check (category in ('interview', 'essay', 'portfolio', 'notice')),
+  category text not null check (category in ('guideline', 'past_exam', 'success_review')),
   target_level text,
   title text not null,
   description text,

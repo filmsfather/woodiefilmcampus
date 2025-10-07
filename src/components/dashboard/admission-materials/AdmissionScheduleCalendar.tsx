@@ -88,7 +88,7 @@ function formatMonthTitle(date: Date) {
   }).format(date)
 }
 
-const CATEGORY_ORDER: AdmissionMaterialCategory[] = ['interview', 'essay', 'portfolio', 'notice']
+const CATEGORY_ORDER: AdmissionMaterialCategory[] = ['guideline', 'past_exam', 'success_review']
 
 export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
