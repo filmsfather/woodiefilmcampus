@@ -488,15 +488,6 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
     }
   }
 
-  const canEditAll = profile.role === 'principal' || profile.role === 'manager'
-  const isOwner = workbook.teacher_id === profile.id
-
-  if (!canEditAll && !isOwner) {
-    return {
-      error: '문제집을 수정할 권한이 없습니다.',
-    }
-  }
-
   const workbookConfig: Record<string, unknown> = {}
 
   switch (workbook.type) {
@@ -543,10 +534,6 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
       config: workbookConfig,
     })
     .eq('id', payload.workbookId)
-
-  if (!canEditAll) {
-    updateQuery.eq('teacher_id', profile.id)
-  }
 
   const { error: updateError } = await updateQuery
 
@@ -889,18 +876,11 @@ export async function deleteWorkbook(workbookId: string) {
   const supabase = createServerSupabase()
 
   try {
-    const canManageAll = profile.role === 'principal' || profile.role === 'manager'
-
-    const workbookQuery = supabase
+    const { data: workbook, error: fetchError } = await supabase
       .from('workbooks')
       .select('id')
       .eq('id', workbookId)
-
-    if (!canManageAll) {
-      workbookQuery.eq('teacher_id', profile.id)
-    }
-
-    const { data: workbook, error: fetchError } = await workbookQuery.maybeSingle()
+      .maybeSingle()
 
     if (fetchError) {
       console.error('[deleteWorkbook] fetch error', fetchError)
@@ -1023,9 +1003,7 @@ export async function duplicateWorkbook(workbookId: string) {
   const supabase = createServerSupabase()
 
   try {
-    const canManageAll = profile.role === 'principal' || profile.role === 'manager'
-
-    const workbookQuery = supabase
+    const { data: workbook, error: fetchError } = await supabase
       .from('workbooks')
       .select(
         `id, teacher_id, title, subject, type, week_label, tags, description, config,
@@ -1036,12 +1014,7 @@ export async function duplicateWorkbook(workbookId: string) {
          )`
       )
       .eq('id', workbookId)
-
-    if (!canManageAll) {
-      workbookQuery.eq('teacher_id', profile.id)
-    }
-
-    const { data: workbook, error: fetchError } = await workbookQuery.maybeSingle()
+      .maybeSingle()
 
     if (fetchError) {
       console.error('[duplicateWorkbook] fetch error', fetchError)

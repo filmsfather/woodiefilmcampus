@@ -72,10 +72,9 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
     console.error('[workbooks/edit] fetch error', error)
   }
 
-  const canEditAll = profile?.role === 'principal' || profile?.role === 'manager'
-  const isOwner = workbook?.teacher_id === profile?.id
+  const canManageWorkbook = profile && ['teacher', 'manager', 'principal'].includes(profile.role)
 
-  if (!workbook || (!canEditAll && !isOwner)) {
+  if (!workbook || !canManageWorkbook) {
     notFound()
   }
 

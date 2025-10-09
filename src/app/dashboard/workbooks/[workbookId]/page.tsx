@@ -26,6 +26,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
     .from('workbooks')
     .select(
       `id, teacher_id, title, subject, type, week_label, tags, description, config, created_at, updated_at,
+       teacher:profiles!workbooks_teacher_id_fkey(id, name, email),
        workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
         workbook_item_choices(id, label, content, is_correct),
         workbook_item_short_fields(id, label, answer, position),
@@ -44,7 +45,10 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
   }
 
   const canManageWorkbook =
-    profile?.role === 'principal' || profile?.role === 'manager' || profile?.id === workbook.teacher_id
+    profile && ['teacher', 'manager', 'principal'].includes(profile.role)
+
+  const teacherInfo = Array.isArray(workbook.teacher) ? workbook.teacher[0] : workbook.teacher
+  const authorLabel = teacherInfo?.name ?? teacherInfo?.email ?? '작성자 정보 없음'
 
   const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
 
@@ -99,10 +103,14 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
         <DashboardBackLink fallbackHref="/dashboard/workbooks" label="문제집 목록으로 돌아가기" />
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold text-slate-900">{workbook.title}</h1>
               <Badge variant="secondary">{readableType}</Badge>
               <Badge variant="outline">{workbook.subject}</Badge>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <span className="font-medium text-slate-700">작성자</span>
+              <span>{authorLabel}</span>
             </div>
             <div className="flex flex-wrap gap-2 text-xs text-slate-500">
               {workbook.week_label && <span className="rounded bg-slate-100 px-2 py-1">{workbook.week_label}</span>}

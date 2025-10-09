@@ -20,6 +20,18 @@ interface WorkbookListItem {
   created_at: string
   updated_at: string
   workbook_items?: Array<{ count: number }>
+  teacher?:
+    | {
+        id: string
+        name: string | null
+        email: string | null
+      }
+    | Array<{
+        id: string
+        name: string | null
+        email: string | null
+      }>
+    | null
 }
 
 export default async function WorkbookListPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
@@ -35,7 +47,11 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
 
   let queryBuilder = supabase
     .from('workbooks')
-    .select('id, title, subject, type, week_label, tags, created_at, updated_at, workbook_items(count)')
+    .select(
+      `id, title, subject, type, week_label, tags, created_at, updated_at,
+       teacher:profiles!workbooks_teacher_id_fkey(id, name, email),
+       workbook_items(count)`
+    )
 
   if (subjectFilter.length > 0) {
     queryBuilder = queryBuilder.in('subject', subjectFilter)
@@ -82,10 +98,8 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
         <DashboardBackLink fallbackHref="/dashboard/teacher" label="교사용 허브로 돌아가기" />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-slate-900">내 문제집</h1>
-            <p className="text-sm text-slate-600">
-              생성한 문제집을 한눈에 확인하고, 문항 수와 마지막 수정일을 점검하세요.
-            </p>
+            <h1 className="text-2xl font-semibold text-slate-900">공유 문제집</h1>
+            <p className="text-sm text-slate-600">모든 교사가 만든 문제집을 함께 확인하고 활용해 보세요.</p>
           </div>
           <Button asChild>
             <Link href="/dashboard/workbooks/new">문제집 만들기</Link>
@@ -98,7 +112,7 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
       {workbooks.length === 0 ? (
         <Card className="border-dashed border-slate-200 bg-slate-50">
           <CardContent className="flex flex-col items-center gap-3 py-12 text-center text-sm text-slate-500">
-            <p>아직 생성된 문제집이 없습니다. 첫 번째 문제집을 만들어보세요.</p>
+            <p>아직 등록된 문제집이 없습니다. 첫 번째 문제집을 만들어보세요.</p>
             <Button asChild>
               <Link href="/dashboard/workbooks/new">문제집 만들기</Link>
             </Button>
@@ -132,6 +146,7 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
                     <th className="px-4 py-3 text-left font-medium">제목</th>
                     <th className="px-4 py-3 text-left font-medium">유형</th>
                     <th className="px-4 py-3 text-left font-medium">과목</th>
+                    <th className="px-4 py-3 text-left font-medium">작성자</th>
                     <th className="px-4 py-3 text-left font-medium">문항 수</th>
                     <th className="px-4 py-3 text-left font-medium">태그</th>
                     <th className="px-4 py-3 text-left font-medium">수정일</th>
@@ -143,6 +158,8 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
                     const itemCount = workbook.workbook_items?.[0]?.count ?? 0
                     const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
                     const weekLabel = (workbook.week_label ?? '').trim()
+                    const teacherRecord = Array.isArray(workbook.teacher) ? workbook.teacher[0] : workbook.teacher
+                    const author = teacherRecord?.name ?? teacherRecord?.email ?? '작성자 정보 없음'
 
                     return (
                       <tr key={workbook.id} className="border-b border-slate-100 last:border-none hover:bg-slate-50">
@@ -160,6 +177,7 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
                           <Badge variant="secondary">{readableType}</Badge>
                         </td>
                         <td className="px-4 py-3 align-top text-slate-600">{workbook.subject}</td>
+                        <td className="px-4 py-3 align-top text-slate-600">{author}</td>
                         <td className="px-4 py-3 align-top text-slate-600">{itemCount.toLocaleString()}개</td>
                         <td className="px-4 py-3 align-top">
                           <div className="flex flex-wrap gap-1 text-xs text-slate-500">
