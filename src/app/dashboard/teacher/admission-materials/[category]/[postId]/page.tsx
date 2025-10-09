@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
@@ -318,11 +319,15 @@ export default async function AdmissionMaterialDetailPage({
                     </a>
                   </Button>
                   {isGuideImage ? (
-                    <img
+                    <Image
                       src={guideUrl}
                       alt={guideAssetName ? `${guideAssetName} 미리보기` : '가이드 이미지 미리보기'}
+                      width={800}
+                      height={800}
                       className="max-h-48 w-full max-w-sm rounded-md border border-slate-200 object-contain"
                       loading="lazy"
+                      sizes="(max-width: 768px) 100vw, 400px"
+                      unoptimized
                     />
                   ) : null}
                 </div>
@@ -341,11 +346,15 @@ export default async function AdmissionMaterialDetailPage({
                     </a>
                   </Button>
                   {isResourceImage ? (
-                    <img
+                    <Image
                       src={resourceUrl}
                       alt={resourceAssetName ? `${resourceAssetName} 미리보기` : '참고 자료 이미지 미리보기'}
+                      width={800}
+                      height={800}
                       className="max-h-48 w-full max-w-sm rounded-md border border-slate-200 object-contain"
                       loading="lazy"
+                      sizes="(max-width: 768px) 100vw, 400px"
+                      unoptimized
                     />
                   ) : null}
                 </div>
