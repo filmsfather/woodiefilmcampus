@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface UnifiedPrintRequestFile {
@@ -181,7 +182,14 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                           onClick={() => handleUpdate(request, 'done')}
                           disabled={isPending && pendingId === request.id}
                         >
-                          완료
+                          {isPending && pendingId === request.id ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <LoadingSpinner />
+                              완료 중...
+                            </span>
+                          ) : (
+                            '완료'
+                          )}
                         </Button>
                         <Button
                           variant="outline"
@@ -189,7 +197,14 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                           onClick={() => handleUpdate(request, 'canceled')}
                           disabled={isPending && pendingId === request.id}
                         >
-                          취소
+                          {isPending && pendingId === request.id ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <LoadingSpinner />
+                              취소 중...
+                            </span>
+                          ) : (
+                            '취소'
+                          )}
                         </Button>
                       </div>
                     ) : null}

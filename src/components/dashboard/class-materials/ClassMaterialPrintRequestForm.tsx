@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import type { ClassMaterialAssetType } from '@/lib/class-materials'
 
 type PrintResult = {
@@ -161,7 +162,14 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAsset
 
           <div className="flex justify-end">
             <Button type="submit" disabled={isPending || !hasSelectableAssets} className="sm:w-32">
-              {isPending ? '요청 중...' : '인쇄 요청' }
+              {isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <LoadingSpinner />
+                  요청 중...
+                </span>
+              ) : (
+                '인쇄 요청'
+              )}
             </Button>
           </div>
         </form>

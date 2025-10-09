@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import {
   evaluateSubmission,
   toggleStudentTaskStatus,
@@ -595,7 +596,14 @@ function PrintRequestList({
                     disabled={isCancelPending && cancelPendingId === request.id}
                     onClick={() => handleCancel(request.id)}
                   >
-                    취소
+                    {isCancelPending && cancelPendingId === request.id ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <LoadingSpinner />
+                        취소 중...
+                      </span>
+                    ) : (
+                      '취소'
+                    )}
                   </Button>
                 )}
               </div>
@@ -957,7 +965,14 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
                 </span>
               )}
               <Button disabled={isRequestPending} onClick={handlePrintSubmit}>
-                인쇄 요청
+                {isRequestPending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <LoadingSpinner />
+                    요청 중...
+                  </span>
+                ) : (
+                  '인쇄 요청'
+                )}
               </Button>
             </div>
           </div>
@@ -1086,7 +1101,14 @@ function PdfEvaluationRow({
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2">
             <Button size="sm" disabled={!submission || isPending || !score} onClick={handleSave}>
-              저장
+              {isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <LoadingSpinner />
+                  저장 중...
+                </span>
+              ) : (
+                '저장'
+              )}
             </Button>
             <Button
               size="sm"
@@ -1094,7 +1116,14 @@ function PdfEvaluationRow({
               disabled={deleteState.isPending && deleteState.pendingId === task.id}
               onClick={() => onDeleteStudentTask(task.id, task.student.name)}
             >
-              삭제
+              {deleteState.isPending && deleteState.pendingId === task.id ? (
+                <span className="flex items-center justify-center gap-2">
+                  <LoadingSpinner />
+                  삭제 중...
+                </span>
+              ) : (
+                '삭제'
+              )}
             </Button>
           </div>
           {message && (
@@ -1205,7 +1234,14 @@ function WritingEvaluationCard({
             disabled={deleteState.isPending && deleteState.pendingId === task.id}
             onClick={() => onDeleteStudentTask(task.id, task.student.name)}
           >
-            삭제
+            {deleteState.isPending && deleteState.pendingId === task.id ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner />
+                삭제 중...
+              </span>
+            ) : (
+              '삭제'
+            )}
           </Button>
         </div>
       </CardHeader>
@@ -1235,7 +1271,14 @@ function WritingEvaluationCard({
           />
           <div className="flex flex-col items-end gap-2">
             <Button size="sm" disabled={isPending || !submission} onClick={handleSave} className="w-full">
-              저장
+              {isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <LoadingSpinner />
+                  저장 중...
+                </span>
+              ) : (
+                '저장'
+              )}
             </Button>
             {message && (
               <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
@@ -1362,7 +1405,14 @@ function FilmEvaluationCard({
             disabled={deleteState.isPending && deleteState.pendingId === task.id}
             onClick={() => onDeleteStudentTask(task.id, task.student.name)}
           >
-            삭제
+            {deleteState.isPending && deleteState.pendingId === task.id ? (
+              <span className="flex items-center justify-center gap-2">
+                <LoadingSpinner />
+                삭제 중...
+              </span>
+            ) : (
+              '삭제'
+            )}
           </Button>
         </div>
       </CardHeader>
@@ -1402,7 +1452,14 @@ function FilmEvaluationCard({
           </Select>
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" disabled={isPending || !submission} onClick={handleSave}>
-              저장
+              {isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <LoadingSpinner />
+                  저장 중...
+                </span>
+              ) : (
+                '저장'
+              )}
             </Button>
             {filmSubmission && (
               <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>

@@ -10,6 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { cn } from '@/lib/utils'
 import {
   WORK_LOG_HOUR_STATUSES,
@@ -223,6 +224,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
   const [selectedDate, setSelectedDate] = useState<string>(() => getDefaultSelection(monthStartDate))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [isPending, startTransition] = useTransition()
+  const [pendingAction, setPendingAction] = useState<'save' | 'delete' | null>(null)
 
   const days = useMemo(() => buildMonthDays(monthStartDate), [monthStartDate])
 
@@ -351,60 +353,70 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
       formData.append('notes', values.notes)
     }
 
+    setPendingAction('save')
     startTransition(async () => {
-      const result = await saveWorkLogEntry(formData)
-      if (!result?.success || !result.entry) {
-        setFeedback({ type: 'error', message: result?.error ?? '근무일지 저장 중 문제가 발생했습니다.' })
-        return
+      try {
+        const result = await saveWorkLogEntry(formData)
+        if (!result?.success || !result.entry) {
+          setFeedback({ type: 'error', message: result?.error ?? '근무일지 저장 중 문제가 발생했습니다.' })
+          return
+        }
+        const updatedEntry = result.entry
+        setEntryMap((prev) => ({
+          ...prev,
+          [updatedEntry.workDate]: updatedEntry,
+        }))
+        form.reset({
+          status: updatedEntry.status,
+          workHours: updatedEntry.workHours ? String(updatedEntry.workHours) : '',
+          substituteType: updatedEntry.substituteType ?? '',
+          substituteTeacherId: updatedEntry.substituteTeacherId ?? '',
+          externalTeacherName: updatedEntry.externalTeacherName ?? '',
+          externalTeacherPhone: updatedEntry.externalTeacherPhone ?? '',
+          externalTeacherBank: updatedEntry.externalTeacherBank ?? '',
+          externalTeacherAccount: updatedEntry.externalTeacherAccount ?? '',
+          externalTeacherHours: updatedEntry.externalTeacherHours ? String(updatedEntry.externalTeacherHours) : '',
+          notes: updatedEntry.notes ?? '',
+        })
+        setFeedback({ type: 'success', message: '근무일지가 저장되었습니다. 원장 승인 대기 상태로 전환됩니다.' })
+      } finally {
+        setPendingAction(null)
       }
-      const updatedEntry = result.entry
-      setEntryMap((prev) => ({
-        ...prev,
-        [updatedEntry.workDate]: updatedEntry,
-      }))
-      form.reset({
-        status: updatedEntry.status,
-        workHours: updatedEntry.workHours ? String(updatedEntry.workHours) : '',
-        substituteType: updatedEntry.substituteType ?? '',
-        substituteTeacherId: updatedEntry.substituteTeacherId ?? '',
-        externalTeacherName: updatedEntry.externalTeacherName ?? '',
-        externalTeacherPhone: updatedEntry.externalTeacherPhone ?? '',
-        externalTeacherBank: updatedEntry.externalTeacherBank ?? '',
-        externalTeacherAccount: updatedEntry.externalTeacherAccount ?? '',
-        externalTeacherHours: updatedEntry.externalTeacherHours ? String(updatedEntry.externalTeacherHours) : '',
-        notes: updatedEntry.notes ?? '',
-      })
-      setFeedback({ type: 'success', message: '근무일지가 저장되었습니다. 원장 승인 대기 상태로 전환됩니다.' })
     })
   })
 
   const handleDelete = () => {
+    setPendingAction('delete')
     startTransition(async () => {
-      const formData = new FormData()
-      formData.append('workDate', selectedDate)
-      const result = await deleteWorkLogEntry(formData)
-      if (!result?.success) {
-        setFeedback({ type: 'error', message: result?.error ?? '근무일지 삭제에 실패했습니다.' })
-        return
+      try {
+        const formData = new FormData()
+        formData.append('workDate', selectedDate)
+        const result = await deleteWorkLogEntry(formData)
+        if (!result?.success) {
+          setFeedback({ type: 'error', message: result?.error ?? '근무일지 삭제에 실패했습니다.' })
+          return
+        }
+        setEntryMap((prev) => {
+          const next = { ...prev }
+          delete next[selectedDate]
+          return next
+        })
+        form.reset({
+          status: '',
+          workHours: '',
+          substituteType: '',
+          substituteTeacherId: '',
+          externalTeacherName: '',
+          externalTeacherPhone: '',
+          externalTeacherBank: '',
+          externalTeacherAccount: '',
+          externalTeacherHours: '',
+          notes: '',
+        })
+        setFeedback({ type: 'success', message: '근무일지가 삭제되었습니다.' })
+      } finally {
+        setPendingAction(null)
       }
-      setEntryMap((prev) => {
-        const next = { ...prev }
-        delete next[selectedDate]
-        return next
-      })
-      form.reset({
-        status: '',
-        workHours: '',
-        substituteType: '',
-        substituteTeacherId: '',
-        externalTeacherName: '',
-        externalTeacherPhone: '',
-        externalTeacherBank: '',
-        externalTeacherAccount: '',
-        externalTeacherHours: '',
-        notes: '',
-      })
-      setFeedback({ type: 'success', message: '근무일지가 삭제되었습니다.' })
     })
   }
 
@@ -748,7 +760,14 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div className="flex gap-2">
                     <Button type="submit" disabled={isLocked || isPending}>
-                      {isPending ? '저장 중...' : '근무일지 저장'}
+                      {pendingAction === 'save' ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <LoadingSpinner />
+                          저장 중...
+                        </span>
+                      ) : (
+                        '근무일지 저장'
+                      )}
                     </Button>
                     <Button
                       type="button"
@@ -756,7 +775,14 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
                       disabled={isLocked || isPending || !entryMap[selectedDate]}
                       onClick={handleDelete}
                     >
-                      기록 삭제
+                      {pendingAction === 'delete' ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <LoadingSpinner />
+                          삭제 중...
+                        </span>
+                      ) : (
+                        '기록 삭제'
+                      )}
                     </Button>
                   </div>
                   {feedback ? (

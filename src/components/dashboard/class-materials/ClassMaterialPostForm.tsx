@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { ClassMaterialSubject } from '@/lib/class-materials'
@@ -244,14 +245,28 @@ export function ClassMaterialPostForm({
                 onClick={handleDelete}
                 disabled={isPending || isDeleting}
               >
-                {isDeleting ? '삭제 중...' : '자료 삭제'}
+                {isDeleting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <LoadingSpinner />
+                    삭제 중...
+                  </span>
+                ) : (
+                  '자료 삭제'
+                )}
               </Button>
             ) : (
               <span className="text-xs text-slate-400">제출 후에도 언제든지 수정할 수 있습니다.</span>
             )}
             <div className="flex gap-2 sm:justify-end">
               <Button type="submit" disabled={isPending || isDeleting} className="sm:w-32">
-                {isPending ? '저장 중...' : submitLabel}
+                {isPending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <LoadingSpinner />
+                    저장 중...
+                  </span>
+                ) : (
+                  submitLabel
+                )}
               </Button>
             </div>
           </div>

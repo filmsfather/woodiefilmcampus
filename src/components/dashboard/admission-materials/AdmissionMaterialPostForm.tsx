@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import type { AdmissionMaterialCategory } from '@/lib/admission-materials'
 import {
   PAST_EXAM_ADMISSION_TYPES,
@@ -681,13 +682,27 @@ export function AdmissionMaterialPostForm({
                 onClick={handleDelete}
                 disabled={isDeleting || isPending}
               >
-                {isDeleting ? '삭제 중…' : '자료 삭제'}
+                {isDeleting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <LoadingSpinner />
+                    삭제 중…
+                  </span>
+                ) : (
+                  '자료 삭제'
+                )}
               </Button>
             ) : <span />}
 
             <div className="flex gap-2">
               <Button type="submit" disabled={isPending}>
-                {isPending ? '저장 중…' : submitLabel}
+                {isPending ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <LoadingSpinner />
+                    저장 중…
+                  </span>
+                ) : (
+                  submitLabel
+                )}
               </Button>
               <Button type="button" variant="secondary" onClick={() => router.back()} disabled={isPending}>
                 취소
