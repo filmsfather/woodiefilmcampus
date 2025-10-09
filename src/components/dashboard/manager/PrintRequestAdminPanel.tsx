@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { AlertCircle, Download } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface UnifiedPrintRequestFile {
   id: string
@@ -51,7 +52,7 @@ const STATUS_VARIANTS: Record<string, 'secondary' | 'outline' | 'destructive'> =
 export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestView[] }) {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
 
   if (requests.length === 0) {
     return null

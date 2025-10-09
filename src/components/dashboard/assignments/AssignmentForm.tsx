@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { AlertCircle, Check, Search, Users } from 'lucide-react'
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form'
@@ -20,6 +20,7 @@ import type {
   AssignmentStudentSummary,
   AssignmentWorkbookSummary,
 } from '@/types/assignment'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 const assignmentFormSchema = z
   .object({
@@ -128,7 +129,7 @@ export function AssignmentForm({
   const [studentQuery, setStudentQuery] = useState('')
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
 
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentFormSchema) as Resolver<AssignmentFormValues>,

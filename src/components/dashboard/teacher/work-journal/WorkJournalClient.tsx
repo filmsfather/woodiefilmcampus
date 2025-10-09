@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 
@@ -24,6 +24,7 @@ import {
   type WorkLogSubstituteType,
 } from '@/lib/work-logs'
 import { deleteWorkLogEntry, saveWorkLogEntry } from '@/app/dashboard/teacher/work-journal/actions'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface WorkJournalClientProps {
   monthToken: string
@@ -223,7 +224,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
   const [entryMap, setEntryMap] = useState<EntryMap>(() => createEntryMap(entries))
   const [selectedDate, setSelectedDate] = useState<string>(() => getDefaultSelection(monthStartDate))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
   const [pendingAction, setPendingAction] = useState<'save' | 'delete' | null>(null)
 
   const days = useMemo(() => buildMonthDays(monthStartDate), [monthStartDate])

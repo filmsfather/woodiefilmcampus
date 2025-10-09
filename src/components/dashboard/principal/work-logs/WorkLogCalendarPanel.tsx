@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,7 @@ import {
   type WorkLogEntryWithTeacher,
   type WorkLogStatus,
 } from '@/lib/work-logs'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface WorkLogCalendarPanelProps {
   entries: WorkLogEntryWithTeacher[]
@@ -169,7 +170,7 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
 
   const monthRange = useMemo(() => resolveMonthRange(monthToken), [monthToken])
   const monthStartDate = monthRange.startDate

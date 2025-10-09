@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   Calendar,
@@ -19,6 +19,7 @@ import type { AssignmentDetail } from '@/lib/assignment-evaluation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 const TYPE_LABELS: Record<string, string> = {
   srs: 'SRS 반복',
@@ -105,7 +106,7 @@ export function ClassDashboard({
   )
   const [focusStudentTaskId, setFocusStudentTaskId] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [isDeletingClass, startDeleteClass] = useTransition()
+  const [isDeletingClass, startDeleteClass] = useGlobalTransition()
   const router = useRouter()
 
   const activeAssignment = useMemo(
@@ -170,7 +171,7 @@ export function ClassDashboard({
       setActiveAssignmentId((prev) => (prev === targetAssignmentId ? null : prev))
       router.refresh()
     })
-  }, [activeAssignment, classId, className, router])
+  }, [activeAssignment, classId, className, router, startDeleteClass])
 
   const statusSummary = useMemo(() => {
     if (!activeDetail) {

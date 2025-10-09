@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { StudentTaskDetail } from '@/types/student-task'
 import { stripHtml } from '@/lib/rich-text'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface TextTaskRunnerProps {
   task: StudentTaskDetail
@@ -42,7 +43,7 @@ export function TextTaskRunner({
   attachments,
 }: TextTaskRunnerProps) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   useFieldArray,
@@ -22,6 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { updateWorkbookItems } from '@/app/dashboard/workbooks/actions'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 const answerTypeSchema = z.enum(['multiple_choice', 'short_answer'])
 
@@ -81,7 +82,7 @@ export default function WorkbookItemsEditor({
 }: WorkbookItemsEditorProps) {
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
 
   const schema = useMemo(() => {
     if (workbookType !== 'srs') {

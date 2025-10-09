@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Film } from 'lucide-react'
 
@@ -20,6 +20,7 @@ import {
   type FilmNoteFieldKey,
 } from '@/lib/film-notes'
 import type { StudentTaskDetail } from '@/types/student-task'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 function decodeFilmSubmission(
   content: string | null
@@ -69,7 +70,7 @@ interface FilmTaskRunnerProps {
 
 export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 

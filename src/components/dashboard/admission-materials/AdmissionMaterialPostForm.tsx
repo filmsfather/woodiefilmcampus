@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -16,6 +16,7 @@ import {
   PAST_EXAM_UNIVERSITIES,
   PAST_EXAM_YEARS,
 } from '@/lib/admission-materials-constants'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
 const BASE_SELECT_CLASS_NAME =
@@ -109,8 +110,8 @@ export function AdmissionMaterialPostForm({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-  const [isDeleting, startDeleteTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
+  const [isDeleting, startDeleteTransition] = useGlobalTransition()
 
   const isGuideline = category === 'guideline'
   const isPastExam = category === 'past_exam'

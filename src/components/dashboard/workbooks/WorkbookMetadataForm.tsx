@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { AlertCircle, Check } from 'lucide-react'
@@ -31,6 +31,7 @@ import {
   type WorkbookMetadataFormValues,
 } from '@/lib/validation/workbook'
 import { updateWorkbook } from '@/app/dashboard/workbooks/actions'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface WorkbookMetadataFormProps {
   workbookId: string
@@ -46,7 +47,7 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
   })
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
+  const [isPending, startTransition] = useGlobalTransition()
 
   const tagsInput = form.watch('tagsInput')
   const selectedType = form.watch('type')
