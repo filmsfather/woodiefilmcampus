@@ -281,7 +281,9 @@ export default async function ClassMaterialSubjectPage({
                     </TableCell>
                     <TableCell className="text-sm text-slate-600">
                       {post.description ? (
-                        <p className="whitespace-pre-line leading-relaxed">{post.description}</p>
+                        <p className="whitespace-nowrap text-ellipsis overflow-hidden" title={post.description}>
+                          {post.description.length > 5 ? `${post.description.slice(0, 5)}…` : post.description}
+                        </p>
                       ) : (
                         <span className="text-xs text-slate-400">미작성</span>
                       )}

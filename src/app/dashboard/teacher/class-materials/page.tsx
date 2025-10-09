@@ -23,9 +23,7 @@ export default function ClassMaterialsLandingPage() {
           <Card key={subject} className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
             <CardHeader className="space-y-2">
               <CardTitle className="text-lg text-slate-900">{meta.label}</CardTitle>
-              <CardDescription className="text-sm text-slate-500">
-                {meta.description.length > 5 ? `${meta.description.slice(0, 5)}…` : meta.description}
-              </CardDescription>
+              <CardDescription className="text-sm text-slate-500">{meta.description}</CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
