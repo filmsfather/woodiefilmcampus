@@ -95,14 +95,17 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
 ]
 
 export default async function TeacherDashboardPage() {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const isManager = profile?.role === 'manager'
+  const hubTitle = isManager ? '교사·실장 허브' : '교사용 허브'
+  const greetingName = profile?.name ?? profile?.email ?? (isManager ? '실장님' : '선생님')
 
   return (
     <section className="mx-auto flex max-w-4xl flex-col gap-6">
       <header className="space-y-2 text-center">
-        <h1 className="text-3xl font-semibold text-slate-900">교사용 허브</h1>
+        <h1 className="text-3xl font-semibold text-slate-900">{hubTitle}</h1>
         <p className="text-sm text-slate-600">
-          {profile?.name ?? profile?.email ?? '선생님'} 님, 다음 작업을 선택해 주세요.
+          {greetingName} 님, 다음 작업을 선택해 주세요.
         </p>
       </header>
 

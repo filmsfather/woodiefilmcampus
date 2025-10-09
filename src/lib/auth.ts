@@ -64,7 +64,7 @@ export async function getAuthContext(): Promise<AuthContext> {
   }
 }
 
-export async function requireAuthForDashboard(targetRole?: UserRole) {
+export async function requireAuthForDashboard(targetRole?: UserRole | UserRole[]) {
   const { session, profile } = await getAuthContext()
 
   if (!session) {
@@ -79,7 +79,13 @@ export async function requireAuthForDashboard(targetRole?: UserRole) {
     redirect('/pending-approval')
   }
 
-  if (targetRole && targetRole !== profile.role && profile.role !== 'principal') {
+  const allowedRoles = Array.isArray(targetRole) ? targetRole : targetRole ? [targetRole] : null
+
+  if (
+    allowedRoles &&
+    !allowedRoles.includes(profile.role) &&
+    profile.role !== 'principal'
+  ) {
     redirect(resolveDashboardPath(profile.role))
   }
 

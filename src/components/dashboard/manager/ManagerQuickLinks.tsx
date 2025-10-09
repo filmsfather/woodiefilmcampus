@@ -11,7 +11,7 @@ import {
 
 export function ManagerQuickLinks() {
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card>
         <CardHeader className="gap-2">
           <CardTitle className="text-lg">반 관리</CardTitle>
@@ -35,6 +35,19 @@ export function ManagerQuickLinks() {
         <CardFooter>
           <Button asChild>
             <Link href="/dashboard/manager/learning-journal">학습일지 관리</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader className="gap-2">
+          <CardTitle className="text-lg">교사 업무 도구</CardTitle>
+          <CardDescription>
+            근무일지, 수업자료, 입시자료 등 교사 대시보드를 바로 열 수 있습니다.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild variant="secondary">
+            <Link href="/dashboard/teacher">교사 대시보드 열기</Link>
           </Button>
         </CardFooter>
       </Card>

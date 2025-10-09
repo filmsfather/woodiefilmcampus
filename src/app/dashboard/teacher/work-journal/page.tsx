@@ -16,7 +16,7 @@ interface TeacherWorkJournalPageProps {
 }
 
 export default async function TeacherWorkJournalPage({ searchParams }: TeacherWorkJournalPageProps) {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
   const monthTokenParam = typeof searchParams?.month === 'string' ? searchParams.month : null
   const monthRange = resolveMonthRange(monthTokenParam)

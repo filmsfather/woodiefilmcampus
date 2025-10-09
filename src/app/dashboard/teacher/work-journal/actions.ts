@@ -17,6 +17,10 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 const WORK_LOG_STATUS_VALUES = ['work', 'substitute', 'absence', 'tardy'] as const satisfies readonly WorkLogStatus[]
 const SUBSTITUTE_TYPE_VALUES = ['internal', 'external'] as const satisfies readonly WorkLogSubstituteType[]
 
+function canManageWorkJournal(role: string | null | undefined): role is 'teacher' | 'manager' {
+  return role === 'teacher' || role === 'manager'
+}
+
 const formSchema = z
   .object({
     entryId: z
@@ -265,7 +269,7 @@ function normalizeFormData(formData: FormData) {
 export async function saveWorkLogEntry(formData: FormData): Promise<ActionResult> {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  if (!profile || !canManageWorkJournal(profile.role)) {
     return { error: '근무일지를 작성할 수 있는 권한이 없습니다.' }
   }
 
@@ -370,7 +374,7 @@ export async function saveWorkLogEntry(formData: FormData): Promise<ActionResult
 export async function deleteWorkLogEntry(formData: FormData): Promise<ActionResult> {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  if (!profile || !canManageWorkJournal(profile.role)) {
     return { error: '근무일지를 삭제할 수 있는 권한이 없습니다.' }
   }
 
