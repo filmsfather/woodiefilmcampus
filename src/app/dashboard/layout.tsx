@@ -26,7 +26,7 @@ export default async function DashboardLayout({
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
           <div>
             <Link href="/" className="text-lg font-semibold text-slate-900">
-              Woodie Film Campus
+              Woodie Campus 2.0
             </Link>
             {profile?.role && (
               <div className="mt-1 text-sm text-slate-500">
