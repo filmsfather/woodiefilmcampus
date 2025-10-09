@@ -8,7 +8,7 @@ import { ClassesTable } from '@/components/dashboard/manager/classes/ClassesTabl
 import { ClassEditor } from '@/components/dashboard/manager/classes/ClassEditor'
 import { ClassesToolbar } from '@/components/dashboard/manager/classes/ClassesToolbar'
 import type { ClassSummary, ProfileOption } from '@/types/class'
-import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 type EditorState =
   | { mode: 'create' }
@@ -39,7 +39,7 @@ export function ClassesManager({
   const [editorState, setEditorState] = useState<EditorState | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const { runWithLoading } = useGlobalAsyncTask()
+  const [, startTransition] = useGlobalTransition()
 
   useEffect(() => {
     setSearchValue(searchTerm)
@@ -83,7 +83,8 @@ export function ClassesManager({
     }
 
     setDeletingId(classId)
-    void runWithLoading(async () => {
+    startTransition(() => {
+      void (async () => {
         const result = await deleteClassAction(classId)
         await router.refresh()
         setDeletingId(null)
@@ -93,6 +94,7 @@ export function ClassesManager({
         } else if (result.status === 'error') {
           setFeedback({ type: 'error', message: result.message ?? '반 삭제 중 오류가 발생했습니다.' })
         }
+      })()
     })
   }
 

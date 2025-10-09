@@ -24,7 +24,7 @@ import {
   type WorkLogSubstituteType,
 } from '@/lib/work-logs'
 import { deleteWorkLogEntry, saveWorkLogEntry } from '@/app/dashboard/teacher/work-journal/actions'
-import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface WorkJournalClientProps {
   monthToken: string
@@ -224,7 +224,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
   const [entryMap, setEntryMap] = useState<EntryMap>(() => createEntryMap(entries))
   const [selectedDate, setSelectedDate] = useState<string>(() => getDefaultSelection(monthStartDate))
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
+  const [isPending, startTransition] = useGlobalTransition()
   const [pendingAction, setPendingAction] = useState<'save' | 'delete' | null>(null)
 
   const days = useMemo(() => buildMonthDays(monthStartDate), [monthStartDate])
@@ -294,9 +294,8 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
   const navigateToMonth = (token: string) => {
     const params = new URLSearchParams(searchParams?.toString())
     params.set('month', token)
-    void runWithLoading(async () => {
+    startTransition(() => {
       router.push(`${pathname}?${params.toString()}`)
-      await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }
 
@@ -356,7 +355,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
     }
 
     setPendingAction('save')
-    void runWithLoading(async () => {
+    startTransition(async () => {
       try {
         const result = await saveWorkLogEntry(formData)
         if (!result?.success || !result.entry) {
@@ -389,7 +388,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
 
   const handleDelete = () => {
     setPendingAction('delete')
-    void runWithLoading(async () => {
+    startTransition(async () => {
       try {
         const formData = new FormData()
         formData.append('workDate', selectedDate)

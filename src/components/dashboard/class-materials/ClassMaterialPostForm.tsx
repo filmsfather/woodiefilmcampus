@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
-import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { ClassMaterialSubject } from '@/lib/class-materials'
@@ -53,8 +53,8 @@ export function ClassMaterialPostForm({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const { runWithLoading: runSubmit, isLoading: isPending } = useGlobalAsyncTask()
-  const { runWithLoading: runDelete, isLoading: isDeleting } = useGlobalAsyncTask()
+  const [isPending, startTransition] = useGlobalTransition()
+  const [isDeleting, startDeleteTransition] = useGlobalTransition()
 
   const maxSizeLabel = useMemo(() => `${Math.round(MAX_UPLOAD_SIZE / (1024 * 1024))}MB`, [])
 
@@ -83,7 +83,7 @@ export function ClassMaterialPostForm({
       return
     }
 
-    void runSubmit(async () => {
+    startTransition(async () => {
       const result = await onSubmit(formData)
 
       if (result?.error) {
@@ -96,12 +96,12 @@ export function ClassMaterialPostForm({
 
         if (targetPostId) {
           router.push(`/dashboard/teacher/class-materials/${subject}/${targetPostId}`)
-          await router.refresh()
+          router.refresh()
           return
         }
 
         setSuccessMessage('자료가 저장되었습니다.')
-        await router.refresh()
+        router.refresh()
       }
     })
   }
@@ -114,7 +114,7 @@ export function ClassMaterialPostForm({
     setError(null)
     setSuccessMessage(null)
 
-    void runDelete(async () => {
+    startDeleteTransition(async () => {
       const result = await onDelete()
 
       if (result?.error) {
@@ -124,7 +124,7 @@ export function ClassMaterialPostForm({
 
       if (result?.success) {
         router.push(`/dashboard/teacher/class-materials/${subject}`)
-        await router.refresh()
+        router.refresh()
       }
     })
   }

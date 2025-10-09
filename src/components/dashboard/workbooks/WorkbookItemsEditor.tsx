@@ -22,7 +22,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { updateWorkbookItems } from '@/app/dashboard/workbooks/actions'
-import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 const answerTypeSchema = z.enum(['multiple_choice', 'short_answer'])
 
@@ -82,7 +82,7 @@ export default function WorkbookItemsEditor({
 }: WorkbookItemsEditorProps) {
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
-  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
+  const [isPending, startTransition] = useGlobalTransition()
 
   const schema = useMemo(() => {
     if (workbookType !== 'srs') {
@@ -190,24 +190,24 @@ export default function WorkbookItemsEditor({
     setSubmitState('idle')
     setServerError(null)
 
-    void runWithLoading(async () => {
-      const result = await updateWorkbookItems({
-        workbookId,
-        items: values.items.map((item) => ({
-          id: item.id,
-          prompt: item.prompt,
-          explanation: item.explanation ?? '',
-          answerType: workbookType === 'srs' ? (item.answerType ?? 'multiple_choice') : undefined,
-          choices:
-            workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'multiple_choice'
-              ? item.choices ?? []
-              : undefined,
-          shortFields:
-            workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'short_answer'
-              ? item.shortFields ?? []
-              : undefined,
-        })),
-      })
+      startTransition(async () => {
+        const result = await updateWorkbookItems({
+          workbookId,
+          items: values.items.map((item) => ({
+            id: item.id,
+            prompt: item.prompt,
+            explanation: item.explanation ?? '',
+            answerType: workbookType === 'srs' ? (item.answerType ?? 'multiple_choice') : undefined,
+            choices:
+              workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'multiple_choice'
+                ? item.choices ?? []
+                : undefined,
+            shortFields:
+              workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'short_answer'
+                ? item.shortFields ?? []
+                : undefined,
+          })),
+        })
 
       if (result?.error) {
         setServerError(result.error)

@@ -20,7 +20,7 @@ import {
   type FilmNoteFieldKey,
 } from '@/lib/film-notes'
 import type { StudentTaskDetail } from '@/types/student-task'
-import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 function decodeFilmSubmission(
   content: string | null
@@ -70,7 +70,7 @@ interface FilmTaskRunnerProps {
 
 export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
   const router = useRouter()
-  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
+  const [isPending, startTransition] = useGlobalTransition()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -162,7 +162,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
     setErrorMessage(null)
     setSuccessMessage(null)
 
-    void runWithLoading(async () => {
+    startTransition(async () => {
       try {
         if (!baseItem || !baseItem.workbookItem) {
           setErrorMessage('감상지 문항 정보를 불러오지 못했습니다.')
@@ -185,7 +185,7 @@ export function FilmTaskRunner({ task }: FilmTaskRunnerProps) {
         }
 
         setSuccessMessage('감상지를 저장했습니다.')
-        await router.refresh()
+        router.refresh()
       } catch (error) {
         console.error('[FilmTaskRunner] submit failed', error)
         setErrorMessage('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')

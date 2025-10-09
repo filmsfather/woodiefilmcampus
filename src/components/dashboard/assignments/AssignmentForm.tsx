@@ -20,7 +20,7 @@ import type {
   AssignmentStudentSummary,
   AssignmentWorkbookSummary,
 } from '@/types/assignment'
-import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
+import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 const assignmentFormSchema = z
   .object({
@@ -129,7 +129,7 @@ export function AssignmentForm({
   const [studentQuery, setStudentQuery] = useState('')
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
-  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
+  const [isPending, startTransition] = useGlobalTransition()
 
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentFormSchema) as Resolver<AssignmentFormValues>,
@@ -210,7 +210,7 @@ export function AssignmentForm({
 
     const payloadDueAt = values.dueAt ? new Date(values.dueAt).toISOString() : null
 
-    void runWithLoading(async () => {
+    startTransition(async () => {
       const result = await createAssignment({
         workbookId: values.workbookId,
         dueAt: payloadDueAt,
