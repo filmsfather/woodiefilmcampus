@@ -417,6 +417,11 @@ export default async function AdmissionMaterialCategoryPage({
                     ? extractAdmissionTypeTags(post.title)
                     : []
                   const pastExamAdmissions = post.past_exam_admission_types ?? []
+                  const truncatedDescription = post.description
+                    ? post.description.length > 5
+                      ? `${post.description.slice(0, 5)}....`
+                      : post.description
+                    : null
 
                   return (
                     <TableRow key={post.id} className="align-top">
@@ -511,8 +516,8 @@ export default async function AdmissionMaterialCategoryPage({
                         ) : null}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">
-                        {post.description ? (
-                          <p className="whitespace-pre-line leading-relaxed">{post.description}</p>
+                        {truncatedDescription ? (
+                          <p className="whitespace-pre-line leading-relaxed">{truncatedDescription}</p>
                         ) : (
                           <span className="text-xs text-slate-400">미작성</span>
                         )}

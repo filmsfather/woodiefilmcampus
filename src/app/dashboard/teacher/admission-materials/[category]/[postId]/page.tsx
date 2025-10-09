@@ -33,12 +33,14 @@ interface AdmissionMaterialDetailRow {
     id: string
     bucket: string
     path: string
+    mime_type: string | null
     metadata: Record<string, unknown> | null
   } | null
   resource_asset?: {
     id: string
     bucket: string
     path: string
+    mime_type: string | null
     metadata: Record<string, unknown> | null
   } | null
   schedules: Array<{
@@ -77,8 +79,8 @@ export default async function AdmissionMaterialDetailPage({
        created_at,
        updated_at,
        author:profiles!admission_material_posts_created_by_fkey(name, email),
-       guide_asset:media_assets!admission_material_posts_guide_asset_id_fkey(id, bucket, path, metadata),
-       resource_asset:media_assets!admission_material_posts_resource_asset_id_fkey(id, bucket, path, metadata),
+       guide_asset:media_assets!admission_material_posts_guide_asset_id_fkey(id, bucket, path, mime_type, metadata),
+       resource_asset:media_assets!admission_material_posts_resource_asset_id_fkey(id, bucket, path, mime_type, metadata),
        schedules:admission_material_schedules(id, title, start_at, end_at, location, memo)
       `
     )
@@ -177,6 +179,7 @@ export default async function AdmissionMaterialDetailPage({
           id: String(guideRelation.id),
           bucket: String(guideRelation.bucket),
           path: String(guideRelation.path),
+          mime_type: typeof guideRelation.mime_type === 'string' ? guideRelation.mime_type : null,
           metadata: (guideRelation.metadata ?? null) as Record<string, unknown> | null,
         }
       : null,
@@ -185,6 +188,7 @@ export default async function AdmissionMaterialDetailPage({
           id: String(resourceRelation.id),
           bucket: String(resourceRelation.bucket),
           path: String(resourceRelation.path),
+          mime_type: typeof resourceRelation.mime_type === 'string' ? resourceRelation.mime_type : null,
           metadata: (resourceRelation.metadata ?? null) as Record<string, unknown> | null,
         }
       : null,
@@ -199,6 +203,10 @@ export default async function AdmissionMaterialDetailPage({
     ? detail.target_level ?? detail.title
     : detail.title
   const pastExamAdmissions = isPastExamCategoryView ? detail.past_exam_admission_types ?? [] : []
+  const isGuideImage = detail.guide_asset?.mime_type?.startsWith('image/') ?? false
+  const isResourceImage = detail.resource_asset?.mime_type?.startsWith('image/') ?? false
+  const guideAssetName = pickAssetName(detail.guide_asset ?? undefined)
+  const resourceAssetName = pickAssetName(detail.resource_asset ?? undefined)
 
   const formatDateTime = (value: string) =>
     DateUtil.formatForDisplay(value, {
@@ -303,11 +311,21 @@ export default async function AdmissionMaterialDetailPage({
             <div className="space-y-1">
               <h3 className="text-sm font-medium text-slate-700">가이드</h3>
               {guideUrl ? (
-                <Button asChild size="sm" variant="outline">
-                  <a href={guideUrl} target="_blank" rel="noreferrer">
-                    {pickAssetName(detail.guide_asset ?? undefined) ?? '다운로드'}
-                  </a>
-                </Button>
+                <div className="space-y-2">
+                  <Button asChild size="sm" variant="outline">
+                    <a href={guideUrl} target="_blank" rel="noreferrer">
+                      {guideAssetName ?? '다운로드'}
+                    </a>
+                  </Button>
+                  {isGuideImage ? (
+                    <img
+                      src={guideUrl}
+                      alt={guideAssetName ? `${guideAssetName} 미리보기` : '가이드 이미지 미리보기'}
+                      className="max-h-48 w-full max-w-sm rounded-md border border-slate-200 object-contain"
+                      loading="lazy"
+                    />
+                  ) : null}
+                </div>
               ) : (
                 <p className="text-sm text-slate-400">첨부된 가이드가 없습니다.</p>
               )}
@@ -316,11 +334,21 @@ export default async function AdmissionMaterialDetailPage({
             <div className="space-y-1">
               <h3 className="text-sm font-medium text-slate-700">참고 자료</h3>
               {resourceUrl ? (
-                <Button asChild size="sm" variant="outline">
-                  <a href={resourceUrl} target="_blank" rel="noreferrer">
-                    {pickAssetName(detail.resource_asset ?? undefined) ?? '다운로드'}
-                  </a>
-                </Button>
+                <div className="space-y-2">
+                  <Button asChild size="sm" variant="outline">
+                    <a href={resourceUrl} target="_blank" rel="noreferrer">
+                      {resourceAssetName ?? '다운로드'}
+                    </a>
+                  </Button>
+                  {isResourceImage ? (
+                    <img
+                      src={resourceUrl}
+                      alt={resourceAssetName ? `${resourceAssetName} 미리보기` : '참고 자료 이미지 미리보기'}
+                      className="max-h-48 w-full max-w-sm rounded-md border border-slate-200 object-contain"
+                      loading="lazy"
+                    />
+                  ) : null}
+                </div>
               ) : (
                 <p className="text-sm text-slate-400">첨부된 참고 자료가 없습니다.</p>
               )}
