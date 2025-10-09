@@ -11,7 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 
 interface UnifiedPrintRequestFile {
@@ -184,7 +184,7 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                         >
                           {isPending && pendingId === request.id ? (
                             <span className="flex items-center justify-center gap-2">
-                              <SpinnerIcon />
+                              <LoadingSpinner />
                               완료 중...
                             </span>
                           ) : (
@@ -199,7 +199,7 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                         >
                           {isPending && pendingId === request.id ? (
                             <span className="flex items-center justify-center gap-2">
-                              <SpinnerIcon />
+                              <LoadingSpinner />
                               취소 중...
                             </span>
                           ) : (

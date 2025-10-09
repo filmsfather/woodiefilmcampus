@@ -4,8 +4,6 @@ import { Geist, Geist_Mono } from "next/font/google"
 import ClientClockInitializer from "@/components/ClientClockInitializer"
 import DateUtil from "@/lib/date-util"
 
-import { AppProviders } from "./providers"
-
 import "./globals.css"
 
 const geistSans = Geist({
@@ -36,7 +34,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} bg-slate-50 antialiased`}>
         <ClientClockInitializer serverNow={serverNow} />
-        <AppProviders>{children}</AppProviders>
+        {children}
       </body>
     </html>
   )

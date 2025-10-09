@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
+import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { ClassMaterialSubject } from '@/lib/class-materials'
@@ -247,7 +247,7 @@ export function ClassMaterialPostForm({
               >
                 {isDeleting ? (
                   <span className="flex items-center justify-center gap-2">
-                    <SpinnerIcon />
+                    <LoadingSpinner />
                     삭제 중...
                   </span>
                 ) : (
@@ -261,7 +261,7 @@ export function ClassMaterialPostForm({
               <Button type="submit" disabled={isPending || isDeleting} className="sm:w-32">
                 {isPending ? (
                   <span className="flex items-center justify-center gap-2">
-                    <SpinnerIcon />
+                    <LoadingSpinner />
                     저장 중...
                   </span>
                 ) : (
