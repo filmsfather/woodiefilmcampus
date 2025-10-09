@@ -26,6 +26,9 @@ interface AdmissionMaterialPostRow {
   created_at: string
   updated_at: string
   author_name: string | null
+  past_exam_year: number | null
+  past_exam_university: string | null
+  past_exam_admission_types: string[] | null
   guide_asset?: {
     id: string
     bucket: string
@@ -71,6 +74,7 @@ export default async function AdmissionMaterialCategoryPage({
   }
 
   const category = params.category
+  const isPastExamCategoryView = category === 'past_exam'
   const query = typeof searchParams?.q === 'string' ? searchParams.q.trim() : ''
 
   const supabase = createServerSupabase()
@@ -82,6 +86,9 @@ export default async function AdmissionMaterialCategoryPage({
        target_level,
        title,
        description,
+       past_exam_year,
+       past_exam_university,
+       past_exam_admission_types,
        created_at,
        updated_at,
        profiles:profiles!admission_material_posts_created_by_fkey(name),
@@ -122,6 +129,12 @@ export default async function AdmissionMaterialCategoryPage({
       created_at: String(row.created_at),
       updated_at: String(row.updated_at),
       author_name: authorRelation?.name ?? null,
+      past_exam_year:
+        row.past_exam_year !== null && row.past_exam_year !== undefined ? Number(row.past_exam_year) : null,
+      past_exam_university: (row.past_exam_university ?? null) as string | null,
+      past_exam_admission_types: Array.isArray(row.past_exam_admission_types)
+        ? row.past_exam_admission_types.map((item) => String(item))
+        : null,
       guide_asset: guideRelation
         ? {
             id: String(guideRelation.id),
@@ -243,7 +256,9 @@ export default async function AdmissionMaterialCategoryPage({
           <span className="font-medium text-slate-700">검색</span>
           <Input
             name="q"
-            placeholder="제목, 대상 또는 설명으로 검색"
+            placeholder={
+              isPastExamCategoryView ? '제목, 연도 또는 대학으로 검색' : '제목, 대상 또는 설명으로 검색'
+            }
             defaultValue={query}
             className="w-full"
           />
@@ -276,11 +291,21 @@ export default async function AdmissionMaterialCategoryPage({
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-48">제목</TableHead>
-                  <TableHead className="w-40">준비 대상</TableHead>
+                  {isPastExamCategoryView ? (
+                    <>
+                      <TableHead className="w-24">년도</TableHead>
+                      <TableHead className="w-40">대학교</TableHead>
+                      <TableHead className="w-32">전형</TableHead>
+                    </>
+                  ) : (
+                    <TableHead className="w-40">준비 대상</TableHead>
+                  )}
                   <TableHead className="w-48">가이드</TableHead>
                   <TableHead className="w-48">참고 자료</TableHead>
                   <TableHead>설명</TableHead>
-                  <TableHead className="w-48">다가오는 일정</TableHead>
+                  {!isPastExamCategoryView ? (
+                    <TableHead className="w-48">다가오는 일정</TableHead>
+                  ) : null}
                   <TableHead className="w-40">수정일</TableHead>
                   <TableHead className="w-32 text-right">작업</TableHead>
                 </TableRow>
@@ -295,6 +320,7 @@ export default async function AdmissionMaterialCategoryPage({
                   const admissionTypeTags = isGuidelineCategoryView
                     ? extractAdmissionTypeTags(post.title)
                     : []
+                  const pastExamAdmissions = post.past_exam_admission_types ?? []
 
                   return (
                     <TableRow key={post.id} className="align-top">
@@ -311,25 +337,55 @@ export default async function AdmissionMaterialCategoryPage({
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {isGuidelineCategoryView ? (
-                          admissionTypeTags.length > 0 ? (
-                            <div className="flex flex-wrap gap-1">
-                              {admissionTypeTags.map((tag) => (
-                                <Badge key={tag} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
+                      {isPastExamCategoryView ? (
+                        <>
+                          <TableCell className="text-sm text-slate-600">
+                            {post.past_exam_year ? `${post.past_exam_year}년` : (
+                              <span className="text-xs text-slate-400">미입력</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {post.past_exam_university ? (
+                              post.past_exam_university
+                            ) : (
+                              <span className="text-xs text-slate-400">미입력</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {pastExamAdmissions.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {pastExamAdmissions.map((type) => (
+                                  <Badge key={type} variant="outline" className="text-xs">
+                                    {type}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">미선택</span>
+                            )}
+                          </TableCell>
+                        </>
+                      ) : (
+                        <TableCell className="text-sm text-slate-600">
+                          {isGuidelineCategoryView ? (
+                            admissionTypeTags.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {admissionTypeTags.map((tag) => (
+                                  <Badge key={tag} variant="outline" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-slate-400">전형 미선택</span>
+                            )
+                          ) : trimmedTargetLevel ? (
+                            trimmedTargetLevel
                           ) : (
-                            <span className="text-xs text-slate-400">전형 미선택</span>
-                          )
-                        ) : trimmedTargetLevel ? (
-                          trimmedTargetLevel
-                        ) : (
-                          <span className="text-xs text-slate-400">미입력</span>
-                        )}
-                      </TableCell>
+                            <span className="text-xs text-slate-400">미입력</span>
+                          )}
+                        </TableCell>
+                      )}
                       <TableCell>
                         {post.guideUrl ? (
                           <Button asChild size="sm" variant="outline" className="text-xs">
@@ -365,18 +421,20 @@ export default async function AdmissionMaterialCategoryPage({
                           <span className="text-xs text-slate-400">미작성</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {post.nextSchedule ? (
-                          <div className="flex flex-col gap-1">
-                            <Badge variant="outline" className="w-fit text-xs">
-                              {formatDateTime(post.nextSchedule.start_at)}
-                            </Badge>
-                            <span className="text-xs text-slate-500">{post.nextSchedule.title}</span>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-slate-400">등록된 일정 없음</span>
-                        )}
-                      </TableCell>
+                      {!isPastExamCategoryView ? (
+                        <TableCell className="text-sm text-slate-600">
+                          {post.nextSchedule ? (
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className="w-fit text-xs">
+                                {formatDateTime(post.nextSchedule.start_at)}
+                              </Badge>
+                              <span className="text-xs text-slate-500">{post.nextSchedule.title}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-400">등록된 일정 없음</span>
+                          )}
+                        </TableCell>
+                      ) : null}
                       <TableCell className="text-xs text-slate-500">
                         <span className="block font-medium text-slate-700">
                           {formatDateTime(post.updated_at)}

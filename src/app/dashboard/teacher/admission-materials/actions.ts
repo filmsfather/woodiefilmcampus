@@ -248,6 +248,9 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
   const schedulesRaw = formData.get('schedules')
   const guideFile = formData.get('guideFile')
   const resourceFile = formData.get('resourceFile')
+  const pastExamYearValue = formData.get('pastExamYear')
+  const pastExamUniversityValue = formData.get('pastExamUniversity')
+  const pastExamAdmissionTypesValue = formData.get('pastExamAdmissionTypes')
 
   if (guideFile instanceof File && guideFile.size > MAX_UPLOAD_SIZE) {
     return { error: '가이드 파일 용량이 제한을 초과했습니다.' }
@@ -259,6 +262,58 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
 
   const trimmedTargetLevel =
     typeof targetLevelValue === 'string' && targetLevelValue.trim().length > 0 ? targetLevelValue.trim() : null
+
+  let pastExamYear: number | null = null
+  let pastExamUniversity: string | null = null
+  let pastExamAdmissionTypes: string[] | null = null
+
+  if (category === 'past_exam') {
+    if (typeof pastExamYearValue !== 'string' || pastExamYearValue.trim().length === 0) {
+      return { error: '연도를 선택해주세요.' }
+    }
+
+    const parsedYear = Number.parseInt(pastExamYearValue, 10)
+    if (!Number.isFinite(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+      return { error: '연도를 다시 확인해주세요.' }
+    }
+
+    if (typeof pastExamUniversityValue !== 'string' || pastExamUniversityValue.trim().length === 0) {
+      return { error: '대학교를 선택해주세요.' }
+    }
+
+    if (typeof pastExamAdmissionTypesValue !== 'string' || pastExamAdmissionTypesValue.trim().length === 0) {
+      return { error: '수시 또는 정시를 최소 한 개 이상 선택해주세요.' }
+    }
+
+    let parsedAdmissionTypes: unknown
+    try {
+      parsedAdmissionTypes = JSON.parse(pastExamAdmissionTypesValue)
+    } catch (error) {
+      console.error('[admission-materials] failed to parse past exam admission types', error)
+      return { error: '전형 정보를 처리하지 못했습니다.' }
+    }
+
+    if (!Array.isArray(parsedAdmissionTypes) || parsedAdmissionTypes.length === 0) {
+      return { error: '수시 또는 정시를 최소 한 개 이상 선택해주세요.' }
+    }
+
+    const normalizedAdmissions = parsedAdmissionTypes
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+
+    const isValidAdmissions =
+      normalizedAdmissions.length > 0 &&
+      normalizedAdmissions.every((item) => item === '수시' || item === '정시')
+
+    if (!isValidAdmissions) {
+      return { error: '전형 정보가 올바르지 않습니다.' }
+    }
+
+    pastExamYear = parsedYear
+    pastExamUniversity = pastExamUniversityValue.trim()
+    pastExamAdmissionTypes = normalizedAdmissions
+  }
 
   if (category === 'guideline' && !trimmedTargetLevel) {
     return { error: '대학교 이름을 입력해주세요.' }
@@ -299,6 +354,9 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
       target_level: trimmedTargetLevel,
       title,
       description: typeof descriptionValue === 'string' && descriptionValue.trim().length > 0 ? descriptionValue.trim() : null,
+      past_exam_year: pastExamYear,
+      past_exam_university: pastExamUniversity,
+      past_exam_admission_types: pastExamAdmissionTypes,
       guide_asset_id: guideAssetId,
       resource_asset_id: resourceAssetId,
       created_by: profile.id,
@@ -376,6 +434,9 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
   const guideFile = formData.get('guideFile')
   const resourceFile = formData.get('resourceFile')
   const schedulesRaw = formData.get('schedules')
+  const pastExamYearValue = formData.get('pastExamYear')
+  const pastExamUniversityValue = formData.get('pastExamUniversity')
+  const pastExamAdmissionTypesValue = formData.get('pastExamAdmissionTypes')
 
   if (guideFile instanceof File && guideFile.size > MAX_UPLOAD_SIZE) {
     return { error: '가이드 파일 용량이 제한을 초과했습니다.' }
@@ -387,6 +448,58 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
 
   const trimmedTargetLevel =
     typeof targetLevelValue === 'string' && targetLevelValue.trim().length > 0 ? targetLevelValue.trim() : null
+
+  let pastExamYear: number | null = null
+  let pastExamUniversity: string | null = null
+  let pastExamAdmissionTypes: string[] | null = null
+
+  if (category === 'past_exam') {
+    if (typeof pastExamYearValue !== 'string' || pastExamYearValue.trim().length === 0) {
+      return { error: '연도를 선택해주세요.', postId }
+    }
+
+    const parsedYear = Number.parseInt(pastExamYearValue, 10)
+    if (!Number.isFinite(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+      return { error: '연도를 다시 확인해주세요.', postId }
+    }
+
+    if (typeof pastExamUniversityValue !== 'string' || pastExamUniversityValue.trim().length === 0) {
+      return { error: '대학교를 선택해주세요.', postId }
+    }
+
+    if (typeof pastExamAdmissionTypesValue !== 'string' || pastExamAdmissionTypesValue.trim().length === 0) {
+      return { error: '수시 또는 정시를 최소 한 개 이상 선택해주세요.', postId }
+    }
+
+    let parsedAdmissionTypes: unknown
+    try {
+      parsedAdmissionTypes = JSON.parse(pastExamAdmissionTypesValue)
+    } catch (error) {
+      console.error('[admission-materials] failed to parse past exam admission types', error, { postId })
+      return { error: '전형 정보를 처리하지 못했습니다.', postId }
+    }
+
+    if (!Array.isArray(parsedAdmissionTypes) || parsedAdmissionTypes.length === 0) {
+      return { error: '수시 또는 정시를 최소 한 개 이상 선택해주세요.', postId }
+    }
+
+    const normalizedAdmissions = parsedAdmissionTypes
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+
+    const isValidAdmissions =
+      normalizedAdmissions.length > 0 &&
+      normalizedAdmissions.every((item) => item === '수시' || item === '정시')
+
+    if (!isValidAdmissions) {
+      return { error: '전형 정보가 올바르지 않습니다.', postId }
+    }
+
+    pastExamYear = parsedYear
+    pastExamUniversity = pastExamUniversityValue.trim()
+    pastExamAdmissionTypes = normalizedAdmissions
+  }
 
   if (category === 'guideline' && !trimmedTargetLevel) {
     return { error: '대학교 이름을 입력해주세요.', postId }
@@ -469,6 +582,9 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
         description: typeof descriptionValue === 'string' && descriptionValue.trim().length > 0 ? descriptionValue.trim() : null,
         guide_asset_id: guideAssetId,
         resource_asset_id: resourceAssetId,
+        past_exam_year: pastExamYear,
+        past_exam_university: pastExamUniversity,
+        past_exam_admission_types: pastExamAdmissionTypes,
         updated_at: DateUtil.nowUTC().toISOString(),
       })
       .eq('id', postId)

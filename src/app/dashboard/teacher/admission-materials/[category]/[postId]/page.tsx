@@ -26,6 +26,9 @@ interface AdmissionMaterialDetailRow {
     name: string | null
     email: string | null
   } | null
+  past_exam_year: number | null
+  past_exam_university: string | null
+  past_exam_admission_types: string[] | null
   guide_asset?: {
     id: string
     bucket: string
@@ -68,6 +71,9 @@ export default async function AdmissionMaterialDetailPage({
        target_level,
        title,
        description,
+       past_exam_year,
+       past_exam_university,
+       past_exam_admission_types,
        created_at,
        updated_at,
        author:profiles!admission_material_posts_created_by_fkey(name, email),
@@ -160,6 +166,12 @@ export default async function AdmissionMaterialDetailPage({
     created_at: String(data.created_at),
     updated_at: String(data.updated_at),
     author: normalizedAuthor,
+    past_exam_year:
+      data.past_exam_year !== null && data.past_exam_year !== undefined ? Number(data.past_exam_year) : null,
+    past_exam_university: (data.past_exam_university ?? null) as string | null,
+    past_exam_admission_types: Array.isArray(data.past_exam_admission_types)
+      ? data.past_exam_admission_types.map((item) => String(item))
+      : null,
     guide_asset: guideRelation
       ? {
           id: String(guideRelation.id),
@@ -181,10 +193,12 @@ export default async function AdmissionMaterialDetailPage({
 
   const title = getAdmissionCategoryLabel(category)
   const isGuidelineCategoryView = category === 'guideline'
+  const isPastExamCategoryView = category === 'past_exam'
   const admissionTypeTags = isGuidelineCategoryView ? extractAdmissionTypeTags(detail.title) : []
   const detailTitle = isGuidelineCategoryView
     ? detail.target_level ?? detail.title
     : detail.title
+  const pastExamAdmissions = isPastExamCategoryView ? detail.past_exam_admission_types ?? [] : []
 
   const formatDateTime = (value: string) =>
     DateUtil.formatForDisplay(value, {
@@ -217,6 +231,24 @@ export default async function AdmissionMaterialDetailPage({
                 </Badge>
               ))
             ) : null
+          ) : isPastExamCategoryView ? (
+            <>
+              {detail.past_exam_year ? (
+                <Badge variant="secondary" className="text-xs text-slate-700">
+                  {detail.past_exam_year}년
+                </Badge>
+              ) : null}
+              {detail.past_exam_university ? (
+                <Badge variant="secondary" className="text-xs text-slate-700">
+                  {detail.past_exam_university}
+                </Badge>
+              ) : null}
+              {pastExamAdmissions.map((tag) => (
+                <Badge key={tag} variant="secondary" className="text-xs text-slate-700">
+                  {tag}
+                </Badge>
+              ))}
+            </>
           ) : detail.target_level ? (
             <Badge variant="secondary" className="text-xs text-slate-700">
               {detail.target_level}
@@ -237,9 +269,11 @@ export default async function AdmissionMaterialDetailPage({
               자료 수정
             </Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/dashboard/teacher/admission-materials/calendar">달력 보기</Link>
-          </Button>
+          {!isPastExamCategoryView ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/dashboard/teacher/admission-materials/calendar">달력 보기</Link>
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -295,37 +329,39 @@ export default async function AdmissionMaterialDetailPage({
         </Card>
       </div>
 
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900">등록된 일정</CardTitle>
-          <CardDescription className="text-sm text-slate-500">
-            일정은 달력 페이지에서도 한 번에 확인할 수 있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {detail.schedules.length === 0 ? (
-            <p className="text-sm text-slate-400">등록된 일정이 없습니다.</p>
-          ) : (
-            detail.schedules.map((schedule) => (
-              <div key={schedule.id} className="rounded-md border border-slate-200 p-4">
-                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                  <h3 className="text-sm font-semibold text-slate-900">{schedule.title}</h3>
-                  <div className="flex flex-col gap-1 text-sm text-slate-500 sm:text-right">
-                    <span>시작 {formatDateTime(schedule.start_at)}</span>
-                    {schedule.end_at ? <span>종료 {formatDateTime(schedule.end_at)}</span> : null}
+      {!isPastExamCategoryView ? (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">등록된 일정</CardTitle>
+            <CardDescription className="text-sm text-slate-500">
+              일정은 달력 페이지에서도 한 번에 확인할 수 있습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {detail.schedules.length === 0 ? (
+              <p className="text-sm text-slate-400">등록된 일정이 없습니다.</p>
+            ) : (
+              detail.schedules.map((schedule) => (
+                <div key={schedule.id} className="rounded-md border border-slate-200 p-4">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <h3 className="text-sm font-semibold text-slate-900">{schedule.title}</h3>
+                    <div className="flex flex-col gap-1 text-sm text-slate-500 sm:text-right">
+                      <span>시작 {formatDateTime(schedule.start_at)}</span>
+                      {schedule.end_at ? <span>종료 {formatDateTime(schedule.end_at)}</span> : null}
+                    </div>
                   </div>
+                  {schedule.location ? (
+                    <p className="mt-2 text-sm text-slate-600">장소 · {schedule.location}</p>
+                  ) : null}
+                  {schedule.memo ? (
+                    <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">{schedule.memo}</p>
+                  ) : null}
                 </div>
-                {schedule.location ? (
-                  <p className="mt-2 text-sm text-slate-600">장소 · {schedule.location}</p>
-                ) : null}
-                {schedule.memo ? (
-                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-600">{schedule.memo}</p>
-                ) : null}
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
     </section>
   )
 }

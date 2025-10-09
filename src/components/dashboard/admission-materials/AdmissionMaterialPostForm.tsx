@@ -12,6 +12,28 @@ import { Textarea } from '@/components/ui/textarea'
 import type { AdmissionMaterialCategory } from '@/lib/admission-materials'
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
+const PAST_EXAM_YEARS = Array.from({ length: 2025 - 2010 + 1 }, (_, index) => 2025 - index)
+const PAST_EXAM_UNIVERSITIES = [
+  '국민대',
+  '단국대',
+  '동아방송예대',
+  '대진대',
+  '백석예대',
+  '상명대',
+  '서경대',
+  '서울예술대',
+  '성결대',
+  '세종대',
+  '수원대',
+  '순천향대',
+  '숭실대',
+  '용인대',
+  '중앙대',
+  '청주대',
+  '한예종',
+]
+const BASE_SELECT_CLASS_NAME =
+  'border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
 
 export interface AdmissionMaterialScheduleDefaults {
   title: string
@@ -28,6 +50,9 @@ export interface AdmissionMaterialPostFormDefaults {
   guideName?: string | null
   resourceName?: string | null
   schedules?: AdmissionMaterialScheduleDefaults[]
+  pastExamYear?: number | null
+  pastExamUniversity?: string | null
+  pastExamAdmissionTypes?: string[] | null
 }
 
 type FormResult = {
@@ -102,6 +127,7 @@ export function AdmissionMaterialPostForm({
   const [isDeleting, startDeleteTransition] = useTransition()
 
   const isGuideline = category === 'guideline'
+  const isPastExam = category === 'past_exam'
 
   const [guidelineSelection, setGuidelineSelection] = useState(() => {
     const titleSeed = defaults?.title ?? ''
@@ -112,6 +138,9 @@ export function AdmissionMaterialPostForm({
   })
 
   const [schedules, setSchedules] = useState<ScheduleItem[]>(() => {
+    if (isPastExam) {
+      return []
+    }
     const seed = defaults?.schedules ?? []
     if (seed.length === 0) {
       return []
@@ -128,16 +157,24 @@ export function AdmissionMaterialPostForm({
   const maxSizeLabel = useMemo(() => `${Math.round(MAX_UPLOAD_SIZE / (1024 * 1024))}MB`, [])
   const headerDescription = isGuideline
     ? '대학교 이름과 전형을 선택하고 요강 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
-    : '준비 대상과 제목을 입력하고 필요한 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
+    : isPastExam
+      ? '년도와 대학교, 전형 정보를 입력하고 기출 자료를 업로드하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
+      : '준비 대상과 제목을 입력하고 필요한 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
   const targetLabel = isGuideline ? '대학교 이름' : '준비 대상 (선택)'
   const targetPlaceholder = isGuideline ? '예: 중앙대학교 영화과' : '예: 영화과 3학년, 수시 준비반'
   const targetHelper = isGuideline
     ? '달력과 목록에 표시될 학교/학과 이름을 입력하세요.'
     : '자료가 어떤 학생을 위한 것인지 표시하면 검색이 쉬워집니다.'
-  const descriptionLabel = isGuideline ? '입시 요강 (선택)' : '자료 설명 (선택)'
+  const descriptionLabel = isGuideline
+    ? '입시 요강 (선택)'
+    : isPastExam
+      ? '내용 (선택)'
+      : '자료 설명 (선택)'
   const descriptionPlaceholder = isGuideline
     ? '모집 요강의 핵심 내용이나 전달하고 싶은 사항을 정리하세요.'
-    : '자료 활용법이나 참고 사항을 간단히 작성하세요.'
+    : isPastExam
+      ? '기출 자료에 대한 메모나 설명을 작성하세요.'
+      : '자료 활용법이나 참고 사항을 간단히 작성하세요.'
   const guideLabel = isGuideline ? '입시 전체 요강 (선택)' : '기본 가이드 파일 (선택)'
   const guideRemoveLabel = isGuideline ? '기존 입시 전체 요강 파일 삭제' : '기존 가이드 파일 삭제'
   const resourceLabel = isGuideline ? '입시 요강 요약본 (선택)' : '참고 자료 파일 (선택)'
@@ -209,14 +246,46 @@ export function AdmissionMaterialPostForm({
       formData.set('title', selections.join(' · '))
     }
 
-    const schedulePayload = schedules.map((item) => ({
-      title: item.title.trim(),
-      startAt: item.startAt,
-      endAt: item.endAt,
-      memo: item.memo.trim().length > 0 ? item.memo.trim() : undefined,
-    }))
+    if (isPastExam) {
+      const yearValue = formData.get('pastExamYear')
+      const universityValue = formData.get('pastExamUniversity')
+      const rawAdmissions = formData.getAll('pastExamAdmissionTypes')
 
-    formData.set('schedules', JSON.stringify(schedulePayload))
+      if (typeof yearValue !== 'string' || yearValue.trim().length === 0) {
+        setError('연도를 선택해주세요.')
+        return
+      }
+
+      if (typeof universityValue !== 'string' || universityValue.trim().length === 0) {
+        setError('대학교를 선택해주세요.')
+        return
+      }
+
+      const selectedAdmissions = rawAdmissions
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+
+      if (selectedAdmissions.length === 0) {
+        setError('수시 또는 정시를 최소 한 개 이상 선택해주세요.')
+        return
+      }
+
+      formData.set('pastExamYear', yearValue)
+      formData.set('pastExamUniversity', universityValue)
+      formData.set('pastExamAdmissionTypes', JSON.stringify(selectedAdmissions))
+      formData.set('targetLevel', `${yearValue}년 ${universityValue}`)
+      formData.set('schedules', '[]')
+    } else {
+      const schedulePayload = schedules.map((item) => ({
+        title: item.title.trim(),
+        startAt: item.startAt,
+        endAt: item.endAt,
+        memo: item.memo.trim().length > 0 ? item.memo.trim() : undefined,
+      }))
+
+      formData.set('schedules', JSON.stringify(schedulePayload))
+    }
 
     startTransition(async () => {
       const result = await onSubmit(formData)
@@ -335,19 +404,68 @@ export function AdmissionMaterialPostForm({
           <input type="hidden" name="category" value={category} />
           {defaults?.postId ? <input type="hidden" name="postId" value={defaults.postId} /> : null}
 
-          <div className="grid gap-2">
-            <Label htmlFor="targetLevel">{targetLabel}</Label>
-            <Input
-              id="targetLevel"
-              name="targetLevel"
-              placeholder={targetPlaceholder}
-              defaultValue={defaults?.targetLevel ?? ''}
-              maxLength={120}
-              disabled={isPending}
-              required={isGuideline}
-            />
-            <p className="text-xs text-slate-500">{targetHelper}</p>
-          </div>
+          {isPastExam ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="pastExamYear">년도</Label>
+                <select
+                  id="pastExamYear"
+                  name="pastExamYear"
+                  defaultValue={
+                    typeof defaults?.pastExamYear === 'number'
+                      ? String(defaults.pastExamYear)
+                      : ''
+                  }
+                  className={BASE_SELECT_CLASS_NAME}
+                  disabled={isPending}
+                  required
+                >
+                  <option value="" disabled>
+                    연도를 선택하세요
+                  </option>
+                  {PAST_EXAM_YEARS.map((year) => (
+                    <option key={year} value={year}>
+                      {year}년
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="pastExamUniversity">대학교</Label>
+                <select
+                  id="pastExamUniversity"
+                  name="pastExamUniversity"
+                  defaultValue={defaults?.pastExamUniversity ?? ''}
+                  className={BASE_SELECT_CLASS_NAME}
+                  disabled={isPending}
+                  required
+                >
+                  <option value="" disabled>
+                    대학교를 선택하세요
+                  </option>
+                  {PAST_EXAM_UNIVERSITIES.map((university) => (
+                    <option key={university} value={university}>
+                      {university}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-2">
+              <Label htmlFor="targetLevel">{targetLabel}</Label>
+              <Input
+                id="targetLevel"
+                name="targetLevel"
+                placeholder={targetPlaceholder}
+                defaultValue={defaults?.targetLevel ?? ''}
+                maxLength={120}
+                disabled={isPending}
+                required={isGuideline}
+              />
+              <p className="text-xs text-slate-500">{targetHelper}</p>
+            </div>
+          )}
 
           {isGuideline ? (
             <div className="space-y-2">
@@ -380,6 +498,49 @@ export function AdmissionMaterialPostForm({
               </div>
               <p className="text-xs text-slate-500">수시, 정시 중 공유할 전형을 선택하세요.</p>
             </div>
+          ) : isPastExam ? (
+            <>
+              <div className="grid gap-2">
+                <Label htmlFor="title">제목</Label>
+                <Input
+                  id="title"
+                  name="title"
+                  required
+                  placeholder="예: 2024년 중앙대 영화과 기출 분석"
+                  defaultValue={defaults?.title ?? ''}
+                  maxLength={200}
+                  disabled={isPending}
+                />
+              </div>
+              <div className="space-y-2">
+                <span className="text-sm font-medium text-slate-700">전형 선택</span>
+                <div className="flex flex-wrap gap-4">
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      name="pastExamAdmissionTypes"
+                      value="수시"
+                      defaultChecked={defaults?.pastExamAdmissionTypes?.includes('수시')}
+                      disabled={isPending}
+                    />
+                    수시
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      name="pastExamAdmissionTypes"
+                      value="정시"
+                      defaultChecked={defaults?.pastExamAdmissionTypes?.includes('정시')}
+                      disabled={isPending}
+                    />
+                    정시
+                  </label>
+                </div>
+                <p className="text-xs text-slate-500">수시, 정시 중 공유할 전형을 선택하세요.</p>
+              </div>
+            </>
           ) : (
             <div className="grid gap-2">
               <Label htmlFor="title">제목</Label>
@@ -397,15 +558,15 @@ export function AdmissionMaterialPostForm({
 
           <div className="grid gap-2">
             <Label htmlFor="description">{descriptionLabel}</Label>
-            <Textarea
-              id="description"
-              name="description"
-              rows={5}
-              defaultValue={defaults?.description ?? ''}
-              placeholder={descriptionPlaceholder}
-              disabled={isPending}
-            />
-          </div>
+              <Textarea
+                id="description"
+                name="description"
+                rows={5}
+                defaultValue={defaults?.description ?? ''}
+                placeholder={descriptionPlaceholder}
+                disabled={isPending}
+              />
+            </div>
 
           <div className="grid gap-2">
             <Label htmlFor="guideFile">
@@ -453,85 +614,87 @@ export function AdmissionMaterialPostForm({
             <p className="text-xs text-slate-500">{resourceHelpText}</p>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-medium text-slate-900">일정 등록</h2>
-                <p className="text-xs text-slate-500">입시 관련 일정을 추가하면 달력에서 한 번에 확인할 수 있습니다.</p>
+          {!isPastExam ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-base font-medium text-slate-900">일정 등록</h2>
+                  <p className="text-xs text-slate-500">입시 관련 일정을 추가하면 달력에서 한 번에 확인할 수 있습니다.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={addSchedule} disabled={isPending}>
+                  일정 추가
+                </Button>
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addSchedule} disabled={isPending}>
-                일정 추가
-              </Button>
-            </div>
 
-            {schedules.length === 0 ? (
-              <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                등록된 일정이 없습니다. 오른쪽 버튼을 눌러 첫 일정을 추가하세요.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {schedules.map((schedule) => (
-                  <div key={schedule.id} className="rounded-md border border-slate-200 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <Label className="text-sm font-medium text-slate-700">일정 제목</Label>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="self-start text-xs text-red-500 hover:text-red-600"
-                        onClick={() => removeSchedule(schedule.id)}
-                        disabled={isPending}
-                      >
-                        삭제
-                      </Button>
-                    </div>
-                    <div className="mt-3 grid gap-3">
-                      <div className="grid gap-2">
-                        <Label className="text-xs text-slate-500">제목</Label>
-                        <Input
-                          value={schedule.title}
-                          onChange={(event) => updateSchedule(schedule.id, 'title', event.target.value)}
-                          placeholder={scheduleTitlePlaceholder}
-                          maxLength={150}
+              {schedules.length === 0 ? (
+                <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  등록된 일정이 없습니다. 오른쪽 버튼을 눌러 첫 일정을 추가하세요.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {schedules.map((schedule) => (
+                    <div key={schedule.id} className="rounded-md border border-slate-200 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <Label className="text-sm font-medium text-slate-700">일정 제목</Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="self-start text-xs text-red-500 hover:text-red-600"
+                          onClick={() => removeSchedule(schedule.id)}
+                          disabled={isPending}
+                        >
+                          삭제
+                        </Button>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        <div className="grid gap-2">
+                          <Label className="text-xs text-slate-500">제목</Label>
+                          <Input
+                            value={schedule.title}
+                            onChange={(event) => updateSchedule(schedule.id, 'title', event.target.value)}
+                            placeholder={scheduleTitlePlaceholder}
+                            maxLength={150}
+                            disabled={isPending}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        <div className="grid gap-2">
+                          <Label className="text-xs text-slate-500">시작</Label>
+                          <Input
+                            type="datetime-local"
+                            value={toLocalInputValue(schedule.startAt)}
+                            onChange={(event) => updateSchedule(schedule.id, 'startAt', event.target.value)}
+                            disabled={isPending}
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label className="text-xs text-slate-500">종료 (선택)</Label>
+                          <Input
+                            type="datetime-local"
+                            value={toLocalInputValue(schedule.endAt)}
+                            onChange={(event) => updateSchedule(schedule.id, 'endAt', event.target.value)}
+                            disabled={isPending}
+                          />
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-2">
+                        <Label className="text-xs text-slate-500">메모 (선택)</Label>
+                        <Textarea
+                          value={schedule.memo}
+                          onChange={(event) => updateSchedule(schedule.id, 'memo', event.target.value)}
+                          rows={3}
+                          placeholder={scheduleMemoPlaceholder}
                           disabled={isPending}
                         />
                       </div>
                     </div>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                      <div className="grid gap-2">
-                        <Label className="text-xs text-slate-500">시작</Label>
-                        <Input
-                          type="datetime-local"
-                          value={toLocalInputValue(schedule.startAt)}
-                          onChange={(event) => updateSchedule(schedule.id, 'startAt', event.target.value)}
-                          disabled={isPending}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label className="text-xs text-slate-500">종료 (선택)</Label>
-                        <Input
-                          type="datetime-local"
-                          value={toLocalInputValue(schedule.endAt)}
-                          onChange={(event) => updateSchedule(schedule.id, 'endAt', event.target.value)}
-                          disabled={isPending}
-                        />
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      <Label className="text-xs text-slate-500">메모 (선택)</Label>
-                      <Textarea
-                        value={schedule.memo}
-                        onChange={(event) => updateSchedule(schedule.id, 'memo', event.target.value)}
-                        rows={3}
-                        placeholder={scheduleMemoPlaceholder}
-                        disabled={isPending}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
             {onDelete ? (

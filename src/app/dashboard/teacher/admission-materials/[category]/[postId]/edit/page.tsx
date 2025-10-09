@@ -32,6 +32,9 @@ export default async function EditAdmissionMaterialPage({
        target_level,
        title,
        description,
+       past_exam_year,
+       past_exam_university,
+       past_exam_admission_types,
        guide_asset:media_assets!admission_material_posts_guide_asset_id_fkey(metadata),
        resource_asset:media_assets!admission_material_posts_resource_asset_id_fkey(metadata),
        schedules:admission_material_schedules(id, title, start_at, end_at, location, memo)
@@ -88,6 +91,11 @@ export default async function EditAdmissionMaterialPage({
             endAt: schedule.end_at ? String(schedule.end_at) : null,
             memo: schedule.memo ? String(schedule.memo) : null,
           })),
+          pastExamYear: data.past_exam_year !== null && data.past_exam_year !== undefined ? Number(data.past_exam_year) : null,
+          pastExamUniversity: (data.past_exam_university ?? null) as string | null,
+          pastExamAdmissionTypes: Array.isArray(data.past_exam_admission_types)
+            ? data.past_exam_admission_types.map((item) => String(item))
+            : null,
         }}
         submitLabel="변경 사항 저장"
         onSubmit={updateAdmissionMaterialPost}
