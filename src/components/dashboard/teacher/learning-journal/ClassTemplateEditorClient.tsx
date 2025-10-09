@@ -10,7 +10,7 @@ import type {
   ClassLearningJournalTemplate,
   LearningJournalSubject,
 } from '@/types/learning-journal'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface MaterialOption {
   id: string
@@ -30,7 +30,7 @@ interface ClassTemplateEditorClientProps {
 
 export function ClassTemplateEditorClient({ classId, periodId, template, materials }: ClassTemplateEditorClientProps) {
   const router = useRouter()
-  const [, startTransition] = useGlobalTransition()
+  const { runWithLoading } = useGlobalAsyncTask()
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [dialogState, setDialogState] = useState<{
     open: boolean
@@ -73,7 +73,7 @@ export function ClassTemplateEditorClient({ classId, periodId, template, materia
       formData.set('materialNotes', '')
     }
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await upsertClassTemplateWeekAction(formData)
 
       if (result?.error) {
@@ -83,7 +83,7 @@ export function ClassTemplateEditorClient({ classId, periodId, template, materia
 
       setFeedback({ type: 'success', message: '주차 템플릿이 저장되었습니다.' })
       handleDialogClose()
-      router.refresh()
+      await router.refresh()
     })
   }
 

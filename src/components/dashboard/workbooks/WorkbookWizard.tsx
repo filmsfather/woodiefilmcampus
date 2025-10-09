@@ -47,7 +47,7 @@ import {
   type NormalizedWorkbookAssetPayload,
 } from '@/lib/validation/workbook'
 import { createClient as createBrowserSupabase } from '@/lib/supabase/client'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 const steps = [
   { id: 'basic', title: '기본 정보' },
@@ -172,7 +172,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   })
   const [stepIndex, setStepIndex] = useState(0)
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
-  const [isSubmitting, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isSubmitting } = useGlobalAsyncTask()
   const supabase = useMemo(() => createBrowserSupabase(), [])
   const [assetState, setAssetState] = useState<Record<string, UploadedAsset[]>>({})
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -481,7 +481,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
     setServerError(null)
     setSuccessWorkbookId(null)
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       setSubmitState('idle')
       const result = await createWorkbook(payload)
 

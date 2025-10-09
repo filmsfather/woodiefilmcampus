@@ -57,7 +57,7 @@ import {
   sanitizeFilmEntry,
   type FilmNoteEntry,
 } from '@/lib/film-notes'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface WorkbookItemSummary {
   id: string
@@ -275,7 +275,7 @@ export function AssignmentEvaluationPanel({
 
   const [deleteAlert, setDeleteAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [deletePendingId, setDeletePendingId] = useState<string | null>(null)
-  const [isDeleting, startDeleteTransition] = useGlobalTransition()
+  const { runWithLoading: runDeleteStudentTask, isLoading: isDeleting } = useGlobalAsyncTask()
 
   useEffect(() => {
     if (!focusStudentTaskId) {
@@ -294,7 +294,7 @@ export function AssignmentEvaluationPanel({
       }
       setDeleteAlert(null)
       setDeletePendingId(studentTaskId)
-      startDeleteTransition(async () => {
+      void runDeleteStudentTask(async () => {
         const result = await deleteStudentTask({ assignmentId: assignment.id, studentTaskId })
         if (result?.error) {
           setDeleteAlert({ type: 'error', text: `삭제 실패: ${JSON.stringify(result)}` })
@@ -303,12 +303,12 @@ export function AssignmentEvaluationPanel({
           if (focusStudentTaskId === studentTaskId) {
             onFocusStudentTask?.(null)
           }
-          router.refresh()
+          await router.refresh()
         }
         setDeletePendingId(null)
       })
     },
-    [assignment.id, focusStudentTaskId, onFocusStudentTask, router, startDeleteTransition]
+    [assignment.id, focusStudentTaskId, onFocusStudentTask, router, runDeleteStudentTask]
   )
 
   const deleteState = useMemo(
@@ -497,13 +497,13 @@ function PrintRequestList({
 
   const [cancelMessage, setCancelMessage] = useState<string | null>(null)
   const [cancelPendingId, setCancelPendingId] = useState<string | null>(null)
-  const [isCancelPending, startCancelTransition] = useGlobalTransition()
+  const { runWithLoading: runCancelRequest, isLoading: isCancelPending } = useGlobalAsyncTask()
 
   const handleCancel = useCallback(
     (requestId: string) => {
       setCancelMessage(null)
       setCancelPendingId(requestId)
-      startCancelTransition(async () => {
+      void runCancelRequest(async () => {
         const result = await cancelPrintRequest({ requestId })
         if (result?.error) {
           setCancelMessage(result.error)
@@ -513,7 +513,7 @@ function PrintRequestList({
         setCancelPendingId(null)
       })
     },
-    [startCancelTransition]
+    [runCancelRequest]
   )
 
   if (activeRequests.length === 0) {
@@ -636,12 +636,12 @@ function SrsReviewPanel({
 }: ReviewPanelProps) {
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading: runToggleTask, isLoading: isPending } = useGlobalAsyncTask()
 
   const handleToggle = (studentTaskId: string, cancel: boolean) => {
     setPendingTaskId(studentTaskId)
     setErrorMessage(null)
-    startTransition(async () => {
+    void runToggleTask(async () => {
       const result = await toggleStudentTaskStatus({
         assignmentId: assignment.id,
         studentTaskId,
@@ -784,7 +784,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
     notes: '',
   })
   const [printMessage, setPrintMessage] = useState<string | null>(null)
-  const [isRequestPending, startPrintTransition] = useGlobalTransition()
+  const { runWithLoading: runPrintRequest, isLoading: isRequestPending } = useGlobalAsyncTask()
 
   const handleToggleStudent = useCallback((taskId: string, checked: boolean) => {
     setSelectedTaskIds((prev) => {
@@ -831,7 +831,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
       setPrintMessage('인쇄할 학생을 선택해주세요.')
       return
     }
-    startPrintTransition(async () => {
+    void runPrintRequest(async () => {
       const result = await createPrintRequest({
         assignmentId: assignment.id,
         studentTaskIds: selectedTaskIds,
@@ -1035,7 +1035,7 @@ function PdfEvaluationRow({
   const initialScore = submission?.score ?? ''
   const [score, setScore] = useState<string>(initialScore)
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading: runSaveEvaluation, isLoading: isPending } = useGlobalAsyncTask()
 
   const handleSave = () => {
     if (!submission || !taskItem) {
@@ -1045,7 +1045,7 @@ function PdfEvaluationRow({
 
     const normalizedScore = score === 'pass' || score === 'nonpass' ? score : 'nonpass'
     setMessage(null)
-    startTransition(async () => {
+    void runSaveEvaluation(async () => {
       const result = await evaluateSubmission({
         assignmentId,
         studentTaskId: task.id,
@@ -1187,7 +1187,7 @@ function WritingEvaluationCard({
   const [score, setScore] = useState<string>(submission?.score ?? '')
   const [feedback, setFeedback] = useState<string>(submission?.feedback ?? '')
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading: runSaveEvaluation, isLoading: isPending } = useGlobalAsyncTask()
 
   const handleSave = () => {
     if (!submission || !taskItem) {
@@ -1196,7 +1196,7 @@ function WritingEvaluationCard({
     }
 
     const normalizedScore = score === 'pass' || score === 'nonpass' ? score : 'nonpass'
-    startTransition(async () => {
+    void runSaveEvaluation(async () => {
       const result = await evaluateSubmission({
         assignmentId,
         studentTaskId: task.id,
@@ -1340,7 +1340,7 @@ function FilmEvaluationCard({
   const filmSubmission = useMemo(() => parseFilmSubmission(submission?.content), [submission?.content])
   const [score, setScore] = useState<string>(submission?.score ?? '')
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading: runSaveFilmEvaluation, isLoading: isPending } = useGlobalAsyncTask()
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   const titlePreview = useMemo(() => {
@@ -1367,7 +1367,7 @@ function FilmEvaluationCard({
     }
 
     const normalizedScore = score === 'pass' || score === 'nonpass' ? score : 'nonpass'
-    startTransition(async () => {
+    void runSaveFilmEvaluation(async () => {
       const result = await evaluateSubmission({
         assignmentId,
         studentTaskId: task.id,

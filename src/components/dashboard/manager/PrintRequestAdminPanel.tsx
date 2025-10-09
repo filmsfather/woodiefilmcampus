@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface UnifiedPrintRequestFile {
   id: string
@@ -52,7 +52,7 @@ const STATUS_VARIANTS: Record<string, 'secondary' | 'outline' | 'destructive'> =
 export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestView[] }) {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
 
   if (requests.length === 0) {
     return null
@@ -61,7 +61,7 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
   const handleUpdate = (request: PrintRequestView, status: 'done' | 'canceled') => {
     setPendingId(request.id)
     setFeedback(null)
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result =
         request.source === 'assignment'
           ? await updatePrintRequestStatus({ requestId: request.id, status })

@@ -16,7 +16,7 @@ import {
   PAST_EXAM_UNIVERSITIES,
   PAST_EXAM_YEARS,
 } from '@/lib/admission-materials-constants'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
 const BASE_SELECT_CLASS_NAME =
@@ -110,8 +110,8 @@ export function AdmissionMaterialPostForm({
   const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
-  const [isDeleting, startDeleteTransition] = useGlobalTransition()
+  const { runWithLoading: runSubmit, isLoading: isPending } = useGlobalAsyncTask()
+  const { runWithLoading: runDelete, isLoading: isDeleting } = useGlobalAsyncTask()
 
   const isGuideline = category === 'guideline'
   const isPastExam = category === 'past_exam'
@@ -274,7 +274,7 @@ export function AdmissionMaterialPostForm({
       formData.set('schedules', JSON.stringify(schedulePayload))
     }
 
-    startTransition(async () => {
+    void runSubmit(async () => {
       const result = await onSubmit(formData)
 
       if (result?.error) {
@@ -287,12 +287,12 @@ export function AdmissionMaterialPostForm({
 
         if (targetPostId) {
           router.push(`/dashboard/teacher/admission-materials/${category}/${targetPostId}`)
-          router.refresh()
+          await router.refresh()
           return
         }
 
         setSuccessMessage('자료가 저장되었습니다.')
-        router.refresh()
+        await router.refresh()
       }
     })
   }
@@ -305,7 +305,7 @@ export function AdmissionMaterialPostForm({
     setError(null)
     setSuccessMessage(null)
 
-    startDeleteTransition(async () => {
+    void runDelete(async () => {
       const result = await onDelete()
 
       if (result?.error) {
@@ -315,7 +315,7 @@ export function AdmissionMaterialPostForm({
 
       if (result?.success) {
         router.push(`/dashboard/teacher/admission-materials/${category}`)
-        router.refresh()
+        await router.refresh()
       }
     })
   }

@@ -31,7 +31,7 @@ import {
   type WorkbookMetadataFormValues,
 } from '@/lib/validation/workbook'
 import { updateWorkbook } from '@/app/dashboard/workbooks/actions'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface WorkbookMetadataFormProps {
   workbookId: string
@@ -47,7 +47,7 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
   })
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
 
   const tagsInput = form.watch('tagsInput')
   const selectedType = form.watch('type')
@@ -59,7 +59,7 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
     setServerError(null)
     setSubmitState('idle')
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await updateWorkbook({
         workbookId,
         title: payload.title,
@@ -76,7 +76,7 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
         return
       }
 
-      router.refresh()
+      await router.refresh()
       setSubmitState('success')
     })
   }

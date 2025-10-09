@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, Download, Loader2, Upload } from 'lucide-rea
 import { submitPdfSubmission } from '@/app/dashboard/student/tasks/actions'
 import { Button } from '@/components/ui/button'
 import type { StudentTaskSubmission } from '@/types/student-task'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface PdfTaskPanelProps {
   studentTaskId: string
@@ -25,7 +25,7 @@ export function PdfTaskPanel({
   instructions,
 }: PdfTaskPanelProps) {
   const router = useRouter()
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)
@@ -55,7 +55,7 @@ export function PdfTaskPanel({
       return
     }
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       try {
         const formData = new FormData()
         formData.append('studentTaskId', studentTaskId)
@@ -71,7 +71,7 @@ export function PdfTaskPanel({
         setSuccessMessage('PDF 파일을 업로드했습니다.')
         fileInputRef.current?.form?.reset()
         setSelectedFileName(null)
-        router.refresh()
+        await router.refresh()
       } catch (error) {
         console.error('[PdfTaskPanel] submit failed', error)
         setErrorMessage('제출 과정에서 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')

@@ -3,7 +3,7 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface MonthSelectProps {
   options: string[]
@@ -19,13 +19,14 @@ export function MonthSelect({ options, selected }: MonthSelectProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
 
   const handleChange = (value: string) => {
     const params = new URLSearchParams(searchParams ?? undefined)
     params.set('month', value)
-    startTransition(() => {
+    void runWithLoading(async () => {
       router.push(`${pathname}?${params.toString()}`)
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }
 

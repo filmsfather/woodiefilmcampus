@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import DateUtil from '@/lib/date-util'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 export interface PendingStudentProfile {
   id: string
@@ -24,7 +24,7 @@ export interface PendingStudentProfile {
 
 export function PendingApprovalList({ students }: { students: PendingStudentProfile[] }) {
   const router = useRouter()
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
   const [processing, setProcessing] = useState<{ id: string; action: 'approve' | 'remove' } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -36,7 +36,7 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
     setErrorMessage(null)
     setProcessing({ id, action: 'approve' })
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await approveStudent(id)
 
       if (result?.error) {
@@ -46,7 +46,7 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
       }
 
       resetState()
-      router.refresh()
+      await router.refresh()
     })
   }
 
@@ -54,7 +54,7 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
     setErrorMessage(null)
     setProcessing({ id, action: 'remove' })
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await removePendingUser(id)
 
       if (result?.error) {
@@ -64,7 +64,7 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
       }
 
       resetState()
-      router.refresh()
+      await router.refresh()
     })
   }
 

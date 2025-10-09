@@ -29,7 +29,7 @@ import {
   hasFilmEntryValue,
 } from '@/lib/film-notes'
 import type { StudentFilmNoteListItem } from '@/lib/film-history'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface FilmNotesManagerProps {
   notes: StudentFilmNoteListItem[]
@@ -64,8 +64,8 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
   const [editEntry, setEditEntry] = useState<FilmNoteEntry | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
   const [mutatingNoteId, setMutatingNoteId] = useState<string | null>(null)
-  const [isCreatePending, startCreateTransition] = useGlobalTransition()
-  const [isMutating, startMutatingTransition] = useGlobalTransition()
+  const { runWithLoading: runCreate, isLoading: isCreatePending } = useGlobalAsyncTask()
+  const { runWithLoading: runMutate, isLoading: isMutating } = useGlobalAsyncTask()
 
   const handleCreateFieldChange = (key: keyof FilmNoteEntry, rawValue: string) => {
     const value = key === 'releaseYear' ? rawValue.replace(/[^0-9]/g, '').slice(0, 4) : rawValue
@@ -87,7 +87,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
       Object.entries(createEntry).map(([key, value]) => [key, sanitizeFilmValue(value)])
     ) as FilmNoteEntry
 
-    startCreateTransition(async () => {
+    void runCreate(async () => {
       const result = await createPersonalFilmNote({ content: sanitized })
 
       if (!result.success) {
@@ -96,7 +96,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
       }
 
       setCreateEntry(createEmptyFilmEntry())
-      router.refresh()
+      await router.refresh()
     })
   }
 
@@ -126,7 +126,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
     ) as FilmNoteEntry
 
     setMutatingNoteId(editingNoteId)
-    startMutatingTransition(async () => {
+    void runMutate(async () => {
       const result = await updatePersonalFilmNote({ noteId: editingNoteId, content: sanitized })
 
       if (!result.success) {
@@ -138,14 +138,14 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
       setEditingNoteId(null)
       setEditEntry(null)
       setMutatingNoteId(null)
-      router.refresh()
+      await router.refresh()
     })
   }
 
   const handleDelete = (noteId: string) => {
     setListError(null)
     setMutatingNoteId(noteId)
-    startMutatingTransition(async () => {
+    void runMutate(async () => {
       const result = await deletePersonalFilmNote({ noteId })
       if (!result.success) {
         setListError(result.error ?? '감상지를 삭제하지 못했습니다.')
@@ -160,7 +160,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
       }
 
       setMutatingNoteId(null)
-      router.refresh()
+      await router.refresh()
     })
   }
 

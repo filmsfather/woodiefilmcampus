@@ -16,7 +16,7 @@ import {
   type WorkLogEntryWithTeacher,
   type WorkLogStatus,
 } from '@/lib/work-logs'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface WorkLogCalendarPanelProps {
   entries: WorkLogEntryWithTeacher[]
@@ -170,7 +170,7 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
 
   const monthRange = useMemo(() => resolveMonthRange(monthToken), [monthToken])
   const monthStartDate = monthRange.startDate
@@ -234,8 +234,9 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
         params.set(key, value)
       }
     })
-    startTransition(() => {
+    void runWithLoading(async () => {
       router.push(`${pathname}?${params.toString()}`)
+      await new Promise((resolve) => setTimeout(resolve, 0))
     })
   }
 

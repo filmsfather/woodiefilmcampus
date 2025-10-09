@@ -19,7 +19,7 @@ import {
   type FilmNoteEntry,
 } from '@/lib/film-notes'
 import type { FilmNoteHistoryEntry, FilmNoteHistorySummary } from '@/lib/film-history'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface FilmNoteHistoryManagerProps {
   history: FilmNoteHistorySummary
@@ -34,7 +34,7 @@ export function FilmNoteHistoryManager({ history }: FilmNoteHistoryManagerProps)
   const [formValues, setFormValues] = useState<FilmNoteEntry>(createEmptyFilmEntry())
   const [message, setMessage] = useState<string | null>(null)
   const [isError, setIsError] = useState(false)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
 
   const noteCount = history.workbook.noteCount
 
@@ -136,7 +136,7 @@ export function FilmNoteHistoryManager({ history }: FilmNoteHistoryManagerProps)
     setIsError(false)
     setMessage(null)
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await submitFilmResponses({
         studentTaskId: history.taskId,
         studentTaskItemId,
@@ -156,7 +156,7 @@ export function FilmNoteHistoryManager({ history }: FilmNoteHistoryManagerProps)
       setFormValues(createEmptyFilmEntry())
       setIsError(false)
       setMessage('감상지를 저장했습니다.')
-      router.refresh()
+      await router.refresh()
     })
   }
 

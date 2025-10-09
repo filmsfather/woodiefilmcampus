@@ -19,7 +19,7 @@ import type { AssignmentDetail } from '@/lib/assignment-evaluation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 const TYPE_LABELS: Record<string, string> = {
   srs: 'SRS 반복',
@@ -106,7 +106,7 @@ export function ClassDashboard({
   )
   const [focusStudentTaskId, setFocusStudentTaskId] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [isDeletingClass, startDeleteClass] = useGlobalTransition()
+  const { runWithLoading: runDeleteClass, isLoading: isDeletingClass } = useGlobalAsyncTask()
   const router = useRouter()
 
   const activeAssignment = useMemo(
@@ -160,7 +160,7 @@ export function ClassDashboard({
     }
     setActionMessage(null)
     const targetAssignmentId = targetAssignment.id
-    startDeleteClass(async () => {
+    void runDeleteClass(async () => {
       const result = await deleteAssignmentTarget({ assignmentId: targetAssignmentId, classId })
       if (result?.error) {
         setActionMessage({ type: 'error', text: result.error })
@@ -169,9 +169,9 @@ export function ClassDashboard({
       setActionMessage({ type: 'success', text: '반에서 과제를 삭제했습니다.' })
       setFocusStudentTaskId(null)
       setActiveAssignmentId((prev) => (prev === targetAssignmentId ? null : prev))
-      router.refresh()
+      await router.refresh()
     })
-  }, [activeAssignment, classId, className, router, startDeleteClass])
+  }, [activeAssignment, classId, className, router, runDeleteClass])
 
   const statusSummary = useMemo(() => {
     if (!activeDetail) {

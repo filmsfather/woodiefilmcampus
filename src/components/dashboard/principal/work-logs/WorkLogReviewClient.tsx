@@ -18,7 +18,7 @@ import {
   type TeacherProfileSummary,
   type WorkLogEntryWithTeacher,
 } from '@/lib/work-logs'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface WorkLogReviewClientProps {
   entries: WorkLogEntryWithTeacher[]
@@ -121,7 +121,7 @@ export function WorkLogReviewClient({
   const [noteDrafts, setNoteDrafts] = useState<NoteDrafts>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
 
   useEffect(() => {
     setEntriesState(entries)
@@ -147,7 +147,10 @@ export function WorkLogReviewClient({
   const navigateToMonth = (token: string) => {
     const params = new URLSearchParams(searchParams?.toString())
     params.set('month', token)
-    router.push(`${pathname}?${params.toString()}`)
+    void runWithLoading(async () => {
+      router.push(`${pathname}?${params.toString()}`)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
   }
 
   const updateStatusFilter = (value: 'all' | StatusKey) => {
@@ -178,7 +181,7 @@ export function WorkLogReviewClient({
       formData.append('reviewNote', note)
     }
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await reviewWorkLogEntry(formData)
       if (!result?.success || !result.entry) {
         setFeedback({ type: 'error', message: result?.error ?? '승인 처리 중 오류가 발생했습니다.' })

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 import type { ClassMaterialAssetType } from '@/lib/class-materials'
 
 type PrintResult = {
@@ -31,7 +31,7 @@ interface ClassMaterialPrintRequestFormProps {
 export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAssets }: ClassMaterialPrintRequestFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
   const hasSelectableAssets = availableAssets.some((asset) => !asset.disabled)
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -43,7 +43,7 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAsset
     const formData = new FormData(form)
     formData.set('postId', postId)
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       const result = await onSubmit(formData)
 
       if (result?.error) {

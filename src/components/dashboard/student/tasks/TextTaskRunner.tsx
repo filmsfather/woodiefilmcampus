@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import type { StudentTaskDetail } from '@/types/student-task'
 import { stripHtml } from '@/lib/rich-text'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
+import { useGlobalAsyncTask } from '@/hooks/use-global-loading'
 
 interface TextTaskRunnerProps {
   task: StudentTaskDetail
@@ -43,7 +43,7 @@ export function TextTaskRunner({
   attachments,
 }: TextTaskRunnerProps) {
   const router = useRouter()
-  const [isPending, startTransition] = useGlobalTransition()
+  const { runWithLoading, isLoading: isPending } = useGlobalAsyncTask()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
@@ -71,7 +71,7 @@ export function TextTaskRunner({
     setErrorMessage(null)
     setSuccessMessage(null)
 
-    startTransition(async () => {
+    void runWithLoading(async () => {
       try {
         const normalizedAnswers = prompts.map((prompt, index) => {
           const raw = answers[index] ?? ''
@@ -97,7 +97,7 @@ export function TextTaskRunner({
         }
 
         setSuccessMessage('답안을 저장했어요.')
-        router.refresh()
+        await router.refresh()
       } catch (error) {
         console.error('[TextTaskRunner] submit failed', error)
         setErrorMessage('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
