@@ -13,6 +13,14 @@ export const CLASS_MATERIAL_SUBJECTS = {
     label: '영화연구 아카이브',
     description: '영화 연구와 관련된 읽기 자료 및 과제를 보관합니다.',
   },
+  karts: {
+    label: '한예종 아카이브',
+    description: '한국예술종합학교 관련 수업 자료와 참고 자료를 정리합니다.',
+  },
+  integrated_theory: {
+    label: '통합이론 아카이브',
+    description: '통합 이론 수업 자료와 공용 참고 문서를 모읍니다.',
+  },
 } as const
 
 export type ClassMaterialSubject = keyof typeof CLASS_MATERIAL_SUBJECTS
