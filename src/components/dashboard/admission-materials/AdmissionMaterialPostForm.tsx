@@ -10,28 +10,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { AdmissionMaterialCategory } from '@/lib/admission-materials'
+import {
+  PAST_EXAM_ADMISSION_TYPES,
+  PAST_EXAM_UNIVERSITIES,
+  PAST_EXAM_YEARS,
+} from '@/lib/admission-materials-constants'
 
 const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
-const PAST_EXAM_YEARS = Array.from({ length: 2025 - 2010 + 1 }, (_, index) => 2025 - index)
-const PAST_EXAM_UNIVERSITIES = [
-  '국민대',
-  '단국대',
-  '동아방송예대',
-  '대진대',
-  '백석예대',
-  '상명대',
-  '서경대',
-  '서울예술대',
-  '성결대',
-  '세종대',
-  '수원대',
-  '순천향대',
-  '숭실대',
-  '용인대',
-  '중앙대',
-  '청주대',
-  '한예종',
-]
 const BASE_SELECT_CLASS_NAME =
   'border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
 
@@ -515,28 +500,19 @@ export function AdmissionMaterialPostForm({
               <div className="space-y-2">
                 <span className="text-sm font-medium text-slate-700">전형 선택</span>
                 <div className="flex flex-wrap gap-4">
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      name="pastExamAdmissionTypes"
-                      value="수시"
-                      defaultChecked={defaults?.pastExamAdmissionTypes?.includes('수시')}
-                      disabled={isPending}
-                    />
-                    수시
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      name="pastExamAdmissionTypes"
-                      value="정시"
-                      defaultChecked={defaults?.pastExamAdmissionTypes?.includes('정시')}
-                      disabled={isPending}
-                    />
-                    정시
-                  </label>
+                  {PAST_EXAM_ADMISSION_TYPES.map((type) => (
+                    <label key={type} className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        name="pastExamAdmissionTypes"
+                        value={type}
+                        defaultChecked={defaults?.pastExamAdmissionTypes?.includes(type)}
+                        disabled={isPending}
+                      />
+                      {type}
+                    </label>
+                  ))}
                 </div>
                 <p className="text-xs text-slate-500">수시, 정시 중 공유할 전형을 선택하세요.</p>
               </div>

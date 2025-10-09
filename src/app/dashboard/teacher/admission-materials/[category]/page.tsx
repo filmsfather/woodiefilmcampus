@@ -15,6 +15,11 @@ import {
   getAdmissionCategoryLabel,
   isAdmissionMaterialCategory,
 } from '@/lib/admission-materials'
+import {
+  PAST_EXAM_ADMISSION_TYPES,
+  PAST_EXAM_UNIVERSITIES,
+  PAST_EXAM_YEARS,
+} from '@/lib/admission-materials-constants'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 interface AdmissionMaterialPostRow {
@@ -76,6 +81,19 @@ export default async function AdmissionMaterialCategoryPage({
   const category = params.category
   const isPastExamCategoryView = category === 'past_exam'
   const query = typeof searchParams?.q === 'string' ? searchParams.q.trim() : ''
+  const yearParam = typeof searchParams?.year === 'string' ? searchParams.year.trim() : ''
+  const universityParam = typeof searchParams?.university === 'string' ? searchParams.university.trim() : ''
+  const typesParam = searchParams?.types
+  const selectedAdmissionTypes = Array.isArray(typesParam)
+    ? typesParam
+    : typeof typesParam === 'string' && typesParam.length > 0
+      ? typesParam.split(',')
+      : []
+  const normalizedAdmissionTypes = selectedAdmissionTypes
+    .map((type) => type.trim())
+    .filter((type) =>
+      PAST_EXAM_ADMISSION_TYPES.includes(type as (typeof PAST_EXAM_ADMISSION_TYPES)[number])
+    )
 
   const supabase = createServerSupabase()
   let postQuery = supabase
@@ -100,9 +118,30 @@ export default async function AdmissionMaterialCategoryPage({
     .eq('category', category)
 
   if (query) {
-    postQuery = postQuery.or(
-      `title.ilike.%${query}%,description.ilike.%${query}%,target_level.ilike.%${query}%`
-    )
+    const searchTargets = [
+      `title.ilike.%${query}%`,
+      `description.ilike.%${query}%`,
+      `target_level.ilike.%${query}%`,
+    ]
+    if (isPastExamCategoryView) {
+      searchTargets.push(`past_exam_university.ilike.%${query}%`)
+    }
+    postQuery = postQuery.or(searchTargets.join(','))
+  }
+
+  if (isPastExamCategoryView) {
+    const parsedYear = Number.parseInt(yearParam, 10)
+    if (yearParam && Number.isFinite(parsedYear)) {
+      postQuery = postQuery.eq('past_exam_year', parsedYear)
+    }
+
+    if (universityParam) {
+      postQuery = postQuery.eq('past_exam_university', universityParam)
+    }
+
+    if (normalizedAdmissionTypes.length > 0) {
+      postQuery = postQuery.contains('past_exam_admission_types', normalizedAdmissionTypes)
+    }
   }
 
   postQuery = postQuery.order('created_at', { ascending: false })
@@ -251,25 +290,82 @@ export default async function AdmissionMaterialCategoryPage({
         </div>
       </div>
 
-      <form className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-        <label className="flex flex-col gap-1 text-sm text-slate-500 sm:flex-1">
-          <span className="font-medium text-slate-700">검색</span>
-          <Input
-            name="q"
-            placeholder={
-              isPastExamCategoryView ? '제목, 연도 또는 대학으로 검색' : '제목, 대상 또는 설명으로 검색'
-            }
-            defaultValue={query}
-            className="w-full"
-          />
-        </label>
-        <div className="flex gap-2">
+      <form className="flex flex-col gap-4 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-[2fr,3fr]">
+          <label className="flex flex-col gap-1 text-sm text-slate-500">
+            <span className="font-medium text-slate-700">검색</span>
+            <Input
+              name="q"
+              placeholder={
+                isPastExamCategoryView ? '제목, 연도 또는 대학으로 검색' : '제목, 대상 또는 설명으로 검색'
+              }
+              defaultValue={query}
+              className="w-full"
+            />
+          </label>
+
+          {isPastExamCategoryView ? (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className="flex flex-col gap-1 text-sm text-slate-500">
+                <span className="font-medium text-slate-700">년도</span>
+                <select
+                  name="year"
+                  defaultValue={yearParam}
+                  className="border-input h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">전체</option>
+                  {PAST_EXAM_YEARS.map((year) => (
+                    <option key={year} value={year}>
+                      {year}년
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-1 text-sm text-slate-500">
+                <span className="font-medium text-slate-700">대학교</span>
+                <select
+                  name="university"
+                  defaultValue={universityParam}
+                  className="border-input h-9 w-full rounded-md border bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">전체</option>
+                  {PAST_EXAM_UNIVERSITIES.map((university) => (
+                    <option key={university} value={university}>
+                      {university}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <fieldset className="flex flex-col gap-2 text-sm text-slate-500">
+                <span className="font-medium text-slate-700">전형</span>
+                <div className="flex flex-wrap gap-3">
+                  {PAST_EXAM_ADMISSION_TYPES.map((type) => (
+                    <label key={type} className="flex items-center gap-2 text-sm text-slate-600">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        name="types"
+                        value={type}
+                        defaultChecked={normalizedAdmissionTypes.includes(type)}
+                      />
+                      {type}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
           <Button type="submit" variant="secondary">
             검색
           </Button>
-          {query ? (
+          {(query || yearParam || universityParam || selectedAdmissionTypes.length > 0) ? (
             <Button type="button" variant="ghost" asChild>
-              <Link href={`/dashboard/teacher/admission-materials/${category}`}>초기화</Link>
+              <Link href={`/dashboard/teacher/admission-materials/${category}`}>필터 초기화</Link>
             </Button>
           ) : null}
         </div>
