@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -57,7 +57,6 @@ import {
   sanitizeFilmEntry,
   type FilmNoteEntry,
 } from '@/lib/film-notes'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface WorkbookItemSummary {
   id: string
@@ -275,7 +274,7 @@ export function AssignmentEvaluationPanel({
 
   const [deleteAlert, setDeleteAlert] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [deletePendingId, setDeletePendingId] = useState<string | null>(null)
-  const [isDeleting, startDeleteTransition] = useGlobalTransition()
+  const [isDeleting, startDeleteTransition] = useTransition()
 
   useEffect(() => {
     if (!focusStudentTaskId) {
@@ -308,7 +307,7 @@ export function AssignmentEvaluationPanel({
         setDeletePendingId(null)
       })
     },
-    [assignment.id, focusStudentTaskId, onFocusStudentTask, router, startDeleteTransition]
+    [assignment.id, focusStudentTaskId, onFocusStudentTask, router]
   )
 
   const deleteState = useMemo(
@@ -497,24 +496,21 @@ function PrintRequestList({
 
   const [cancelMessage, setCancelMessage] = useState<string | null>(null)
   const [cancelPendingId, setCancelPendingId] = useState<string | null>(null)
-  const [isCancelPending, startCancelTransition] = useGlobalTransition()
+  const [isCancelPending, startCancelTransition] = useTransition()
 
-  const handleCancel = useCallback(
-    (requestId: string) => {
-      setCancelMessage(null)
-      setCancelPendingId(requestId)
-      startCancelTransition(async () => {
-        const result = await cancelPrintRequest({ requestId })
-        if (result?.error) {
-          setCancelMessage(result.error)
-        } else {
-          setCancelMessage('인쇄 요청을 취소했습니다.')
-        }
-        setCancelPendingId(null)
-      })
-    },
-    [startCancelTransition]
-  )
+  const handleCancel = useCallback((requestId: string) => {
+    setCancelMessage(null)
+    setCancelPendingId(requestId)
+    startCancelTransition(async () => {
+      const result = await cancelPrintRequest({ requestId })
+      if (result?.error) {
+        setCancelMessage(result.error)
+      } else {
+        setCancelMessage('인쇄 요청을 취소했습니다.')
+      }
+      setCancelPendingId(null)
+    })
+  }, [])
 
   if (activeRequests.length === 0) {
     return null
@@ -636,7 +632,7 @@ function SrsReviewPanel({
 }: ReviewPanelProps) {
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
 
   const handleToggle = (studentTaskId: string, cancel: boolean) => {
     setPendingTaskId(studentTaskId)
@@ -784,7 +780,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
     notes: '',
   })
   const [printMessage, setPrintMessage] = useState<string | null>(null)
-  const [isRequestPending, startPrintTransition] = useGlobalTransition()
+  const [isRequestPending, startPrintTransition] = useTransition()
 
   const handleToggleStudent = useCallback((taskId: string, checked: boolean) => {
     setSelectedTaskIds((prev) => {
@@ -1035,7 +1031,7 @@ function PdfEvaluationRow({
   const initialScore = submission?.score ?? ''
   const [score, setScore] = useState<string>(initialScore)
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
 
   const handleSave = () => {
     if (!submission || !taskItem) {
@@ -1187,7 +1183,7 @@ function WritingEvaluationCard({
   const [score, setScore] = useState<string>(submission?.score ?? '')
   const [feedback, setFeedback] = useState<string>(submission?.feedback ?? '')
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
 
   const handleSave = () => {
     if (!submission || !taskItem) {
@@ -1340,7 +1336,7 @@ function FilmEvaluationCard({
   const filmSubmission = useMemo(() => parseFilmSubmission(submission?.content), [submission?.content])
   const [score, setScore] = useState<string>(submission?.score ?? '')
   const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
   const [isDetailOpen, setIsDetailOpen] = useState(false)
 
   const titlePreview = useMemo(() => {

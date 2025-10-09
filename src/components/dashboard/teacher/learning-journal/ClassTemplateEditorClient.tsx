@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { ClassTemplateEditor } from '@/components/dashboard/teacher/learning-journal/ClassTemplateEditor'
@@ -10,7 +10,6 @@ import type {
   ClassLearningJournalTemplate,
   LearningJournalSubject,
 } from '@/types/learning-journal'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface MaterialOption {
   id: string
@@ -30,7 +29,7 @@ interface ClassTemplateEditorClientProps {
 
 export function ClassTemplateEditorClient({ classId, periodId, template, materials }: ClassTemplateEditorClientProps) {
   const router = useRouter()
-  const [, startTransition] = useGlobalTransition()
+  const [, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [dialogState, setDialogState] = useState<{
     open: boolean

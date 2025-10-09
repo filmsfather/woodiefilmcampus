@@ -1,9 +1,9 @@
 'use client'
 
+import { useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface MonthSelectProps {
   options: string[]
@@ -19,7 +19,7 @@ export function MonthSelect({ options, selected }: MonthSelectProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
 
   const handleChange = (value: string) => {
     const params = new URLSearchParams(searchParams ?? undefined)

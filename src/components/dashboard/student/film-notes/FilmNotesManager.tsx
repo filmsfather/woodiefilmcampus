@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -29,7 +29,6 @@ import {
   hasFilmEntryValue,
 } from '@/lib/film-notes'
 import type { StudentFilmNoteListItem } from '@/lib/film-history'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface FilmNotesManagerProps {
   notes: StudentFilmNoteListItem[]
@@ -64,8 +63,8 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
   const [editEntry, setEditEntry] = useState<FilmNoteEntry | null>(null)
   const [editError, setEditError] = useState<string | null>(null)
   const [mutatingNoteId, setMutatingNoteId] = useState<string | null>(null)
-  const [isCreatePending, startCreateTransition] = useGlobalTransition()
-  const [isMutating, startMutatingTransition] = useGlobalTransition()
+  const [isCreatePending, startCreateTransition] = useTransition()
+  const [isMutating, startMutatingTransition] = useTransition()
 
   const handleCreateFieldChange = (key: keyof FilmNoteEntry, rawValue: string) => {
     const value = key === 'releaseYear' ? rawValue.replace(/[^0-9]/g, '').slice(0, 4) : rawValue

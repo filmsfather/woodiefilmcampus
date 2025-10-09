@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Edit3, PlusCircle } from 'lucide-react'
 
@@ -19,7 +19,6 @@ import {
   type FilmNoteEntry,
 } from '@/lib/film-notes'
 import type { FilmNoteHistoryEntry, FilmNoteHistorySummary } from '@/lib/film-history'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface FilmNoteHistoryManagerProps {
   history: FilmNoteHistorySummary
@@ -34,7 +33,7 @@ export function FilmNoteHistoryManager({ history }: FilmNoteHistoryManagerProps)
   const [formValues, setFormValues] = useState<FilmNoteEntry>(createEmptyFilmEntry())
   const [message, setMessage] = useState<string | null>(null)
   const [isError, setIsError] = useState(false)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
 
   const noteCount = history.workbook.noteCount
 

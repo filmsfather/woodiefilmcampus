@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { approveStudent, removePendingUser } from '@/app/dashboard/manager/actions'
@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import DateUtil from '@/lib/date-util'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 export interface PendingStudentProfile {
   id: string
@@ -24,7 +23,7 @@ export interface PendingStudentProfile {
 
 export function PendingApprovalList({ students }: { students: PendingStudentProfile[] }) {
   const router = useRouter()
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
   const [processing, setProcessing] = useState<{ id: string; action: 'approve' | 'remove' } | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 

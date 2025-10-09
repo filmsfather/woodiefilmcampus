@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useState, useTransition, type FormEvent } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 import type { ClassMaterialAssetType } from '@/lib/class-materials'
 
 type PrintResult = {
@@ -31,7 +30,7 @@ interface ClassMaterialPrintRequestFormProps {
 export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAssets }: ClassMaterialPrintRequestFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
   const hasSelectableAssets = availableAssets.some((asset) => !asset.disabled)
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {

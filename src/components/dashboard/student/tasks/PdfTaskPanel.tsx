@@ -1,13 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Download, Loader2, Upload } from 'lucide-react'
 
 import { submitPdfSubmission } from '@/app/dashboard/student/tasks/actions'
 import { Button } from '@/components/ui/button'
 import type { StudentTaskSubmission } from '@/types/student-task'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface PdfTaskPanelProps {
   studentTaskId: string
@@ -25,7 +24,7 @@ export function PdfTaskPanel({
   instructions,
 }: PdfTaskPanelProps) {
   const router = useRouter()
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null)

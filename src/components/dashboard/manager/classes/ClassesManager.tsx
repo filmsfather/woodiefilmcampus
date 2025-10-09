@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { deleteClassAction } from '@/app/dashboard/manager/classes/actions'
@@ -8,7 +8,6 @@ import { ClassesTable } from '@/components/dashboard/manager/classes/ClassesTabl
 import { ClassEditor } from '@/components/dashboard/manager/classes/ClassEditor'
 import { ClassesToolbar } from '@/components/dashboard/manager/classes/ClassesToolbar'
 import type { ClassSummary, ProfileOption } from '@/types/class'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 type EditorState =
   | { mode: 'create' }
@@ -39,7 +38,7 @@ export function ClassesManager({
   const [editorState, setEditorState] = useState<EditorState | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [, startTransition] = useGlobalTransition()
+  const [, startTransition] = useTransition()
 
   useEffect(() => {
     setSearchValue(searchTerm)

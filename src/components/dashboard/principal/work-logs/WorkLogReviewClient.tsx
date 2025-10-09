@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { reviewWorkLogEntry } from '@/app/dashboard/principal/work-logs/actions'
@@ -18,7 +18,6 @@ import {
   type TeacherProfileSummary,
   type WorkLogEntryWithTeacher,
 } from '@/lib/work-logs'
-import { useGlobalTransition } from '@/hooks/use-global-loading'
 
 interface WorkLogReviewClientProps {
   entries: WorkLogEntryWithTeacher[]
@@ -121,7 +120,7 @@ export function WorkLogReviewClient({
   const [noteDrafts, setNoteDrafts] = useState<NoteDrafts>({})
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackState>(null)
-  const [isPending, startTransition] = useGlobalTransition()
+  const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
     setEntriesState(entries)
