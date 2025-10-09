@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import {
   evaluateSubmission,
   toggleStudentTaskStatus,
@@ -598,7 +598,7 @@ function PrintRequestList({
                   >
                     {isCancelPending && cancelPendingId === request.id ? (
                       <span className="flex items-center justify-center gap-2">
-                        <LoadingSpinner />
+                        <SpinnerIcon />
                         취소 중...
                       </span>
                     ) : (
@@ -967,7 +967,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               <Button disabled={isRequestPending} onClick={handlePrintSubmit}>
                 {isRequestPending ? (
                   <span className="flex items-center justify-center gap-2">
-                    <LoadingSpinner />
+                    <SpinnerIcon />
                     요청 중...
                   </span>
                 ) : (
@@ -1103,7 +1103,7 @@ function PdfEvaluationRow({
             <Button size="sm" disabled={!submission || isPending || !score} onClick={handleSave}>
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
+                  <SpinnerIcon />
                   저장 중...
                 </span>
               ) : (
@@ -1118,7 +1118,7 @@ function PdfEvaluationRow({
             >
               {deleteState.isPending && deleteState.pendingId === task.id ? (
                 <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
+                  <SpinnerIcon />
                   삭제 중...
                 </span>
               ) : (
@@ -1236,7 +1236,7 @@ function WritingEvaluationCard({
           >
             {deleteState.isPending && deleteState.pendingId === task.id ? (
               <span className="flex items-center justify-center gap-2">
-                <LoadingSpinner />
+                <SpinnerIcon />
                 삭제 중...
               </span>
             ) : (
@@ -1273,7 +1273,7 @@ function WritingEvaluationCard({
             <Button size="sm" disabled={isPending || !submission} onClick={handleSave} className="w-full">
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
+                  <SpinnerIcon />
                   저장 중...
                 </span>
               ) : (
@@ -1407,7 +1407,7 @@ function FilmEvaluationCard({
           >
             {deleteState.isPending && deleteState.pendingId === task.id ? (
               <span className="flex items-center justify-center gap-2">
-                <LoadingSpinner />
+                <SpinnerIcon />
                 삭제 중...
               </span>
             ) : (
@@ -1454,7 +1454,7 @@ function FilmEvaluationCard({
             <Button size="sm" disabled={isPending || !submission} onClick={handleSave}>
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
+                  <SpinnerIcon />
                   저장 중...
                 </span>
               ) : (

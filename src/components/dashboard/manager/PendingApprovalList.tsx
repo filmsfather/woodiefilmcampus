@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import DateUtil from '@/lib/date-util'
 
 export interface PendingStudentProfile {
@@ -136,7 +136,7 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
                   >
                     {isProcessing(student.id, 'approve') ? (
                       <span className="flex items-center justify-center gap-2">
-                        <LoadingSpinner />
+                        <SpinnerIcon />
                         승인 중...
                       </span>
                     ) : (
@@ -152,7 +152,7 @@ export function PendingApprovalList({ students }: { students: PendingStudentProf
                   >
                     {isProcessing(student.id, 'remove') ? (
                       <span className="flex items-center justify-center gap-2">
-                        <LoadingSpinner />
+                        <SpinnerIcon />
                         삭제 중...
                       </span>
                     ) : (

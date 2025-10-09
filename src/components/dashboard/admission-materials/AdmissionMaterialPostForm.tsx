@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import type { AdmissionMaterialCategory } from '@/lib/admission-materials'
 import {
   PAST_EXAM_ADMISSION_TYPES,
@@ -684,7 +684,7 @@ export function AdmissionMaterialPostForm({
               >
                 {isDeleting ? (
                   <span className="flex items-center justify-center gap-2">
-                    <LoadingSpinner />
+                    <SpinnerIcon />
                     삭제 중…
                   </span>
                 ) : (
@@ -697,7 +697,7 @@ export function AdmissionMaterialPostForm({
               <Button type="submit" disabled={isPending}>
                 {isPending ? (
                   <span className="flex items-center justify-center gap-2">
-                    <LoadingSpinner />
+                    <SpinnerIcon />
                     저장 중…
                   </span>
                 ) : (

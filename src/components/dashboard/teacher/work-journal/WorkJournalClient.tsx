@@ -10,7 +10,7 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { SpinnerIcon } from '@/components/ui/fullscreen-spinner'
 import { cn } from '@/lib/utils'
 import {
   WORK_LOG_HOUR_STATUSES,
@@ -762,7 +762,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
                     <Button type="submit" disabled={isLocked || isPending}>
                       {pendingAction === 'save' ? (
                         <span className="flex items-center justify-center gap-2">
-                          <LoadingSpinner />
+                          <SpinnerIcon />
                           저장 중...
                         </span>
                       ) : (
@@ -777,7 +777,7 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
                     >
                       {pendingAction === 'delete' ? (
                         <span className="flex items-center justify-center gap-2">
-                          <LoadingSpinner />
+                          <SpinnerIcon />
                           삭제 중...
                         </span>
                       ) : (
