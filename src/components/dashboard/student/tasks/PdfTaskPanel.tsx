@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element */
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -7,12 +8,24 @@ import { AlertCircle, CheckCircle2, Download, Loader2, Upload } from 'lucide-rea
 import { submitPdfSubmission } from '@/app/dashboard/student/tasks/actions'
 import { Button } from '@/components/ui/button'
 import type { StudentTaskSubmission } from '@/types/student-task'
+import { Badge } from '@/components/ui/badge'
 
 interface PdfTaskPanelProps {
   studentTaskId: string
   existingSubmission: StudentTaskSubmission | null
   signedUrl: { url: string; filename: string } | null
   instructions?: string | null
+  items: Array<{
+    id: string
+    index: number
+    prompt: string
+    attachments: Array<{
+      id: string
+      filename: string
+      url: string
+      mimeType: string | null
+    }>
+  }>
 }
 
 const MAX_DISPLAY_SIZE_MB = 20
@@ -22,6 +35,7 @@ export function PdfTaskPanel({
   existingSubmission,
   signedUrl,
   instructions,
+  items,
 }: PdfTaskPanelProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -166,6 +180,76 @@ export function PdfTaskPanel({
           </Button>
         </div>
       </form>
+
+      {items.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-base font-semibold text-slate-900">문항 안내</h2>
+            <p className="text-xs text-slate-500">
+              PDF를 작성할 때 아래 문항을 참고하세요. 각 첨부 파일은 클릭해 내려받을 수 있습니다.
+            </p>
+          </div>
+          <div className="space-y-4">
+            {items.map((item) => {
+              const attachments = item.attachments ?? []
+              const promptText = item.prompt?.trim()
+              return (
+                <div
+                  key={item.id}
+                  className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-700"
+                >
+                  <div className="flex items-start gap-2">
+                    <Badge variant="secondary">문항 {item.index}</Badge>
+                    <p className="whitespace-pre-line">
+                      {promptText && promptText.length > 0 ? promptText : '문항 설명이 제공되지 않았습니다.'}
+                    </p>
+                  </div>
+                  {attachments.length > 0 && (
+                    <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      <p className="font-medium text-slate-700">첨부 파일</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {attachments.map((file) => {
+                          const mime = file.mimeType ?? ''
+                          if (mime.startsWith('image/')) {
+                            return (
+                              <figure key={file.id} className="space-y-1">
+                                <img
+                                  src={file.url}
+                                  alt={file.filename}
+                                  className="max-h-64 w-full rounded-md border border-slate-200 object-contain"
+                                  loading="lazy"
+                                />
+                                <figcaption className="break-all text-slate-500">{file.filename}</figcaption>
+                              </figure>
+                            )
+                          }
+
+                          const isPdf = mime === 'application/pdf' || file.filename.toLowerCase().endsWith('.pdf')
+
+                          return (
+                            <div key={file.id} className="flex flex-col gap-1">
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="break-all text-primary underline"
+                                download={isPdf ? file.filename : undefined}
+                              >
+                                {file.filename}
+                              </a>
+                              <span className="text-slate-500">{isPdf ? 'PDF 파일' : mime || '파일'}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

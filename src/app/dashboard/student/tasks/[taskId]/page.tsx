@@ -148,6 +148,13 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
     attachmentPairs.filter((entry): entry is [string, AttachmentEntry[]] => Boolean(entry))
   )
 
+  const pdfItems = task.items.map((item, index) => ({
+    id: item.id,
+    index: index + 1,
+    prompt: item.workbookItem.prompt,
+    attachments: attachmentsByItem[item.id] ?? [],
+  }))
+
   let taskContent: React.ReactNode
 
   switch (workbookType) {
@@ -161,6 +168,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
           existingSubmission={pdfSubmission ?? null}
           signedUrl={pdfSignedUrl}
           instructions={workbookConfig.pdf?.instructions ?? null}
+          items={pdfItems}
         />
       )
       break
