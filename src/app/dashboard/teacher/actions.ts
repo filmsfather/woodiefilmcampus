@@ -25,6 +25,10 @@ function canManageAssignment(profile: UserProfile, assignedBy: string | null | u
   return Boolean(assignedBy && assignedBy === profile.id)
 }
 
+function canShareSubmission(profile: UserProfile | null | undefined): profile is UserProfile {
+  return Boolean(profile && (profile.role === 'teacher' || profile.role === 'principal' || profile.role === 'manager'))
+}
+
 const evaluationSchema = z.object({
   assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
   studentTaskId: z.string().uuid('유효한 학생 과제 ID가 아닙니다.'),
@@ -38,6 +42,16 @@ const evaluationSchema = z.object({
 })
 
 type EvaluationInput = z.infer<typeof evaluationSchema>
+
+const shareSubmissionSchema = z.object({
+  assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  submissionId: z.string().uuid('유효한 제출 ID가 아닙니다.'),
+  classIds: z
+    .array(z.string().uuid('유효한 반 ID가 아닙니다.'))
+    .max(20, '공유 대상은 최대 20개 반까지 지정할 수 있습니다.'),
+})
+
+type ShareSubmissionInput = z.infer<typeof shareSubmissionSchema>
 
 export async function evaluateSubmission(input: EvaluationInput) {
   const { profile } = await getAuthContext()
@@ -184,6 +198,223 @@ export async function evaluateSubmission(input: EvaluationInput) {
     console.error('[teacher] evaluateSubmission unexpected error', error)
     return { error: '평가 처리 중 예상치 못한 문제가 발생했습니다.' }
   }
+}
+
+export async function updateSubmissionSharing(input: ShareSubmissionInput) {
+  const { profile } = await getAuthContext()
+
+  if (!canShareSubmission(profile)) {
+    return { error: '교사 또는 관리자 계정으로만 공유할 수 있습니다.' }
+  }
+
+  const parsed = shareSubmissionSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '공유 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  const uniqueClassIds = Array.from(new Set(payload.classIds))
+
+  const supabase = createServerSupabase()
+
+  const { data: submissionRow, error: submissionError } = await supabase
+    .from('task_submissions')
+    .select(
+      'id, submission_type, student_task_id, student_tasks!inner(assignment_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by))'
+    )
+    .eq('id', payload.submissionId)
+    .maybeSingle()
+
+  if (submissionError) {
+    console.error('[teacher] updateSubmissionSharing fetch submission error', submissionError)
+    return { error: '제출 정보를 불러오지 못했습니다.' }
+  }
+
+  if (!submissionRow) {
+    return { error: '제출 정보를 찾지 못했습니다.' }
+  }
+
+  if (submissionRow.submission_type !== 'pdf') {
+    return { error: 'PDF 제출만 자료실로 공유할 수 있습니다.' }
+  }
+
+  const studentTaskRaw = Array.isArray(submissionRow.student_tasks)
+    ? submissionRow.student_tasks[0]
+    : submissionRow.student_tasks
+  if (!studentTaskRaw) {
+    return { error: '과제 정보를 찾지 못했습니다.' }
+  }
+
+  const assignmentId = studentTaskRaw.assignment_id as string | null
+  const assignmentRelation = Array.isArray(studentTaskRaw.assignments)
+    ? studentTaskRaw.assignments[0]
+    : studentTaskRaw.assignments
+  const assignedBy = assignmentRelation?.assigned_by as string | null | undefined
+
+  if (!assignmentId || assignmentId !== payload.assignmentId) {
+    return { error: '과제 정보가 일치하지 않습니다.' }
+  }
+
+  const canManage = profile.role === 'principal' || profile.role === 'manager' || assignedBy === profile.id
+
+  if (!canManage) {
+    return { error: '해당 제출물을 공유할 권한이 없습니다.' }
+  }
+
+  const { data: existingShare, error: existingShareError } = await supabase
+    .from('shared_task_submissions')
+    .select('id, shared_by')
+    .eq('task_submission_id', payload.submissionId)
+    .maybeSingle()
+
+  if (existingShareError) {
+    console.error('[teacher] updateSubmissionSharing fetch existing share error', existingShareError)
+    return { error: '기존 공유 정보를 불러오지 못했습니다.' }
+  }
+
+  const canOverrideExisting = profile.role === 'principal' || profile.role === 'manager'
+
+  if (uniqueClassIds.length === 0) {
+    if (!existingShare) {
+      revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+      revalidatePath('/dashboard/student/resources')
+      return { success: true as const }
+    }
+
+    if (existingShare.shared_by !== profile.id && !canOverrideExisting) {
+      return { error: '다른 교사가 공유한 제출물은 해제할 수 없습니다.' }
+    }
+
+    const { error: deleteError } = await supabase
+      .from('shared_task_submissions')
+      .delete()
+      .eq('id', existingShare.id)
+
+    if (deleteError) {
+      console.error('[teacher] updateSubmissionSharing delete share error', deleteError)
+      return { error: '자료실 공유 해제에 실패했습니다.' }
+    }
+
+    revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+    revalidatePath('/dashboard/student/resources')
+    return { success: true as const }
+  }
+
+  const { data: classRows, error: classFetchError } = await supabase
+    .from('classes')
+    .select('id')
+    .in('id', uniqueClassIds)
+
+  if (classFetchError) {
+    console.error('[teacher] updateSubmissionSharing class fetch error', classFetchError)
+    return { error: '반 정보를 확인하지 못했습니다.' }
+  }
+
+  if ((classRows ?? []).length !== uniqueClassIds.length) {
+    return { error: '유효하지 않은 반이 포함되어 있습니다.' }
+  }
+
+  if (profile.role === 'teacher') {
+    const { data: teacherClassRows, error: teacherClassError } = await supabase
+      .from('class_teachers')
+      .select('class_id')
+      .eq('teacher_id', profile.id)
+
+    if (teacherClassError) {
+      console.error('[teacher] updateSubmissionSharing teacher class fetch error', teacherClassError)
+      return { error: '담당 반 정보를 확인하지 못했습니다.' }
+    }
+
+    const teacherClassIds = new Set((teacherClassRows ?? []).map((row) => row.class_id))
+    const unauthorized = uniqueClassIds.filter((classId) => !teacherClassIds.has(classId))
+
+    if (unauthorized.length > 0) {
+      return { error: '담당하지 않은 반이 포함되어 있습니다.' }
+    }
+  }
+
+  let shareId = existingShare?.id ?? null
+
+  if (!shareId) {
+    const { data: insertShare, error: insertShareError } = await supabase
+      .from('shared_task_submissions')
+      .insert({
+        task_submission_id: payload.submissionId,
+        shared_by: profile.id,
+        note: null,
+      })
+      .select('id')
+      .single()
+
+    if (insertShareError || !insertShare) {
+      console.error('[teacher] updateSubmissionSharing insert share error', insertShareError)
+      return { error: '자료실 공유 설정을 저장하지 못했습니다.' }
+    }
+
+    shareId = insertShare.id
+  } else if (existingShare && existingShare.shared_by !== profile.id && canOverrideExisting) {
+    const { error: updateOwnerError } = await supabase
+      .from('shared_task_submissions')
+      .update({ shared_by: profile.id })
+      .eq('id', shareId)
+
+    if (updateOwnerError) {
+      console.error('[teacher] updateSubmissionSharing update owner error', updateOwnerError)
+      return { error: '자료실 공유 설정을 업데이트하지 못했습니다.' }
+    }
+  } else if (existingShare && existingShare.shared_by !== profile.id && !canOverrideExisting) {
+    return { error: '다른 교사가 공유한 제출물은 수정할 수 없습니다.' }
+  }
+
+  const { data: existingClassRows, error: fetchShareClassesError } = await supabase
+    .from('shared_task_submission_classes')
+    .select('class_id')
+    .eq('shared_submission_id', shareId)
+
+  if (fetchShareClassesError) {
+    console.error('[teacher] updateSubmissionSharing fetch share classes error', fetchShareClassesError)
+    return { error: '기존 공유 대상을 확인하지 못했습니다.' }
+  }
+
+  const { error: clearError } = await supabase
+    .from('shared_task_submission_classes')
+    .delete()
+    .eq('shared_submission_id', shareId)
+
+  if (clearError) {
+    console.error('[teacher] updateSubmissionSharing clear share classes error', clearError)
+    return { error: '자료실 공유 대상을 초기화하지 못했습니다.' }
+  }
+
+  const classPayload = uniqueClassIds.map((classId) => ({
+    shared_submission_id: shareId,
+    class_id: classId,
+  }))
+
+  const { error: insertClassesError } = await supabase
+    .from('shared_task_submission_classes')
+    .insert(classPayload)
+
+  if (insertClassesError) {
+    console.error('[teacher] updateSubmissionSharing insert class error', insertClassesError)
+
+    if (existingClassRows && existingClassRows.length > 0) {
+      await supabase.from('shared_task_submission_classes').insert(
+        existingClassRows.map((row) => ({
+          shared_submission_id: shareId,
+          class_id: row.class_id,
+        }))
+      )
+    }
+
+    return { error: '자료실 공유 대상을 저장하지 못했습니다.' }
+  }
+
+  revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+  revalidatePath('/dashboard/student/resources')
+  return { success: true as const }
 }
 
 const toggleSchema = z.object({

@@ -24,6 +24,7 @@ import {
   createPrintRequest,
   deleteStudentTask,
   cancelPrintRequest,
+  updateSubmissionSharing,
 } from '@/app/dashboard/teacher/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -89,6 +90,15 @@ interface SubmissionSummary {
   createdAt: string
   updatedAt: string
   asset: { url: string; filename: string; mimeType: string | null } | null
+  shared: {
+    id: string
+    note: string | null
+    sharedBy: string
+    sharedAt: string
+    updatedAt: string
+    classIds: string[]
+    classes: Array<{ id: string; name: string }>
+  } | null
 }
 
 interface StudentTaskSummary {
@@ -150,6 +160,7 @@ export interface AssignmentEvaluationPanelProps {
     studentTasks: StudentTaskSummary[]
     printRequests: PrintRequestSummary[]
   }
+  availableClasses: Array<{ id: string; name: string }>
   generatedAt: string
   focusStudentTaskId: string | null
   classContext: { id: string; name: string } | null
@@ -203,6 +214,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function AssignmentEvaluationPanel({
   teacherName,
   assignment,
+  availableClasses,
   generatedAt,
   focusStudentTaskId,
   classContext,
@@ -339,6 +351,7 @@ export function AssignmentEvaluationPanel({
           key={assignment.id}
           assignment={assignment}
           classLookup={classLookup}
+          availableClasses={availableClasses}
           focusStudentTaskId={focusStudentTaskId}
           onDeleteStudentTask={handleDeleteStudentTask}
           deleteState={deleteState}
@@ -349,6 +362,7 @@ export function AssignmentEvaluationPanel({
         <WritingReviewPanel
           assignment={assignment}
           classLookup={classLookup}
+          availableClasses={availableClasses}
           focusStudentTaskId={focusStudentTaskId}
           onDeleteStudentTask={handleDeleteStudentTask}
           deleteState={deleteState}
@@ -359,6 +373,7 @@ export function AssignmentEvaluationPanel({
         <FilmReviewPanel
           assignment={assignment}
           classLookup={classLookup}
+          availableClasses={availableClasses}
           focusStudentTaskId={focusStudentTaskId}
           onDeleteStudentTask={handleDeleteStudentTask}
           deleteState={deleteState}
@@ -369,6 +384,7 @@ export function AssignmentEvaluationPanel({
         <SrsReviewPanel
           assignment={assignment}
           classLookup={classLookup}
+          availableClasses={availableClasses}
           focusStudentTaskId={focusStudentTaskId}
           onDeleteStudentTask={handleDeleteStudentTask}
           deleteState={deleteState}
@@ -618,6 +634,7 @@ function PrintRequestList({
 interface ReviewPanelProps {
   assignment: AssignmentEvaluationPanelProps['assignment']
   classLookup: Map<string | null, string>
+  availableClasses: Array<{ id: string; name: string }>
   focusStudentTaskId: string | null
   onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
   deleteState: { pendingId: string | null; isPending: boolean }
@@ -753,7 +770,7 @@ function SrsReviewPanel({
   )
 }
 
-function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
+function PdfReviewPanel({ assignment, classLookup, availableClasses, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
   const printableStudents = useMemo(
     () =>
       assignment.studentTasks.map((task) => ({
@@ -992,16 +1009,17 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
           </TableHeader>
           <TableBody>
             {assignment.studentTasks.map((task) => (
-              <PdfEvaluationRow
-                key={task.id}
-                assignmentId={assignment.id}
-                task={task}
-                className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
-                isFocused={task.id === focusStudentTaskId}
-                onDeleteStudentTask={onDeleteStudentTask}
-                deleteState={deleteState}
-              />
-            ))}
+          <PdfEvaluationRow
+            key={task.id}
+            assignmentId={assignment.id}
+            task={task}
+            className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
+            availableClasses={availableClasses}
+            isFocused={task.id === focusStudentTaskId}
+            onDeleteStudentTask={onDeleteStudentTask}
+            deleteState={deleteState}
+          />
+        ))}
           </TableBody>
         </Table>
       </CardContent>
@@ -1014,16 +1032,19 @@ function PdfEvaluationRow({
   task,
   className,
   isFocused,
+  availableClasses,
   onDeleteStudentTask,
   deleteState,
 }: {
   assignmentId: string
   task: StudentTaskSummary
   className: string
+  availableClasses: Array<{ id: string; name: string }>
   isFocused: boolean
   onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
   deleteState: { pendingId: string | null; isPending: boolean }
 }) {
+  const router = useRouter()
   const submission = task.submissions.find((sub) => sub.mediaAssetId) ?? null
   const taskItem = submission && submission.itemId
     ? task.items.find((item) => item.itemId === submission.itemId) ?? task.items[0] ?? null
@@ -1031,7 +1052,21 @@ function PdfEvaluationRow({
   const initialScore = submission?.score ?? ''
   const [score, setScore] = useState<string>(initialScore)
   const [message, setMessage] = useState<string | null>(null)
+  const [shareFeedback, setShareFeedback] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
+  const [shareSheetError, setShareSheetError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isSharePending, startShareTransition] = useTransition()
+  const [shareSheetOpen, setShareSheetOpen] = useState(false)
+  const [selectedShareClassIds, setSelectedShareClassIds] = useState<string[]>(submission?.shared?.classIds ?? [])
+
+  useEffect(() => {
+    setSelectedShareClassIds(submission?.shared?.classIds ?? [])
+  }, [submission?.shared?.id, submission?.shared?.updatedAt, submission?.shared?.classIds])
+
+  const shareInfo = submission?.shared ?? null
+  const hasShareTargets = Boolean(shareInfo && shareInfo.classIds.length > 0)
+  const shareSummary = hasShareTargets ? shareInfo!.classes.map((cls) => cls.name).join(', ') : null
+  const hasAvailableClasses = availableClasses.length > 0
 
   const handleSave = () => {
     if (!submission || !taskItem) {
@@ -1056,6 +1091,85 @@ function PdfEvaluationRow({
       } else {
         setMessage('평가 결과가 저장되었습니다.')
       }
+    })
+  }
+
+  const toggleShareClass = (classId: string, checked: boolean) => {
+    setSelectedShareClassIds((prev) => {
+      if (checked) {
+        if (prev.includes(classId)) {
+          return prev
+        }
+        return [...prev, classId]
+      }
+      return prev.filter((id) => id !== classId)
+    })
+  }
+
+  const handleShareSheetChange = (open: boolean) => {
+    if (open && !submission) {
+      return
+    }
+    setShareSheetOpen(open)
+    if (open) {
+      setShareSheetError(null)
+      setShareFeedback(null)
+      setSelectedShareClassIds(submission?.shared?.classIds ?? [])
+    }
+  }
+
+  const handleShareSave = () => {
+    if (!submission) {
+      setShareSheetError('공유할 제출물을 찾을 수 없습니다.')
+      return
+    }
+    if (selectedShareClassIds.length === 0) {
+      setShareSheetError('공유할 반을 최소 1개 이상 선택해주세요.')
+      return
+    }
+
+    setShareSheetError(null)
+    startShareTransition(async () => {
+      const result = await updateSubmissionSharing({
+        assignmentId,
+        submissionId: submission.id,
+        classIds: selectedShareClassIds,
+      })
+
+      if (result?.error) {
+        setShareSheetError(result.error)
+        return
+      }
+
+      setShareSheetOpen(false)
+      setShareFeedback({ type: 'success', text: '자료실 공유 설정을 저장했습니다.' })
+      router.refresh()
+    })
+  }
+
+  const handleShareClear = () => {
+    if (!submission) {
+      setShareSheetError('공유할 제출물을 찾을 수 없습니다.')
+      return
+    }
+
+    setShareSheetError(null)
+    startShareTransition(async () => {
+      const result = await updateSubmissionSharing({
+        assignmentId,
+        submissionId: submission.id,
+        classIds: [],
+      })
+
+      if (result?.error) {
+        setShareSheetError(result.error)
+        return
+      }
+
+      setShareSheetOpen(false)
+      setSelectedShareClassIds([])
+      setShareFeedback({ type: 'success', text: '자료실 공유를 해제했습니다.' })
+      router.refresh()
     })
   }
 
@@ -1099,7 +1213,81 @@ function PdfEvaluationRow({
       </TableCell>
       <TableCell className="text-right">
         <div className="flex flex-col items-end gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Sheet open={shareSheetOpen} onOpenChange={handleShareSheetChange}>
+              <SheetTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={hasShareTargets ? 'secondary' : 'outline'}
+                  disabled={!submission || isSharePending || !hasAvailableClasses}
+                >
+                  {hasShareTargets ? '공유 관리' : '공유 설정'}
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[340px] sm:w-[420px] space-y-4">
+                <SheetHeader>
+                  <SheetTitle>자료실 공유 설정</SheetTitle>
+                  <SheetDescription>
+                    선택한 반의 학생 대시보드 자료실에 이 제출물이 노출됩니다.
+                  </SheetDescription>
+                </SheetHeader>
+                {hasAvailableClasses ? (
+                  <div className="space-y-2">
+                    {availableClasses.map((cls) => (
+                      <label key={cls.id} className="flex items-center gap-3 text-sm text-slate-600">
+                        <Checkbox
+                          checked={selectedShareClassIds.includes(cls.id)}
+                          onChange={(event) => toggleShareClass(cls.id, event.target.checked)}
+                        />
+                        <span className="truncate">{cls.name}</span>
+                      </label>
+                    ))}
+                    {selectedShareClassIds.length === 0 && (
+                      <p className="text-[11px] text-slate-400">최소 1개 반을 선택해야 합니다.</p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">담당 중인 반이 없습니다.</p>
+                )}
+                {shareSheetError && (
+                  <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                    {shareSheetError}
+                  </div>
+                )}
+                <div className="flex justify-end gap-2">
+                  {hasShareTargets && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={isSharePending}
+                      onClick={handleShareClear}
+                    >
+                      공유 해제
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={
+                      isSharePending ||
+                      !hasAvailableClasses ||
+                      selectedShareClassIds.length === 0
+                    }
+                    onClick={handleShareSave}
+                  >
+                    {isSharePending ? (
+                      <span className="flex items-center gap-2">
+                        <LoadingSpinner size="sm" />
+                        저장 중...
+                      </span>
+                    ) : (
+                      '저장'
+                    )}
+                  </Button>
+                </div>
+              </SheetContent>
+            </Sheet>
             <Button size="sm" disabled={!submission || isPending || !score} onClick={handleSave}>
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
@@ -1126,6 +1314,16 @@ function PdfEvaluationRow({
               )}
             </Button>
           </div>
+          {hasShareTargets ? (
+            <p className="text-[11px] text-emerald-600">공유 대상: {shareSummary}</p>
+          ) : (
+            <p className="text-[11px] text-slate-400">자료실에 공유되지 않았습니다.</p>
+          )}
+          {shareFeedback && (
+            <p className={`text-[11px] ${shareFeedback.type === 'error' ? 'text-destructive' : 'text-emerald-600'}`}>
+              {shareFeedback.text}
+            </p>
+          )}
           {message && (
             <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
               {message}

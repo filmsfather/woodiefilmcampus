@@ -494,6 +494,7 @@ export function ClassDashboard({
                 <AssignmentEvaluationPanel
                   teacherName={teacherName}
                   assignment={activeDetail}
+                  availableClasses={activeDetail.classes}
                   generatedAt={generatedAt}
                   focusStudentTaskId={focusStudentTaskId}
                   classContext={{ id: classId, name: className }}

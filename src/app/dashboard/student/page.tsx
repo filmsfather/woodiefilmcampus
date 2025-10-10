@@ -45,7 +45,10 @@ export default async function StudentDashboardPage({
           className="w-full max-w-xs md:w-auto"
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/student/resources">자료실 보기</Link>
+        </Button>
         <Button asChild variant="outline" size="sm">
           <Link href="/dashboard/student/learning-journal">학습일지 보기</Link>
         </Button>

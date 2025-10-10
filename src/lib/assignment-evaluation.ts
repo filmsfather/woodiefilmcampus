@@ -125,6 +125,45 @@ export interface RawAssignmentRow {
             mime_type: string | null
             metadata: Record<string, unknown> | null
           }>
+      shared_task_submissions?:
+        | {
+            id: string
+            note: string | null
+            shared_by: string
+            created_at: string
+            updated_at: string
+            shared_task_submission_classes?: Array<{
+              class_id: string
+              classes?:
+                | {
+                    id: string | null
+                    name: string | null
+                  }
+                | Array<{
+                    id: string | null
+                    name: string | null
+                  }>
+            }>
+          }
+        | Array<{
+            id: string
+            note: string | null
+            shared_by: string
+            created_at: string
+            updated_at: string
+            shared_task_submission_classes?: Array<{
+              class_id: string
+              classes?:
+                | {
+                    id: string | null
+                    name: string | null
+                  }
+                | Array<{
+                    id: string | null
+                    name: string | null
+                  }>
+            }>
+          }>
     }>
   }>
   print_requests?: Array<{
@@ -185,6 +224,15 @@ export interface SubmissionSummary {
   createdAt: string
   updatedAt: string
   asset: { url: string; filename: string; mimeType: string | null } | null
+  shared: {
+    id: string
+    note: string | null
+    sharedBy: string
+    sharedAt: string
+    updatedAt: string
+    classIds: string[]
+    classes: Array<{ id: string; name: string }>
+  } | null
 }
 
 export interface StudentTaskSummary {
@@ -342,6 +390,27 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         })
       }
 
+      const sharedRow = Array.isArray(submission.shared_task_submissions)
+        ? submission.shared_task_submissions[0] ?? null
+        : submission.shared_task_submissions ?? null
+
+      const sharedClassesRaw = sharedRow?.shared_task_submission_classes ?? []
+      const sharedClassMap = new Map<string, { id: string; name: string }>()
+
+      sharedClassesRaw.forEach((entry) => {
+        const classData = Array.isArray(entry.classes) ? entry.classes[0] : entry.classes
+        const classId = classData?.id ?? entry.class_id
+        if (!classId) {
+          return
+        }
+        const name = classData?.name ?? '반 이름 미정'
+        if (!sharedClassMap.has(classId)) {
+          sharedClassMap.set(classId, { id: classId, name })
+        }
+      })
+
+      const sharedClasses = Array.from(sharedClassMap.values())
+
       return {
         id: submission.id,
         itemId: submission.item_id,
@@ -353,6 +422,17 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         createdAt: submission.created_at,
         updatedAt: submission.updated_at,
         asset: null,
+        shared: sharedRow
+          ? {
+              id: sharedRow.id,
+              note: sharedRow.note,
+              sharedBy: sharedRow.shared_by,
+              sharedAt: sharedRow.created_at,
+              updatedAt: sharedRow.updated_at,
+              classIds: sharedClasses.map((cls) => cls.id),
+              classes: sharedClasses,
+            }
+          : null,
       }
     })
 
@@ -463,6 +543,13 @@ export function cloneAssignmentDetail(assignment: AssignmentDetail): AssignmentD
       })),
       submissions: task.submissions.map((submission) => ({
         ...submission,
+        shared: submission.shared
+          ? {
+              ...submission.shared,
+              classIds: [...submission.shared.classIds],
+              classes: submission.shared.classes.map((cls) => ({ ...cls })),
+            }
+          : null,
         asset: submission.asset ? { ...submission.asset } : null,
       })),
     })),
