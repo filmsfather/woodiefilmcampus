@@ -1,3 +1,4 @@
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import {
@@ -39,11 +40,14 @@ export default async function PrincipalLearningJournalPage({
 
   return (
     <section className="space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">학습일지 현황</h1>
-        <p className="text-sm text-slate-600">
-          월별 인사말을 관리하고 반별 학습일지 제출 현황을 확인하세요.
-        </p>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/principal" label="원장 대시보드로 돌아가기" />
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold text-slate-900">학습일지 현황</h1>
+          <p className="text-sm text-slate-600">
+            월별 인사말을 관리하고 반별 학습일지 제출 현황을 확인하세요.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-4">

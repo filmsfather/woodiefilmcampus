@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import {
@@ -53,6 +54,12 @@ export default async function TeacherLearningJournalPage({
   }
 
   const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
+  const fallbackHref =
+    profile.role === 'principal'
+      ? '/dashboard/principal'
+      : profile.role === 'manager'
+        ? '/dashboard/manager'
+        : '/dashboard/teacher'
   const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })
   const periods = overview.periods
   const periodIds = periods.map((period) => period.id)
@@ -78,14 +85,17 @@ export default async function TeacherLearningJournalPage({
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">학습일지</h1>
-        <p className="text-sm text-slate-600">
-          {includeAllClasses
-            ? '원장 권한으로 모든 반의 학습일지를 확인하고 관리할 수 있습니다.'
-            : `${profile.name ?? profile.email} 님, 담당 반의 학습일지를 작성하고 제출 현황을 확인하세요.`}
-        </p>
-      </header>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
+        <header className="space-y-2">
+          <h1 className="text-3xl font-semibold text-slate-900">학습일지</h1>
+          <p className="text-sm text-slate-600">
+            {includeAllClasses
+              ? '원장 권한으로 모든 반의 학습일지를 확인하고 관리할 수 있습니다.'
+              : `${profile.name ?? profile.email} 님, 담당 반의 학습일지를 작성하고 제출 현황을 확인하세요.`}
+          </p>
+        </header>
+      </div>
 
       {periods.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">

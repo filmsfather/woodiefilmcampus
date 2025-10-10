@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -29,7 +30,7 @@ const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', str
 }
 
 export default async function TeacherLearningJournalEntryPage({ params }: { params: PageParams }) {
-  await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard('teacher')
 
   const entry = await fetchLearningJournalEntryDetail(params.entryId)
 
@@ -89,8 +90,19 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
   const greeting = primaryMonth ? await fetchLearningJournalGreeting(primaryMonth) : null
   const academicEvents = monthTokens.length > 0 ? await fetchLearningJournalAcademicEvents(monthTokens) : []
 
+  const fallbackHref = profile?.role === 'principal'
+    ? '/dashboard/principal/learning-journal/review'
+    : profile?.role === 'manager'
+      ? '/dashboard/manager/learning-journal'
+      : `/dashboard/teacher/learning-journal?period=${periodRow.id}`
+
   return (
     <section className="space-y-6">
+      <DashboardBackLink
+        fallbackHref={fallbackHref}
+        label="학습일지 개요로 돌아가기"
+        className="self-start"
+      />
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">학습일지 작성</h1>
         <p className="text-sm text-slate-600">

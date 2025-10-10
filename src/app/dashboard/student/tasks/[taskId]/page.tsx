@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, ArrowLeft, Calendar, CheckCircle2, Clock, ListChecks } from 'lucide-react'
+import { AlertTriangle, Calendar, CheckCircle2, Clock, ListChecks } from 'lucide-react'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { PdfTaskPanel } from '@/components/dashboard/student/tasks/PdfTaskPanel'
 import { SrsTaskRunner } from '@/components/dashboard/student/tasks/SrsTaskRunner'
 import { TextTaskRunner } from '@/components/dashboard/student/tasks/TextTaskRunner'
@@ -234,12 +235,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-2">
-        <Button asChild variant="ghost" size="sm" className="w-fit px-0 text-slate-500">
-          <Link href="/dashboard/student" className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4" />
-            대시보드로 돌아가기
-          </Link>
-        </Button>
+        <DashboardBackLink fallbackHref="/dashboard/student" label="대시보드로 돌아가기" className="self-start" />
         <div className="flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-slate-900">{workbook?.title ?? '문제집 정보 없음'}</h1>

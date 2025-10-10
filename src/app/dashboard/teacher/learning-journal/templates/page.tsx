@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import {
   fetchClassLearningJournalTemplate,
@@ -20,9 +21,17 @@ export default async function LearningJournalTemplatePage({
   const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
   const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })
 
+  const fallbackHref =
+    profile.role === 'principal'
+      ? '/dashboard/principal/learning-journal'
+      : profile.role === 'manager'
+        ? '/dashboard/manager/learning-journal'
+        : '/dashboard/teacher/learning-journal'
+
   if (!overview.classes || overview.classes.length === 0) {
     return (
       <section className="space-y-4">
+        <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
         <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
         <p className="text-sm text-slate-600">
           {includeAllClasses
@@ -41,6 +50,7 @@ export default async function LearningJournalTemplatePage({
   if (!classIdParam || !periodIdParam) {
     return (
       <section className="space-y-4">
+        <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
         <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
         <p className="text-sm text-slate-600">활성화된 학습일지 주기가 없습니다. 실장에게 주기 생성을 요청하세요.</p>
       </section>
@@ -103,12 +113,15 @@ export default async function LearningJournalTemplatePage({
 
   return (
     <section className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
-        <p className="text-sm text-slate-600">
-          반별 주차 템플릿을 구성하면 학생 학습일지에 자동으로 반영됩니다. 수정 후 학생 일지에서 “템플릿 다시 적용”을 통해 내용이 갱신됩니다.
-        </p>
-      </header>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
+        <header className="space-y-2">
+          <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
+          <p className="text-sm text-slate-600">
+            반별 주차 템플릿을 구성하면 학생 학습일지에 자동으로 반영됩니다. 수정 후 학생 일지에서 “템플릿 다시 적용”을 통해 내용이 갱신됩니다.
+          </p>
+        </header>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2 text-sm">
         {overview.classes.map((classItem) => (

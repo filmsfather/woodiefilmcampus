@@ -1,3 +1,4 @@
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -64,11 +65,14 @@ export default async function ManagerLearningJournalPage({
 
   return (
     <section className="space-y-8">
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">학습일지 주기 관리</h1>
-        <p className="text-sm text-slate-600">
-          반별 4주 주기를 생성하고, 주요 학사 일정을 등록해 교사 학습일지 작성을 지원하세요.
-        </p>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/manager" label="실장 허브로 돌아가기" />
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold text-slate-900">학습일지 주기 관리</h1>
+          <p className="text-sm text-slate-600">
+            반별 4주 주기를 생성하고, 주요 학사 일정을 등록해 교사 학습일지 작성을 지원하세요.
+          </p>
+        </div>
       </div>
 
       <CreatePeriodForm classOptions={classOptions} defaultStartDate={defaultStartDate} />

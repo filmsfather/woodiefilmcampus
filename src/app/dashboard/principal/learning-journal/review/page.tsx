@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
@@ -101,10 +102,13 @@ export default async function PrincipalLearningJournalReviewPage({
 
   return (
     <section className="space-y-6">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">학습일지 승인</h1>
-        <p className="text-sm text-slate-600">제출된 학습일지를 검토하고 공개 여부를 결정하세요.</p>
-      </header>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/principal" label="원장 대시보드로 돌아가기" />
+        <header className="space-y-2">
+          <h1 className="text-3xl font-semibold text-slate-900">학습일지 승인</h1>
+          <p className="text-sm text-slate-600">제출된 학습일지를 검토하고 공개 여부를 결정하세요.</p>
+        </header>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {STATUS_OPTIONS.map((option) => {

@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchFilmNoteHistory } from '@/lib/film-history'
 import { Badge } from '@/components/ui/badge'
@@ -23,9 +24,11 @@ export default async function FilmHistoryPage({ params }: { params: PageParams }
   }
 
   const { workbook, status } = history
+  const fallbackHref = `/dashboard/student/tasks/${params.taskId}`
 
   return (
     <section className="space-y-6">
+      <DashboardBackLink fallbackHref={fallbackHref} label="과제 상세로 돌아가기" />
       <div className="flex flex-wrap items-center gap-2">
         <h1 className="text-2xl font-semibold text-slate-900">{workbook.title}</h1>
         <Badge variant="secondary">감상지 히스토리</Badge>

@@ -1,3 +1,4 @@
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ClassesManager } from '@/components/dashboard/manager/classes/ClassesManager'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -197,11 +198,14 @@ export default async function ManagerClassesPage({
 
   return (
     <section className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-slate-900">반 관리</h1>
-        <p className="text-slate-600">
-          승인된 교사와 학생을 기반으로 반을 생성하고 담당 교사·학생 배정을 관리할 수 있습니다.
-        </p>
+      <div className="space-y-3">
+        <DashboardBackLink fallbackHref="/dashboard/manager" label="실장 허브로 돌아가기" />
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold text-slate-900">반 관리</h1>
+          <p className="text-slate-600">
+            승인된 교사와 학생을 기반으로 반을 생성하고 담당 교사·학생 배정을 관리할 수 있습니다.
+          </p>
+        </div>
       </div>
 
       <ClassesManager

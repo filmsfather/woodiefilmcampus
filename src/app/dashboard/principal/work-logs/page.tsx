@@ -1,3 +1,4 @@
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -104,6 +105,11 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
 
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-6">
+      <DashboardBackLink
+        fallbackHref="/dashboard/principal"
+        label="원장 대시보드로 돌아가기"
+        className="self-start"
+      />
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">근무일지 승인</h1>
         <p className="text-sm text-slate-600">선생님이 제출한 근무일지를 검토하고 승인 상태를 관리하세요.</p>

@@ -1,3 +1,4 @@
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -70,6 +71,11 @@ export default async function TeacherWorkJournalPage({ searchParams }: TeacherWo
 
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-6">
+      <DashboardBackLink
+        fallbackHref="/dashboard/teacher"
+        label="교사용 허브로 돌아가기"
+        className="self-start"
+      />
       <header className="space-y-2 text-center">
         <h1 className="text-3xl font-semibold text-slate-900">근무일지</h1>
         <p className="text-sm text-slate-600">월별 근무 현황을 기록하고 주차별·월간 근무 시간을 확인하세요.</p>

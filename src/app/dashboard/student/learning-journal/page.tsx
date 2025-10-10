@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
@@ -31,6 +32,7 @@ export default async function StudentLearningJournalPage() {
   if (!snapshot) {
     return (
       <section className="space-y-6">
+        <DashboardBackLink fallbackHref="/dashboard/student" label="학생 대시보드로 돌아가기" />
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">학습일지</h1>
           <p className="text-sm text-slate-600">아직 공개된 학습일지가 없습니다. 담임 선생님이 학습일지를 제출하면 이곳에서 확인할 수 있습니다.</p>
@@ -58,53 +60,56 @@ export default async function StudentLearningJournalPage() {
   ])
 
   return (
-    <LearningJournalEntryContent
-      header={{
-        title: profile.name ?? profile.email ?? '학생 정보 없음',
-        subtitle: `${period.className ?? '반 미지정'} · ${
-          period.label ?? `${period.startDate} ~ ${period.endDate}`
-        }`,
-        meta: [
-          {
-            label: '제출 상태',
-            value: STATUS_LABEL[entry.status] ?? entry.status,
-          },
-          {
-            label: '공개일',
-            value: entry.publishedAt
-              ? DateUtil.formatForDisplay(entry.publishedAt, {
-                  locale: 'ko-KR',
-                  timeZone: 'Asia/Seoul',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : '미기록',
-          },
-          {
-            label: '최근 업데이트',
-            value: DateUtil.formatForDisplay(entry.updatedAt, {
-              locale: 'ko-KR',
-              timeZone: 'Asia/Seoul',
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-          },
-        ],
-      }}
-      greeting={greeting}
-      academicEvents={academicEvents}
-      summary={entry.summary}
-      weekly={entry.weekly}
-      comments={comments}
-      actionPanel={
-        <Button asChild variant="outline">
-          <Link href="/dashboard/student">학생 대시보드로 돌아가기</Link>
-        </Button>
-      }
-    />
+    <section className="space-y-6">
+      <DashboardBackLink fallbackHref="/dashboard/student" label="학생 대시보드로 돌아가기" />
+      <LearningJournalEntryContent
+        header={{
+          title: profile.name ?? profile.email ?? '학생 정보 없음',
+          subtitle: `${period.className ?? '반 미지정'} · ${
+            period.label ?? `${period.startDate} ~ ${period.endDate}`
+          }`,
+          meta: [
+            {
+              label: '제출 상태',
+              value: STATUS_LABEL[entry.status] ?? entry.status,
+            },
+            {
+              label: '공개일',
+              value: entry.publishedAt
+                ? DateUtil.formatForDisplay(entry.publishedAt, {
+                    locale: 'ko-KR',
+                    timeZone: 'Asia/Seoul',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : '미기록',
+            },
+            {
+              label: '최근 업데이트',
+              value: DateUtil.formatForDisplay(entry.updatedAt, {
+                locale: 'ko-KR',
+                timeZone: 'Asia/Seoul',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+            },
+          ],
+        }}
+        greeting={greeting}
+        academicEvents={academicEvents}
+        summary={entry.summary}
+        weekly={entry.weekly}
+        comments={comments}
+        actionPanel={
+          <Button asChild variant="outline">
+            <Link href="/dashboard/student">학생 대시보드로 돌아가기</Link>
+          </Button>
+        }
+      />
+    </section>
   )
 }
