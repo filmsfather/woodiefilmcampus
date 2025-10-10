@@ -59,6 +59,7 @@ interface RawAssignmentRow {
     id: string
     status: string
     student_id: string
+    class_id: string | null
     profiles?:
       | {
           id: string
@@ -136,12 +137,13 @@ export default async function TeacherReviewOverviewPage({
     .select(
       `id, due_at, created_at, target_scope,
        assignment_targets(class_id, classes(id, name)),
-       student_tasks(
-         id,
-         status,
-         student_id,
-         profiles!student_tasks_student_id_fkey(id, name, email, class_id)
-       ),
+      student_tasks(
+        id,
+        status,
+        student_id,
+        class_id,
+        profiles!student_tasks_student_id_fkey(id, name, email, class_id)
+      ),
        print_requests(
          id,
          status,
@@ -232,7 +234,7 @@ export default async function TeacherReviewOverviewPage({
         id: task.id,
         status: task.status,
         studentId: task.student_id,
-        classId: profileRecord?.class_id ?? null,
+        classId: task.class_id ?? profileRecord?.class_id ?? null,
       }
     })
 

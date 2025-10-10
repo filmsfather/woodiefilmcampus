@@ -76,13 +76,14 @@ export default async function StudentSharedResourcesPage() {
            media_asset_id,
            student_task_id,
            media_assets(id, bucket, path, mime_type, metadata),
-           student_tasks(
-             id,
-             student_id,
-             profiles:profiles!student_tasks_student_id_fkey(id, name),
-             assignments:assignments!student_tasks_assignment_id_fkey(id, title, workbooks(id, title))
-           )
-         )
+          student_tasks(
+            id,
+            student_id,
+            class_id,
+            profiles:profiles!student_tasks_student_id_fkey(id, name),
+            assignments:assignments!student_tasks_assignment_id_fkey(id, title, workbooks(id, title))
+          )
+        )
        )`
     )
     .eq('class_id', profile.class_id)

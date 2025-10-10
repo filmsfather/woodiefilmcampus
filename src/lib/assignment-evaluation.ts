@@ -40,6 +40,7 @@ export interface RawAssignmentRow {
     completion_at: string | null
     updated_at: string
     student_id: string
+    class_id: string | null
     profiles?:
       | {
           id: string
@@ -446,7 +447,7 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         id: profile?.id ?? task.student_id,
         name: profile?.name ?? '이름 미정',
         email: profile?.email ?? null,
-        classId: profile?.class_id ?? null,
+        classId: task.class_id ?? profile?.class_id ?? null,
       },
       items,
       submissions,

@@ -98,7 +98,7 @@ export default async function ManagerDashboardPage({
          updated_at,
          teacher:profiles!print_requests_teacher_id_fkey(id, name, email),
          assignment:assignments!print_requests_assignment_id_fkey(id, workbooks(id, title, subject, type)),
-         student_task:student_tasks(id, profiles!student_tasks_student_id_fkey(id, name, email)),
+         student_task:student_tasks(id, class_id, profiles!student_tasks_student_id_fkey(id, name, email)),
          print_request_items(
            id,
            student_task_id,
@@ -107,6 +107,7 @@ export default async function ManagerDashboardPage({
            media_asset:media_assets!print_request_items_media_asset_id_fkey(id, bucket, path),
            student_task:student_tasks!print_request_items_student_task_id_fkey(
              id,
+             class_id,
              profiles!student_tasks_student_id_fkey(id, name, email)
            )
          )

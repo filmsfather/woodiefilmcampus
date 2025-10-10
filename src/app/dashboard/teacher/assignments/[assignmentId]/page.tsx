@@ -30,6 +30,7 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
          completion_at,
          updated_at,
          student_id,
+          class_id,
          profiles!student_tasks_student_id_fkey(id, name, email, class_id),
          student_task_items(
            id,

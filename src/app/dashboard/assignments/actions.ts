@@ -208,12 +208,28 @@ export async function createAssignment(input: CreateAssignmentInput) {
     }
 
     const studentsFromClasses = new Set<string>()
+    const studentClassAssignments = new Map<string, string>()
 
     for (const classId of targetClassIds) {
       const students = studentsByClass.get(classId)
-      if (students) {
-        students.forEach((studentId) => studentsFromClasses.add(studentId))
+      if (!students) {
+        continue
       }
+      students.forEach((studentId) => {
+        studentsFromClasses.add(studentId)
+        if (!studentClassAssignments.has(studentId)) {
+          studentClassAssignments.set(studentId, classId)
+        }
+      })
+    }
+
+    const resolveAccessibleClassForStudent = (studentId: string) => {
+      for (const [classId, students] of studentsByClass.entries()) {
+        if (students.has(studentId)) {
+          return classId
+        }
+      }
+      return null
     }
 
     const invalidStudentId = targetStudentIds.find((studentId) => {
@@ -236,7 +252,15 @@ export async function createAssignment(input: CreateAssignmentInput) {
 
     const studentIdsForTasks = new Set<string>()
     studentsFromClasses.forEach((studentId) => studentIdsForTasks.add(studentId))
-    targetStudentIds.forEach((studentId) => studentIdsForTasks.add(studentId))
+    targetStudentIds.forEach((studentId) => {
+      studentIdsForTasks.add(studentId)
+      if (!studentClassAssignments.has(studentId)) {
+        const inferredClassId = resolveAccessibleClassForStudent(studentId)
+        if (inferredClassId) {
+          studentClassAssignments.set(studentId, inferredClassId)
+        }
+      }
+    })
 
     if (studentIdsForTasks.size === 0) {
       return { error: '선택한 대상에 학생이 없습니다. 반 구성원을 확인해주세요.' }
@@ -296,6 +320,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
     const taskRows = Array.from(studentIdsForTasks).map((studentId) => ({
       assignment_id: assignmentId,
       student_id: studentId,
+      class_id: studentClassAssignments.get(studentId) ?? null,
     }))
 
     const { data: insertedTasks, error: tasksError } = await writeClient
