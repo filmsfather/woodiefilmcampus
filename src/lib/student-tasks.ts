@@ -445,6 +445,7 @@ export interface StudentTaskSummaryFilters {
     start: Date
     endExclusive: Date
   }
+  dueAtOrAfter?: Date
 }
 
 export async function fetchStudentTaskSummaries(
@@ -474,23 +475,33 @@ export async function fetchStudentTaskSummaries(
   const summaries = rows.map((row) => mapSummary(row, assignmentLookup))
 
   const range = filters?.dueBetween
-  if (!range) {
-    return summaries
-  }
-
-  const startMs = range.start.getTime()
-  const endMs = range.endExclusive.getTime()
+  const dueAtOrAfter = filters?.dueAtOrAfter
 
   return summaries.filter((summary) => {
     const dueValue = summary.due.dueAt ?? summary.assignment?.dueAt ?? null
+
     if (!dueValue) {
       return false
     }
+
     const dueTime = new Date(dueValue).getTime()
     if (Number.isNaN(dueTime)) {
       return false
     }
-    return dueTime >= startMs && dueTime < endMs
+
+    if (range) {
+      const startMs = range.start.getTime()
+      const endMs = range.endExclusive.getTime()
+      if (dueTime < startMs || dueTime >= endMs) {
+        return false
+      }
+    }
+
+    if (dueAtOrAfter && dueTime < dueAtOrAfter.getTime()) {
+      return false
+    }
+
+    return true
   })
 }
 

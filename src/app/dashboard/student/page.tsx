@@ -26,10 +26,7 @@ export default async function StudentDashboardPage({
   const weekRange = resolveWeekRange(searchParams.week ?? null)
 
   const tasks = await fetchStudentTaskSummaries(profile.id, {
-    dueBetween: {
-      start: weekRange.start,
-      endExclusive: weekRange.endExclusive,
-    },
+    dueAtOrAfter: weekRange.start,
   })
 
   const previousWeekHref = buildWeekHref('/dashboard/student', searchParams, weekRange.previousStart)
