@@ -24,6 +24,10 @@ function displayName(name: string | null, fallback: string | null) {
   return name ?? fallback ?? '이름 없음'
 }
 
+function summarizeDescription(description: string, limit = 10) {
+  return description.length <= limit ? description : `${description.slice(0, limit)}...`
+}
+
 export function ClassesTable({ classes, onEdit, onDelete, deletingId }: ClassesTableProps) {
   if (classes.length === 0) {
     return (
@@ -75,7 +79,9 @@ export function ClassesTable({ classes, onEdit, onDelete, deletingId }: ClassesT
               <TableCell className="align-top">
                 <div className="font-medium text-slate-900">{classItem.name}</div>
                 {classItem.description && (
-                  <div className="mt-1 text-xs text-slate-500">{classItem.description}</div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    {summarizeDescription(classItem.description)}
+                  </div>
                 )}
               </TableCell>
               <TableCell className="align-top">
@@ -131,4 +137,3 @@ export function ClassesTable({ classes, onEdit, onDelete, deletingId }: ClassesT
     </Table>
   )
 }
-
