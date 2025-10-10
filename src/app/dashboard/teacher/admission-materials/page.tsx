@@ -1,11 +1,19 @@
 import Link from 'next/link'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import { AdmissionScheduleCalendar } from '@/components/dashboard/admission-materials/AdmissionScheduleCalendar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ADMISSION_MATERIAL_CATEGORIES } from '@/lib/admission-materials'
+import { listAdmissionScheduleEvents } from '@/app/dashboard/teacher/admission-materials/actions'
 
-export default function AdmissionMaterialsLandingPage() {
+export default async function AdmissionMaterialsLandingPage() {
+  const calendarResult = await listAdmissionScheduleEvents({})
+
+  if (!calendarResult.success) {
+    throw new Error(calendarResult.error)
+  }
+
   return (
     <section className="space-y-6">
       <div className="space-y-3">
@@ -32,15 +40,22 @@ export default function AdmissionMaterialsLandingPage() {
         ))}
       </div>
 
-      <Card className="border-slate-200 bg-slate-50">
-        <CardContent className="flex flex-col gap-3 p-6 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-slate-900">입시 일정 달력</h2>
-            <p className="text-sm text-slate-500">등록한 게시글의 일정을 한눈에 확인해 수업 준비를 돕습니다.</p>
+      <Card className="border-slate-200">
+        <CardHeader className="space-y-1 border-b border-slate-100 pb-4">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">입시 일정 달력</h2>
+              <p className="text-sm text-slate-500">등록된 모든 입시 자료 일정을 한 번에 확인하세요.</p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/dashboard/teacher/admission-materials/calendar">전체 화면 보기</Link>
+            </Button>
           </div>
-          <Button asChild variant="secondary">
-            <Link href="/dashboard/teacher/admission-materials/calendar">달력 보기</Link>
-          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="p-4">
+            <AdmissionScheduleCalendar initialEvents={calendarResult.events} />
+          </div>
         </CardContent>
       </Card>
     </section>
