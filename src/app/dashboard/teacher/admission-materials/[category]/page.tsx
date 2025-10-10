@@ -386,23 +386,24 @@ export default async function AdmissionMaterialCategoryPage({
             <Table className="min-w-[960px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-48">제목</TableHead>
                   {isPastExamCategoryView ? (
                     <>
                       <TableHead className="w-24">년도</TableHead>
                       <TableHead className="w-40">대학교</TableHead>
                       <TableHead className="w-32">전형</TableHead>
+                      <TableHead className="w-48">제목</TableHead>
                     </>
                   ) : (
-                    <TableHead className="w-40">준비 대상</TableHead>
+                    <TableHead className="w-48">제목</TableHead>
                   )}
-                  <TableHead className="w-48">가이드</TableHead>
+                  {isPastExamCategoryView ? null : <TableHead className="w-40">준비 대상</TableHead>}
+                  {isPastExamCategoryView ? null : <TableHead className="w-48">가이드</TableHead>}
                   <TableHead className="w-48">참고 자료</TableHead>
                   <TableHead>설명</TableHead>
                   {!isPastExamCategoryView ? (
                     <TableHead className="w-48">다가오는 일정</TableHead>
                   ) : null}
-                  <TableHead className="w-40">수정일</TableHead>
+                  {!isPastExamCategoryView ? <TableHead className="w-40">수정일</TableHead> : null}
                   <TableHead className="w-32 text-right">작업</TableHead>
                 </TableRow>
               </TableHeader>
@@ -425,19 +426,6 @@ export default async function AdmissionMaterialCategoryPage({
 
                   return (
                     <TableRow key={post.id} className="align-top">
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Link
-                            href={`/dashboard/teacher/admission-materials/${category}/${post.id}`}
-                            className="text-sm font-medium text-slate-900 hover:underline"
-                          >
-                            {displayTitle || '제목 미입력'}
-                          </Link>
-                          <span className="text-xs text-slate-500">
-                            작성자 {post.author_name ?? '미상'}
-                          </span>
-                        </div>
-                      </TableCell>
                       {isPastExamCategoryView ? (
                         <>
                           <TableCell className="text-sm text-slate-600">
@@ -466,7 +454,21 @@ export default async function AdmissionMaterialCategoryPage({
                             )}
                           </TableCell>
                         </>
-                      ) : (
+                      ) : null}
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <Link
+                            href={`/dashboard/teacher/admission-materials/${category}/${post.id}`}
+                            className="text-sm font-medium text-slate-900 hover:underline"
+                          >
+                            {displayTitle || '제목 미입력'}
+                          </Link>
+                          <span className="text-xs text-slate-500">
+                            작성자 {post.author_name ?? '미상'}
+                          </span>
+                        </div>
+                      </TableCell>
+                      {isPastExamCategoryView ? null : (
                         <TableCell className="text-sm text-slate-600">
                           {isGuidelineCategoryView ? (
                             admissionTypeTags.length > 0 ? (
@@ -487,20 +489,22 @@ export default async function AdmissionMaterialCategoryPage({
                           )}
                         </TableCell>
                       )}
-                      <TableCell>
-                        {post.guideUrl ? (
-                          <Button asChild size="sm" variant="outline" className="text-xs">
-                            <a href={post.guideUrl} target="_blank" rel="noreferrer">
-                              다운로드
-                            </a>
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-slate-400">첨부 없음</span>
-                        )}
-                        {post.guideName ? (
-                          <p className="mt-1 text-[11px] text-slate-500">{post.guideName}</p>
-                        ) : null}
-                      </TableCell>
+                      {isPastExamCategoryView ? null : (
+                        <TableCell>
+                          {post.guideUrl ? (
+                            <Button asChild size="sm" variant="outline" className="text-xs">
+                              <a href={post.guideUrl} target="_blank" rel="noreferrer">
+                                다운로드
+                              </a>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-slate-400">첨부 없음</span>
+                          )}
+                          {post.guideName ? (
+                            <p className="mt-1 text-[11px] text-slate-500">{post.guideName}</p>
+                          ) : null}
+                        </TableCell>
+                      )}
                       <TableCell>
                         {post.resourceUrl ? (
                           <Button asChild size="sm" variant="outline" className="text-xs">
@@ -536,12 +540,14 @@ export default async function AdmissionMaterialCategoryPage({
                           )}
                         </TableCell>
                       ) : null}
-                      <TableCell className="text-xs text-slate-500">
-                        <span className="block font-medium text-slate-700">
-                          {formatDateTime(post.updated_at)}
-                        </span>
-                        <span>작성일 {formatDateTime(post.created_at)}</span>
-                      </TableCell>
+                      {!isPastExamCategoryView ? (
+                        <TableCell className="text-xs text-slate-500">
+                          <span className="block font-medium text-slate-700">
+                            {formatDateTime(post.updated_at)}
+                          </span>
+                          <span>작성일 {formatDateTime(post.created_at)}</span>
+                        </TableCell>
+                      ) : null}
                       <TableCell className="text-right">
                         <div className="flex flex-col items-end gap-2">
                           <Button asChild size="sm" variant="secondary">
