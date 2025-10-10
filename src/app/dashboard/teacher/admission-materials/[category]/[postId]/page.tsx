@@ -198,12 +198,12 @@ export default async function AdmissionMaterialDetailPage({
 
   const title = getAdmissionCategoryLabel(category)
   const isGuidelineCategoryView = category === 'guideline'
-  const isPastExamCategoryView = category === 'past_exam'
+  const isPastExamLikeCategoryView = category === 'past_exam' || category === 'success_review'
   const admissionTypeTags = isGuidelineCategoryView ? extractAdmissionTypeTags(detail.title) : []
   const detailTitle = isGuidelineCategoryView
     ? detail.target_level ?? detail.title
     : detail.title
-  const pastExamAdmissions = isPastExamCategoryView ? detail.past_exam_admission_types ?? [] : []
+  const pastExamAdmissions = isPastExamLikeCategoryView ? detail.past_exam_admission_types ?? [] : []
   const isGuideImage = detail.guide_asset?.mime_type?.startsWith('image/') ?? false
   const isResourceImage = detail.resource_asset?.mime_type?.startsWith('image/') ?? false
   const guideAssetName = pickAssetName(detail.guide_asset ?? undefined)
@@ -240,7 +240,7 @@ export default async function AdmissionMaterialDetailPage({
                 </Badge>
               ))
             ) : null
-          ) : isPastExamCategoryView ? (
+          ) : isPastExamLikeCategoryView ? (
             <>
               {detail.past_exam_year ? (
                 <Badge variant="secondary" className="text-xs text-slate-700">
@@ -278,7 +278,7 @@ export default async function AdmissionMaterialDetailPage({
               자료 수정
             </Link>
           </Button>
-          {!isPastExamCategoryView ? (
+          {!isPastExamLikeCategoryView ? (
             <Button asChild size="sm" variant="outline">
               <Link href="/dashboard/teacher/admission-materials/calendar">달력 보기</Link>
             </Button>
@@ -366,7 +366,7 @@ export default async function AdmissionMaterialDetailPage({
         </Card>
       </div>
 
-      {!isPastExamCategoryView ? (
+      {!isPastExamLikeCategoryView ? (
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">등록된 일정</CardTitle>

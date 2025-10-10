@@ -79,7 +79,7 @@ export default async function AdmissionMaterialCategoryPage({
   }
 
   const category = params.category
-  const isPastExamCategoryView = category === 'past_exam'
+  const isPastExamLikeCategoryView = category === 'past_exam' || category === 'success_review'
   const query = typeof searchParams?.q === 'string' ? searchParams.q.trim() : ''
   const yearParam = typeof searchParams?.year === 'string' ? searchParams.year.trim() : ''
   const universityParam = typeof searchParams?.university === 'string' ? searchParams.university.trim() : ''
@@ -123,13 +123,13 @@ export default async function AdmissionMaterialCategoryPage({
       `description.ilike.%${query}%`,
       `target_level.ilike.%${query}%`,
     ]
-    if (isPastExamCategoryView) {
+    if (isPastExamLikeCategoryView) {
       searchTargets.push(`past_exam_university.ilike.%${query}%`)
     }
     postQuery = postQuery.or(searchTargets.join(','))
   }
 
-  if (isPastExamCategoryView) {
+  if (isPastExamLikeCategoryView) {
     const parsedYear = Number.parseInt(yearParam, 10)
     if (yearParam && Number.isFinite(parsedYear)) {
       postQuery = postQuery.eq('past_exam_year', parsedYear)
@@ -297,14 +297,14 @@ export default async function AdmissionMaterialCategoryPage({
             <Input
               name="q"
               placeholder={
-                isPastExamCategoryView ? '제목, 연도 또는 대학으로 검색' : '제목, 대상 또는 설명으로 검색'
+                isPastExamLikeCategoryView ? '제목, 연도 또는 대학으로 검색' : '제목, 대상 또는 설명으로 검색'
               }
               defaultValue={query}
               className="w-full"
             />
           </label>
 
-          {isPastExamCategoryView ? (
+          {isPastExamLikeCategoryView ? (
             <div className="grid gap-4 sm:grid-cols-3">
               <label className="flex flex-col gap-1 text-sm text-slate-500">
                 <span className="font-medium text-slate-700">년도</span>
@@ -386,24 +386,24 @@ export default async function AdmissionMaterialCategoryPage({
             <Table className="min-w-[960px]">
               <TableHeader>
                 <TableRow>
-                  {isPastExamCategoryView ? (
+                  {isPastExamLikeCategoryView ? (
                     <>
                       <TableHead className="w-24">년도</TableHead>
-                      <TableHead className="w-40">대학교</TableHead>
-                      <TableHead className="w-32">전형</TableHead>
+                      <TableHead className="w-32">대학교</TableHead>
+                      <TableHead className="w-28">전형</TableHead>
                       <TableHead className="w-48">제목</TableHead>
                     </>
                   ) : (
                     <TableHead className="w-48">제목</TableHead>
                   )}
-                  {isPastExamCategoryView ? null : <TableHead className="w-40">준비 대상</TableHead>}
-                  {isPastExamCategoryView ? null : <TableHead className="w-48">가이드</TableHead>}
+                  {isPastExamLikeCategoryView ? null : <TableHead className="w-40">준비 대상</TableHead>}
+                  {isPastExamLikeCategoryView ? null : <TableHead className="w-48">가이드</TableHead>}
                   <TableHead className="w-48">참고 자료</TableHead>
                   <TableHead>설명</TableHead>
-                  {!isPastExamCategoryView ? (
+                  {!isPastExamLikeCategoryView ? (
                     <TableHead className="w-48">다가오는 일정</TableHead>
                   ) : null}
-                  {!isPastExamCategoryView ? <TableHead className="w-40">수정일</TableHead> : null}
+                  {!isPastExamLikeCategoryView ? <TableHead className="w-40">수정일</TableHead> : null}
                   <TableHead className="w-32 text-right">작업</TableHead>
                 </TableRow>
               </TableHeader>
@@ -426,21 +426,21 @@ export default async function AdmissionMaterialCategoryPage({
 
                   return (
                     <TableRow key={post.id} className="align-top">
-                      {isPastExamCategoryView ? (
+                      {isPastExamLikeCategoryView ? (
                         <>
                           <TableCell className="text-sm text-slate-600">
                             {post.past_exam_year ? `${post.past_exam_year}년` : (
                               <span className="text-xs text-slate-400">미입력</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-slate-600">
+                          <TableCell className="w-32 text-sm text-slate-600">
                             {post.past_exam_university ? (
                               post.past_exam_university
                             ) : (
                               <span className="text-xs text-slate-400">미입력</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-sm text-slate-600">
+                          <TableCell className="w-28 text-sm text-slate-600">
                             {pastExamAdmissions.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
                                 {pastExamAdmissions.map((type) => (
@@ -468,7 +468,7 @@ export default async function AdmissionMaterialCategoryPage({
                           </span>
                         </div>
                       </TableCell>
-                      {isPastExamCategoryView ? null : (
+                      {isPastExamLikeCategoryView ? null : (
                         <TableCell className="text-sm text-slate-600">
                           {isGuidelineCategoryView ? (
                             admissionTypeTags.length > 0 ? (
@@ -489,7 +489,7 @@ export default async function AdmissionMaterialCategoryPage({
                           )}
                         </TableCell>
                       )}
-                      {isPastExamCategoryView ? null : (
+                      {isPastExamLikeCategoryView ? null : (
                         <TableCell>
                           {post.guideUrl ? (
                             <Button asChild size="sm" variant="outline" className="text-xs">
@@ -519,14 +519,14 @@ export default async function AdmissionMaterialCategoryPage({
                           <p className="mt-1 text-[11px] text-slate-500">{post.resourceName}</p>
                         ) : null}
                       </TableCell>
-                      <TableCell className="text-sm text-slate-600">
+                      <TableCell className="text-base text-slate-600">
                         {truncatedDescription ? (
                           <p className="whitespace-pre-line leading-relaxed">{truncatedDescription}</p>
                         ) : (
                           <span className="text-xs text-slate-400">미작성</span>
                         )}
                       </TableCell>
-                      {!isPastExamCategoryView ? (
+                      {!isPastExamLikeCategoryView ? (
                         <TableCell className="text-sm text-slate-600">
                           {post.nextSchedule ? (
                             <div className="flex flex-col gap-1">
@@ -540,7 +540,7 @@ export default async function AdmissionMaterialCategoryPage({
                           )}
                         </TableCell>
                       ) : null}
-                      {!isPastExamCategoryView ? (
+                      {!isPastExamLikeCategoryView ? (
                         <TableCell className="text-xs text-slate-500">
                           <span className="block font-medium text-slate-700">
                             {formatDateTime(post.updated_at)}

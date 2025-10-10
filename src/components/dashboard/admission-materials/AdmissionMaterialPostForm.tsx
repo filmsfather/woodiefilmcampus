@@ -114,6 +114,7 @@ export function AdmissionMaterialPostForm({
 
   const isGuideline = category === 'guideline'
   const isPastExam = category === 'past_exam'
+  const isPastExamLike = isPastExam || category === 'success_review'
 
   const [guidelineSelection, setGuidelineSelection] = useState(() => {
     const titleSeed = defaults?.title ?? ''
@@ -124,7 +125,7 @@ export function AdmissionMaterialPostForm({
   })
 
   const [schedules, setSchedules] = useState<ScheduleItem[]>(() => {
-    if (isPastExam) {
+    if (isPastExamLike) {
       return []
     }
     const seed = defaults?.schedules ?? []
@@ -143,8 +144,8 @@ export function AdmissionMaterialPostForm({
   const maxSizeLabel = useMemo(() => `${Math.round(MAX_UPLOAD_SIZE / (1024 * 1024))}MB`, [])
   const headerDescription = isGuideline
     ? '대학교 이름과 전형을 선택하고 요강 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
-    : isPastExam
-      ? '년도와 대학교, 전형 정보를 입력하고 기출 자료를 업로드하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
+    : isPastExamLike
+      ? '년도와 대학교, 전형 정보를 입력하고 자료를 업로드하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
       : '준비 대상과 제목을 입력하고 필요한 자료 · 일정을 등록하세요. PDF, 이미지, 오피스 문서를 지원합니다.'
   const targetLabel = isGuideline ? '대학교 이름' : '준비 대상 (선택)'
   const targetPlaceholder = isGuideline ? '예: 중앙대학교 영화과' : '예: 영화과 3학년, 수시 준비반'
@@ -153,13 +154,13 @@ export function AdmissionMaterialPostForm({
     : '자료가 어떤 학생을 위한 것인지 표시하면 검색이 쉬워집니다.'
   const descriptionLabel = isGuideline
     ? '입시 요강 (선택)'
-    : isPastExam
+    : isPastExamLike
       ? '내용 (선택)'
       : '자료 설명 (선택)'
   const descriptionPlaceholder = isGuideline
     ? '모집 요강의 핵심 내용이나 전달하고 싶은 사항을 정리하세요.'
-    : isPastExam
-      ? '기출 자료에 대한 메모나 설명을 작성하세요.'
+    : isPastExamLike
+      ? '자료에 대한 메모나 설명을 작성하세요.'
       : '자료 활용법이나 참고 사항을 간단히 작성하세요.'
   const guideLabel = isGuideline ? '입시 전체 요강 (선택)' : '기본 가이드 파일 (선택)'
   const guideRemoveLabel = isGuideline ? '기존 입시 전체 요강 파일 삭제' : '기존 가이드 파일 삭제'
@@ -232,7 +233,7 @@ export function AdmissionMaterialPostForm({
       formData.set('title', selections.join(' · '))
     }
 
-    if (isPastExam) {
+    if (isPastExamLike) {
       const yearValue = formData.get('pastExamYear')
       const universityValue = formData.get('pastExamUniversity')
       const rawAdmissions = formData.getAll('pastExamAdmissionTypes')
@@ -390,7 +391,7 @@ export function AdmissionMaterialPostForm({
           <input type="hidden" name="category" value={category} />
           {defaults?.postId ? <input type="hidden" name="postId" value={defaults.postId} /> : null}
 
-          {isPastExam ? (
+          {isPastExamLike ? (
             <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-2">
                 <Label htmlFor="pastExamYear">년도</Label>
@@ -484,7 +485,7 @@ export function AdmissionMaterialPostForm({
               </div>
               <p className="text-xs text-slate-500">수시, 정시 중 공유할 전형을 선택하세요.</p>
             </div>
-          ) : isPastExam ? (
+          ) : isPastExamLike ? (
             <>
               <div className="grid gap-2">
                 <Label htmlFor="title">제목</Label>
@@ -591,7 +592,7 @@ export function AdmissionMaterialPostForm({
             <p className="text-xs text-slate-500">{resourceHelpText}</p>
           </div>
 
-          {!isPastExam ? (
+          {!isPastExamLike ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>

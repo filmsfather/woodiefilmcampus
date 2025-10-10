@@ -267,7 +267,9 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
   let pastExamUniversity: string | null = null
   let pastExamAdmissionTypes: string[] | null = null
 
-  if (category === 'past_exam') {
+  const isPastExamLike = category === 'past_exam' || category === 'success_review'
+
+  if (isPastExamLike) {
     if (typeof pastExamYearValue !== 'string' || pastExamYearValue.trim().length === 0) {
       return { error: '연도를 선택해주세요.' }
     }
@@ -453,7 +455,9 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
   let pastExamUniversity: string | null = null
   let pastExamAdmissionTypes: string[] | null = null
 
-  if (category === 'past_exam') {
+  const isPastExamLike = category === 'past_exam' || category === 'success_review'
+
+  if (isPastExamLike) {
     if (typeof pastExamYearValue !== 'string' || pastExamYearValue.trim().length === 0) {
       return { error: '연도를 선택해주세요.', postId }
     }
