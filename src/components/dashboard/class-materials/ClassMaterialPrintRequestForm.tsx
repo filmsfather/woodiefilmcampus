@@ -116,7 +116,7 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAsset
           <div className="grid gap-2 sm:grid-cols-2 sm:gap-4">
             <label className="grid gap-2 text-sm text-slate-700">
               <span>희망일</span>
-              <Input type="date" name="desiredDate" disabled={isPending} />
+              <Input type="date" name="desiredDate" disabled={isPending} required />
             </label>
             <label className="grid gap-2 text-sm text-slate-700">
               <span>희망 교시</span>

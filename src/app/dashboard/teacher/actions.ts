@@ -316,8 +316,11 @@ const printRequestSchema = z
       }),
     desiredDate: z
       .string()
-      .optional()
-      .transform((value) => (value && value.trim().length > 0 ? value : null)),
+      .trim()
+      .min(1, '희망일을 입력해주세요.')
+      .refine((value) => !Number.isNaN(new Date(`${value}T00:00:00`).getTime()), {
+        message: '유효한 희망일을 입력해주세요.',
+      }),
     desiredPeriod: z
       .string()
       .optional()
@@ -491,8 +494,8 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
       }
     }
 
-    const desiredDate = payload.desiredDate ? new Date(payload.desiredDate) : null
-    const formattedDate = desiredDate ? desiredDate.toISOString().slice(0, 10) : null
+    const desiredDate = new Date(`${payload.desiredDate}T00:00:00`)
+    const formattedDate = desiredDate.toISOString().slice(0, 10)
     const bundleMode: 'merged' | 'separate' = 'merged'
 
     const primaryStudentTaskId =

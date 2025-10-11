@@ -772,13 +772,13 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
   )
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(() => selectableStudents.map((item) => item.task.id))
   const [hasCustomSelection, setHasCustomSelection] = useState(false)
-  const [printState, setPrintState] = useState({
+  const [printState, setPrintState] = useState(() => ({
     desiredDate: '',
     desiredPeriod: '',
     copies: 1,
     colorMode: 'bw' as 'bw' | 'color',
     notes: '',
-  })
+  }))
   const [printMessage, setPrintMessage] = useState<string | null>(null)
   const [isRequestPending, startPrintTransition] = useTransition()
 
@@ -827,6 +827,10 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
       setPrintMessage('인쇄할 학생을 선택해주세요.')
       return
     }
+    if (!printState.desiredDate) {
+      setPrintMessage('희망일을 입력해주세요.')
+      return
+    }
     startPrintTransition(async () => {
       const result = await createPrintRequest({
         assignmentId: assignment.id,
@@ -866,6 +870,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               type="date"
               value={printState.desiredDate}
               onChange={(event) => setPrintState((prev) => ({ ...prev, desiredDate: event.target.value }))}
+              required
             />
             <Select
               value={printState.desiredPeriod || undefined}

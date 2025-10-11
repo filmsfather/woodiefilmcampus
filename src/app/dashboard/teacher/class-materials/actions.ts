@@ -525,7 +525,15 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
   const copies = typeof copiesValue === 'string' ? Number.parseInt(copiesValue, 10) : 1
   const normalizedCopies = Number.isNaN(copies) || copies < 1 ? 1 : Math.min(copies, 100)
   const colorMode = colorModeValue === 'color' ? 'color' : 'bw'
-  const desiredDate = typeof desiredDateValue === 'string' && desiredDateValue.length > 0 ? desiredDateValue : null
+  const desiredDateInput = typeof desiredDateValue === 'string' ? desiredDateValue.trim() : ''
+  if (!desiredDateInput) {
+    return { error: '희망일을 입력해주세요.' }
+  }
+  const desiredDateCandidate = new Date(`${desiredDateInput}T00:00:00`)
+  if (Number.isNaN(desiredDateCandidate.getTime())) {
+    return { error: '유효한 희망일을 입력해주세요.' }
+  }
+  const desiredDate = desiredDateInput
   const desiredPeriod = typeof desiredPeriodValue === 'string' && desiredPeriodValue.length > 0 ? desiredPeriodValue : null
   const notes = typeof notesValue === 'string' && notesValue.trim().length > 0 ? notesValue.trim() : null
 

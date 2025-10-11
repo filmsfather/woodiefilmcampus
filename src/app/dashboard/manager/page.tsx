@@ -68,6 +68,8 @@ export default async function ManagerDashboardPage({
   const supabase = createClient()
   const storageAdmin = createAdminClient()
   const weekRange = resolveWeekRange(searchParams.week ?? null)
+  const desiredDateStart = DateUtil.formatISODate(weekRange.start)
+  const desiredDateEndExclusive = DateUtil.formatISODate(weekRange.endExclusive)
 
   const [pendingStudentsResult, approvedCountResult, printRequestResult, classMaterialPrintRequestResult] = await Promise.all([
     supabase
@@ -113,8 +115,8 @@ export default async function ManagerDashboardPage({
          )
         `
       )
-      .gte('created_at', DateUtil.toISOString(weekRange.start))
-      .lt('created_at', DateUtil.toISOString(weekRange.endExclusive))
+      .gte('desired_date', desiredDateStart)
+      .lt('desired_date', desiredDateEndExclusive)
       .order('desired_date', { ascending: true, nullsFirst: false })
       .order('desired_period', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
@@ -141,8 +143,8 @@ export default async function ManagerDashboardPage({
          )
         `
       )
-      .gte('created_at', DateUtil.toISOString(weekRange.start))
-      .lt('created_at', DateUtil.toISOString(weekRange.endExclusive))
+      .gte('desired_date', desiredDateStart)
+      .lt('desired_date', desiredDateEndExclusive)
       .order('desired_date', { ascending: true, nullsFirst: false })
       .order('desired_period', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
