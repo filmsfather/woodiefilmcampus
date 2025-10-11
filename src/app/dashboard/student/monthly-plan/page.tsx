@@ -14,6 +14,7 @@ import { fetchClassMaterialSummaries } from '@/lib/class-materials'
 import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
 import { LEARNING_JOURNAL_SUBJECTS, type LearningJournalSubject } from '@/types/learning-journal'
 import type { MediaAssetRecord } from '@/lib/assignment-evaluation'
+import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 interface SubjectMaterial {
   title: string
@@ -80,13 +81,34 @@ export default async function StudentMonthlyPlanPage({
     return null
   }
 
-  if (!profile.class_id) {
+  const supabase = createServerSupabase()
+
+  const { data: classRows, error: classError } = await supabase
+    .from('class_students')
+    .select('class_id')
+    .eq('student_id', profile.id)
+
+  if (classError) {
+    console.error('[student-monthly-plan] failed to fetch class memberships', classError)
+  }
+
+  const classIds = new Set<string>()
+  if (profile.class_id) {
+    classIds.add(profile.class_id)
+  }
+  for (const row of classRows ?? []) {
+    if (row.class_id) {
+      classIds.add(row.class_id)
+    }
+  }
+
+  if (classIds.size === 0) {
     return (
       <section className="space-y-6">
         <DashboardBackLink fallbackHref="/dashboard/student" label="학생 대시보드로 돌아가기" />
         <header className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">이번달 학습 계획</h1>
-          <p className="text-sm text-slate-600">소속 반 정보가 없어 월간 학습 계획을 확인할 수 없습니다. 담임 선생님께 문의해주세요.</p>
+          <p className="text-sm text-slate-600">소속 반 정보가 확인되지 않습니다. 담임 선생님에게 반 등록을 요청해주세요.</p>
         </header>
         <Button asChild variant="outline">
           <Link href="/dashboard/student">학생 대시보드</Link>
@@ -95,7 +117,7 @@ export default async function StudentMonthlyPlanPage({
     )
   }
 
-  const periods = await fetchLearningJournalPeriodsForClasses([profile.class_id])
+  const periods = await fetchLearningJournalPeriodsForClasses(Array.from(classIds))
 
   if (periods.length === 0) {
     return (
@@ -115,7 +137,7 @@ export default async function StudentMonthlyPlanPage({
   )
   const activePeriod = sortedPeriods.find((period) => period.id === periodParam) ?? sortedPeriods[0]
 
-  const template = await fetchClassLearningJournalTemplate(profile.class_id, activePeriod.id)
+  const template = await fetchClassLearningJournalTemplate(activePeriod.classId, activePeriod.id)
 
   const ranges = resolveWeeklyRanges(activePeriod)
   const materialIdSet = new Set<string>()
