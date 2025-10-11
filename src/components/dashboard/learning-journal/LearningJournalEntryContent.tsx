@@ -32,7 +32,6 @@ interface LearningJournalEntryContentProps {
   emptyEventsMessage?: string
   emptySummaryMessage?: string
   emptyWeeklyMessage?: string
-  emptyCommentMessage?: string
   actionPanel?: ReactNode
 }
 
@@ -84,16 +83,24 @@ export function LearningJournalEntryContent({
   emptyEventsMessage = '등록된 학사 일정이 없습니다.',
   emptySummaryMessage = '아직 요약 정보가 준비되지 않았습니다.',
   emptyWeeklyMessage = '주차별 콘텐츠가 아직 등록되지 않았습니다.',
-  emptyCommentMessage = '등록된 코멘트가 없습니다.',
   actionPanel,
 }: LearningJournalEntryContentProps) {
   const homeroomComment = comments.find((comment) => comment.roleScope === 'homeroom')
-  const subjectComments = LEARNING_JOURNAL_SUBJECT_OPTIONS.map((option) => ({
-    optionLabel: option.label,
-    comment: comments.find(
+  const homeroomBody = homeroomComment?.body?.trim() ?? ''
+  const subjectComments = LEARNING_JOURNAL_SUBJECT_OPTIONS.map((option) => {
+    const target = comments.find(
       (comment) => comment.roleScope === 'subject' && comment.subject === option.value
-    ),
-  }))
+    )
+    const body = target?.body?.trim() ?? ''
+    return {
+      optionLabel: option.label,
+      body,
+    }
+  }).filter((item) => item.body.length > 0)
+
+  const hasHomeroomComment = homeroomBody.length > 0
+  const hasSubjectComments = subjectComments.length > 0
+  const hasAnyComment = hasHomeroomComment || hasSubjectComments
 
   const renderedSummary = renderStructuredContent(summary)
   const renderedWeekly = renderStructuredContent(weekly)
@@ -167,29 +174,28 @@ export function LearningJournalEntryContent({
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900">코멘트</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {!homeroomComment && subjectComments.every(({ comment }) => !comment) ? (
-            <p className="text-sm text-slate-500">{emptyCommentMessage}</p>
-          ) : (
-            <div className="space-y-3 text-sm text-slate-600">
+      {hasAnyComment ? (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">코멘트</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-slate-600">
+            {hasHomeroomComment ? (
               <div className="rounded-md border border-slate-200 bg-white p-3">
                 <p className="font-medium text-slate-900">담임 코멘트</p>
-                <p className="mt-1 whitespace-pre-wrap text-slate-600">{homeroomComment?.body ?? ''}</p>
+                <p className="mt-1 whitespace-pre-wrap text-slate-600">{homeroomBody}</p>
               </div>
-              {subjectComments.map(({ optionLabel, comment }) => (
-                <div key={optionLabel} className="rounded-md border border-slate-200 bg-white p-3">
-                  <p className="font-medium text-slate-900">{optionLabel} 코멘트</p>
-                  <p className="mt-1 whitespace-pre-wrap text-slate-600">{comment?.body ?? ''}</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            ) : null}
+
+            {subjectComments.map(({ optionLabel, body }) => (
+              <div key={optionLabel} className="rounded-md border border-slate-200 bg-white p-3">
+                <p className="font-medium text-slate-900">{optionLabel} 코멘트</p>
+                <p className="mt-1 whitespace-pre-wrap text-slate-600">{body}</p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-slate-200">
         <CardHeader>

@@ -2,6 +2,7 @@ import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import {
   LEARNING_JOURNAL_SUBJECTS,
+  LEARNING_JOURNAL_SUBJECT_INFO,
   type LearningJournalAcademicEvent,
   type LearningJournalComment,
   type LearningJournalEntryDetail,
@@ -1783,12 +1784,15 @@ export async function fetchLearningJournalAcademicEvents(monthTokens: string[]):
   }))
 }
 
-export const LEARNING_JOURNAL_SUBJECT_OPTIONS = LEARNING_JOURNAL_SUBJECTS.map((subject) => ({
+const LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER: LearningJournalSubject[] = [
+  'directing',
+  'screenwriting',
+  'film_research',
+  'karts',
+  'integrated_theory',
+]
+
+export const LEARNING_JOURNAL_SUBJECT_OPTIONS = LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER.map((subject) => ({
   value: subject,
-  label:
-    subject === 'directing'
-      ? '연출론'
-      : subject === 'screenwriting'
-        ? '작법론'
-        : '영화연구',
+  label: LEARNING_JOURNAL_SUBJECT_INFO[subject].label,
 }))
