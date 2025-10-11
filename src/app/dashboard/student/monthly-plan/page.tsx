@@ -196,8 +196,11 @@ export default async function StudentMonthlyPlanPage({
     }
   })
 
-  const hasAnyMaterial = weeks.some((week) =>
-    LEARNING_JOURNAL_SUBJECTS.some((subject) => week.subjects[subject].materials.length > 0)
+  const hasAnyContent = weeks.some((week) =>
+    LEARNING_JOURNAL_SUBJECTS.some((subject) => {
+      const subjectConfig = week.subjects[subject]
+      return subjectConfig.materials.length > 0 || Boolean(subjectConfig.note)
+    })
   )
 
   return (
@@ -240,79 +243,88 @@ export default async function StudentMonthlyPlanPage({
         </div>
       ) : null}
 
-      {hasAnyMaterial ? null : (
+      {hasAnyContent ? null : (
         <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
           아직 등록된 학습 자료가 없습니다. 선생님이 계획을 채우면 이곳에 표시됩니다.
         </div>
       )}
 
       <div className="space-y-6">
-        {weeks.map((week) => (
-          <Card key={week.weekIndex} className="border-slate-200 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-xl text-slate-900">{week.label}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {LEARNING_JOURNAL_SUBJECTS.map((subject) => {
-                const subjectConfig = week.subjects[subject]
-                const meta = LEARNING_JOURNAL_SUBJECT_INFO[subject]
-                return (
-                  <div key={`${week.weekIndex}-${subject}`} className="space-y-3">
-                    <div className="flex flex-col gap-1">
-                      <h3 className="text-lg font-semibold text-slate-900">{meta.label}</h3>
-                      <p className="text-xs text-slate-500">{meta.description}</p>
-                      {subjectConfig.note ? (
-                        <p className="rounded-md bg-sky-50 p-2 text-sm text-sky-700">
-                          {subjectConfig.note}
-                        </p>
+        {weeks.map((week) => {
+          const visibleSubjects = LEARNING_JOURNAL_SUBJECTS.filter((subject) => {
+            const subjectConfig = week.subjects[subject]
+            return subjectConfig.materials.length > 0 || Boolean(subjectConfig.note)
+          })
+
+          if (visibleSubjects.length === 0) {
+            return null
+          }
+
+          return (
+            <Card key={week.weekIndex} className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-xl text-slate-900">{week.label}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {visibleSubjects.map((subject, subjectIndex) => {
+                  const subjectConfig = week.subjects[subject]
+                  const meta = LEARNING_JOURNAL_SUBJECT_INFO[subject]
+                  return (
+                    <div key={`${week.weekIndex}-${subject}`} className="space-y-3">
+                      <div className="flex flex-col gap-1">
+                        <h3 className="text-lg font-semibold text-slate-900">{meta.label}</h3>
+                        <p className="text-xs text-slate-500">{meta.description}</p>
+                        {subjectConfig.note ? (
+                          <p className="rounded-md bg-sky-50 p-2 text-sm text-sky-700">
+                            {subjectConfig.note}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      {subjectConfig.materials.length > 0 ? (
+                        <div className="space-y-4">
+                          {subjectConfig.materials.map((material, index) => (
+                            <div
+                              key={`${week.weekIndex}-${subject}-${index}`}
+                              className="rounded-md border border-slate-200 p-4"
+                            >
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                  <p className="text-base font-medium text-slate-900">{material.title}</p>
+                                  {material.description ? (
+                                    <p className="text-sm text-slate-600">{material.description}</p>
+                                  ) : null}
+                                </div>
+                                {material.handout ? (
+                                  <Button asChild size="sm" variant="outline">
+                                    <Link
+                                      href={material.handout.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      download={material.handout.filename}
+                                    >
+                                      학생 유인물 다운로드
+                                    </Link>
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-slate-400">학생 유인물이 등록되지 않았습니다.</span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      {subjectIndex < visibleSubjects.length - 1 ? (
+                        <div className="border-t border-slate-200" />
                       ) : null}
                     </div>
-
-                    {subjectConfig.materials.length > 0 ? (
-                      <div className="space-y-4">
-                        {subjectConfig.materials.map((material, index) => (
-                          <div
-                            key={`${week.weekIndex}-${subject}-${index}`}
-                            className="rounded-md border border-slate-200 p-4"
-                          >
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
-                                <p className="text-base font-medium text-slate-900">{material.title}</p>
-                                {material.description ? (
-                                  <p className="text-sm text-slate-600">{material.description}</p>
-                                ) : null}
-                              </div>
-                              {material.handout ? (
-                                <Button asChild size="sm" variant="outline">
-                                  <Link
-                                    href={material.handout.url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    download={material.handout.filename}
-                                  >
-                                    학생 유인물 다운로드
-                                  </Link>
-                                </Button>
-                              ) : (
-                                <span className="text-xs text-slate-400">학생 유인물이 등록되지 않았습니다.</span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : subjectConfig.note ? null : (
-                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
-                        아직 등록된 수업 자료가 없습니다.
-                      </div>
-                    )}
-
-                    <div className="border-t border-slate-200" />
-                  </div>
-                )
-              })}
-            </CardContent>
-          </Card>
-        ))}
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
     </section>
   )
