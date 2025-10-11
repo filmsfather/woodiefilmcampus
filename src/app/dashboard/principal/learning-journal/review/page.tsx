@@ -115,21 +115,20 @@ export default async function PrincipalLearningJournalReviewPage({
           const params = new URLSearchParams()
           params.set('status', option.value)
           if (classParam) params.set('class', classParam)
-          if (periodParam) params.set('period', periodParam)
-          if (entryIdParam) params.set('entry', entryIdParam)
 
           return (
-          <Button
-            key={option.value}
-            asChild
-            size="sm"
-            variant={option.value === statusParam ? 'default' : 'outline'}
-          >
-            <Link href={`/dashboard/principal/learning-journal/review?${params.toString()}`}>
-              {option.label}
-            </Link>
-          </Button>
-        )})}
+            <Button
+              key={option.value}
+              asChild
+              size="sm"
+              variant={option.value === statusParam ? 'default' : 'outline'}
+            >
+              <Link href={`/dashboard/principal/learning-journal/review?${params.toString()}`}>
+                {option.label}
+              </Link>
+            </Button>
+          )
+        })}
       </div>
 
       {classes.length > 0 ? (
@@ -138,8 +137,6 @@ export default async function PrincipalLearningJournalReviewPage({
             const params = new URLSearchParams()
             params.set('status', statusParam)
             params.set('class', classItem.id)
-            if (periodParam) params.set('period', periodParam)
-            if (entryIdParam) params.set('entry', entryIdParam)
             return (
               <Button
                 key={classItem.id}
@@ -163,7 +160,6 @@ export default async function PrincipalLearningJournalReviewPage({
             params.set('status', statusParam)
             if (classParam) params.set('class', classParam)
             params.set('period', period.id)
-            if (entryIdParam) params.set('entry', entryIdParam)
             return (
               <Button
                 key={period.id}
