@@ -18,7 +18,7 @@ const TEMPLATE_PATH = '/dashboard/teacher/learning-journal/templates'
 export async function upsertClassTemplateWeekAction(rawForm: FormData) {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  if (!profile || !['teacher', 'principal'].includes(profile.role)) {
     return { error: '월간 학습 계획을 수정할 권한이 없습니다.' }
   }
 
@@ -61,7 +61,7 @@ export async function upsertClassTemplateWeekAction(rawForm: FormData) {
 export async function deleteClassTemplateWeekAction(formData: FormData) {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
+  if (!profile || !['teacher', 'principal'].includes(profile.role)) {
     return { error: '월간 학습 계획을 수정할 권한이 없습니다.' }
   }
 
