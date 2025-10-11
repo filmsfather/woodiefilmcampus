@@ -61,6 +61,16 @@ interface ClassSummary {
 
 const UPCOMING_WINDOW_DAYS = 3
 
+interface RawPrincipalClassRow {
+  id: string
+  name: string | null
+}
+
+interface ManagedClass {
+  id: string
+  name: string
+}
+
 export default async function TeacherClassReviewPage({
   params,
   searchParams,
@@ -73,47 +83,63 @@ export default async function TeacherClassReviewPage({
   const isPrincipal = profile.role === 'principal'
   const weekRange = resolveWeekRange(searchParams.week ?? null)
 
-  let classInfo: { id: string; name: string } | null = null
+  let classRows: RawPrincipalClassRow[] | RawClassRow[] | null = null
 
   if (isPrincipal) {
-    const { data: classRow, error: principalClassError } = await supabase
+    const { data, error } = await supabase
       .from('classes')
       .select('id, name')
-      .eq('id', params.classId)
-      .maybeSingle()
+      .order('name', { ascending: true })
 
-    if (principalClassError) {
-      console.error('[principal] class review fetch error', principalClassError)
+    if (error) {
+      console.error('[principal] class review fetch error', error)
     }
 
-    if (classRow?.id) {
-      classInfo = {
-        id: classRow.id,
-        name: classRow.name ?? '이름 미정',
-      }
-    }
+    classRows = data ?? null
   } else {
-    const { data: classRecord, error: classError } = await supabase
+    const { data, error } = await supabase
       .from('class_teachers')
       .select('class_id, classes(id, name)')
       .eq('teacher_id', profile.id)
-      .eq('class_id', params.classId)
-      .maybeSingle<RawClassRow>()
 
-    if (classError) {
-      console.error('[teacher] class review fetch error', classError)
+    if (error) {
+      console.error('[teacher] class review fetch error', error)
     }
 
-    if (classRecord) {
-      const cls = Array.isArray(classRecord.classes) ? classRecord.classes[0] : classRecord.classes
-      if (cls?.id) {
-        classInfo = {
-          id: cls.id,
-          name: cls.name ?? '이름 미정',
-        }
-      }
-    }
+    classRows = (data as RawClassRow[] | null) ?? null
   }
+
+  const managedClasses: ManagedClass[] = (() => {
+    if (!classRows) {
+      return []
+    }
+
+    if (isPrincipal) {
+      return (classRows as RawPrincipalClassRow[]).reduce<ManagedClass[]>((acc, row) => {
+        if (!row.id) {
+          return acc
+        }
+        acc.push({ id: row.id, name: row.name ?? '이름 미정' })
+        return acc
+      }, [])
+    }
+
+    const unique = new Map<string, ManagedClass>()
+    ;(classRows as RawClassRow[]).forEach((row) => {
+      const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
+      const id = cls?.id ?? row.class_id
+      if (!id) {
+        return
+      }
+      const name = cls?.name ?? '이름 미정'
+      if (!unique.has(id)) {
+        unique.set(id, { id, name })
+      }
+    })
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name))
+  })()
+
+  const classInfo = managedClasses.find((cls) => cls.id === params.classId)
 
   if (!classInfo) {
     notFound()
@@ -290,6 +316,7 @@ export default async function TeacherClassReviewPage({
       <ClassDashboard
         classId={classInfo.id}
         className={classInfo.name}
+        managedClasses={managedClasses}
         teacherName={profile.name ?? profile.email ?? null}
         assignments={assignments}
         summary={summary}

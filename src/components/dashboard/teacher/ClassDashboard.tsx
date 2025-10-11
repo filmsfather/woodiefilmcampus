@@ -13,12 +13,13 @@ import {
 
 import { AssignmentEvaluationPanel } from '@/components/dashboard/teacher/AssignmentEvaluationPanel'
 import { deleteAssignmentTarget } from '@/app/dashboard/teacher/actions'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import DateUtil from '@/lib/date-util'
 import type { AssignmentDetail } from '@/lib/assignment-evaluation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 const TYPE_LABELS: Record<string, string> = {
   srs: 'SRS 반복',
@@ -89,6 +90,7 @@ interface ClassSummary {
 interface ClassDashboardProps {
   classId: string
   className: string
+  managedClasses: Array<{ id: string; name: string }>
   teacherName: string | null
   assignments: ClassAssignmentSummary[]
   summary: ClassSummary
@@ -98,6 +100,7 @@ interface ClassDashboardProps {
 export function ClassDashboard({
   classId,
   className,
+  managedClasses,
   teacherName,
   assignments,
   summary,
@@ -112,6 +115,8 @@ export function ClassDashboard({
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isDeletingClass, startDeleteClass] = useTransition()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const searchParamsString = searchParams.toString()
 
   const activeAssignment = useMemo(
     () => assignments.find((assignment) => assignment.id === activeAssignmentId) ?? null,
@@ -177,6 +182,22 @@ export function ClassDashboard({
     })
   }, [activeAssignment, classId, className, router])
 
+  const handleClassChange = useCallback(
+    (nextClassId: string) => {
+      if (!nextClassId || nextClassId === classId) {
+        return
+      }
+      const params = new URLSearchParams(searchParamsString)
+      params.delete('assignment')
+      const queryString = params.toString()
+      const target = queryString
+        ? `/dashboard/teacher/review/${nextClassId}?${queryString}`
+        : `/dashboard/teacher/review/${nextClassId}`
+      router.push(target)
+    },
+    [classId, router, searchParamsString]
+  )
+
   const statusSummary = useMemo(() => {
     if (!activeDetail) {
       return null
@@ -237,20 +258,34 @@ export function ClassDashboard({
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-2">
             <h1 className="text-2xl font-semibold text-slate-900">{className} 반 과제 점검</h1>
             <p className="text-sm text-slate-600">반의 과제 진행 상황을 확인하고 필요한 학생을 빠르게 평가하세요.</p>
           </div>
-          <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-            <Badge variant="outline">미평가 {summary.incompleteStudents}명</Badge>
-            <Badge variant={summary.overdueAssignments > 0 ? 'destructive' : 'outline'}>
-              지연 {summary.overdueAssignments}건
-            </Badge>
-            <Badge variant={summary.pendingPrintRequests > 0 ? 'secondary' : 'outline'}>
-              인쇄 대기 {summary.pendingPrintRequests}건
-            </Badge>
-            {summary.nextDueAtLabel && <Badge variant="outline">다음 마감 {summary.nextDueAtLabel}</Badge>}
+          <div className="flex flex-col gap-2 md:items-end">
+            <Select value={classId} onValueChange={handleClassChange}>
+              <SelectTrigger className="w-full md:w-60">
+                <SelectValue placeholder="반을 선택하세요" />
+              </SelectTrigger>
+              <SelectContent>
+                {managedClasses.map((managedClass) => (
+                  <SelectItem key={managedClass.id} value={managedClass.id}>
+                    {managedClass.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+              <Badge variant="outline">미평가 {summary.incompleteStudents}명</Badge>
+              <Badge variant={summary.overdueAssignments > 0 ? 'destructive' : 'outline'}>
+                지연 {summary.overdueAssignments}건
+              </Badge>
+              <Badge variant={summary.pendingPrintRequests > 0 ? 'secondary' : 'outline'}>
+                인쇄 대기 {summary.pendingPrintRequests}건
+              </Badge>
+              {summary.nextDueAtLabel && <Badge variant="outline">다음 마감 {summary.nextDueAtLabel}</Badge>}
+            </div>
           </div>
         </div>
       </header>
