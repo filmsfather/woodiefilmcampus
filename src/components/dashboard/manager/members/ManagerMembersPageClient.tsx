@@ -79,11 +79,14 @@ type EditState = {
   academicRecord: string
 }
 
-const roleFilterOptions: Array<{ label: string; value: 'all' | MemberRole }> = [
+type MembersFilter = 'all' | MemberRole | 'unassigned'
+
+const roleFilterOptions: Array<{ label: string; value: MembersFilter }> = [
   { label: '전체', value: 'all' },
   { label: '학생', value: 'student' },
   { label: '교사', value: 'teacher' },
   { label: '매니저', value: 'manager' },
+  { label: '미배정 학생', value: 'unassigned' },
 ]
 
 const roleLabelMap: Record<MemberRole, string> = {
@@ -123,7 +126,7 @@ function normalizeInput(value: string) {
 export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClientProps) {
   const router = useRouter()
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null)
-  const [filter, setFilter] = useState<'all' | MemberRole>('all')
+  const [filter, setFilter] = useState<MembersFilter>('all')
   const [search, setSearch] = useState('')
   const [editState, setEditState] = useState<EditState | null>(null)
   const [saving, startSavingTransition] = useTransition()
@@ -139,7 +142,12 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
     const normalizedSearch = search.trim().toLowerCase()
 
     return members.filter((member) => {
-      const roleMatches = filter === 'all' ? true : member.role === filter
+      const roleMatches =
+        filter === 'all'
+          ? true
+          : filter === 'unassigned'
+            ? member.role === 'student' && member.classAssignments.length === 0
+            : member.role === filter
 
       if (!roleMatches) {
         return false
@@ -384,7 +392,14 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
               {option.label}
               {option.value !== 'all' && (
                 <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                  {members.filter((member) => member.role === option.value).length}
+                  {(() => {
+                    if (option.value === 'unassigned') {
+                      return members.filter(
+                        (member) => member.role === 'student' && member.classAssignments.length === 0
+                      ).length
+                    }
+                    return members.filter((member) => member.role === option.value).length
+                  })()}
                 </Badge>
               )}
             </Button>
