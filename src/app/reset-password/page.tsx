@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/client'
@@ -13,6 +13,29 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 type ViewState = 'verifying' | 'ready' | 'error' | 'success'
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordFallback />}>
+      <ResetPasswordContent />
+    </Suspense>
+  )
+}
+
+function ResetPasswordFallback() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-primary/15 via-background to-secondary/10 px-6 py-12">
+      <Card className="w-full max-w-lg border border-border/80 bg-card/80 shadow">
+        <CardHeader>
+          <CardTitle className="text-center">비밀번호 재설정</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-center text-muted-foreground">링크를 검증하고 있습니다...</p>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const code = searchParams.get('code')
