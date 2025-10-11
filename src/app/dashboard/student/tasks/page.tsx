@@ -1,12 +1,9 @@
-import Link from 'next/link'
-
 import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 import { StudentDashboard } from '@/components/dashboard/student/StudentDashboard'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchStudentTaskSummaries } from '@/lib/student-tasks'
 import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
-import { Button } from '@/components/ui/button'
 
 export default async function StudentTasksOverviewPage({
   searchParams,
@@ -41,11 +38,6 @@ export default async function StudentTasksOverviewPage({
           nextHref={nextWeekHref}
           className="w-full max-w-xs md:w-auto"
         />
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/student/learning-journal">지난달 학습 일지</Link>
-        </Button>
       </div>
       <StudentDashboard
         profileName={profile.name ?? profile.email ?? null}

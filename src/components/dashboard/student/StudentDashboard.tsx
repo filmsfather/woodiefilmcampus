@@ -221,18 +221,11 @@ export function StudentDashboard({ profileName, tasks, serverNowIso, weekLabel }
 
   return (
     <section className="space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold text-slate-900">학생 대시보드</h1>
-          <p className="text-sm text-slate-600">
-            {profileName ?? '학생'}님, 현재 시각 {nowLabel} 기준 학습 현황입니다.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/student/film-notes" className="flex items-center gap-1">
-            감상일지 보기
-          </Link>
-        </Button>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold text-slate-900">학생 대시보드</h1>
+        <p className="text-sm text-slate-600">
+          {profileName ?? '학생'}님, 현재 시각 {nowLabel} 기준 학습 현황입니다.
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
