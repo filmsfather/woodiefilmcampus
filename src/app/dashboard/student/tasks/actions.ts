@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
+import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 const SUBMISSIONS_BUCKET = 'submissions'
@@ -690,6 +691,8 @@ export async function submitPdfSubmission(formData: FormData) {
       throw new Error('제출 파일 정보를 저장하지 못했습니다.')
     }
 
+    let taskSubmissionId = existingSubmission?.id ?? null
+
     if (existingSubmission) {
       const { error: updateError } = await supabase
         .from('task_submissions')
@@ -705,17 +708,23 @@ export async function submitPdfSubmission(formData: FormData) {
         throw new Error('제출 정보를 저장하지 못했습니다.')
       }
     } else {
-      const { error: insertError } = await supabase.from('task_submissions').insert({
-        student_task_id: studentTaskId,
-        submission_type: 'pdf',
-        content: sanitizedName,
-        media_asset_id: mediaAsset.id,
-      })
+      const { data: insertedSubmission, error: insertError } = await supabase
+        .from('task_submissions')
+        .insert({
+          student_task_id: studentTaskId,
+          submission_type: 'pdf',
+          content: sanitizedName,
+          media_asset_id: mediaAsset.id,
+        })
+        .select('id')
+        .single()
 
-      if (insertError) {
+      if (insertError || !insertedSubmission?.id) {
         console.error('[submitPdfSubmission] failed to insert task_submissions', insertError)
         throw new Error('제출 정보를 저장하지 못했습니다.')
       }
+
+      taskSubmissionId = insertedSubmission.id
     }
 
     await supabase
@@ -727,8 +736,21 @@ export async function submitPdfSubmission(formData: FormData) {
       await removeMediaAsset(supabase, oldAssetId)
     }
 
+    const effectiveSubmissionId = taskSubmissionId ?? existingSubmission?.id ?? null
+
+    if (effectiveSubmissionId) {
+      await syncAtelierPostForPdfSubmission({
+        studentTaskId,
+        studentId: profile.id,
+        taskSubmissionId: effectiveSubmissionId,
+        mediaAssetId: mediaAsset.id,
+      })
+    }
+
     revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${studentTaskId}`)
+    revalidatePath('/dashboard/student/atelier')
+    revalidatePath('/dashboard/teacher/atelier')
 
     return { success: true as const }
   } catch (error) {

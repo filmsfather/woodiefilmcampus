@@ -90,6 +90,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '제출된 과제를 확인하고 평가를 진행하세요.',
         variant: 'outline',
       },
+      {
+        label: '학생 아뜰리에',
+        href: '/dashboard/teacher/atelier',
+        description: '학생 제출물을 추천하거나 목록에서 정리하세요.',
+        variant: 'outline',
+      },
     ],
   },
 ]

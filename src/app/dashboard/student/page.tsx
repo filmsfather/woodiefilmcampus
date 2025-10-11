@@ -20,6 +20,10 @@ const STUDENT_ACTIONS = [
     label: '감상일지 보기',
     href: '/dashboard/student/film-notes',
   },
+  {
+    label: '아뜰리에 둘러보기',
+    href: '/dashboard/student/atelier',
+  },
 ]
 
 export default async function StudentDashboardPage() {
