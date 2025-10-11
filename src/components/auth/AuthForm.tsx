@@ -21,6 +21,7 @@ export function AuthForm() {
   const [parentPhoneNumber, setParentPhoneNumber] = useState('')
   const [academicRecord, setAcademicRecord] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isResetPassword, setIsResetPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -30,12 +31,35 @@ export function AuthForm() {
     setMessage('')
 
     try {
+      if (isResetPassword) {
+        const trimmedEmail = email.trim()
+        if (!trimmedEmail) {
+          setMessage('이메일을 입력해주세요.')
+          return
+        }
+
+        const baseUrl =
+          process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ??
+          (typeof window !== 'undefined' ? window.location.origin : '')
+
+        if (!baseUrl) {
+          throw new Error('비밀번호 재설정 URL을 확인할 수 없습니다.')
+        }
+
+        const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+          redirectTo: `${baseUrl}/reset-password`,
+        })
+        if (error) throw error
+        setMessage('비밀번호 재설정 링크를 이메일로 전송했습니다.')
+        return
+      }
+
       if (isSignUp) {
         const trimmedName = studentName.trim()
         const trimmedPhone = phoneNumber.trim()
         const trimmedAcademicRecord = academicRecord.trim()
         const trimmedParentPhone = parentPhoneNumber.trim()
-
+        
         if (!trimmedName || !trimmedPhone || !trimmedAcademicRecord) {
           setMessage('필수 정보를 모두 입력해주세요.')
           return
@@ -72,12 +96,17 @@ export function AuthForm() {
     }
   }
 
+  const heading = isResetPassword ? '비밀번호 재설정' : isSignUp ? '회원가입' : '로그인'
+  const submitLabel = isResetPassword
+    ? '재설정 링크 보내기'
+    : isSignUp
+      ? '회원가입'
+      : '로그인'
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
-        <CardTitle className="text-center">
-          {isSignUp ? '회원가입' : '로그인'}
-        </CardTitle>
+        <CardTitle className="text-center">{heading}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleAuth} className="space-y-4">
@@ -92,18 +121,20 @@ export function AuthForm() {
               autoComplete="email"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">비밀번호</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete={isSignUp ? 'new-password' : 'current-password'}
-            />
-          </div>
-          {isSignUp && (
+          {!isResetPassword && (
+            <div className="space-y-2">
+              <Label htmlFor="password">비밀번호</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              />
+            </div>
+          )}
+          {isSignUp && !isResetPassword && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="student-name">학생 이름</Label>
@@ -150,29 +181,60 @@ export function AuthForm() {
               </div>
             </>
           )}
+          {!isSignUp && !isResetPassword && (
+            <div className="text-right">
+              <Button
+                type="button"
+                variant="link"
+                className="px-0"
+                onClick={() => {
+                  setIsResetPassword(true)
+                  setIsSignUp(false)
+                  setMessage('')
+                  setPassword('')
+                }}
+              >
+                비밀번호를 잊으셨나요?
+              </Button>
+            </div>
+          )}
           {message && (
             <Alert>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인'}
+            {loading ? '처리 중...' : submitLabel}
           </Button>
         </form>
         <div className="mt-4 text-center">
-          <Button
-            variant="link"
-            onClick={() => {
-              setIsSignUp(!isSignUp)
-              setMessage('')
-              setStudentName('')
-              setPhoneNumber('')
-              setParentPhoneNumber('')
-              setAcademicRecord('')
-            }}
-          >
-            {isSignUp ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입'}
-          </Button>
+          {isResetPassword ? (
+            <Button
+              variant="link"
+              onClick={() => {
+                setIsResetPassword(false)
+                setMessage('')
+              }}
+            >
+              로그인으로 돌아가기
+            </Button>
+          ) : (
+            <Button
+              variant="link"
+              onClick={() => {
+                const nextIsSignUp = !isSignUp
+                setIsSignUp(nextIsSignUp)
+                setIsResetPassword(false)
+                setMessage('')
+                setStudentName('')
+                setPhoneNumber('')
+                setParentPhoneNumber('')
+                setAcademicRecord('')
+              }}
+            >
+              {isSignUp ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입'}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>
