@@ -10,6 +10,7 @@ import type {
   ClassLearningJournalTemplate,
   LearningJournalSubject,
 } from '@/types/learning-journal'
+import { LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
 interface MaterialOption {
   id: string
@@ -104,13 +105,7 @@ export function ClassTemplateEditorClient({ classId, periodId, template, materia
         <ClassTemplateMaterialDialog
           open={dialogState.open}
           onClose={handleDialogClose}
-          subjectLabel={
-            dialogState.subject === 'directing'
-              ? '연출론'
-              : dialogState.subject === 'screenwriting'
-                ? '작법론'
-                : '영화연구'
-          }
+          subjectLabel={LEARNING_JOURNAL_SUBJECT_INFO[dialogState.subject].label}
           options={materials[dialogState.subject] ?? []}
           selected={activeConfig.materialIds.map((id, index) => ({
             id,

@@ -65,9 +65,41 @@ export interface LearningJournalComment {
   updatedAt: string
 }
 
-export const LEARNING_JOURNAL_SUBJECTS = ['directing', 'screenwriting', 'film_research'] as const
+export const LEARNING_JOURNAL_SUBJECTS = [
+  'directing',
+  'screenwriting',
+  'film_research',
+  'integrated_theory',
+  'karts',
+] as const
 
 export type LearningJournalSubject = (typeof LEARNING_JOURNAL_SUBJECTS)[number]
+
+export const LEARNING_JOURNAL_SUBJECT_INFO: Record<LearningJournalSubject, {
+  label: string
+  description: string
+}> = {
+  directing: {
+    label: '연출론',
+    description: '장면 구성과 연출 기획을 중심으로 학습합니다.',
+  },
+  screenwriting: {
+    label: '작법론',
+    description: '시나리오 작성과 스토리 구조를 다룹니다.',
+  },
+  film_research: {
+    label: '영화연구',
+    description: '영화 분석과 이론 학습에 집중합니다.',
+  },
+  integrated_theory: {
+    label: '통합이론',
+    description: '융합적 시각으로 이론과 실습을 연결합니다.',
+  },
+  karts: {
+    label: '한예종',
+    description: '한국예술종합학교 대비를 위한 심화 학습입니다.',
+  },
+}
 
 export interface LearningJournalGreeting {
   monthToken: string

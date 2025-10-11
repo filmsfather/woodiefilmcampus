@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { LearningJournalSubject } from '@/types/learning-journal'
-import { LEARNING_JOURNAL_SUBJECTS } from '@/types/learning-journal'
+import { LEARNING_JOURNAL_SUBJECTS, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
 interface TemplateSubjectConfig {
   templateId: string | null
@@ -27,12 +27,6 @@ interface TemplateWeekConfig {
 interface ClassTemplateEditorProps {
   weeks: TemplateWeekConfig[]
   onEdit: (weekIndex: number, subject: LearningJournalSubject) => void
-}
-
-const SUBJECT_LABELS: Record<LearningJournalSubject, string> = {
-  directing: '연출론',
-  screenwriting: '작법론',
-  film_research: '영화연구',
 }
 
 export function ClassTemplateEditor({ weeks, onEdit }: ClassTemplateEditorProps) {
@@ -65,7 +59,7 @@ export function ClassTemplateEditor({ weeks, onEdit }: ClassTemplateEditorProps)
               return (
                 <Card key={subject} className="border-slate-200">
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg text-slate-900">{SUBJECT_LABELS[subject]}</CardTitle>
+                    <CardTitle className="text-lg text-slate-900">{LEARNING_JOURNAL_SUBJECT_INFO[subject].label}</CardTitle>
                     <Button size="sm" onClick={() => onEdit(activeConfig.weekIndex, subject)}>
                       자료 선택 / 편집
                     </Button>

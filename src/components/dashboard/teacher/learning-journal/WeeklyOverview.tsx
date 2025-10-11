@@ -1,12 +1,6 @@
 import { Badge } from '@/components/ui/badge'
 import type { LearningJournalWeeklyData } from '@/types/learning-journal'
-import { LEARNING_JOURNAL_SUBJECTS } from '@/types/learning-journal'
-
-const SUBJECT_LABELS: Record<(typeof LEARNING_JOURNAL_SUBJECTS)[number], string> = {
-  directing: '연출론',
-  screenwriting: '작법론',
-  film_research: '영화연구',
-}
+import { LEARNING_JOURNAL_SUBJECTS, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
 const STATUS_LABEL: Record<string, string> = {
   completed: '완료',
@@ -37,7 +31,7 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
 
               return (
                 <div key={subject} className="space-y-3 rounded-md border border-slate-200 p-3">
-                  <h4 className="text-sm font-semibold text-slate-900">{SUBJECT_LABELS[subject]}</h4>
+                  <h4 className="text-sm font-semibold text-slate-900">{LEARNING_JOURNAL_SUBJECT_INFO[subject].label}</h4>
 
                   <div className="space-y-2">
                     <p className="text-xs font-medium text-slate-500">수업 내용</p>

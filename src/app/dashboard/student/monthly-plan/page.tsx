@@ -12,7 +12,7 @@ import {
 } from '@/lib/learning-journals'
 import { fetchClassMaterialSummaries } from '@/lib/class-materials'
 import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
-import { LEARNING_JOURNAL_SUBJECTS, type LearningJournalSubject } from '@/types/learning-journal'
+import { LEARNING_JOURNAL_SUBJECTS, type LearningJournalSubject, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 import type { MediaAssetRecord } from '@/lib/assignment-evaluation'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
@@ -34,26 +34,6 @@ interface WeekPlan {
     materials: SubjectMaterial[]
     note: string | null
   }>
-}
-
-interface SubjectMeta {
-  label: string
-  description: string
-}
-
-const SUBJECT_METADATA: Record<LearningJournalSubject, SubjectMeta> = {
-  directing: {
-    label: '연출론',
-    description: '장면 구성, 연출 기획과 관련된 학습입니다.'
-  },
-  screenwriting: {
-    label: '작법론',
-    description: '시나리오 작성과 플롯 설계를 다룹니다.'
-  },
-  film_research: {
-    label: '영화연구',
-    description: '영화 분석과 이론 학습에 집중합니다.'
-  }
 }
 
 function formatWeekLabel(start: string, end: string) {
@@ -275,7 +255,7 @@ export default async function StudentMonthlyPlanPage({
             <CardContent className="space-y-4">
               {LEARNING_JOURNAL_SUBJECTS.map((subject) => {
                 const subjectConfig = week.subjects[subject]
-                const meta = SUBJECT_METADATA[subject]
+                const meta = LEARNING_JOURNAL_SUBJECT_INFO[subject]
                 return (
                   <div key={`${week.weekIndex}-${subject}`} className="space-y-3">
                     <div className="flex flex-col gap-1">
