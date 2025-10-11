@@ -11,6 +11,7 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { WORKBOOK_TITLES } from '@/lib/validation/workbook'
 import { duplicateWorkbook, deleteWorkbook } from '@/app/dashboard/workbooks/actions'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 interface WorkbookDetailPageProps {
   params: {
@@ -30,7 +31,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
        workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
         workbook_item_choices(id, label, content, is_correct),
         workbook_item_short_fields(id, label, answer, position),
-        workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))
+       workbook_item_media(id, position, media_asset_id, media_assets(id, bucket, path, mime_type, size))
       )`
     )
     .eq('id', params.workbookId)
@@ -67,6 +68,69 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
 
   const mediaRecords = sortedItems.flatMap((item) => item.workbook_item_media ?? [])
 
+  const mediaAssetInfoMap = new Map<
+    string,
+    {
+      bucket: string | null
+      path: string | null
+      mimeType: string | null
+    }
+  >()
+
+  const missingAssetIds = new Set<string>()
+
+  for (const media of mediaRecords) {
+    const asset = media.media_assets as
+      | {
+          id?: string
+          bucket?: string | null
+          path?: string | null
+          mime_type?: string | null
+        }
+      | null
+      | undefined
+
+    if (asset?.id) {
+      mediaAssetInfoMap.set(asset.id, {
+        bucket: asset.bucket ?? 'workbook-assets',
+        path: asset.path ?? null,
+        mimeType: asset.mime_type ?? null,
+      })
+    }
+
+    const mediaAssetId = media.media_asset_id as string | null | undefined
+    if (mediaAssetId && !mediaAssetInfoMap.has(mediaAssetId)) {
+      missingAssetIds.add(mediaAssetId)
+    }
+  }
+
+  const canUseAdminClient = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)
+  const adminSupabase = canUseAdminClient ? createAdminClient() : null
+  const storageClient = adminSupabase ?? supabase
+
+  if (missingAssetIds.size > 0 && adminSupabase) {
+    const { data: fallbackAssets, error: fallbackFetchError } = await adminSupabase
+      .from('media_assets')
+      .select('id, bucket, path, mime_type')
+      .in('id', Array.from(missingAssetIds))
+
+    if (fallbackFetchError) {
+      console.error('[workbooks] media asset fallback fetch error', fallbackFetchError)
+    }
+
+    for (const asset of fallbackAssets ?? []) {
+      if (!asset?.id) {
+        continue
+      }
+
+      mediaAssetInfoMap.set(asset.id, {
+        bucket: (asset.bucket as string | null) ?? 'workbook-assets',
+        path: (asset.path as string | null) ?? null,
+        mimeType: (asset.mime_type as string | null) ?? null,
+      })
+    }
+  }
+
   const mediaSignedUrlMap = new Map<
     string,
     {
@@ -76,23 +140,29 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
     }
   >()
 
-  for (const media of mediaRecords) {
-    const asset = media.media_assets
-    if (!asset || !asset.path) {
+  for (const [assetId, info] of mediaAssetInfoMap.entries()) {
+    if (!info.path) {
       continue
     }
 
-    const bucket = asset.bucket ?? 'workbook-assets'
-    const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(asset.path, 60 * 60)
+    const bucket = info.bucket ?? 'workbook-assets'
+    const { data: signed, error: signedError } = await storageClient.storage
+      .from(bucket)
+      .createSignedUrl(info.path, 60 * 60)
+
+    if (signedError) {
+      console.error('[workbooks] media signed URL error', { assetId, bucket, path: info.path, signedError })
+      continue
+    }
 
     if (!signed?.signedUrl) {
       continue
     }
 
-    const filename = asset.path.split('/').pop() ?? '첨부파일'
-    mediaSignedUrlMap.set(asset.id, {
+    const filename = info.path.split('/').pop() ?? '첨부파일'
+    mediaSignedUrlMap.set(assetId, {
       url: signed.signedUrl,
-      mimeType: asset.mime_type ?? null,
+      mimeType: info.mimeType,
       filename,
     })
   }
@@ -293,12 +363,14 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
                   <p className="text-xs font-medium text-slate-500">첨부 자산</p>
                   <div className="flex flex-wrap gap-3">
                     {item.workbook_item_media?.map((media) => {
-                      const asset = media.media_assets
-                      if (!asset) {
+                      const asset = media.media_assets as { id?: string } | null | undefined
+                      const assetId = asset?.id ?? (media.media_asset_id as string | null | undefined)
+
+                      if (!assetId) {
                         return null
                       }
 
-                      const signed = mediaSignedUrlMap.get(asset.id)
+                      const signed = mediaSignedUrlMap.get(assetId)
 
                       if (!signed) {
                         return null
