@@ -27,7 +27,7 @@
 4. 실패 시 업로드/이동된 파일과 DB 레코드를 서버에서 즉시 롤백 및 삭제.
 
 ## 4. 제한/검증
-- 이미지: JPEG/PNG/WebP 최대 5MB, PDF: 최대 20MB.
+- 이미지: JPEG/PNG/WebP 최대 20MB, PDF: 최대 20MB.
 - 서버 액션에서 `mime_type` 화이트리스트 확인 후 `media_assets` insert.
 - `config` 컬럼에 자산 관련 메타데이터(대표 이미지 assetId 등) 저장 가능.
 
