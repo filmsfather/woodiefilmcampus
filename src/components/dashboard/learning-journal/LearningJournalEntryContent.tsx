@@ -1,13 +1,15 @@
 import type { ReactNode } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { LEARNING_JOURNAL_SUBJECT_OPTIONS } from '@/lib/learning-journals'
 import { WeeklyOverview } from '@/components/dashboard/teacher/learning-journal/WeeklyOverview'
+import { LEARNING_JOURNAL_SUBJECT_OPTIONS } from '@/lib/learning-journals'
+import { cn } from '@/lib/utils'
 import type {
   LearningJournalAcademicEvent,
   LearningJournalComment,
   LearningJournalGreeting,
   LearningJournalWeeklyData,
+  LearningJournalWeeklySubjectData,
 } from '@/types/learning-journal'
 
 interface HeaderMetaItem {
@@ -72,6 +74,80 @@ function isLearningJournalWeeklyDataArray(value: unknown): value is LearningJour
   })
 }
 
+type CompletionEvaluation = '최우수' | '우수' | '보통' | '미흡' | '점검 필요'
+
+interface WeeklyCompletionStat {
+  weekIndex: number
+  startDate: string
+  endDate: string
+  percent: number
+  evaluation: CompletionEvaluation | null
+  totalAssignments: number
+  completedAssignments: number
+}
+
+const EVALUATION_BADGE_CLASS: Record<CompletionEvaluation, string> = {
+  최우수: 'bg-emerald-100 text-emerald-700',
+  우수: 'bg-sky-100 text-sky-700',
+  보통: 'bg-slate-100 text-slate-700',
+  미흡: 'bg-amber-100 text-amber-700',
+  '점검 필요': 'bg-rose-100 text-rose-700',
+}
+
+const EVALUATION_BAR_CLASS: Record<CompletionEvaluation, string> = {
+  최우수: 'bg-emerald-500',
+  우수: 'bg-sky-500',
+  보통: 'bg-slate-500',
+  미흡: 'bg-amber-500',
+  '점검 필요': 'bg-rose-500',
+}
+
+function calculateCompletionEvaluation(percent: number): CompletionEvaluation {
+  if (percent >= 100) {
+    return '최우수'
+  }
+
+  if (percent >= 75) {
+    return '우수'
+  }
+
+  if (percent >= 50) {
+    return '보통'
+  }
+
+  if (percent >= 30) {
+    return '미흡'
+  }
+
+  return '점검 필요'
+}
+
+function deriveWeeklyCompletionStats(weeks: LearningJournalWeeklyData[]): WeeklyCompletionStat[] {
+  return weeks
+    .map((week) => {
+      const assignments = Object.values(week.subjects ?? {}).flatMap(
+        (subject: LearningJournalWeeklySubjectData) => subject.assignments ?? []
+      )
+      const totalAssignments = assignments.length
+      const completedAssignments = assignments.filter(
+        (assignment) => assignment.status === 'completed'
+      ).length
+      const percent = totalAssignments === 0 ? 0 : Math.min(100, Math.round((completedAssignments / totalAssignments) * 100))
+      const evaluation = totalAssignments === 0 ? null : calculateCompletionEvaluation(percent)
+
+      return {
+        weekIndex: week.weekIndex,
+        startDate: week.startDate,
+        endDate: week.endDate,
+        percent,
+        evaluation,
+        totalAssignments,
+        completedAssignments,
+      }
+    })
+    .sort((a, b) => a.weekIndex - b.weekIndex)
+}
+
 export function LearningJournalEntryContent({
   header,
   greeting,
@@ -105,6 +181,15 @@ export function LearningJournalEntryContent({
   const renderedSummary = renderStructuredContent(summary)
   const renderedWeekly = renderStructuredContent(weekly)
   const weeklyStructured = isLearningJournalWeeklyDataArray(weekly) ? weekly : null
+  const weeklyStats = weeklyStructured ? deriveWeeklyCompletionStats(weeklyStructured) : []
+  const weeksWithAssignments = weeklyStats.filter((stat) => stat.totalAssignments > 0)
+  const averagePercent = weeksWithAssignments.length > 0
+    ? Math.round(
+        weeksWithAssignments.reduce((acc, stat) => acc + stat.percent, 0) /
+          weeksWithAssignments.length
+      )
+    : null
+  const finalEvaluation = averagePercent !== null ? calculateCompletionEvaluation(averagePercent) : null
 
   return (
     <section className="space-y-6">
@@ -163,8 +248,82 @@ export function LearningJournalEntryContent({
         <CardHeader>
           <CardTitle className="text-lg text-slate-900">월간 학습 요약</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-slate-600">
-          {renderedSummary ? (
+        <CardContent className="space-y-4 text-sm text-slate-600">
+          {weeklyStats.length > 0 ? (
+            <>
+              <div className="space-y-4">
+                {weeklyStats.map((stat) => {
+                  const hasAssignments = stat.totalAssignments > 0
+                  const barClass = hasAssignments && stat.evaluation ? EVALUATION_BAR_CLASS[stat.evaluation] : 'bg-slate-300'
+                  const chipLabel = hasAssignments && stat.evaluation ? stat.evaluation : '과제 없음'
+                  const chipClass = hasAssignments && stat.evaluation ? EVALUATION_BADGE_CLASS[stat.evaluation] : 'bg-slate-100 text-slate-500'
+
+                  return (
+                    <div key={stat.weekIndex} className="space-y-1">
+                      <div className="flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex flex-col gap-0.5 text-slate-600 sm:flex-row sm:items-center sm:gap-3">
+                          <span className="text-sm font-semibold text-slate-900">{stat.weekIndex}주차</span>
+                          <span className="text-[11px] text-slate-400">
+                            {stat.startDate} ~ {stat.endDate}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-900">{stat.percent}%</span>
+                          <span
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-[10px] font-medium',
+                              chipClass
+                            )}
+                          >
+                            {chipLabel}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-200">
+                        <div
+                          className={cn('h-2 rounded-full transition-all', barClass)}
+                          style={{ width: `${stat.percent}%` }}
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500">
+                        {hasAssignments
+                          ? `${stat.completedAssignments}/${stat.totalAssignments}개 과제 완료`
+                          : '등록된 과제가 없습니다.'}
+                      </p>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                {averagePercent !== null ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900">평균 완료율</span>
+                      <span className="text-base font-semibold text-slate-900">{averagePercent}%</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-900">최종 평가</span>
+                      {finalEvaluation ? (
+                        <span
+                          className={cn(
+                            'rounded-full px-3 py-1 text-xs font-semibold',
+                            EVALUATION_BADGE_CLASS[finalEvaluation]
+                          )}
+                        >
+                          {finalEvaluation}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500">평가할 과제가 없습니다.</span>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-500">평가할 과제가 없습니다.</p>
+                )}
+              </div>
+            </>
+          ) : renderedSummary ? (
             <pre className="max-h-64 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-600">
               {renderedSummary}
             </pre>
