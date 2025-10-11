@@ -656,7 +656,7 @@ export async function fetchClassLearningJournalTemplate(
   classId: string,
   periodId: string
 ): Promise<ClassLearningJournalTemplate> {
-  const supabase = createServerSupabase()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('class_learning_journal_weeks')
