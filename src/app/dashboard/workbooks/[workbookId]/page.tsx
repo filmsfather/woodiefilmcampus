@@ -31,7 +31,7 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
        workbook_items(id, position, prompt, explanation, srs_settings, answer_type,
         workbook_item_choices(id, label, content, is_correct),
         workbook_item_short_fields(id, label, answer, position),
-       workbook_item_media(id, position, media_asset_id, media_assets(id, bucket, path, mime_type, size))
+       workbook_item_media(id, position, asset_id, media_assets(id, bucket, path, mime_type, size))
       )`
     )
     .eq('id', params.workbookId)
@@ -98,9 +98,10 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
       })
     }
 
-    const mediaAssetId = media.media_asset_id as string | null | undefined
-    if (mediaAssetId && !mediaAssetInfoMap.has(mediaAssetId)) {
-      missingAssetIds.add(mediaAssetId)
+    const assetId = (media as { asset_id?: string | null }).asset_id ?? null
+
+    if (assetId && !mediaAssetInfoMap.has(assetId)) {
+      missingAssetIds.add(assetId)
     }
   }
 
@@ -364,7 +365,8 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
                   <div className="flex flex-wrap gap-3">
                     {item.workbook_item_media?.map((media) => {
                       const asset = media.media_assets as { id?: string } | null | undefined
-                      const assetId = asset?.id ?? (media.media_asset_id as string | null | undefined)
+                      const assetId =
+                        asset?.id ?? ((media as { asset_id?: string | null }).asset_id ?? null)
 
                       if (!assetId) {
                         return null
