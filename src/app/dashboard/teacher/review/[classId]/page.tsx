@@ -44,6 +44,11 @@ interface ClassAssignmentSummary {
   completionRate: number
   hasPendingPrint: boolean
   detail: AssignmentDetail
+  assignedBy: {
+    id: string
+    name: string | null
+    email: string | null
+  } | null
 }
 
 interface ClassSummary {
@@ -118,6 +123,8 @@ export default async function TeacherClassReviewPage({
     .from('assignments')
     .select(
       `id, due_at, created_at, target_scope,
+       assigned_by,
+       assigned_teacher:profiles!assignments_assigned_by_fkey(id, name, email),
        workbooks(id, title, subject, type, week_label, config),
        assignment_targets(class_id, classes(id, name)),
        student_tasks(
@@ -307,5 +314,6 @@ function mapAssignmentForClass(assignment: AssignmentDetail): ClassAssignmentSum
     completionRate: summary.completionRate,
     hasPendingPrint: assignment.printRequests.some((request) => request.status === 'requested'),
     detail: assignment,
+    assignedBy: assignment.assignedBy,
   }
 }

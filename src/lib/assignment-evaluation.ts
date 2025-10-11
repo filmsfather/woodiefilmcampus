@@ -5,6 +5,18 @@ export interface RawAssignmentRow {
   due_at: string | null
   created_at: string
   target_scope: string | null
+  assigned_by: string | null
+  assigned_teacher?:
+    | {
+        id: string | null
+        name: string | null
+        email: string | null
+      }
+    | Array<{
+        id: string | null
+        name: string | null
+        email: string | null
+      }>
   workbooks?:
     | {
         id: string
@@ -291,6 +303,11 @@ export interface AssignmentDetail {
   type: string
   weekLabel: string | null
   config: Record<string, unknown> | null
+  assignedBy: {
+    id: string
+    name: string | null
+    email: string | null
+  } | null
   classes: Array<{ id: string; name: string }>
   studentTasks: StudentTaskSummary[]
   printRequests: PrintRequestSummary[]
@@ -331,6 +348,19 @@ function normalizeWorkbook(row: RawAssignmentRow['workbooks']): {
 export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransformResult {
   const workbook = normalizeWorkbook(row.workbooks)
   const mediaAssets = new Map<string, MediaAssetRecord>()
+  let assignedBy: AssignmentDetail['assignedBy'] = null
+
+  if (row.assigned_by) {
+    const teacherRecord = Array.isArray(row.assigned_teacher)
+      ? row.assigned_teacher[0] ?? null
+      : row.assigned_teacher ?? null
+
+    assignedBy = {
+      id: row.assigned_by,
+      name: teacherRecord?.name ?? null,
+      email: teacherRecord?.email ?? null,
+    }
+  }
 
   const classes = (row.assignment_targets ?? [])
     .map((target) => {
@@ -464,6 +494,7 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
     type: workbook?.type ?? 'unknown',
     weekLabel: workbook?.weekLabel ?? null,
     config: workbook?.config ?? null,
+    assignedBy,
     classes,
     studentTasks,
     printRequests: (row.print_requests ?? []).map((request) => {

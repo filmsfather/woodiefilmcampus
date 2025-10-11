@@ -57,6 +57,11 @@ interface ClassAssignmentSummary {
   completionRate: number
   hasPendingPrint: boolean
   detail: AssignmentDetail
+  assignedBy: {
+    id: string
+    name: string | null
+    email: string | null
+  } | null
 }
 
 interface PendingTaskInfo {
@@ -317,6 +322,10 @@ export function ClassDashboard({
 
                 const isActive = assignment.id === activeAssignmentId
                 const outstandingLabel = assignment.outstandingStudents > 0 ? `${assignment.outstandingStudents}명 미평가` : '모두 완료'
+                const assignedTeacherLabel =
+                  assignment.assignedBy?.name?.trim()
+                    ? assignment.assignedBy.name
+                    : assignment.assignedBy?.email ?? '출제자 정보 없음'
 
                 return (
                   <button
@@ -334,6 +343,7 @@ export function ClassDashboard({
                           <Badge variant="outline">{assignment.subject}</Badge>
                           <Badge variant="secondary">{TYPE_LABELS[assignment.type] ?? assignment.type.toUpperCase()}</Badge>
                           {assignment.weekLabel && <Badge variant="outline">{assignment.weekLabel}</Badge>}
+                          <span>출제자 {assignedTeacherLabel}</span>
                         </div>
                       </div>
                       {assignment.hasPendingPrint && (
@@ -381,6 +391,14 @@ export function ClassDashboard({
                           <Badge variant="outline">{activeAssignment.subject}</Badge>
                           <Badge variant="secondary">{TYPE_LABELS[activeAssignment.type] ?? activeAssignment.type.toUpperCase()}</Badge>
                           {activeAssignment.weekLabel && <Badge variant="outline">{activeAssignment.weekLabel}</Badge>}
+                          {activeAssignment.assignedBy && (
+                            <span>
+                              출제자{' '}
+                              {activeAssignment.assignedBy.name?.trim()
+                                ? activeAssignment.assignedBy.name
+                                : activeAssignment.assignedBy.email ?? '정보 없음'}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <Button
@@ -411,7 +429,7 @@ export function ClassDashboard({
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="grid gap-2 sm:grid-cols-4">
                       <SummaryTile
                         label="마감일"
                         value={
@@ -427,6 +445,16 @@ export function ClassDashboard({
                       />
                       <SummaryTile label="완료율" value={`${activeAssignment.completionRate}%`} />
                       <SummaryTile label="미평가" value={`${activeAssignment.outstandingStudents}명`} />
+                      <SummaryTile
+                        label="출제자"
+                        value={
+                          activeAssignment.assignedBy
+                            ? activeAssignment.assignedBy.name?.trim() ||
+                              activeAssignment.assignedBy.email ||
+                              '정보 없음'
+                            : '정보 없음'
+                        }
+                      />
                     </div>
 
                     <div>
