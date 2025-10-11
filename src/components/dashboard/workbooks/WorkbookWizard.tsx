@@ -55,7 +55,7 @@ const steps = [
 ] as const
 
 const STORAGE_BUCKET = 'workbook-assets'
-const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const MAX_FILE_SIZE = 20 * 1024 * 1024 // 20MB
 
 type UploadedAsset = {
   id: string
@@ -364,7 +364,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
 
     for (const file of Array.from(files)) {
       if (file.size > MAX_FILE_SIZE) {
-        setUploadError('파일 크기는 최대 5MB까지 업로드할 수 있습니다.')
+        setUploadError('파일 크기는 최대 20MB까지 업로드할 수 있습니다.')
         continue
       }
 
@@ -1090,7 +1090,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                             disabled={isSubmitting || isUploading}
                             onChange={(event) => handleFileInputChange(field.id, event)}
                           />
-                          <p className="text-xs text-slate-500">이미지 또는 PDF 파일을 최대 5MB까지 업로드할 수 있습니다.</p>
+                          <p className="text-xs text-slate-500">이미지 또는 PDF 파일을 최대 20MB까지 업로드할 수 있습니다.</p>
                           {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
                           {(assetState[field.id]?.length ?? 0) > 0 && (
                             <div className="flex flex-wrap gap-3">

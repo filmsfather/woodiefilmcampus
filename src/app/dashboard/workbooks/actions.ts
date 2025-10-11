@@ -58,7 +58,7 @@ const workbookConfigSchema = z.object({
     .optional(),
 })
 
-const MAX_ASSET_FILE_SIZE = 5 * 1024 * 1024 // 5MB, 버킷 제한과 동일하게 유지
+const MAX_ASSET_FILE_SIZE = 20 * 1024 * 1024 // 20MB, 버킷 제한과 동일하게 유지
 
 const workbookAssetSchema = z.object({
   bucket: z.string().min(1),
@@ -172,7 +172,7 @@ export async function createWorkbook(input: CreateWorkbookInput) {
       }
 
       if (sizeExceeded) {
-        return { error: '첨부 파일 용량은 최대 5MB까지 지원합니다.' }
+        return { error: '첨부 파일 용량은 최대 20MB까지 지원합니다.' }
       }
 
       return { error: '지원하지 않는 파일 형식입니다. 이미지 또는 PDF 파일만 업로드해주세요.' }
