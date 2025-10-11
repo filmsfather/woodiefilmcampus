@@ -22,8 +22,35 @@ export function AuthForm() {
   const [academicRecord, setAcademicRecord] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
   const [isResetPassword, setIsResetPassword] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+
+  const translateAuthError = (input: string) => {
+    const normalized = input.trim().toLowerCase()
+
+    if (normalized.includes('invalid login credentials')) {
+      return '이메일 또는 비밀번호를 다시 확인해주세요.'
+    }
+
+    if (normalized.includes('email not confirmed')) {
+      return '이메일 인증이 완료되지 않았습니다. 받은 편지함을 확인해주세요.'
+    }
+
+    if (normalized.includes('user already registered')) {
+      return '이미 가입된 이메일입니다. 로그인으로 이동해주세요.'
+    }
+
+    if (normalized.includes('over email send rate limit')) {
+      return '이메일 발송 제한에 도달했습니다. 잠시 후 다시 시도해주세요.'
+    }
+
+    if (normalized.includes('password should be at least')) {
+      return '비밀번호는 최소 6자 이상이어야 합니다.'
+    }
+
+    return input
+  }
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -55,11 +82,18 @@ export function AuthForm() {
       }
 
       if (isSignUp) {
+        const trimmedPassword = password.trim()
+        const trimmedConfirm = confirmPassword.trim()
+        if (!trimmedPassword || !trimmedConfirm || trimmedPassword !== trimmedConfirm) {
+          setMessage('비밀번호가 일치하는지 확인해주세요.')
+          return
+        }
+
         const trimmedName = studentName.trim()
         const trimmedPhone = phoneNumber.trim()
         const trimmedAcademicRecord = academicRecord.trim()
         const trimmedParentPhone = parentPhoneNumber.trim()
-        
+
         if (!trimmedName || !trimmedPhone || !trimmedAcademicRecord) {
           setMessage('필수 정보를 모두 입력해주세요.')
           return
@@ -67,7 +101,7 @@ export function AuthForm() {
 
         const { error } = await supabase.auth.signUp({
           email,
-          password,
+          password: trimmedPassword,
           options: {
             data: {
               name: trimmedName,
@@ -89,7 +123,10 @@ export function AuthForm() {
         router.refresh()
       }
     } catch (error: unknown) {
-      const fallback = error instanceof Error ? error.message : "알 수 없는 오류가 발생했습니다."
+      const fallback =
+        error instanceof Error
+          ? translateAuthError(error.message)
+          : '알 수 없는 오류가 발생했습니다.'
       setMessage(fallback)
     } finally {
       setLoading(false)
@@ -131,6 +168,19 @@ export function AuthForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 autoComplete={isSignUp ? 'new-password' : 'current-password'}
+              />
+            </div>
+          )}
+          {isSignUp && !isResetPassword && (
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">비밀번호 확인</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
               />
             </div>
           )}
@@ -192,6 +242,7 @@ export function AuthForm() {
                   setIsSignUp(false)
                   setMessage('')
                   setPassword('')
+                  setConfirmPassword('')
                 }}
               >
                 비밀번호를 잊으셨나요?
@@ -230,6 +281,7 @@ export function AuthForm() {
                 setPhoneNumber('')
                 setParentPhoneNumber('')
                 setAcademicRecord('')
+                setConfirmPassword('')
               }}
             >
               {isSignUp ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입'}

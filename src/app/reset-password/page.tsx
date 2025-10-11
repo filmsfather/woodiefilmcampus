@@ -51,6 +51,38 @@ function ResetPasswordContent() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  const translateRecoveryError = (input: string) => {
+    const normalized = input.trim().toLowerCase()
+
+    if (normalized.includes('invalid or expired')) {
+      return '유효하지 않은 또는 만료된 링크입니다.'
+    }
+
+    if (normalized.includes('session not found')) {
+      return '로그인 세션을 확인할 수 없습니다. 링크를 다시 요청해주세요.'
+    }
+
+    if (normalized.includes('invalid authentication credentials')) {
+      return '인증 정보가 올바르지 않습니다.'
+    }
+
+    return input
+  }
+
+  const translateUpdateError = (input: string) => {
+    const normalized = input.trim().toLowerCase()
+
+    if (normalized.includes('password should be at least')) {
+      return '비밀번호는 최소 6자 이상이어야 합니다.'
+    }
+
+    if (normalized.includes('password should contain')) {
+      return '비밀번호 복잡도 요구사항을 충족하지 못했습니다.'
+    }
+
+    return input
+  }
+
   useEffect(() => {
     if (status !== 'verifying') {
       return
@@ -90,7 +122,7 @@ function ResetPasswordContent() {
       } catch (error: unknown) {
         const fallback =
           error instanceof Error
-            ? error.message
+            ? translateRecoveryError(error.message)
             : '비밀번호 재설정 링크 확인 중 오류가 발생했습니다.'
         setErrorMessage(fallback)
         setStatus('error')
@@ -132,7 +164,7 @@ function ResetPasswordContent() {
     } catch (error: unknown) {
       const fallback =
         error instanceof Error
-          ? error.message
+          ? translateUpdateError(error.message)
           : '비밀번호 변경 중 오류가 발생했습니다.'
       setFormError(fallback)
     } finally {
