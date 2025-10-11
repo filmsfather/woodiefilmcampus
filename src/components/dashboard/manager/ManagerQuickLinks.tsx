@@ -14,6 +14,19 @@ export function ManagerQuickLinks() {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card>
         <CardHeader className="gap-2">
+          <CardTitle className="text-lg">구성원 관리</CardTitle>
+          <CardDescription>
+            승인된 학생과 교사의 연락처, 반 배정을 한 화면에서 편집하고 삭제할 수 있습니다.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/dashboard/manager/members">구성원 관리 열기</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader className="gap-2">
           <CardTitle className="text-lg">반 관리</CardTitle>
           <CardDescription>
             반을 생성하고 담임·담당 교사 및 학생 배정을 한 곳에서 처리할 수 있습니다.
