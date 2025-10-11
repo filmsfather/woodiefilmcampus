@@ -28,15 +28,9 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '월별 근무 기록을 작성하고 원장 승인 상태를 확인합니다.',
       },
       {
-        label: '학습일지',
+        label: '학습일지 작성',
         href: '/dashboard/teacher/learning-journal',
         description: '반별 학습일지를 작성하고 제출 상태를 관리하세요.',
-        variant: 'outline',
-      },
-      {
-        label: '학습일지 템플릿',
-        href: '/dashboard/teacher/learning-journal/templates',
-        description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
         variant: 'outline',
       },
     ],
@@ -66,6 +60,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         label: '수업자료 아카이브',
         href: '/dashboard/teacher/class-materials',
         description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
+      },
+      {
+        label: '월간 학습 계획',
+        href: '/dashboard/teacher/learning-journal/templates',
+        description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
+        variant: 'outline',
       },
       {
         label: '입시자료 아카이브',

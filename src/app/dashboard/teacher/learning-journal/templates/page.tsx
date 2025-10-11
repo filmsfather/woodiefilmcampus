@@ -32,7 +32,7 @@ export default async function LearningJournalTemplatePage({
     return (
       <section className="space-y-4">
         <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
-        <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">월간 학습 계획</h1>
         <p className="text-sm text-slate-600">
           {includeAllClasses
             ? '등록된 반이 없어 템플릿을 구성할 수 없습니다.'
@@ -51,7 +51,7 @@ export default async function LearningJournalTemplatePage({
     return (
       <section className="space-y-4">
         <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
-        <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">월간 학습 계획</h1>
         <p className="text-sm text-slate-600">활성화된 학습일지 주기가 없습니다. 실장에게 주기 생성을 요청하세요.</p>
       </section>
     )
@@ -116,7 +116,7 @@ export default async function LearningJournalTemplatePage({
       <div className="space-y-3">
         <DashboardBackLink fallbackHref={fallbackHref} label="학습일지 허브로 돌아가기" />
         <header className="space-y-2">
-          <h1 className="text-2xl font-semibold text-slate-900">학습일지 템플릿</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">월간 학습 계획</h1>
           <p className="text-sm text-slate-600">
             반별 주차 템플릿을 구성하면 학생 학습일지에 자동으로 반영됩니다. 수정 후 학생 일지에서 “템플릿 다시 적용”을 통해 내용이 갱신됩니다.
           </p>

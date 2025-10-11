@@ -19,7 +19,7 @@ export async function upsertClassTemplateWeekAction(rawForm: FormData) {
   const { profile } = await getAuthContext()
 
   if (!profile || profile.role !== 'teacher') {
-    return { error: '학습일지 템플릿을 수정할 권한이 없습니다.' }
+    return { error: '월간 학습 계획을 수정할 권한이 없습니다.' }
   }
 
   const payload = {
@@ -62,7 +62,7 @@ export async function deleteClassTemplateWeekAction(formData: FormData) {
   const { profile } = await getAuthContext()
 
   if (!profile || profile.role !== 'teacher') {
-    return { error: '학습일지 템플릿을 수정할 권한이 없습니다.' }
+    return { error: '월간 학습 계획을 수정할 권한이 없습니다.' }
   }
 
   const payload = {
