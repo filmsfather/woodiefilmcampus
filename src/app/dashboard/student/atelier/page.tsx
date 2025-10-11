@@ -1,13 +1,15 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchAtelierPosts } from '@/lib/atelier-posts'
 import { AtelierPostList } from '@/components/dashboard/atelier/AtelierPostList'
 import { AtelierFiltersForm, FILTER_VALUE } from '@/components/dashboard/atelier/AtelierFiltersForm'
 import { AtelierPagination } from '@/components/dashboard/atelier/AtelierPagination'
+import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
-  title: '학생 아뜰리에',
+  title: '학생 아틀리에',
 }
 
 interface StudentAtelierPageProps {
@@ -64,7 +66,7 @@ export default async function StudentAtelierPage({ searchParams = {} }: StudentA
   return (
     <section className="flex flex-col gap-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">학생 아뜰리에</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">학생 아틀리에</h1>
         <p className="text-sm text-slate-600">
           모든 학생이 올린 PDF 과제를 한곳에서 살펴보고 영감을 나눠보세요. 내 제출물은 필요에 따라 숨길 수 있습니다.
         </p>
@@ -77,6 +79,12 @@ export default async function StudentAtelierPage({ searchParams = {} }: StudentA
         currentClassId={classId}
         featuredOnly={featuredOnly}
       />
+
+      <div className="flex justify-end">
+        <Button asChild size="sm" variant="ghost">
+          <Link href="/dashboard/student">대시보드로 돌아가기</Link>
+        </Button>
+      </div>
 
       <div className="flex items-center justify-between text-sm text-slate-600">
         <span>총 {data.totalCount}건</span>

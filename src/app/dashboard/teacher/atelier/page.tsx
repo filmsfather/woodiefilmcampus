@@ -7,7 +7,7 @@ import { AtelierFiltersForm, FILTER_VALUE } from '@/components/dashboard/atelier
 import { AtelierPagination } from '@/components/dashboard/atelier/AtelierPagination'
 
 export const metadata: Metadata = {
-  title: '선생님 아뜰리에',
+  title: '선생님 아틀리에',
 }
 
 interface TeacherAtelierPageProps {
@@ -64,7 +64,7 @@ export default async function TeacherAtelierPage({ searchParams = {} }: TeacherA
   return (
     <section className="flex flex-col gap-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">선생님 아뜰리에</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">선생님 아틀리에</h1>
         <p className="text-sm text-slate-600">
           학생들의 최신 PDF 제출물을 확인하고 추천하거나 목록에서 정리할 수 있습니다. 추천한 과제는 명예의 전당으로 노출됩니다.
         </p>

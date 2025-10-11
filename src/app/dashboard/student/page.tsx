@@ -21,7 +21,7 @@ const STUDENT_ACTIONS = [
     href: '/dashboard/student/film-notes',
   },
   {
-    label: '아뜰리에 둘러보기',
+    label: '아틀리에',
     href: '/dashboard/student/atelier',
   },
 ]
