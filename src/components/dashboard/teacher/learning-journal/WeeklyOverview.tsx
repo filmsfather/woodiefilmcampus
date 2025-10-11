@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import type { LearningJournalWeeklyData } from '@/types/learning-journal'
+import type { LearningJournalWeeklyData, LearningJournalWeeklySubjectData } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -18,7 +18,13 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
     <div className="space-y-4">
       {weeks.map((week) => {
         const allSubjectsEmpty = LEARNING_JOURNAL_SUBJECTS.every((subject) => {
-          const data = week.subjects[subject]
+          const data =
+            week.subjects?.[subject] ??
+            ({
+              materials: [],
+              assignments: [],
+              summaryNote: null,
+            } satisfies LearningJournalWeeklySubjectData)
           return (
             data.materials.length === 0 &&
             data.assignments.length === 0 &&
@@ -45,7 +51,13 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {LEARNING_JOURNAL_SUBJECTS.map((subject) => {
-                  const data = week.subjects[subject]
+                  const data =
+                    week.subjects?.[subject] ??
+                    ({
+                      materials: [],
+                      assignments: [],
+                      summaryNote: null,
+                    } satisfies LearningJournalWeeklySubjectData)
                   const hasMaterials = data.materials.length > 0
                   const hasAssignments = data.assignments.length > 0
                   const hasSummary = Boolean(data.summaryNote && data.summaryNote.trim())
