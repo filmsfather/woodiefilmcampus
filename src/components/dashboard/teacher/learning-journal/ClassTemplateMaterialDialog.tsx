@@ -43,8 +43,11 @@ export function ClassTemplateMaterialDialog({
   onSubmit,
 }: ClassTemplateMaterialDialogProps) {
   const [query, setQuery] = useState('')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(selected.map((item) => item.id)))
-  const [editedTitles, setEditedTitles] = useState<Map<string, string>>(new Map(selected.map((item) => [item.id, item.title])))
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(selected.map((item) => item.id)))
+  const [selectedOrder, setSelectedOrder] = useState<string[]>(() => selected.map((item) => item.id))
+  const [editedTitles, setEditedTitles] = useState<Map<string, string>>(
+    () => new Map(selected.map((item) => [item.id, item.title]))
+  )
   const [materialNotes, setMaterialNotes] = useState<string>(notes ?? '')
 
   useEffect(() => {
@@ -53,6 +56,7 @@ export function ClassTemplateMaterialDialog({
     }
     setQuery('')
     setSelectedIds(new Set(selected.map((item) => item.id)))
+    setSelectedOrder(selected.map((item) => item.id))
     setEditedTitles(new Map(selected.map((item) => [item.id, item.title])))
     setMaterialNotes(notes ?? '')
   }, [open, selected, notes])
@@ -68,23 +72,70 @@ export function ClassTemplateMaterialDialog({
     })
   }, [options, query])
 
+  const optionMap = useMemo(() => new Map(options.map((option) => [option.id, option])), [options])
+
   const toggleSelection = (material: MaterialOption) => {
+    const isSelected = selectedIds.has(material.id)
+
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (next.has(material.id)) {
         next.delete(material.id)
       } else {
         next.add(material.id)
-        if (!editedTitles.has(material.id)) {
-          setEditedTitles((titles) => new Map(titles).set(material.id, material.display))
-        }
+      }
+      return next
+    })
+
+    setSelectedOrder((order) => {
+      if (isSelected) {
+        return order.filter((value) => value !== material.id)
+      }
+      if (order.includes(material.id)) {
+        return order
+      }
+      return [...order, material.id]
+    })
+
+    setEditedTitles((titles) => {
+      const next = new Map(titles)
+      if (isSelected) {
+        next.delete(material.id)
+      } else if (!next.has(material.id)) {
+        next.set(material.id, material.display)
       }
       return next
     })
   }
 
+  const handleRemove = (id: string) => {
+    setSelectedIds((prev) => {
+      if (!prev.has(id)) {
+        return prev
+      }
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+
+    setSelectedOrder((order) => order.filter((value) => value !== id))
+
+    setEditedTitles((titles) => {
+      if (!titles.has(id)) {
+        return titles
+      }
+      const next = new Map(titles)
+      next.delete(id)
+      return next
+    })
+  }
+
+  const selectionMismatch = selectedIds.size > 0 && selectedIds.size !== editedTitles.size
+
+  const selectedEntries = useMemo(() => selectedOrder.filter((id) => selectedIds.has(id)), [selectedOrder, selectedIds])
+
   const handleSubmit = () => {
-    const ids = Array.from(selectedIds)
+    const ids = selectedEntries
     const titles = ids.map((id) => editedTitles.get(id) ?? '')
     onSubmit({
       materialIds: ids,
@@ -147,19 +198,44 @@ export function ClassTemplateMaterialDialog({
             )}
           </div>
 
-          {selectedIds.size > 0 ? (
+          {selectedEntries.length > 0 ? (
             <div className="space-y-2">
               <p className="text-xs text-slate-500">선택된 자료 제목 수정</p>
-              {Array.from(selectedIds).map((id) => (
-                <Input
-                  key={`selected-${id}`}
-                  value={editedTitles.get(id) ?? ''}
-                  onChange={(event) => setEditedTitles((titles) => new Map(titles).set(id, event.target.value))}
-                  className="text-sm"
-                />
-              ))}
+              <div className="space-y-2">
+                {selectedEntries.map((id) => {
+                  const option = optionMap.get(id)
+                  return (
+                    <div key={`selected-${id}`} className="flex items-center gap-2">
+                      <div className="flex-1 space-y-1">
+                        {option?.display ? (
+                          <p className="text-xs text-slate-500">{option.display}</p>
+                        ) : null}
+                        <Input
+                          value={editedTitles.get(id) ?? ''}
+                          onChange={(event) =>
+                            setEditedTitles((titles) => {
+                              const next = new Map(titles)
+                              next.set(id, event.target.value)
+                              return next
+                            })
+                          }
+                          placeholder="자료 제목을 입력해주세요"
+                          className="text-sm"
+                        />
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleRemove(id)}>
+                        제거
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="rounded-md border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">
+              선택한 자료가 없습니다.
+            </div>
+          )}
 
           <div className="space-y-2">
             <p className="text-xs text-slate-500">주차 상세 메모 (학생/교사 모두에게 노출)</p>
@@ -175,7 +251,7 @@ export function ClassTemplateMaterialDialog({
             <Button variant="outline" onClick={onClose}>
               취소
             </Button>
-            <Button onClick={handleSubmit} disabled={selectedIds.size !== editedTitles.size}>
+            <Button onClick={handleSubmit} disabled={selectionMismatch}>
               저장
             </Button>
           </div>
