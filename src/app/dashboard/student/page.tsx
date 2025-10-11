@@ -1,61 +1,53 @@
+import { requireAuthForDashboard } from '@/lib/auth'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import Link from 'next/link'
 
-import { StudentDashboard } from '@/components/dashboard/student/StudentDashboard'
-import DateUtil from '@/lib/date-util'
-import { requireAuthForDashboard } from '@/lib/auth'
-import { fetchStudentTaskSummaries } from '@/lib/student-tasks'
-import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
-import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
-import { Button } from '@/components/ui/button'
+const STUDENT_ACTIONS = [
+  {
+    label: '이번달 학습 계획',
+    href: '/dashboard/student/monthly-plan',
+  },
+  {
+    label: '이번주 문제집 풀기',
+    href: '/dashboard/student/tasks',
+  },
+  {
+    label: '지난달 학습 일지',
+    href: '/dashboard/student/learning-journal',
+  },
+  {
+    label: '감상일지 보기',
+    href: '/dashboard/student/film-notes',
+  },
+  {
+    label: '수업 자료실',
+    href: '/dashboard/student/resources',
+  },
+]
 
-export default async function StudentDashboardPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>
-}) {
+export default async function StudentDashboardPage() {
   const { profile } = await requireAuthForDashboard('student')
 
   if (!profile) {
     return null
   }
 
-  DateUtil.clearServerClock()
-  DateUtil.initServerClock()
-  const serverNowIso = DateUtil.nowUTC().toISOString()
-
-  const weekRange = resolveWeekRange(searchParams.week ?? null)
-
-  const tasks = await fetchStudentTaskSummaries(profile.id, {
-    dueAtOrAfter: weekRange.start,
-  })
-
-  const previousWeekHref = buildWeekHref('/dashboard/student', searchParams, weekRange.previousStart)
-  const nextWeekHref = buildWeekHref('/dashboard/student', searchParams, weekRange.nextStart)
-
   return (
-    <div className="space-y-4">
-      <div className="flex justify-center md:justify-start">
-        <WeekNavigator
-          label={weekRange.label}
-          previousHref={previousWeekHref}
-          nextHref={nextWeekHref}
-          className="w-full max-w-xs md:w-auto"
-        />
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/student/resources">자료실 보기</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/student/learning-journal">학습일지 보기</Link>
-        </Button>
-      </div>
-      <StudentDashboard
-        profileName={profile.name ?? profile.email ?? null}
-        tasks={tasks}
-        serverNowIso={serverNowIso}
-        weekLabel={weekRange.label}
-      />
-    </div>
+    <section className="mx-auto flex max-w-xl flex-col gap-6">
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="space-y-2">
+          <CardTitle className="text-2xl font-semibold text-slate-900">학습관리</CardTitle>
+          <p className="text-sm text-slate-600">필요한 학습 메뉴를 선택해 다음 단계로 이동하세요.</p>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {STUDENT_ACTIONS.map(({ label, href }) => (
+            <Button key={href} asChild size="lg" variant="outline" className="justify-center">
+              <Link href={href}>{label}</Link>
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+    </section>
   )
 }

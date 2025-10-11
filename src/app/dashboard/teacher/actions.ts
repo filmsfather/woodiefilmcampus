@@ -191,7 +191,7 @@ export async function evaluateSubmission(input: EvaluationInput) {
       revalidatePath(`/dashboard/teacher/review/${classId}`)
     }
     revalidatePath('/dashboard/student', 'layout')
-    revalidatePath('/dashboard/student')
+    revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
     return { success: true as const }
   } catch (error) {
@@ -1084,7 +1084,7 @@ export async function deleteAssignmentTarget(input: DeleteTargetInput): Promise<
     revalidatePath('/dashboard/manager')
     if (impactedStudentIds.size > 0) {
       revalidatePath('/dashboard/student', 'layout')
-      revalidatePath('/dashboard/student')
+      revalidatePath('/dashboard/student/tasks')
     }
     console.info('[teacher] deleteAssignmentTarget success', {
       assignmentId: payload.assignmentId,

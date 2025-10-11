@@ -85,7 +85,7 @@ export async function submitSrsAnswer({
     }
   }
 
-  revalidatePath('/dashboard/student')
+  revalidatePath('/dashboard/student/tasks')
   if (studentTaskId) {
     revalidatePath(`/dashboard/student/tasks/${studentTaskId}`)
   }
@@ -231,7 +231,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
 
   await refreshStudentTaskStatus(supabase, parsed.studentTaskId)
 
-  revalidatePath('/dashboard/student')
+  revalidatePath('/dashboard/student/tasks')
   revalidatePath(`/dashboard/student/tasks/${parsed.studentTaskId}`)
 
   return { success: true as const }
@@ -588,7 +588,7 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
 
   await refreshStudentTaskStatus(supabase, payload.studentTaskId)
 
-  revalidatePath('/dashboard/student')
+  revalidatePath('/dashboard/student/tasks')
   revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
   revalidatePath('/dashboard/student/film-notes')
 
@@ -727,7 +727,7 @@ export async function submitPdfSubmission(formData: FormData) {
       await removeMediaAsset(supabase, oldAssetId)
     }
 
-    revalidatePath('/dashboard/student')
+    revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${studentTaskId}`)
 
     return { success: true as const }

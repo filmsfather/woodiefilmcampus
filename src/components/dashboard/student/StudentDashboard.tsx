@@ -230,7 +230,7 @@ export function StudentDashboard({ profileName, tasks, serverNowIso, weekLabel }
         </div>
         <Button asChild variant="outline" size="sm">
           <Link href="/dashboard/student/film-notes" className="flex items-center gap-1">
-            감상지 기록 보기
+            감상일지 보기
           </Link>
         </Button>
       </div>
