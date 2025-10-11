@@ -59,15 +59,7 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
           feedback,
           created_at,
           updated_at,
-          media_assets(id, bucket, path, mime_type, metadata),
-          shared_task_submissions(
-            id,
-            note,
-            shared_by,
-            created_at,
-            updated_at,
-            shared_task_submission_classes(class_id, classes(id, name))
-          )
+          media_assets(id, bucket, path, mime_type, metadata)
         )
       ),
        print_requests(
@@ -106,49 +98,7 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
   const signedMap = mediaAssets.size > 0 ? await createAssetSignedUrlMap(mediaAssets) : new Map()
   const assignment = applySignedAssetUrls(transformed, signedMap)
 
-  const availableClassMap = new Map<string, string>()
-  assignment.classes.forEach((cls) => {
-    if (!availableClassMap.has(cls.id)) {
-      availableClassMap.set(cls.id, cls.name)
-    }
-  })
 
-  if (profile.role === 'teacher') {
-    const { data: classRows, error: classError } = await supabase
-      .from('class_teachers')
-      .select('class_id, classes(id, name)')
-      .eq('teacher_id', profile.id)
-
-    if (classError) {
-      console.error('[teacher] assignment review class fetch error', classError)
-    }
-
-    classRows?.forEach((row) => {
-      const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
-      const classId = cls?.id ?? row.class_id
-      if (!classId) {
-        return
-      }
-      const name = cls?.name ?? '반 이름 미정'
-      if (!availableClassMap.has(classId)) {
-        availableClassMap.set(classId, name)
-      }
-    })
-  } else {
-    const { data: classRows, error: classesError } = await supabase.from('classes').select('id, name')
-
-    if (classesError) {
-      console.error('[teacher] assignment review classes fetch error', classesError)
-    }
-
-    classRows?.forEach((cls) => {
-      if (cls.id && !availableClassMap.has(cls.id)) {
-        availableClassMap.set(cls.id, cls.name ?? '반 이름 미정')
-      }
-    })
-  }
-
-  const availableClasses = Array.from(availableClassMap.entries()).map(([id, name]) => ({ id, name }))
 
   const focusStudentTaskId = typeof searchParams.studentTask === 'string' ? searchParams.studentTask : null
   const classIdParam = typeof searchParams.classId === 'string' ? searchParams.classId : null
@@ -163,7 +113,6 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
       generatedAt={DateUtil.nowUTC().toISOString()}
       focusStudentTaskId={focusStudentTaskId}
       classContext={classContext ? { id: classContext.id, name: classContext.name } : null}
-      availableClasses={availableClasses}
     />
   )
 }

@@ -1,209 +1,141 @@
 import DateUtil from '@/lib/date-util'
 
+type MaybeArray<T> = T | T[]
+
+interface RawTeacher {
+  id: string | null
+  name: string | null
+  email: string | null
+}
+
+interface RawWorkbook {
+  id: string
+  title: string | null
+  subject: string | null
+  type: string | null
+  week_label: string | null
+  config?: Record<string, unknown> | null
+}
+
+interface RawClass {
+  id: string | null
+  name: string | null
+}
+
+interface RawAssignmentTarget {
+  class_id: string | null
+  classes?: MaybeArray<RawClass>
+}
+
+interface RawProfile {
+  id: string
+  name: string | null
+  email: string | null
+  class_id: string | null
+}
+
+interface RawWorkbookItem {
+  id: string
+  position: number
+  prompt: string
+  answer_type: string
+  explanation: string | null
+  workbook_item_short_fields?: Array<{
+    id: string
+    label: string | null
+    answer: string
+    position?: number | null
+  }>
+  workbook_item_choices?: Array<{
+    id: string
+    label: string | null
+    content: string
+    is_correct: boolean | null
+  }>
+}
+
+interface RawStudentTaskItem {
+  id: string
+  item_id: string | null
+  streak?: number | null
+  next_review_at?: string | null
+  completed_at: string | null
+  last_result?: string | null
+  workbook_items?: MaybeArray<RawWorkbookItem>
+}
+
+interface RawMediaAsset {
+  id: string
+  bucket: string | null
+  path: string
+  mime_type: string | null
+  metadata: Record<string, unknown> | null
+}
+
+interface RawTaskSubmission {
+  id: string
+  item_id: string | null
+  submission_type: string
+  content: string | null
+  media_asset_id: string | null
+  score: string | null
+  feedback: string | null
+  created_at: string
+  updated_at: string
+  media_assets?: MaybeArray<RawMediaAsset>
+}
+
+interface RawPrintRequestItem {
+  id: string
+  student_task_id: string
+  submission_id: string | null
+  media_asset_id: string | null
+  asset_filename: string | null
+  asset_metadata: Record<string, unknown> | null
+}
+
+interface RawPrintRequest {
+  id: string
+  status: string
+  student_task_id: string | null
+  desired_date: string | null
+  desired_period: string | null
+  copies: number | null
+  color_mode: string | null
+  notes: string | null
+  created_at: string
+  updated_at?: string | null
+  bundle_mode: string | null
+  bundle_status: string | null
+  compiled_asset_id: string | null
+  bundle_ready_at: string | null
+  bundle_error: string | null
+  print_request_items?: RawPrintRequestItem[]
+}
+
+interface RawStudentTask {
+  id: string
+  status: string
+  completion_at: string | null
+  updated_at: string
+  student_id: string
+  class_id: string | null
+  profiles?: MaybeArray<RawProfile>
+  student_task_items?: RawStudentTaskItem[]
+  task_submissions?: RawTaskSubmission[]
+}
+
 export interface RawAssignmentRow {
   id: string
   due_at: string | null
   created_at: string
   target_scope: string | null
   assigned_by: string | null
-  assigned_teacher?:
-    | {
-        id: string | null
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string | null
-        name: string | null
-        email: string | null
-      }>
-  workbooks?:
-    | {
-        id: string
-        title: string | null
-        subject: string | null
-        type: string | null
-        week_label: string | null
-        config?: Record<string, unknown> | null
-      }
-    | Array<{
-        id: string
-        title: string | null
-        subject: string | null
-        type: string | null
-        week_label: string | null
-        config?: Record<string, unknown> | null
-      }>
-  assignment_targets?: Array<{
-    class_id: string | null
-    classes?:
-      | {
-          id: string | null
-          name: string | null
-        }
-      | Array<{
-          id: string | null
-          name: string | null
-        }>
-  }>
-  student_tasks?: Array<{
-    id: string
-    status: string
-    completion_at: string | null
-    updated_at: string
-    student_id: string
-    class_id: string | null
-    profiles?:
-      | {
-          id: string
-          name: string | null
-          email: string | null
-          class_id: string | null
-        }
-      | Array<{
-          id: string
-          name: string | null
-          email: string | null
-          class_id: string | null
-        }>
-    student_task_items?: Array<{
-      id: string
-      item_id: string | null
-      streak?: number | null
-      next_review_at?: string | null
-      completed_at: string | null
-      last_result?: string | null
-      workbook_items?:
-        | {
-            id: string
-            position: number
-            prompt: string
-            answer_type: string
-            explanation: string | null
-            workbook_item_short_fields?: Array<{
-              id: string
-              label: string | null
-              answer: string
-              position?: number | null
-            }>
-            workbook_item_choices?: Array<{
-              id: string
-              label: string | null
-              content: string
-              is_correct: boolean | null
-            }>
-          }
-        | Array<{
-            id: string
-            position: number
-            prompt: string
-            answer_type: string
-            explanation: string | null
-            workbook_item_short_fields?: Array<{
-              id: string
-              label: string | null
-              answer: string
-              position?: number | null
-            }>
-            workbook_item_choices?: Array<{
-              id: string
-              label: string | null
-              content: string
-              is_correct: boolean | null
-            }>
-          }>
-    }>
-    task_submissions?: Array<{
-      id: string
-      item_id: string | null
-      submission_type: string
-      content: string | null
-      media_asset_id: string | null
-      score: string | null
-      feedback: string | null
-      created_at: string
-      updated_at: string
-      media_assets?:
-        | {
-            id: string
-            bucket: string | null
-            path: string
-            mime_type: string | null
-            metadata: Record<string, unknown> | null
-          }
-        | Array<{
-            id: string
-            bucket: string | null
-            path: string
-            mime_type: string | null
-            metadata: Record<string, unknown> | null
-          }>
-      shared_task_submissions?:
-        | {
-            id: string
-            note: string | null
-            shared_by: string
-            created_at: string
-            updated_at: string
-            shared_task_submission_classes?: Array<{
-              class_id: string
-              classes?:
-                | {
-                    id: string | null
-                    name: string | null
-                  }
-                | Array<{
-                    id: string | null
-                    name: string | null
-                  }>
-            }>
-          }
-        | Array<{
-            id: string
-            note: string | null
-            shared_by: string
-            created_at: string
-            updated_at: string
-            shared_task_submission_classes?: Array<{
-              class_id: string
-              classes?:
-                | {
-                    id: string | null
-                    name: string | null
-                  }
-                | Array<{
-                    id: string | null
-                    name: string | null
-                  }>
-            }>
-          }>
-    }>
-  }>
-  print_requests?: Array<{
-    id: string
-    status: string
-    student_task_id: string | null
-    desired_date: string | null
-    desired_period: string | null
-    copies: number | null
-    color_mode: string | null
-    notes: string | null
-    created_at: string
-    updated_at?: string | null
-    bundle_mode: string | null
-    bundle_status: string | null
-    compiled_asset_id: string | null
-    bundle_ready_at: string | null
-    bundle_error: string | null
-    print_request_items?: Array<{
-      id: string
-      student_task_id: string
-      submission_id: string | null
-      media_asset_id: string | null
-      asset_filename: string | null
-      asset_metadata: Record<string, unknown> | null
-    }>
-  }>
+  assigned_teacher?: MaybeArray<RawTeacher>
+  workbooks?: MaybeArray<RawWorkbook>
+  assignment_targets?: RawAssignmentTarget[]
+  student_tasks?: RawStudentTask[]
+  print_requests?: RawPrintRequest[]
 }
 
 export interface WorkbookItemSummary {
@@ -237,15 +169,6 @@ export interface SubmissionSummary {
   createdAt: string
   updatedAt: string
   asset: { url: string; filename: string; mimeType: string | null } | null
-  shared: {
-    id: string
-    note: string | null
-    sharedBy: string
-    sharedAt: string
-    updatedAt: string
-    classIds: string[]
-    classes: Array<{ id: string; name: string }>
-  } | null
 }
 
 export interface StudentTaskSummary {
@@ -421,27 +344,6 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         })
       }
 
-      const sharedRow = Array.isArray(submission.shared_task_submissions)
-        ? submission.shared_task_submissions[0] ?? null
-        : submission.shared_task_submissions ?? null
-
-      const sharedClassesRaw = sharedRow?.shared_task_submission_classes ?? []
-      const sharedClassMap = new Map<string, { id: string; name: string }>()
-
-      sharedClassesRaw.forEach((entry) => {
-        const classData = Array.isArray(entry.classes) ? entry.classes[0] : entry.classes
-        const classId = classData?.id ?? entry.class_id
-        if (!classId) {
-          return
-        }
-        const name = classData?.name ?? '반 이름 미정'
-        if (!sharedClassMap.has(classId)) {
-          sharedClassMap.set(classId, { id: classId, name })
-        }
-      })
-
-      const sharedClasses = Array.from(sharedClassMap.values())
-
       return {
         id: submission.id,
         itemId: submission.item_id,
@@ -453,17 +355,6 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         createdAt: submission.created_at,
         updatedAt: submission.updated_at,
         asset: null,
-        shared: sharedRow
-          ? {
-              id: sharedRow.id,
-              note: sharedRow.note,
-              sharedBy: sharedRow.shared_by,
-              sharedAt: sharedRow.created_at,
-              updatedAt: sharedRow.updated_at,
-              classIds: sharedClasses.map((cls) => cls.id),
-              classes: sharedClasses,
-            }
-          : null,
       }
     })
 
@@ -575,13 +466,6 @@ export function cloneAssignmentDetail(assignment: AssignmentDetail): AssignmentD
       })),
       submissions: task.submissions.map((submission) => ({
         ...submission,
-        shared: submission.shared
-          ? {
-              ...submission.shared,
-              classIds: [...submission.shared.classIds],
-              classes: submission.shared.classes.map((cls) => ({ ...cls })),
-            }
-          : null,
         asset: submission.asset ? { ...submission.asset } : null,
       })),
     })),

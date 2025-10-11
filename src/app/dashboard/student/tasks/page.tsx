@@ -44,9 +44,6 @@ export default async function StudentTasksOverviewPage({
       </div>
       <div className="flex justify-end gap-2">
         <Button asChild variant="outline" size="sm">
-          <Link href="/dashboard/student/resources">수업 자료실</Link>
-        </Button>
-        <Button asChild variant="outline" size="sm">
           <Link href="/dashboard/student/learning-journal">지난달 학습 일지</Link>
         </Button>
       </div>
