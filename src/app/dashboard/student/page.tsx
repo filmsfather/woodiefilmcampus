@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { DashboardCard } from '@/components/dashboard/DashboardCard'
 import { Button } from '@/components/ui/button'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 type ActionVariant = 'default' | 'secondary' | 'outline'
 
@@ -58,12 +59,198 @@ export default async function StudentDashboardPage() {
 
   const displayName = profile.name ?? profile.email ?? '학생'
 
+  const supabase = createServerSupabase()
+
+  const { data: membershipRows, error: membershipError } = await supabase
+    .from('class_students')
+    .select('class_id')
+    .eq('student_id', profile.id)
+
+  if (membershipError) {
+    console.error('[student-dashboard] failed to fetch student class memberships', membershipError)
+  }
+
+  const classIdSet = new Set<string>()
+  if (profile.class_id) {
+    classIdSet.add(profile.class_id)
+  }
+
+  for (const row of membershipRows ?? []) {
+    if (row.class_id) {
+      classIdSet.add(row.class_id)
+    }
+  }
+
+  type RawClassRow = {
+    id: string
+    name: string | null
+    description: string | null
+    homeroom_teacher_id: string | null
+    class_teachers: Array<{
+      teacher_id: string | null
+      is_homeroom: boolean | null
+      profiles:
+        | {
+            id: string | null
+            name: string | null
+            email: string | null
+          }
+        | Array<{
+            id: string | null
+            name: string | null
+            email: string | null
+          }>
+          | null
+    }> | null
+  }
+
+  let classInfos: Array<{
+    id: string
+    name: string
+    description: string | null
+    homeroomTeacher: {
+      id: string
+      name: string | null
+      email: string | null
+    } | null
+    otherTeachers: Array<{
+      id: string
+      name: string | null
+      email: string | null
+    }>
+  }> = []
+
+  const classIds = Array.from(classIdSet)
+
+  if (classIds.length > 0) {
+    const { data: classRows, error: classError } = await supabase
+      .from('classes')
+      .select(
+        `id, name, description, homeroom_teacher_id,
+         class_teachers(
+           teacher_id,
+           is_homeroom,
+           profiles(id, name, email)
+         )`
+      )
+      .in('id', classIds)
+
+    if (classError) {
+      console.error('[student-dashboard] failed to fetch class info', classError)
+    }
+
+    classInfos = (classRows as RawClassRow[] | null)?.map((row) => {
+      const teacherSummaries: Array<{
+        id: string
+        name: string | null
+        email: string | null
+        isHomeroom: boolean
+      }> = []
+
+      for (const assignment of row.class_teachers ?? []) {
+        const teacherProfile = Array.isArray(assignment.profiles)
+          ? assignment.profiles[0]
+          : assignment.profiles
+
+        const teacherId = assignment.teacher_id ?? teacherProfile?.id ?? null
+
+        if (!teacherId) {
+          continue
+        }
+
+        teacherSummaries.push({
+          id: teacherId,
+          name: teacherProfile?.name ?? null,
+          email: teacherProfile?.email ?? null,
+          isHomeroom: assignment.is_homeroom ?? teacherId === row.homeroom_teacher_id,
+        })
+      }
+
+      if (
+        row.homeroom_teacher_id &&
+        !teacherSummaries.some((teacher) => teacher.id === row.homeroom_teacher_id)
+      ) {
+        teacherSummaries.unshift({
+          id: row.homeroom_teacher_id,
+          name: null,
+          email: null,
+          isHomeroom: true,
+        })
+      }
+
+      const byLabel = (value: { name: string | null; email: string | null }) =>
+        (value.name ?? value.email ?? '').toLowerCase()
+
+      const homeroomTeacher = teacherSummaries.find((teacher) => teacher.isHomeroom) ?? null
+      const otherTeachers = teacherSummaries
+        .filter((teacher) => !teacher.isHomeroom)
+        .sort((left, right) => byLabel(left).localeCompare(byLabel(right), 'ko'))
+
+      return {
+        id: row.id,
+        name: row.name ?? '이름 미정',
+        description: row.description ?? null,
+        homeroomTeacher,
+        otherTeachers,
+      }
+    })?.sort((a, b) => a.name.localeCompare(b.name, 'ko')) ?? []
+  }
+
   return (
     <section className="space-y-6">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-slate-900">학생 대시보드</h1>
         <p className="text-sm text-slate-600">{displayName}님, 필요한 학습 메뉴를 선택해 다음 단계를 준비해 보세요.</p>
       </div>
+
+      <DashboardCard
+        title="반 정보"
+        description="현재 소속된 반과 담당 교사 정보를 확인할 수 있습니다."
+      >
+        {classInfos.length === 0 ? (
+          <p className="text-sm text-slate-600">
+            소속 반 정보가 확인되지 않습니다. 담임 선생님께 반 등록을 요청해주세요.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {classInfos.map((classInfo) => (
+              <div key={classInfo.id} className="rounded-md border border-slate-200 p-4">
+                <div className="space-y-1">
+                  <h3 className="text-base font-semibold text-slate-900">{classInfo.name}</h3>
+                  {classInfo.description && (
+                    <p className="text-sm text-slate-600">{classInfo.description}</p>
+                  )}
+                </div>
+
+                <dl className="mt-3 grid gap-2 text-sm text-slate-700">
+                  <div className="flex flex-wrap gap-1">
+                    <dt className="font-medium text-slate-800">담임교사</dt>
+                    <dd className="flex-none">:</dd>
+                    <dd className="flex-1 text-slate-600">
+                      {classInfo.homeroomTeacher
+                        ? classInfo.homeroomTeacher.name ?? classInfo.homeroomTeacher.email ?? '이름 미정'
+                        : '미지정'}
+                    </dd>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <dt className="font-medium text-slate-800">담당교사</dt>
+                    <dd className="flex-none">:</dd>
+                    <dd className="flex-1 text-slate-600">
+                      {classInfo.otherTeachers.length > 0 ? (
+                        classInfo.otherTeachers
+                          .map((teacher) => teacher.name ?? teacher.email ?? '이름 미정')
+                          .join(' · ')
+                      ) : (
+                        '미지정'
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+            ))}
+          </div>
+        )}
+      </DashboardCard>
 
       <div className="grid gap-4 md:grid-cols-2">
         <DashboardCard
