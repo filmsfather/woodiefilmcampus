@@ -22,9 +22,12 @@ export default async function PrincipalDashboardPage() {
             <CardTitle className="text-lg text-slate-900">근무일지 승인</CardTitle>
             <CardDescription>선생님이 제출한 근무 기록을 검토하고 승인하거나 반려하세요.</CardDescription>
           </CardHeader>
-          <CardContent className="flex justify-end">
-            <Button asChild>
+          <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild variant="outline" size="sm">
               <Link href="/dashboard/principal/work-logs">근무일지 관리</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/payroll">임금관리</Link>
             </Button>
           </CardContent>
         </Card>

@@ -420,3 +420,82 @@ export async function deleteWorkLogEntry(formData: FormData): Promise<ActionResu
 
   return { success: true }
 }
+
+const acknowledgeSchema = z.object({
+  runId: z.string().uuid('정산 ID가 올바르지 않습니다.'),
+  note: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (!value) {
+        return null
+      }
+      const trimmed = value.trim()
+      return trimmed.length > 0 ? trimmed : null
+    }),
+})
+
+export async function confirmPayrollAcknowledgement(formData: FormData) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'teacher') {
+    return { error: '급여 정산 확인은 교사만 진행할 수 있습니다.' }
+  }
+
+  const parsed = acknowledgeSchema.safeParse(Object.fromEntries(formData.entries()))
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '정산 정보를 확인해주세요.' }
+  }
+
+  const input = parsed.data
+  const supabase = createServerSupabase()
+
+  const { data: acknowledgement, error: fetchError } = await supabase
+    .from('teacher_payroll_acknowledgements')
+    .select('id, run_id, teacher_id, status')
+    .eq('run_id', input.runId)
+    .maybeSingle()
+
+  if (fetchError) {
+    console.error('[payroll] fetch acknowledgement error', fetchError)
+    return { error: '정산 정보를 불러오지 못했습니다.' }
+  }
+
+  if (!acknowledgement || acknowledgement.teacher_id !== profile.id) {
+    return { error: '정산 확인 권한이 없습니다.' }
+  }
+
+  const nowIso = new Date().toISOString()
+
+  const { error: ackUpdateError } = await supabase
+    .from('teacher_payroll_acknowledgements')
+    .update({
+      status: 'confirmed',
+      confirmed_at: nowIso,
+      note: input.note,
+      updated_by: profile.id,
+    })
+    .eq('id', acknowledgement.id)
+
+  if (ackUpdateError) {
+    console.error('[payroll] confirm ack update error', ackUpdateError)
+    return { error: '정산 확인을 저장하지 못했습니다.' }
+  }
+
+  const { error: runUpdateError } = await supabase
+    .from('teacher_payroll_runs')
+    .update({ status: 'confirmed' })
+    .eq('id', input.runId)
+
+  if (runUpdateError) {
+    console.error('[payroll] confirm run update error', runUpdateError)
+    return { error: '정산 상태를 갱신하지 못했습니다.' }
+  }
+
+  revalidatePath('/dashboard/teacher/work-journal')
+  revalidatePath('/dashboard/principal/payroll')
+
+  return { success: true }
+}
