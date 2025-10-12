@@ -218,7 +218,7 @@ export default async function StudentDashboardPage() {
                 <div className="space-y-1">
                   <h3 className="text-base font-semibold text-slate-900">{classInfo.name}</h3>
                   {classInfo.description && (
-                    <p className="text-sm text-slate-600">{classInfo.description}</p>
+                    <p className="text-sm text-slate-600 whitespace-pre-line">{classInfo.description}</p>
                   )}
                 </div>
 
