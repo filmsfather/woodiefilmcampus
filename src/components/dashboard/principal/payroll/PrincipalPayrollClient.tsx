@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { requestPayrollConfirmation } from '@/app/dashboard/principal/payroll/actions'
+import { previewPayrollAdjustments, requestPayrollConfirmation } from '@/app/dashboard/principal/payroll/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -289,6 +289,7 @@ function TeacherPayrollCard({
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [isPreviewing, startPreviewTransition] = useTransition()
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
 
   const { teacher, payrollProfile, breakdown, run, acknowledgement, messagePreview, adjustments, requestNote } = entry
@@ -297,10 +298,20 @@ function TeacherPayrollCard({
 
   const initialIncentives = useMemo(() => buildIncentiveDrafts(runMeta, adjustments), [runMeta, adjustments])
   const [incentives, setIncentives] = useState<IncentiveDraft[]>(initialIncentives)
+  const [currentBreakdown, setCurrentBreakdown] = useState(breakdown)
+  const [messagePreviewState, setMessagePreviewState] = useState(messagePreview)
 
   useEffect(() => {
     setIncentives(initialIncentives)
   }, [initialIncentives])
+
+  useEffect(() => {
+    setCurrentBreakdown(breakdown)
+  }, [breakdown])
+
+  useEffect(() => {
+    setMessagePreviewState(messagePreview)
+  }, [messagePreview])
 
   const previousIncentiveKeys = useMemo(() => {
     const keys = new Set<string>()
@@ -326,19 +337,72 @@ function TeacherPayrollCard({
   }, [adjustments, previousIncentiveKeys])
 
   const addIncentive = () => {
+    setFeedback(null)
     setIncentives((prev) => [...prev, createIncentiveDraft()])
   }
 
   const handleIncentiveLabelChange = (id: string, value: string) => {
+    setFeedback(null)
     setIncentives((prev) => prev.map((item) => (item.id === id ? { ...item, label: value } : item)))
   }
 
   const handleIncentiveAmountChange = (id: string, value: string) => {
+    setFeedback(null)
     setIncentives((prev) => prev.map((item) => (item.id === id ? { ...item, amount: value } : item)))
   }
 
   const removeIncentive = (id: string) => {
+    setFeedback(null)
     setIncentives((prev) => prev.filter((item) => item.id !== id))
+  }
+
+  const handleSaveIncentives = () => {
+    setFeedback(null)
+
+    const hasInvalidEntry = incentives.some((item) => {
+      const label = item.label.trim()
+      const amount = Number.parseFloat(item.amount.replace(/,/g, ''))
+      if (!label && !item.amount) {
+        return false
+      }
+      if (!label || !Number.isFinite(amount) || amount <= 0) {
+        return true
+      }
+      return false
+    })
+
+    if (hasInvalidEntry) {
+      setFeedback({ type: 'error', message: '인센티브 내역과 금액을 모두 입력하고, 금액은 0보다 커야 합니다.' })
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('teacherId', teacher.id)
+    formData.append('month', monthToken)
+    formData.append('adjustments', adjustmentsPayload)
+    formData.append('incentives', incentivesPayload)
+
+    startPreviewTransition(() => {
+      previewPayrollAdjustments(formData)
+        .then((result) => {
+          if (!result?.success || !result.breakdown) {
+            setFeedback({ type: 'error', message: result?.error ?? '인센티브를 반영하지 못했습니다.' })
+            return
+          }
+          setCurrentBreakdown(result.breakdown)
+          if (typeof result.message === 'string') {
+            setMessagePreviewState(result.message)
+          }
+          setIncentives(result.breakdown.adjustments
+            .filter((item) => !item.isDeduction && !previousIncentiveKeys.has(toIncentiveKey(item.label, item.amount)))
+            .map((item) => createIncentiveDraft(item.label === '인센티브' ? '' : item.label, item.amount)))
+          setFeedback({ type: 'success', message: '인센티브를 반영해 정산 미리보기를 업데이트했습니다.' })
+        })
+        .catch((error) => {
+          console.error('[payroll] preview incentives error', error)
+          setFeedback({ type: 'error', message: '인센티브 미리보기 중 오류가 발생했습니다.' })
+        })
+    })
   }
 
   const handleSubmit = (formData: FormData) => {
@@ -380,8 +444,8 @@ function TeacherPayrollCard({
           </div>
           <div className="text-right">
             <p className="text-sm text-slate-500">실지급 예정</p>
-            <p className="text-2xl font-semibold text-slate-900">{formatCurrency(breakdown.netPay)}</p>
-            <p className="text-xs text-slate-500">총지급 {formatCurrency(breakdown.grossPay)}</p>
+            <p className="text-2xl font-semibold text-slate-900">{formatCurrency(currentBreakdown.netPay)}</p>
+            <p className="text-xs text-slate-500">총지급 {formatCurrency(currentBreakdown.grossPay)}</p>
           </div>
         </div>
       </CardHeader>
@@ -392,16 +456,16 @@ function TeacherPayrollCard({
             <dl className="mt-2 space-y-1 text-sm text-slate-600">
               <div className="flex justify-between">
                 <dt>근무 시간</dt>
-                <dd>{formatHours(breakdown.totalWorkHours)}</dd>
+                <dd>{formatHours(currentBreakdown.totalWorkHours)}</dd>
               </div>
               <div className="flex justify-between">
                 <dt>주휴수당 시간</dt>
-                <dd>{formatHours(breakdown.weeklyHolidayAllowanceHours)}</dd>
+                <dd>{formatHours(currentBreakdown.weeklyHolidayAllowanceHours)}</dd>
               </div>
-              {breakdown.baseSalaryTotal > 0 && (
+              {currentBreakdown.baseSalaryTotal > 0 && (
                 <div className="flex justify-between">
                   <dt>기본급</dt>
-                  <dd>{formatCurrency(breakdown.baseSalaryTotal)}</dd>
+                  <dd>{formatCurrency(currentBreakdown.baseSalaryTotal)}</dd>
                 </div>
               )}
             </dl>
@@ -437,14 +501,14 @@ function TeacherPayrollCard({
 
         <section className="space-y-2">
           <h3 className="text-sm font-medium text-slate-900">금액 구성</h3>
-          <PayrollBreakdownTable breakdown={breakdown} />
+          <PayrollBreakdownTable breakdown={currentBreakdown} />
         </section>
 
         <section className="space-y-2">
           <details className="rounded-lg border border-slate-200 p-4" open>
             <summary className="cursor-pointer text-sm font-medium text-slate-900">주차별 계산 흐름</summary>
             <div className="mt-3">
-              <WeeklySummaryList breakdown={breakdown} />
+              <WeeklySummaryList breakdown={currentBreakdown} />
             </div>
           </details>
         </section>
@@ -458,9 +522,14 @@ function TeacherPayrollCard({
             <div className="space-y-2 rounded-lg border border-slate-200 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-medium text-slate-900">인센티브</h3>
-                <Button type="button" variant="outline" size="sm" onClick={addIncentive} disabled={isPending}>
-                  인센티브 추가
-                </Button>
+                <div className="flex gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={addIncentive} disabled={isPending || isPreviewing}>
+                    인센티브 추가
+                  </Button>
+                  <Button type="button" size="sm" onClick={handleSaveIncentives} disabled={isPending || isPreviewing}>
+                    저장
+                  </Button>
+                </div>
               </div>
               {incentives.length === 0 ? (
                 <p className="text-xs text-slate-500">인센티브가 없다면 비워두세요.</p>
@@ -477,7 +546,7 @@ function TeacherPayrollCard({
                           value={item.label}
                           onChange={(event) => handleIncentiveLabelChange(item.id, event.target.value)}
                           placeholder="예: 상담 보너스"
-                          disabled={isPending}
+                          disabled={isPending || isPreviewing}
                         />
                       </div>
                       <div className="w-40 space-y-1">
@@ -492,18 +561,28 @@ function TeacherPayrollCard({
                           value={item.amount}
                           onChange={(event) => handleIncentiveAmountChange(item.id, event.target.value)}
                           placeholder="예: 50000"
-                          disabled={isPending}
+                          disabled={isPending || isPreviewing}
                         />
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeIncentive(item.id)}
-                        disabled={isPending}
-                      >
-                        삭제
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeIncentive(item.id)}
+                          disabled={isPending || isPreviewing}
+                        >
+                          삭제
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleSaveIncentives}
+                          disabled={isPending || isPreviewing}
+                        >
+                          저장
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -514,7 +593,7 @@ function TeacherPayrollCard({
               <p className="text-xs text-slate-500">기본 메시지를 확인하고 필요 시 추가 안내를 입력하세요.</p>
             </div>
             <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-              {messagePreview}
+              {messagePreviewState}
             </pre>
             <div className="space-y-1">
               <label htmlFor={`message-append-${teacher.id}`} className="text-sm font-medium text-slate-900">
@@ -545,7 +624,7 @@ function TeacherPayrollCard({
               </p>
             )}
             <div className="flex items-center justify-end gap-2">
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || isPreviewing}>
                 {isPending ? '요청 전송 중…' : '교사 확인 요청'}
               </Button>
             </div>
