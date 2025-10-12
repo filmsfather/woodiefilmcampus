@@ -58,6 +58,16 @@ const requestSchema = z.object({
         return []
       }
     }),
+  incentiveAmount: z
+    .string()
+    .optional()
+    .transform((value) => {
+      if (!value) {
+        return null
+      }
+      const parsed = Number.parseFloat(value)
+      return Number.isNaN(parsed) ? Number.NaN : parsed
+    }),
   messageAppend: z.string().optional(),
   requestNote: z.string().optional(),
 })
@@ -154,6 +164,14 @@ export async function requestPayrollConfirmation(formData: FormData) {
   }
 
   const input = parsed.data
+
+  if (typeof input.incentiveAmount === 'number' && Number.isNaN(input.incentiveAmount)) {
+    return { error: '인센티브 금액을 숫자로 입력해주세요.' }
+  }
+
+  if (typeof input.incentiveAmount === 'number' && input.incentiveAmount < 0) {
+    return { error: '인센티브 금액은 0 이상으로 입력해주세요.' }
+  }
   const monthRange = resolveMonthRange(input.month)
   const periodStart = toDateFromToken(monthRange.startDate)
   const periodEndExclusive = toDateFromToken(monthRange.endExclusiveDate)
@@ -179,12 +197,17 @@ export async function requestPayrollConfirmation(formData: FormData) {
   )
   const workLogs = workLogsMap[input.teacherId] ?? []
 
+  const baseAdjustments = input.adjustments.filter((item) => item.label !== '인센티브')
+  if (typeof input.incentiveAmount === 'number' && input.incentiveAmount > 0) {
+    baseAdjustments.push({ label: '인센티브', amount: input.incentiveAmount })
+  }
+
   const computation = await computeTeacherPayroll(
     teacher,
     periodStart,
     periodEnd,
     workLogs,
-    input.adjustments
+    baseAdjustments
   )
 
   if (!computation) {

@@ -124,6 +124,7 @@ export interface PayrollCalculationBreakdown {
 export interface PayrollMessageContext {
   teacherName: string | null
   periodLabel: string
+  totalWorkHours: number
   hourlyTotal: number
   weeklyHolidayAllowance: number
   baseSalaryTotal: number

@@ -8,6 +8,7 @@ import { requestPayrollConfirmation } from '@/app/dashboard/principal/payroll/ac
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
@@ -217,7 +218,14 @@ function TeacherPayrollCard({
 
   const { teacher, payrollProfile, breakdown, run, acknowledgement, messagePreview, adjustments, requestNote } = entry
   const status = statusBadge(run, acknowledgement)
-  const adjustmentsPayload = useMemo(() => JSON.stringify(adjustments), [adjustments])
+  const incentiveAdjustment = useMemo(
+    () => adjustments.find((item) => !item.isDeduction && item.label === '인센티브'),
+    [adjustments]
+  )
+  const adjustmentsPayload = useMemo(() => {
+    const sanitized = adjustments.filter((item) => item.label !== '인센티브')
+    return JSON.stringify(sanitized)
+  }, [adjustments])
 
   const handleSubmit = (formData: FormData) => {
     startTransition(async () => {
@@ -328,17 +336,37 @@ function TeacherPayrollCard({
         </section>
 
         <section className="space-y-3">
-          <div>
-            <h3 className="text-sm font-medium text-slate-900">교사 안내 메시지</h3>
-            <p className="text-xs text-slate-500">기본 메시지를 확인하고 필요 시 추가 안내를 입력하세요.</p>
-          </div>
-          <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-            {messagePreview}
-          </pre>
           <form action={handleSubmit} className="space-y-3">
             <input type="hidden" name="teacherId" value={teacher.id} />
             <input type="hidden" name="month" value={monthToken} />
             <input type="hidden" name="adjustments" value={adjustmentsPayload} />
+            <div className="space-y-1">
+              <label htmlFor={`incentive-amount-${teacher.id}`} className="text-sm font-medium text-slate-900">
+                인센티브 (선택)
+              </label>
+              <Input
+                id={`incentive-amount-${teacher.id}`}
+                name="incentiveAmount"
+                type="number"
+                min="0"
+                step="1"
+                defaultValue={
+                  typeof incentiveAdjustment?.amount === 'number'
+                    ? String(incentiveAdjustment.amount)
+                    : ''
+                }
+                placeholder="예: 50000"
+                disabled={isPending}
+              />
+              <p className="text-xs text-slate-500">입력한 인센티브는 이번 정산 금액에 합산됩니다.</p>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-slate-900">교사 안내 메시지</h3>
+              <p className="text-xs text-slate-500">기본 메시지를 확인하고 필요 시 추가 안내를 입력하세요.</p>
+            </div>
+            <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+              {messagePreview}
+            </pre>
             <div className="space-y-1">
               <label htmlFor={`message-append-${teacher.id}`} className="text-sm font-medium text-slate-900">
                 추가 안내 문구 (선택)

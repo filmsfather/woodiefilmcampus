@@ -10,6 +10,11 @@ function formatCurrency(value: number): string {
   return currencyFormatter.format(Math.round(value))
 }
 
+function formatHours(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? `${rounded}시간` : `${rounded.toFixed(1)}시간`
+}
+
 function splitAdjustments(adjustments: PayrollAdjustmentInput[] = []) {
   const additions: PayrollAdjustmentInput[] = []
   const deductions: PayrollAdjustmentInput[] = []
@@ -33,6 +38,7 @@ export function buildPayrollMessage(context: PayrollMessageContext): string {
   lines.push('아래 내역을 확인하시고 문제가 없다면 확인 완료 버튼을 눌러주세요.')
   lines.push('')
 
+  lines.push(`- 근무시간: ${formatHours(context.totalWorkHours)}`)
   lines.push(`- 근무급: ${formatCurrency(context.hourlyTotal)}`)
   if (context.weeklyHolidayAllowance > 0) {
     lines.push(`- 주휴수당: ${formatCurrency(context.weeklyHolidayAllowance)}`)
@@ -73,6 +79,7 @@ export function createMessageContext(
   return {
     teacherName,
     periodLabel,
+    totalWorkHours: breakdown.totalWorkHours,
     hourlyTotal: breakdown.hourlyTotal,
     weeklyHolidayAllowance: breakdown.weeklyHolidayAllowance,
     baseSalaryTotal: breakdown.baseSalaryTotal,
