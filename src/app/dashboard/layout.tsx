@@ -23,7 +23,7 @@ export default async function DashboardLayout({
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex w-full max-w-full items-center justify-between px-4 py-4 sm:px-6 lg:max-w-5xl">
           <div>
             <Link href="/" className="text-lg font-semibold text-slate-900">
               Woodie Campus 2.0
@@ -42,7 +42,7 @@ export default async function DashboardLayout({
           </div>
         </div>
       </header>
-      <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
+      <main className="mx-auto flex w-full max-w-full flex-col gap-6 px-4 py-8 sm:px-6 lg:max-w-5xl lg:py-10">
         {children}
       </main>
     </div>
