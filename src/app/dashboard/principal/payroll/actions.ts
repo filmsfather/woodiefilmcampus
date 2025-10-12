@@ -24,6 +24,8 @@ import type {
 } from '@/lib/payroll/types'
 import { fetchTeacherPayrollProfiles } from '@/lib/payroll/config'
 
+type IncentiveInput = { label: string; amount: number }
+
 const adjustmentSchema = z.object({
   label: z.string().min(1),
   amount: z.coerce.number(),
@@ -58,15 +60,40 @@ const requestSchema = z.object({
         return []
       }
     }),
-  incentiveAmount: z
+  incentives: z
     .string()
     .optional()
     .transform((value) => {
       if (!value) {
-        return null
+        return [] as IncentiveInput[]
       }
-      const parsed = Number.parseFloat(value)
-      return Number.isNaN(parsed) ? Number.NaN : parsed
+      try {
+        const parsed = JSON.parse(value) as unknown
+        if (!Array.isArray(parsed)) {
+          return [] as IncentiveInput[]
+        }
+        const sanitized: IncentiveInput[] = []
+        for (const entry of parsed) {
+          if (!entry || typeof entry !== 'object') {
+            continue
+          }
+          const record = entry as Record<string, unknown>
+          const label = typeof record.label === 'string' ? record.label.trim() : ''
+          const amountRaw = record.amount
+          const amount =
+            typeof amountRaw === 'number'
+              ? amountRaw
+              : Number.parseFloat(String(amountRaw ?? ''))
+          if (!label || !Number.isFinite(amount) || amount <= 0) {
+            continue
+          }
+          sanitized.push({ label, amount: Math.round(amount * 100) / 100 })
+        }
+        return sanitized
+      } catch (error) {
+        console.error('[payroll] failed to parse incentives', error)
+        return [] as IncentiveInput[]
+      }
     }),
   messageAppend: z.string().optional(),
   requestNote: z.string().optional(),
@@ -165,13 +192,6 @@ export async function requestPayrollConfirmation(formData: FormData) {
 
   const input = parsed.data
 
-  if (typeof input.incentiveAmount === 'number' && Number.isNaN(input.incentiveAmount)) {
-    return { error: '인센티브 금액을 숫자로 입력해주세요.' }
-  }
-
-  if (typeof input.incentiveAmount === 'number' && input.incentiveAmount < 0) {
-    return { error: '인센티브 금액은 0 이상으로 입력해주세요.' }
-  }
   const monthRange = resolveMonthRange(input.month)
   const periodStart = toDateFromToken(monthRange.startDate)
   const periodEndExclusive = toDateFromToken(monthRange.endExclusiveDate)
@@ -197,17 +217,21 @@ export async function requestPayrollConfirmation(formData: FormData) {
   )
   const workLogs = workLogsMap[input.teacherId] ?? []
 
-  const baseAdjustments = input.adjustments.filter((item) => item.label !== '인센티브')
-  if (typeof input.incentiveAmount === 'number' && input.incentiveAmount > 0) {
-    baseAdjustments.push({ label: '인센티브', amount: input.incentiveAmount })
-  }
+  const baseAdjustments = input.adjustments ?? []
+  const incentiveAdjustments = (input.incentives ?? []).map((item) => ({
+    label: item.label,
+    amount: item.amount,
+    isDeduction: false,
+  }))
+  const combinedAdjustments = [...baseAdjustments, ...incentiveAdjustments]
+  const incentivesForMeta = (input.incentives ?? []).map((item) => ({ label: item.label, amount: item.amount }))
 
   const computation = await computeTeacherPayroll(
     teacher,
     periodStart,
     periodEnd,
     workLogs,
-    baseAdjustments
+    combinedAdjustments
   )
 
   if (!computation) {
@@ -261,6 +285,7 @@ export async function requestPayrollConfirmation(formData: FormData) {
       requestNote: input.requestNote ?? null,
       adjustments: computation.breakdown.adjustments,
       deductionAdjustments: deductions,
+      incentives: incentivesForMeta,
     },
     requestedBy: profile.id,
     requestedAt: nowIso,

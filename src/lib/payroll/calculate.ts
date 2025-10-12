@@ -65,11 +65,13 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
     const weekStart = startOfISOWeek(entryDate)
     const weekKey = weekStart.toISOString()
     if (!weekMap.has(weekKey)) {
-     const weekEnd = endOfISOWeek(entryDate)
+      const weekEnd = endOfISOWeek(entryDate)
+      const displayStartDate = weekStart.getTime() < periodStart.getTime() ? new Date(periodStart) : new Date(weekStart)
+      const displayEndDate = weekEnd.getTime() > periodEnd.getTime() ? new Date(periodEnd) : new Date(weekEnd)
       weekMap.set(weekKey, {
         weekNumber: Number.parseInt(toWeekIndex(weekStart), 10),
-        weekStart: toDateToken(weekStart),
-        weekEnd: toDateToken(weekEnd),
+        weekStart: toDateToken(displayStartDate),
+        weekEnd: toDateToken(displayEndDate),
         totalWorkHours: 0,
         containsTardy: false,
         containsAbsence: false,

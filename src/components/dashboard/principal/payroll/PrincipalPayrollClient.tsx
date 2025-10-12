@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useMemo, useState, useTransition } from 'react'
+import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { requestPayrollConfirmation } from '@/app/dashboard/principal/payroll/actions'
@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
@@ -49,6 +50,80 @@ interface PrincipalPayrollClientProps {
 interface FeedbackState {
   type: 'success' | 'error'
   message: string
+}
+
+interface IncentiveDraft {
+  id: string
+  label: string
+  amount: string
+}
+
+function generateDraftId(): string {
+  return Math.random().toString(36).slice(2, 10)
+}
+
+function createIncentiveDraft(label?: string, amount?: number | string): IncentiveDraft {
+  return {
+    id: generateDraftId(),
+    label: typeof label === 'string' ? label : '',
+    amount:
+      typeof amount === 'number' && Number.isFinite(amount)
+        ? amount.toString()
+        : typeof amount === 'string'
+          ? amount
+          : '',
+  }
+}
+
+function sanitizeIncentivesForSubmit(incentives: IncentiveDraft[]): Array<{ label: string; amount: number }> {
+  return incentives
+    .map((item) => ({
+      label: item.label.trim(),
+      amount: Number.parseFloat(item.amount.replace(/,/g, '')),
+    }))
+    .filter((item) => item.label.length > 0 && Number.isFinite(item.amount) && item.amount > 0)
+    .map((item) => ({
+      label: item.label,
+      amount: Math.round(item.amount * 100) / 100,
+    }))
+}
+
+function toIncentiveKey(label: string, amount: number): string {
+  return `${label.trim()}::${(Math.round(amount * 100) / 100).toFixed(2)}`
+}
+
+function buildIncentiveDrafts(
+  meta: Record<string, unknown> | undefined,
+  adjustments: PayrollAdjustmentInput[]
+): IncentiveDraft[] {
+  const drafts: IncentiveDraft[] = []
+
+  const incentivesSource = meta && typeof meta === 'object' ? (meta as Record<string, unknown>).incentives : undefined
+  if (Array.isArray(incentivesSource)) {
+    for (const item of incentivesSource as Array<{ label?: unknown; amount?: unknown }>) {
+      if (!item || typeof item !== 'object') {
+        continue
+      }
+      const label = typeof item.label === 'string' ? item.label : ''
+      const amountValue =
+        typeof item.amount === 'number'
+          ? item.amount
+          : Number.parseFloat(String(item.amount ?? ''))
+      if (!label || !Number.isFinite(amountValue) || amountValue <= 0) {
+        continue
+      }
+      drafts.push(createIncentiveDraft(label, amountValue))
+    }
+  }
+
+  if (drafts.length === 0) {
+    const fallback = adjustments.filter((item) => !item.isDeduction && item.label === '인센티브')
+    for (const item of fallback) {
+      drafts.push(createIncentiveDraft(item.label, item.amount))
+    }
+  }
+
+  return drafts
 }
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR', {
@@ -218,14 +293,53 @@ function TeacherPayrollCard({
 
   const { teacher, payrollProfile, breakdown, run, acknowledgement, messagePreview, adjustments, requestNote } = entry
   const status = statusBadge(run, acknowledgement)
-  const incentiveAdjustment = useMemo(
-    () => adjustments.find((item) => !item.isDeduction && item.label === '인센티브'),
-    [adjustments]
-  )
+  const runMeta = (run?.meta as Record<string, unknown> | undefined) ?? undefined
+
+  const initialIncentives = useMemo(() => buildIncentiveDrafts(runMeta, adjustments), [runMeta, adjustments])
+  const [incentives, setIncentives] = useState<IncentiveDraft[]>(initialIncentives)
+
+  useEffect(() => {
+    setIncentives(initialIncentives)
+  }, [initialIncentives])
+
+  const previousIncentiveKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const draft of initialIncentives) {
+      const amount = Number.parseFloat(draft.amount.replace(/,/g, ''))
+      if (!Number.isFinite(amount)) {
+        continue
+      }
+      keys.add(toIncentiveKey(draft.label, amount))
+    }
+    return keys
+  }, [initialIncentives])
+
+  const sanitizedIncentives = useMemo(() => sanitizeIncentivesForSubmit(incentives), [incentives])
+  const incentivesPayload = useMemo(() => JSON.stringify(sanitizedIncentives), [sanitizedIncentives])
+
   const adjustmentsPayload = useMemo(() => {
-    const sanitized = adjustments.filter((item) => item.label !== '인센티브')
-    return JSON.stringify(sanitized)
-  }, [adjustments])
+    if (previousIncentiveKeys.size === 0) {
+      return JSON.stringify(adjustments)
+    }
+    const filtered = adjustments.filter((item) => !previousIncentiveKeys.has(toIncentiveKey(item.label, item.amount)))
+    return JSON.stringify(filtered)
+  }, [adjustments, previousIncentiveKeys])
+
+  const addIncentive = () => {
+    setIncentives((prev) => [...prev, createIncentiveDraft()])
+  }
+
+  const handleIncentiveLabelChange = (id: string, value: string) => {
+    setIncentives((prev) => prev.map((item) => (item.id === id ? { ...item, label: value } : item)))
+  }
+
+  const handleIncentiveAmountChange = (id: string, value: string) => {
+    setIncentives((prev) => prev.map((item) => (item.id === id ? { ...item, amount: value } : item)))
+  }
+
+  const removeIncentive = (id: string) => {
+    setIncentives((prev) => prev.filter((item) => item.id !== id))
+  }
 
   const handleSubmit = (formData: FormData) => {
     startTransition(async () => {
@@ -340,25 +454,60 @@ function TeacherPayrollCard({
             <input type="hidden" name="teacherId" value={teacher.id} />
             <input type="hidden" name="month" value={monthToken} />
             <input type="hidden" name="adjustments" value={adjustmentsPayload} />
-            <div className="space-y-1">
-              <label htmlFor={`incentive-amount-${teacher.id}`} className="text-sm font-medium text-slate-900">
-                인센티브 (선택)
-              </label>
-              <Input
-                id={`incentive-amount-${teacher.id}`}
-                name="incentiveAmount"
-                type="number"
-                min="0"
-                step="1"
-                defaultValue={
-                  typeof incentiveAdjustment?.amount === 'number'
-                    ? String(incentiveAdjustment.amount)
-                    : ''
-                }
-                placeholder="예: 50000"
-                disabled={isPending}
-              />
-              <p className="text-xs text-slate-500">입력한 인센티브는 이번 정산 금액에 합산됩니다.</p>
+            <input type="hidden" name="incentives" value={incentivesPayload} />
+            <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-medium text-slate-900">인센티브</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addIncentive} disabled={isPending}>
+                  인센티브 추가
+                </Button>
+              </div>
+              {incentives.length === 0 ? (
+                <p className="text-xs text-slate-500">인센티브가 없다면 비워두세요.</p>
+              ) : (
+                <div className="space-y-2">
+                  {incentives.map((item) => (
+                    <div key={item.id} className="flex flex-wrap gap-2 md:items-end">
+                      <div className="min-w-[180px] flex-1 space-y-1">
+                        <Label htmlFor={`incentive-label-${item.id}`} className="text-xs uppercase text-slate-500">
+                          내역
+                        </Label>
+                        <Input
+                          id={`incentive-label-${item.id}`}
+                          value={item.label}
+                          onChange={(event) => handleIncentiveLabelChange(item.id, event.target.value)}
+                          placeholder="예: 상담 보너스"
+                          disabled={isPending}
+                        />
+                      </div>
+                      <div className="w-40 space-y-1">
+                        <Label htmlFor={`incentive-amount-${item.id}`} className="text-xs uppercase text-slate-500">
+                          금액 (원)
+                        </Label>
+                        <Input
+                          id={`incentive-amount-${item.id}`}
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={item.amount}
+                          onChange={(event) => handleIncentiveAmountChange(item.id, event.target.value)}
+                          placeholder="예: 50000"
+                          disabled={isPending}
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => removeIncentive(item.id)}
+                        disabled={isPending}
+                      >
+                        삭제
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div>
               <h3 className="text-sm font-medium text-slate-900">교사 안내 메시지</h3>
@@ -409,6 +558,7 @@ function TeacherPayrollCard({
     </Card>
   )
 }
+
 
 export function PrincipalPayrollClient({
   monthToken,
