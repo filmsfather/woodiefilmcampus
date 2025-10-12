@@ -4,6 +4,7 @@ import { DashboardCard } from '@/components/dashboard/DashboardCard'
 import { Button } from '@/components/ui/button'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type ActionVariant = 'default' | 'secondary' | 'outline'
 
@@ -104,19 +105,15 @@ export default async function StudentDashboardPage() {
     }> | null
   }
 
-  let classInfos: Array<{
+  let classInfoDrafts: Array<{
     id: string
     name: string
     description: string | null
-    homeroomTeacher: {
+    teachers: Array<{
       id: string
       name: string | null
       email: string | null
-    } | null
-    otherTeachers: Array<{
-      id: string
-      name: string | null
-      email: string | null
+      isHomeroom: boolean
     }>
   }> = []
 
@@ -139,7 +136,7 @@ export default async function StudentDashboardPage() {
       console.error('[student-dashboard] failed to fetch class info', classError)
     }
 
-    classInfos = (classRows as RawClassRow[] | null)?.map((row) => {
+    classInfoDrafts = (classRows as RawClassRow[] | null)?.map((row) => {
       const teacherSummaries: Array<{
         id: string
         name: string | null
@@ -178,23 +175,76 @@ export default async function StudentDashboardPage() {
         })
       }
 
-      const byLabel = (value: { name: string | null; email: string | null }) =>
-        (value.name ?? value.email ?? '').toLowerCase()
-
-      const homeroomTeacher = teacherSummaries.find((teacher) => teacher.isHomeroom) ?? null
-      const otherTeachers = teacherSummaries
-        .filter((teacher) => !teacher.isHomeroom)
-        .sort((left, right) => byLabel(left).localeCompare(byLabel(right), 'ko'))
-
       return {
         id: row.id,
         name: row.name ?? '이름 미정',
         description: row.description ?? null,
-        homeroomTeacher,
-        otherTeachers,
+        teachers: teacherSummaries,
       }
     })?.sort((a, b) => a.name.localeCompare(b.name, 'ko')) ?? []
   }
+
+  if (classInfoDrafts.length > 0) {
+    const teacherIdSet = new Set<string>()
+    for (const classInfo of classInfoDrafts) {
+      for (const teacher of classInfo.teachers) {
+        teacherIdSet.add(teacher.id)
+      }
+    }
+
+    if (teacherIdSet.size > 0) {
+      try {
+        const adminSupabase = createAdminClient()
+        const { data: teacherProfiles, error: teacherProfileError } = await adminSupabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', Array.from(teacherIdSet))
+
+        if (teacherProfileError) {
+          console.error('[student-dashboard] failed to load teacher profiles', teacherProfileError)
+        }
+
+        const teacherProfileMap = new Map(
+          (teacherProfiles ?? []).map((profile) => [profile.id, { name: profile.name ?? null, email: profile.email ?? null }])
+        )
+
+        classInfoDrafts = classInfoDrafts.map((classInfo) => {
+          const teachers = classInfo.teachers.map((teacher) => {
+            const profile = teacherProfileMap.get(teacher.id)
+            if (!profile) {
+              return teacher
+            }
+            return {
+              ...teacher,
+              name: profile.name ?? teacher.name,
+              email: profile.email ?? teacher.email,
+            }
+          })
+          return { ...classInfo, teachers }
+        })
+      } catch (error) {
+        console.error('[student-dashboard] teacher profile lookup failed', error)
+      }
+    }
+  }
+
+  const classInfos = classInfoDrafts.map((classInfo) => {
+    const byLabel = (value: { name: string | null; email: string | null }) =>
+      (value.name ?? value.email ?? '').toLowerCase()
+
+    const homeroomTeacher = classInfo.teachers.find((teacher) => teacher.isHomeroom) ?? null
+    const otherTeachers = classInfo.teachers
+      .filter((teacher) => !teacher.isHomeroom)
+      .sort((left, right) => byLabel(left).localeCompare(byLabel(right), 'ko'))
+
+    return {
+      id: classInfo.id,
+      name: classInfo.name,
+      description: classInfo.description,
+      homeroomTeacher,
+      otherTeachers,
+    }
+  })
 
   return (
     <section className="space-y-6">
