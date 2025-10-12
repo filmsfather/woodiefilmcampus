@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 import type { TeacherPayrollProfile } from './types'
 
-interface TeacherPayrollProfileRow {
+export interface TeacherPayrollProfileRow {
   id: string
   teacher_id: string
   hourly_rate: string | number
@@ -30,7 +30,7 @@ function parseNumeric(value: string | number | null | undefined): number | null 
   return Number.isNaN(parsed) ? null : parsed
 }
 
-function mapTeacherPayrollProfile(row: TeacherPayrollProfileRow): TeacherPayrollProfile {
+export function mapTeacherPayrollProfile(row: TeacherPayrollProfileRow): TeacherPayrollProfile {
   return {
     id: row.id,
     teacherId: row.teacher_id,

@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
@@ -429,6 +430,14 @@ export function PrincipalPayrollClient({
           <p className="text-sm text-slate-600">{monthLabel} 근무일지 기반 급여를 계산하고 확인 요청을 보냅니다.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            asChild
+            size="sm"
+            variant="secondary"
+            className="mr-2"
+          >
+            <Link href="/dashboard/principal/payroll/profiles">급여 프로필 관리</Link>
+          </Button>
           <Button
             type="button"
             variant="outline"
