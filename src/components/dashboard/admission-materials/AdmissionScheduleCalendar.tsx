@@ -26,6 +26,31 @@ const seoulFormatter = new Intl.DateTimeFormat('en-CA', {
   day: '2-digit',
 })
 
+// Expand an event into Asia/Seoul date keys covering every day in the range.
+function expandEventDates(event: AdmissionCalendarEvent): string[] {
+  const startDate = new Date(event.startAt)
+  if (Number.isNaN(startDate.getTime())) {
+    return []
+  }
+
+  const parsedEnd = event.endAt ? new Date(event.endAt) : null
+  let endDate = parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? parsedEnd : startDate
+
+  if (endDate.getTime() < startDate.getTime()) {
+    endDate = startDate
+  }
+
+  const dates: string[] = []
+  const cursor = new Date(startDate)
+
+  while (cursor.getTime() <= endDate.getTime()) {
+    dates.push(seoulFormatter.format(cursor))
+    cursor.setUTCDate(cursor.getUTCDate() + 1)
+  }
+
+  return dates
+}
+
 function getMonthMatrix(base: Date): CalendarDay[] {
   const year = base.getFullYear()
   const month = base.getMonth()
@@ -95,11 +120,15 @@ export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCa
       if (!selectedCategories.includes(event.category)) {
         continue
       }
-      const iso = seoulFormatter.format(new Date(event.startAt))
-      if (!cache.has(iso)) {
-        cache.set(iso, [])
+
+      const dateKeys = expandEventDates(event)
+
+      for (const iso of dateKeys) {
+        if (!cache.has(iso)) {
+          cache.set(iso, [])
+        }
+        cache.get(iso)!.push(event)
       }
-      cache.get(iso)!.push(event)
     }
 
     for (const list of cache.values()) {
