@@ -12,6 +12,7 @@ import {
   isAdmissionMaterialCategory,
   getAdmissionCategoryLabel,
 } from '@/lib/admission-materials'
+import { PAST_EXAM_UNIVERSITIES } from '@/lib/admission-materials-constants'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
@@ -51,11 +52,37 @@ export type AdmissionCalendarEvent = {
   categoryLabel: string
   postTitle: string
   postTargetLevel: string | null
+  postUniversity: string | null
   scheduleTitle: string
   startAt: string
   endAt: string | null
   location: string | null
   memo: string | null
+}
+
+function normalizeUniversityName(raw: string | null): string | null {
+  if (!raw) {
+    return null
+  }
+
+  const trimmed = raw.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+
+  for (const name of PAST_EXAM_UNIVERSITIES) {
+    if (trimmed === name) {
+      return name
+    }
+  }
+
+  for (const name of PAST_EXAM_UNIVERSITIES) {
+    if (trimmed.includes(name)) {
+      return name
+    }
+  }
+
+  return trimmed
 }
 
 function sanitizeFileName(name: string) {
@@ -727,7 +754,8 @@ export async function listAdmissionScheduleEvents(params: {
          id,
          category,
          title,
-         target_level
+         target_level,
+         past_exam_university
        )
       `
     )
@@ -755,10 +783,19 @@ export async function listAdmissionScheduleEvents(params: {
       : row.admission_material_posts
 
     const category = String(postRelation?.category ?? 'notice') as AdmissionMaterialCategory
-    const targetLevel =
-      postRelation && typeof postRelation === 'object' && 'target_level' in postRelation
-        ? (postRelation.target_level ? String(postRelation.target_level) : null)
+    const postRecord =
+      postRelation && typeof postRelation === 'object' ? (postRelation as Record<string, unknown>) : null
+    const rawTargetLevel =
+      postRecord && postRecord.target_level !== undefined
+        ? (postRecord.target_level === null ? null : String(postRecord.target_level))
         : null
+    const rawPastExamUniversity =
+      postRecord && postRecord.past_exam_university !== undefined
+        ? (postRecord.past_exam_university === null ? null : String(postRecord.past_exam_university))
+        : null
+    const postUniversity = normalizeUniversityName(
+      category === 'guideline' ? rawTargetLevel : rawPastExamUniversity ?? rawTargetLevel
+    )
 
     return {
       id: String(row.id),
@@ -766,7 +803,8 @@ export async function listAdmissionScheduleEvents(params: {
       category,
       categoryLabel: getAdmissionCategoryLabel(category),
       postTitle: postRelation?.title ? String(postRelation.title) : '입시 자료',
-      postTargetLevel: targetLevel,
+      postTargetLevel: rawTargetLevel,
+      postUniversity,
       scheduleTitle: String(row.title),
       startAt: String(row.start_at),
       endAt: row.end_at ? String(row.end_at) : null,

@@ -1,9 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ChangeEvent } from 'react'
 import Link from 'next/link'
 
 import { ADMISSION_MATERIAL_CATEGORIES, type AdmissionMaterialCategory } from '@/lib/admission-materials'
+import { PAST_EXAM_UNIVERSITIES } from '@/lib/admission-materials-constants'
 import type { AdmissionCalendarEvent } from '@/app/dashboard/teacher/admission-materials/actions'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -104,20 +105,52 @@ function formatMonthTitle(date: Date) {
   }).format(date)
 }
 
-const CATEGORY_ORDER: AdmissionMaterialCategory[] = ['guideline', 'past_exam', 'success_review']
+const ALL_CATEGORY_ORDER: AdmissionMaterialCategory[] = ['guideline', 'past_exam', 'success_review']
+const TOGGLEABLE_CATEGORIES: AdmissionMaterialCategory[] = ['guideline']
+const UNIVERSITY_FILTER_OPTIONS = ['all', ...PAST_EXAM_UNIVERSITIES] as const
+
+type UniversityFilterOption = (typeof UNIVERSITY_FILTER_OPTIONS)[number]
+
+function getUniversityOptionLabel(option: UniversityFilterOption) {
+  if (option === 'all') {
+    return '전체'
+  }
+  return option
+}
+
+function matchesUniversity(event: AdmissionCalendarEvent, selected: UniversityFilterOption) {
+  if (selected === 'all') {
+    return true
+  }
+
+  if (event.postUniversity && event.postUniversity === selected) {
+    return true
+  }
+
+  if (event.postTargetLevel && event.postTargetLevel.includes(selected)) {
+    return true
+  }
+
+  return false
+}
 
 export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
   })
-  const [selectedCategories, setSelectedCategories] = useState<AdmissionMaterialCategory[]>(CATEGORY_ORDER)
+  const [selectedCategories, setSelectedCategories] = useState<AdmissionMaterialCategory[]>(ALL_CATEGORY_ORDER)
+  const [selectedUniversity, setSelectedUniversity] = useState<UniversityFilterOption>('all')
 
   const eventsByDay = useMemo(() => {
     const cache = new Map<string, AdmissionCalendarEvent[]>()
 
     for (const event of initialEvents) {
       if (!selectedCategories.includes(event.category)) {
+        continue
+      }
+
+      if (!matchesUniversity(event, selectedUniversity)) {
         continue
       }
 
@@ -136,17 +169,25 @@ export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCa
     }
 
     return cache
-  }, [initialEvents, selectedCategories])
+  }, [initialEvents, selectedCategories, selectedUniversity])
 
   const days = useMemo(() => getMonthMatrix(currentMonth), [currentMonth])
 
   const toggleCategory = (category: AdmissionMaterialCategory) => {
+    if (!TOGGLEABLE_CATEGORIES.includes(category)) {
+      return
+    }
+
     setSelectedCategories((prev) => {
       if (prev.includes(category)) {
         return prev.filter((item) => item !== category)
       }
       return [...prev, category]
     })
+  }
+
+  const handleUniversityChange = (event: ChangeEvent<HTMLSelectElement>) => {
+    setSelectedUniversity(event.target.value as UniversityFilterOption)
   }
 
   const goPrevMonth = () => {
@@ -163,7 +204,7 @@ export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCa
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-slate-900">{formatMonthTitle(currentMonth)}</h2>
-            <p className="text-sm text-slate-500">카테고리를 선택하면 해당 일정만 볼 수 있습니다.</p>
+            <p className="text-sm text-slate-500">카테고리와 대학교를 선택하면 필요한 일정만 볼 수 있습니다.</p>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" size="icon" onClick={goPrevMonth}>
@@ -175,23 +216,42 @@ export function AdmissionScheduleCalendar({ initialEvents }: AdmissionScheduleCa
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {CATEGORY_ORDER.map((category) => {
-            const meta = ADMISSION_MATERIAL_CATEGORIES[category]
-            const isActive = selectedCategories.includes(category)
-            return (
-              <Button
-                key={category}
-                type="button"
-                size="sm"
-                variant={isActive ? 'secondary' : 'outline'}
-                onClick={() => toggleCategory(category)}
-                className="text-xs"
-              >
-                {meta.label}
-              </Button>
-            )
-          })}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {TOGGLEABLE_CATEGORIES.map((category) => {
+              const meta = ADMISSION_MATERIAL_CATEGORIES[category]
+              const isActive = selectedCategories.includes(category)
+              return (
+                <Button
+                  key={category}
+                  type="button"
+                  size="sm"
+                  variant={isActive ? 'secondary' : 'outline'}
+                  onClick={() => toggleCategory(category)}
+                  className="text-xs"
+                >
+                  {meta.label}
+                </Button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-2">
+            <label htmlFor="admission-calendar-university" className="text-xs font-medium text-slate-600">
+              대학교
+            </label>
+            <select
+              id="admission-calendar-university"
+              value={selectedUniversity}
+              onChange={handleUniversityChange}
+              className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm text-slate-700 shadow-xs outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200"
+            >
+              {UNIVERSITY_FILTER_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {getUniversityOptionLabel(option)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="grid grid-cols-7 gap-px rounded-md border border-slate-200 bg-slate-200 text-sm">
