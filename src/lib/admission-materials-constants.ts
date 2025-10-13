@@ -18,6 +18,8 @@ export const PAST_EXAM_UNIVERSITIES = [
   '중앙대',
   '청주대',
   '한예종',
+  '인하대',
+  '명지대',
 ] as const
 
 export const PAST_EXAM_ADMISSION_TYPES = ['수시', '정시'] as const

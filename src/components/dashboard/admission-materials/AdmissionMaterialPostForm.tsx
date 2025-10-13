@@ -438,6 +438,28 @@ export function AdmissionMaterialPostForm({
                 </select>
               </div>
             </div>
+          ) : isGuideline ? (
+            <div className="grid gap-2">
+              <Label htmlFor="targetLevel">{targetLabel}</Label>
+              <select
+                id="targetLevel"
+                name="targetLevel"
+                defaultValue={defaults?.targetLevel ?? ''}
+                className={BASE_SELECT_CLASS_NAME}
+                disabled={isPending}
+                required
+              >
+                <option value="" disabled>
+                  대학교를 선택하세요
+                </option>
+                {PAST_EXAM_UNIVERSITIES.map((university) => (
+                  <option key={university} value={university}>
+                    {university}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-slate-500">{targetHelper}</p>
+            </div>
           ) : (
             <div className="grid gap-2">
               <Label htmlFor="targetLevel">{targetLabel}</Label>
@@ -448,7 +470,6 @@ export function AdmissionMaterialPostForm({
                 defaultValue={defaults?.targetLevel ?? ''}
                 maxLength={120}
                 disabled={isPending}
-                required={isGuideline}
               />
               <p className="text-xs text-slate-500">{targetHelper}</p>
             </div>
