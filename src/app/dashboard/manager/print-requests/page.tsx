@@ -323,6 +323,9 @@ export default async function ManagerPrintRequestsPage({
     })()
 
     const itemLabel = request.items.length > 0 ? ` (${request.items.length}건)` : ''
+    const studentNames = request.students.length === 0
+      ? ['전체 학생']
+      : request.students.map((student) => student.name ?? '학생 미확인')
 
     return {
       id: request.id,
@@ -337,6 +340,7 @@ export default async function ManagerPrintRequestsPage({
       updatedAt: request.updatedAt,
       teacherName: request.teacher.name,
       studentLabel: `${studentSummary}${itemLabel}`,
+      studentNames,
       files: request.items.map((item) => ({
         id: item.id,
         label: `${item.studentName} · ${item.fileName}`,
@@ -394,6 +398,7 @@ export default async function ManagerPrintRequestsPage({
           updatedAt: row.updated_at,
           teacherName: requesterRelation?.name ?? requesterRelation?.email ?? '교사 미확인',
           studentLabel: '(수업자료)',
+          studentNames: ['(수업자료)'],
           files: items.map((item) => ({
             id: item.id,
             label: `${item.assetType === 'class_material' ? '수업자료' : '학생 유인물'} · ${item.fileName ?? '파일'}`,
@@ -496,4 +501,3 @@ export default async function ManagerPrintRequestsPage({
     </section>
   )
 }
-

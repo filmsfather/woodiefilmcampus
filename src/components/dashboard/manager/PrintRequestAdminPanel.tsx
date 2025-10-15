@@ -33,6 +33,7 @@ export interface PrintRequestView {
   updatedAt: string
   teacherName: string
   studentLabel: string
+  studentNames: string[]
   files: UnifiedPrintRequestFile[]
 }
 
@@ -86,16 +87,20 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
     }
   }
 
-  const formatCreatedAt = (value: string) => {
+  const formatCreatedAtParts = (value: string) => {
     try {
-      return DateUtil.formatForDisplay(value, {
+      const dateLabel = DateUtil.formatForDisplay(value, {
         month: 'short',
         day: 'numeric',
+      })
+      const timeLabel = DateUtil.formatForDisplay(value, {
         hour: '2-digit',
         minute: '2-digit',
       })
+
+      return { dateLabel, timeLabel }
     } catch {
-      return value
+      return { dateLabel: value, timeLabel: '' }
     }
   }
 
@@ -128,7 +133,7 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
           <TableBody>
             {requests.map((request) => {
               const desiredLabel = formatDesiredDate(request.desiredDate)
-              const createdLabel = formatCreatedAt(request.createdAt)
+              const { dateLabel: createdDateLabel, timeLabel: createdTimeLabel } = formatCreatedAtParts(request.createdAt)
               const copiesLabel = `${request.copies}부 · ${request.colorMode === 'color' ? '컬러' : '흑백'}`
 
               return (
@@ -136,7 +141,10 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                   <TableCell>
                     <div className="flex flex-col text-xs text-slate-600">
                       <span className="text-sm font-medium text-slate-900">{desiredLabel}</span>
-                      <span>요청일 {createdLabel}</span>
+                      <span className="leading-tight">
+                        요청일 {createdDateLabel}
+                        {createdTimeLabel ? <span className="block text-slate-500">{createdTimeLabel}</span> : null}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-slate-700">{request.desiredPeriod ?? '미지정'}</TableCell>
@@ -147,26 +155,41 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-slate-700">{request.teacherName}</TableCell>
-                  <TableCell className="text-sm text-slate-600">{request.studentLabel}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {request.studentNames.length === 0 ? (
+                      <span className="block">학생 미확인</span>
+                    ) : (
+                      request.studentNames.map((name, index) => (
+                        <span key={`${request.id}-student-${index}`} className="block">
+                          {name}
+                        </span>
+                      ))
+                    )}
+                  </TableCell>
                   <TableCell>
                     {request.files.length === 0 ? (
                       <span className="text-xs text-slate-400">파일 없음</span>
                     ) : (
                       <div className="flex flex-col gap-1">
-                        {request.files.map((file) => (
-                          <Button
-                            key={file.id}
-                            asChild
-                            size="sm"
-                            variant={file.downloadUrl ? 'outline' : 'ghost'}
-                            className="justify-start text-xs"
-                            disabled={!file.downloadUrl}
-                          >
-                            <a href={file.downloadUrl ?? '#'} target="_blank" rel="noreferrer">
-                              <Download className="mr-1 inline h-3 w-3" /> {file.label}
-                            </a>
-                          </Button>
-                        ))}
+                        {request.files.map((file) => {
+                          const [studentName, fileName] = file.label.split(' · ')
+
+                          return (
+                            <Button
+                              key={file.id}
+                              asChild
+                              size="sm"
+                              variant={file.downloadUrl ? 'outline' : 'ghost'}
+                              className="justify-start text-xs"
+                              disabled={!file.downloadUrl}
+                              title={fileName ?? file.label}
+                            >
+                              <a href={file.downloadUrl ?? '#'} target="_blank" rel="noreferrer">
+                                <Download className="mr-1 inline h-3 w-3" /> {studentName}
+                              </a>
+                            </Button>
+                          )
+                        })}
                       </div>
                     )}
                   </TableCell>
