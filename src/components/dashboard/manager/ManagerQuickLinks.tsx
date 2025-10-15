@@ -27,6 +27,19 @@ export function ManagerQuickLinks() {
       </Card>
       <Card>
         <CardHeader className="gap-2">
+          <CardTitle className="text-lg">인쇄 요청 관리</CardTitle>
+          <CardDescription>
+            주간 인쇄 요청을 확인하고 완료·취소 상태를 업데이트하세요.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/dashboard/manager/print-requests">인쇄 요청 열기</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader className="gap-2">
           <CardTitle className="text-lg">반 관리</CardTitle>
           <CardDescription>
             반을 생성하고 담임·담당 교사 및 학생 배정을 한 곳에서 처리할 수 있습니다.
