@@ -91,10 +91,10 @@ function getSubstituteSummary(
   }
   if (entry.substituteType === 'internal') {
     if (!entry.substituteTeacherId) {
-      return '학원 선생님 지정 (미확인)'
+      return '학원 구성원 지정 (미확인)'
     }
     const teacher = teacherDirectory[entry.substituteTeacherId]
-    return `학원 선생님 · ${teacher?.name ?? teacher?.email ?? entry.substituteTeacherId}`
+    return `학원 구성원 · ${teacher?.name ?? teacher?.email ?? entry.substituteTeacherId}`
   }
   if (entry.substituteType === 'external') {
     const name = entry.externalTeacherName ?? '외부 선생님'
@@ -269,7 +269,7 @@ export function WorkLogReviewClient({
             <TableHeader>
               <TableRow className="bg-slate-50">
                 <TableHead className="w-24">근무일</TableHead>
-                <TableHead className="w-32">선생님</TableHead>
+                <TableHead className="w-32">구성원</TableHead>
                 <TableHead className="w-28">근무 유형</TableHead>
                 <TableHead className="w-24">근무 시간</TableHead>
                 <TableHead className="w-40">대타 정보</TableHead>
@@ -327,7 +327,7 @@ export function WorkLogReviewClient({
                                   <div className="rounded-md border border-slate-200 bg-white p-3 text-xs">
                                     <p className="font-semibold text-slate-800">대타 정보</p>
                                     <p className="text-slate-600">
-                                      유형: {entry.substituteType === 'internal' ? '학원 선생님' : '외부 선생님'}
+                                      유형: {entry.substituteType === 'internal' ? '학원 구성원' : '외부 선생님'}
                                     </p>
                                     {entry.substituteType === 'internal' ? (
                                       <p className="text-slate-600">

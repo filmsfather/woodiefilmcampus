@@ -222,10 +222,11 @@ export async function fetchApprovedWorkLogsByTeacher(
 
 export async function fetchTeacherDirectory(): Promise<Record<string, TeacherProfileSummary>> {
   const admin = createAdminClient()
+  const allowedRoles = ['teacher', 'manager']
   const { data, error } = await admin
     .from('profiles')
     .select('id, name, email')
-    .eq('role', 'teacher')
+    .in('role', allowedRoles)
     .eq('status', 'approved')
 
   if (error) {

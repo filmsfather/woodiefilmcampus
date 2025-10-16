@@ -557,13 +557,13 @@ function TeacherPayrollCard({
               )}
               {acknowledgement?.confirmedAt && (
                 <div className="flex justify-between text-emerald-600">
-                  <dt>교사 확인</dt>
+                  <dt>구성원 확인</dt>
                   <dd>{dateTimeFormatter.format(new Date(acknowledgement.confirmedAt))}</dd>
                 </div>
               )}
               {acknowledgement?.note && (
                 <div className="space-y-1">
-                  <dt className="font-medium text-slate-900">교사 메모</dt>
+                  <dt className="font-medium text-slate-900">구성원 메모</dt>
                   <dd className="whitespace-pre-wrap text-slate-600">{acknowledgement.note}</dd>
                 </div>
               )}
@@ -661,7 +661,7 @@ function TeacherPayrollCard({
               )}
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-900">교사 안내 메시지</h3>
+              <h3 className="text-sm font-medium text-slate-900">구성원 안내 메시지</h3>
               <p className="text-xs text-slate-500">기본 메시지를 확인하고 필요 시 추가 안내를 입력하세요.</p>
             </div>
             <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
@@ -674,13 +674,13 @@ function TeacherPayrollCard({
               <Textarea
                 id={`message-append-${teacher.id}`}
                 name="messageAppend"
-                placeholder={`${teacher.name ?? teacher.email ?? '선생님'}께 추가로 전달할 요청 사항이 있다면 입력하세요.`}
+                placeholder={`${teacher.name ?? teacher.email ?? '구성원'}께 추가로 전달할 요청 사항이 있다면 입력하세요.`}
                 disabled={isPending}
               />
             </div>
             <div className="space-y-1">
               <label htmlFor={`request-note-${teacher.id}`} className="text-sm font-medium text-slate-900">
-                원장 메모 (교사 카드에 노출)
+                원장 메모 (카드에 노출)
               </label>
               <Textarea
                 id={`request-note-${teacher.id}`}
@@ -697,7 +697,7 @@ function TeacherPayrollCard({
             )}
             <div className="flex items-center justify-end gap-2">
               <Button type="submit" disabled={isPending || isPreviewing}>
-                {isPending ? '요청 전송 중…' : '교사 확인 요청'}
+                {isPending ? '요청 전송 중…' : '확인 요청'}
               </Button>
             </div>
           </form>
@@ -758,10 +758,10 @@ export function PrincipalPayrollClient({
 
   const currentTeacherLabel = useMemo(() => {
     if (!selectedTeacherId) {
-      return '전체 선생님'
+      return '전체 교직원'
     }
     const option = teacherOptions.find((item) => item.id === selectedTeacherId)
-    return option?.label ?? '전체 선생님'
+    return option?.label ?? '전체 교직원'
   }, [selectedTeacherId, teacherOptions])
 
   return (
@@ -807,7 +807,7 @@ export function PrincipalPayrollClient({
               <SelectValue>{currentTeacherLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">전체 선생님</SelectItem>
+              <SelectItem value="all">전체 교직원</SelectItem>
               {teacherOptions.map((option) => (
                 <SelectItem key={option.id} value={option.id}>
                   {option.label}
@@ -827,7 +827,7 @@ export function PrincipalPayrollClient({
 
       {teachers.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-          표시할 급여 정보가 없습니다. 급여 프로필이 등록된 선생님이거나 승인된 근무일지가 있는지 확인해주세요.
+          표시할 급여 정보가 없습니다. 급여 프로필이 등록된 교직원인지 또는 승인된 근무일지가 있는지 확인해주세요.
         </div>
       ) : (
         <div className="space-y-6">

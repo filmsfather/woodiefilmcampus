@@ -256,8 +256,8 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
     <div className="space-y-6">
       <Card className="border-slate-200">
         <CardHeader>
-          <CardTitle className="text-lg text-slate-900">교사 선택</CardTitle>
-          <CardDescription>달력을 확인할 선생님을 선택하세요.</CardDescription>
+          <CardTitle className="text-lg text-slate-900">교직원 선택</CardTitle>
+          <CardDescription>달력을 확인할 구성원을 선택하세요.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
@@ -294,7 +294,7 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
         <CardHeader className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <CardTitle className="text-lg text-slate-900">
-              {selectedTeacher ? `${selectedTeacher.name ?? selectedTeacher.email ?? '교사'} 근무 달력` : '근무 달력'}
+              {selectedTeacher ? `${selectedTeacher.name ?? selectedTeacher.email ?? '구성원'} 근무 달력` : '근무 달력'}
             </CardTitle>
             <CardDescription>{monthLabel}</CardDescription>
           </div>
@@ -310,13 +310,13 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
         <CardContent className="space-y-6">
           {!selectedTeacher ? (
             <div className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-500">
-              상단에서 교사를 선택하면 달력이 표시됩니다.
+              상단에서 구성원을 선택하면 달력이 표시됩니다.
             </div>
           ) : (
             <div className="space-y-6">
               <div className="rounded-md border border-slate-200 bg-white p-4">
                 <div className="text-sm text-slate-600">
-                  {selectedTeacher.name ?? selectedTeacher.email ?? '이름 미기재'} 선생님 근무 요약
+                  {selectedTeacher.name ?? selectedTeacher.email ?? '이름 미기재'} 근무 요약
                 </div>
               </div>
 
@@ -360,7 +360,7 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
                               <span>
                                 대타 ·{' '}
                                 {entry.substituteType === 'internal'
-                                  ? '학원 선생님'
+                                  ? '학원 구성원'
                                   : `외부 선생님${
                                       entry.externalTeacherHours
                                         ? ` · ${formatHours(entry.externalTeacherHours)}시간`
@@ -408,7 +408,7 @@ export function WorkLogCalendarPanel({ entries, monthToken, monthLabel, teacherD
                             <span className="font-semibold text-slate-700">대타 정보</span>
                             {selectedEntry.substituteType === 'internal' ? (
                               <span className="text-slate-600">
-                                학원 선생님: {teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.name ?? teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.email ?? '선택됨'}
+                                학원 구성원: {teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.name ?? teacherDirectory[selectedEntry.substituteTeacherId ?? '']?.email ?? '선택됨'}
                               </span>
                             ) : (
                               <div className="space-y-1 text-slate-600">
