@@ -80,6 +80,10 @@ export default async function StudentAtelierPage({ searchParams = {} }: StudentA
         featuredOnly={featuredOnly}
       />
 
+      <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+        추천 버튼을 누르면 교사의 추천 코멘트를 볼 수 있습니다.
+      </p>
+
       <div className="flex justify-end">
         <Button asChild size="sm" variant="ghost">
           <Link href="/dashboard/student">대시보드로 돌아가기</Link>

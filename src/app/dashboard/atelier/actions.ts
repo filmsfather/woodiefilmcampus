@@ -11,10 +11,20 @@ const toggleHiddenSchema = z.object({
   hidden: z.boolean(),
 })
 
-const toggleFeaturedSchema = z.object({
-  postId: z.string().uuid('유효한 게시물 ID가 아닙니다.'),
-  featured: z.boolean(),
-})
+const toggleFeaturedSchema = z
+  .object({
+    postId: z.string().uuid('유효한 게시물 ID가 아닙니다.'),
+    featured: z.boolean(),
+    comment: z.string().trim().max(500, '코멘트는 500자 이하로 입력해주세요.').optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.featured) {
+      const comment = value.comment?.trim() ?? ''
+      if (comment.length === 0) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: '추천 코멘트를 입력해주세요.' })
+      }
+    }
+  })
 
 const deleteSchema = z.object({
   postId: z.string().uuid('유효한 게시물 ID가 아닙니다.'),
@@ -68,6 +78,7 @@ export async function toggleAtelierFeatured(input: z.infer<typeof toggleFeatured
     postId: parsed.data.postId,
     featured: parsed.data.featured,
     teacherId: profile.id,
+    comment: parsed.data.comment?.trim() ?? null,
   })
 
   if (result.success) {

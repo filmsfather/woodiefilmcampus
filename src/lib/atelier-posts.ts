@@ -153,19 +153,26 @@ export async function setAtelierPostFeatured({
   postId,
   teacherId,
   featured,
+  comment,
 }: {
   postId: string
   teacherId: string
   featured: boolean
+  comment?: string | null
 }) {
   const admin = createAdminClient()
+
+  const trimmedComment = typeof comment === 'string' ? comment.trim() : null
+  const now = new Date().toISOString()
 
   const { error } = await admin
     .from('atelier_posts')
     .update({
       is_featured: featured,
       featured_by: featured ? teacherId : null,
-      featured_at: featured ? new Date().toISOString() : null,
+      featured_at: featured ? now : null,
+      featured_comment: featured ? trimmedComment : null,
+      featured_commented_at: featured ? now : null,
     })
     .eq('id', postId)
     .eq('is_deleted', false)
@@ -196,6 +203,8 @@ export async function deleteAtelierPost({
       is_featured: false,
       featured_by: null,
       featured_at: null,
+      featured_comment: null,
+      featured_commented_at: null,
     })
     .eq('id', postId)
 
@@ -225,6 +234,8 @@ export interface AtelierPostListItem {
   isFeatured: boolean
   featuredBy: string | null
   featuredAt: string | null
+  featuredComment: string | null
+  featuredCommentedAt: string | null
   hiddenByStudent: boolean
   mediaAssetId: string
   download: { url: string; filename: string } | null
@@ -286,11 +297,13 @@ export async function fetchAtelierPosts({
        is_featured,
        featured_by,
        featured_at,
+       featured_comment,
+       featured_commented_at,
        hidden_by_student,
        hidden_at,
        profiles:profiles!atelier_posts_student_id_fkey(id, name),
-       classes:classes!atelier_posts_class_id_fkey(id, name),
-       workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
+        classes:classes!atelier_posts_class_id_fkey(id, name),
+        workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
       `,
       { count: 'exact' }
     )
@@ -422,6 +435,9 @@ export async function fetchAtelierPosts({
       const isFeatured = typeof row.is_featured === 'boolean' ? row.is_featured : Boolean(row.is_featured)
       const featuredBy = typeof row.featured_by === 'string' ? row.featured_by : null
       const featuredAt = typeof row.featured_at === 'string' ? row.featured_at : null
+      const featuredCommentRaw = typeof row.featured_comment === 'string' ? row.featured_comment : null
+      const featuredComment = featuredCommentRaw && featuredCommentRaw.trim().length > 0 ? featuredCommentRaw.trim() : null
+      const featuredCommentedAt = typeof row.featured_commented_at === 'string' ? row.featured_commented_at : null
       const hiddenByStudent = typeof row.hidden_by_student === 'boolean'
         ? row.hidden_by_student
         : Boolean(row.hidden_by_student)
@@ -442,6 +458,8 @@ export async function fetchAtelierPosts({
         isFeatured,
         featuredBy,
         featuredAt,
+        featuredComment,
+        featuredCommentedAt,
         hiddenByStudent,
         mediaAssetId,
         download: downloadLookup.get(mediaAssetId) ?? null,

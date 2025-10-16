@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import type { ReactElement } from 'react'
+import type { FormEvent, ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
 import { Download, Eye, EyeOff, Loader2, Sparkles, Star, Trash2 } from 'lucide-react'
 
@@ -10,6 +10,9 @@ import type { UserRole } from '@/types/user'
 import { toggleAtelierFeatured, toggleAtelierHidden, removeAtelierPost } from '@/app/dashboard/atelier/actions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import {
   Table,
   TableBody,
@@ -27,7 +30,7 @@ interface AtelierPostListProps {
 
 type PendingAction = {
   id: string
-  type: 'hide' | 'feature' | 'delete'
+  type: 'hide' | 'feature' | 'unfeature' | 'delete'
 }
 
 function formatDateTime(value: string) {
@@ -53,6 +56,12 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
   const router = useRouter()
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [featureDialogState, setFeatureDialogState] = useState<{
+    item: AtelierPostListItem
+    mode: 'add' | 'edit'
+  } | null>(null)
+  const [featureComment, setFeatureComment] = useState('')
+  const [viewCommentItem, setViewCommentItem] = useState<AtelierPostListItem | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const isTeacherView = viewerRole !== 'student'
@@ -75,18 +84,77 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
     })
   }
 
-  const handleFeaturedToggle = (postId: string, nextFeatured: boolean) => {
+  const openFeatureDialog = (item: AtelierPostListItem, mode: 'add' | 'edit') => {
+    setFeatureDialogState({ item, mode })
+    setFeatureComment(item.featuredComment ?? '')
+    setErrorMessage(null)
+  }
+
+  const closeFeatureDialog = () => {
+    setFeatureDialogState(null)
+    setFeatureComment('')
+  }
+
+  const handleFeatureSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!featureDialogState) {
+      return
+    }
+
+    const comment = featureComment.trim()
+    if (!comment) {
+      setErrorMessage('추천 코멘트를 입력해주세요.')
+      return
+    }
+
+    const { item } = featureDialogState
+    const postId = item.id
+
     setPendingAction({ id: postId, type: 'feature' })
     setErrorMessage(null)
     startTransition(async () => {
-      const result = await toggleAtelierFeatured({ postId, featured: nextFeatured })
+      const result = await toggleAtelierFeatured({
+        postId,
+        featured: true,
+        comment,
+      })
       if (!result.success) {
         setErrorMessage(result.error ?? '추천 상태 변경에 실패했습니다.')
+        setPendingAction(null)
+        return
       }
       setPendingAction(null)
+      closeFeatureDialog()
       router.refresh()
     })
   }
+
+  const handleUnfeature = (postId: string) => {
+    setPendingAction({ id: postId, type: 'unfeature' })
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await toggleAtelierFeatured({ postId, featured: false })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '추천 상태 변경에 실패했습니다.')
+        setPendingAction(null)
+        return
+      }
+      setPendingAction(null)
+      closeFeatureDialog()
+      router.refresh()
+    })
+  }
+
+  const isFeatureFormPending = Boolean(featureDialogState) &&
+    isPending &&
+    pendingAction?.id === featureDialogState?.item.id &&
+    pendingAction?.type === 'feature'
+
+  const featureDialogTitle = featureDialogState?.mode === 'edit' ? '추천 코멘트 수정' : '추천 코멘트 작성'
+  const isDialogUnfeaturePending = Boolean(featureDialogState) &&
+    isPending &&
+    pendingAction?.id === featureDialogState?.item.id &&
+    pendingAction?.type === 'unfeature'
 
   const handleDelete = (postId: string) => {
     if (!window.confirm('이 게시물을 목록에서 삭제할까요? 삭제 후에도 제출물 자체는 보관됩니다.')) {
@@ -148,15 +216,16 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
     if (isTeacherView) {
       const isFeatured = item.isFeatured
       const isFeaturePending = isPending && pendingAction?.id === item.id && pendingAction.type === 'feature'
+      const isUnfeaturePending = isPending && pendingAction?.id === item.id && pendingAction.type === 'unfeature'
       const isDeletePending = isPending && pendingAction?.id === item.id && pendingAction.type === 'delete'
 
       actions.push(
         <Button
-          key="feature"
+          key="feature-manage"
           size="sm"
           variant={isFeatured ? 'default' : 'outline'}
-          onClick={() => handleFeaturedToggle(item.id, !isFeatured)}
-          disabled={isPending}
+          onClick={() => openFeatureDialog(item, isFeatured ? 'edit' : 'add')}
+          disabled={isPending && pendingAction?.id === item.id && pendingAction.type !== 'feature'}
           className="gap-1"
         >
           {isFeaturePending ? (
@@ -164,9 +233,29 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
           ) : (
             <Star className={`h-4 w-4 ${isFeatured ? 'fill-yellow-400 text-yellow-500' : ''}`} />
           )}
-          <span>{isFeatured ? '추천 해제' : '추천하기'}</span>
+          <span>{isFeatured ? '코멘트 수정' : '추천하기'}</span>
         </Button>
       )
+
+      if (isFeatured) {
+        actions.push(
+          <Button
+            key="unfeature"
+            size="sm"
+            variant="ghost"
+            onClick={() => handleUnfeature(item.id)}
+            disabled={isPending}
+            className="gap-1"
+          >
+            {isUnfeaturePending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Star className="h-4 w-4" />
+            )}
+            <span>추천 해제</span>
+          </Button>
+        )
+      }
 
       actions.push(
         <Button
@@ -198,14 +287,14 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="min-w-[140px]">학생</TableHead>
-              <TableHead className="min-w-[120px]">반</TableHead>
-              <TableHead className="min-w-[180px]">문제집</TableHead>
-              <TableHead className="min-w-[100px]">과목</TableHead>
-              <TableHead className="min-w-[100px]">주차</TableHead>
-              <TableHead className="min-w-[140px]">제출일</TableHead>
-              <TableHead className="min-w-[100px] text-center">상태</TableHead>
-              <TableHead className="min-w-[200px]">작업</TableHead>
+              <TableHead className="w-[160px] whitespace-nowrap">학생</TableHead>
+              <TableHead className="w-[140px] whitespace-nowrap">반</TableHead>
+              <TableHead className="w-[220px] whitespace-nowrap">문제집</TableHead>
+              <TableHead className="w-[120px] whitespace-nowrap">과목</TableHead>
+              <TableHead className="w-[120px] whitespace-nowrap">주차</TableHead>
+              <TableHead className="w-[160px] whitespace-nowrap">제출일</TableHead>
+              <TableHead className="w-[140px] whitespace-nowrap text-center">상태</TableHead>
+              <TableHead className="w-[240px] whitespace-nowrap">작업</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -223,31 +312,44 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
 
                 return (
                   <TableRow key={item.id} className={hidden ? 'bg-slate-50' : undefined}>
-                    <TableCell className="flex flex-col gap-1 text-sm text-slate-700">
+                    <TableCell className="flex flex-col gap-1 whitespace-nowrap text-sm text-slate-700">
                       <span className="font-medium text-slate-900">{item.studentName}</span>
                       {isOwner ? <Badge variant="outline">내 제출</Badge> : null}
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600">
-                      {item.className ?? <span className="text-slate-400">미지정</span>}
+                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                      {item.className ? item.className : <span className="text-slate-400">미지정</span>}
                     </TableCell>
-                    <TableCell className="text-sm text-slate-700">
-                      {item.workbookTitle ?? <span className="text-slate-400">제목 없음</span>}
+                    <TableCell className="whitespace-nowrap text-sm text-slate-700">
+                      {item.workbookTitle ? item.workbookTitle : <span className="text-slate-400">제목 없음</span>}
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600">
-                      {item.workbookSubject ?? <span className="text-slate-400">-</span>}
+                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                      {item.workbookSubject ? item.workbookSubject : <span className="text-slate-400">-</span>}
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600">
-                      {item.weekLabel ?? <span className="text-slate-400">-</span>}
+                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                      {item.weekLabel ? item.weekLabel : <span className="text-slate-400">-</span>}
                     </TableCell>
-                    <TableCell className="text-sm text-slate-600">
+                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
                       {formatDateTime(item.submittedAt)}
                     </TableCell>
-                    <TableCell className="text-center">
+                    <TableCell className="whitespace-nowrap text-center">
                       <div className="flex flex-col items-center gap-1 text-xs">
                         {item.isFeatured ? (
-                          <Badge className="bg-amber-100 text-amber-800">
-                            <Sparkles className="mr-1 h-3 w-3" /> 추천
-                          </Badge>
+                          isTeacherView ? (
+                            <Badge className="bg-amber-100 text-amber-800">
+                              <Sparkles className="mr-1 h-3 w-3" /> 추천
+                            </Badge>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => setViewCommentItem(item)}
+                            >
+                              <Sparkles className="h-4 w-4" />
+                              <span>추천</span>
+                            </Button>
+                          )
                         ) : null}
                         {hidden ? (
                           <Badge variant="outline" className="text-slate-500">
@@ -261,7 +363,7 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-slate-700">
+                    <TableCell className="whitespace-nowrap text-sm text-slate-700">
                       {renderActions(item)}
                     </TableCell>
                   </TableRow>
@@ -271,6 +373,89 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
           </TableBody>
         </Table>
       </div>
+
+      <Sheet open={featureDialogState !== null} onOpenChange={(open) => (!open ? closeFeatureDialog() : undefined)}>
+        <SheetContent side="bottom" className="mx-auto w-full max-w-xl rounded-t-lg border-t border-slate-200 bg-white pb-6">
+          <SheetHeader className="pb-0">
+            <SheetTitle>{featureDialogTitle}</SheetTitle>
+            <SheetDescription>
+              {featureDialogState?.item.studentName} 학생의 제출물에 교사 코멘트를 남길 수 있습니다.
+            </SheetDescription>
+          </SheetHeader>
+
+          <form onSubmit={handleFeatureSubmit} className="flex flex-col gap-4 px-4 pt-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="feature-comment">추천 코멘트</Label>
+              <Textarea
+                id="feature-comment"
+                value={featureComment}
+                onChange={(event) => setFeatureComment(event.target.value)}
+                placeholder="학생에게 전달할 메시지를 입력하세요."
+                rows={5}
+                disabled={isFeatureFormPending}
+              />
+              <p className="text-xs text-slate-500">작성한 코멘트는 추천된 학생에게 그대로 보여집니다.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={closeFeatureDialog} disabled={isFeatureFormPending}>
+                취소
+              </Button>
+              <Button type="submit" size="sm" className="gap-1" disabled={isFeatureFormPending || featureComment.trim().length === 0}>
+                {isFeatureFormPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                <span>{featureDialogState?.mode === 'edit' ? '코멘트 저장' : '추천하기'}</span>
+              </Button>
+            </div>
+
+            {featureDialogState?.item.isFeatured ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="self-start"
+                onClick={() => (featureDialogState ? handleUnfeature(featureDialogState.item.id) : undefined)}
+                disabled={!featureDialogState || isPending}
+              >
+                {isDialogUnfeaturePending ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Star className="mr-1 h-4 w-4" />
+                )}
+                추천 해제
+              </Button>
+            ) : null}
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={viewCommentItem !== null} onOpenChange={(open) => (!open ? setViewCommentItem(null) : undefined)}>
+        <SheetContent side="bottom" className="mx-auto w-full max-w-xl rounded-t-lg border-t border-slate-200 bg-white pb-6">
+          <SheetHeader className="pb-0">
+            <SheetTitle>추천 코멘트</SheetTitle>
+            <SheetDescription>
+              {viewCommentItem?.studentName} 학생에게 전달된 추천 코멘트입니다.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-4 px-4 pt-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+              {viewCommentItem?.featuredComment ?? '등록된 코멘트가 없습니다.'}
+            </div>
+            {viewCommentItem?.featuredCommentedAt ? (
+              <p className="text-xs text-slate-500">작성일: {formatDateTime(viewCommentItem.featuredCommentedAt)}</p>
+            ) : null}
+            <div className="flex justify-end">
+              <Button type="button" size="sm" variant="ghost" onClick={() => setViewCommentItem(null)}>
+                닫기
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
