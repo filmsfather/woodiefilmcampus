@@ -69,6 +69,9 @@ interface PayrollSummaryRow {
   netPay: number
 }
 
+type SummarySortField = 'name' | 'totalWorkHours' | 'baseSalaryTotal' | 'hourlyRate' | 'grossPay' | 'deductionsTotal' | 'netPay'
+type SortDirection = 'asc' | 'desc'
+
 function generateDraftId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
@@ -289,12 +292,18 @@ function WeeklySummaryList({ breakdown }: { breakdown: PayrollCalculationBreakdo
   )
 }
 
-function PayrollSummaryTable({ rows }: { rows: PayrollSummaryRow[] }) {
+function PayrollSummaryTable({ rows, sortField, sortDirection, onSort }: {
+  rows: PayrollSummaryRow[]
+  sortField: SummarySortField
+  sortDirection: SortDirection
+  onSort: (field: SummarySortField) => void
+}) {
   const totals = rows.reduce(
     (acc, row) => {
       return {
         totalWorkHours: acc.totalWorkHours + row.totalWorkHours,
         baseSalaryTotal: acc.baseSalaryTotal + row.baseSalaryTotal,
+        hourlyRateTotal: acc.hourlyRateTotal + row.hourlyRate,
         grossPay: acc.grossPay + row.grossPay,
         deductionsTotal: acc.deductionsTotal + row.deductionsTotal,
         netPay: acc.netPay + row.netPay,
@@ -303,6 +312,7 @@ function PayrollSummaryTable({ rows }: { rows: PayrollSummaryRow[] }) {
     {
       totalWorkHours: 0,
       baseSalaryTotal: 0,
+      hourlyRateTotal: 0,
       grossPay: 0,
       deductionsTotal: 0,
       netPay: 0,
@@ -314,13 +324,69 @@ function PayrollSummaryTable({ rows }: { rows: PayrollSummaryRow[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>이름</TableHead>
-            <TableHead className="text-right">근무시간</TableHead>
-            <TableHead className="text-right">기본급</TableHead>
-            <TableHead className="text-right">시급</TableHead>
-            <TableHead className="text-right">총지급액</TableHead>
-            <TableHead className="text-right">공제금 합계</TableHead>
-            <TableHead className="text-right">실지급금</TableHead>
+            <TableHead>
+              <SortTrigger
+                label="이름"
+                field="name"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortTrigger
+                label="근무시간"
+                field="totalWorkHours"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortTrigger
+                label="기본급"
+                field="baseSalaryTotal"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortTrigger
+                label="시급"
+                field="hourlyRate"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortTrigger
+                label="총지급액"
+                field="grossPay"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortTrigger
+                label="공제금 합계"
+                field="deductionsTotal"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
+            <TableHead className="text-right">
+              <SortTrigger
+                label="실지급금"
+                field="netPay"
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onClick={onSort}
+              />
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -339,7 +405,7 @@ function PayrollSummaryTable({ rows }: { rows: PayrollSummaryRow[] }) {
             <TableCell className="font-semibold text-slate-900">총계</TableCell>
             <TableCell className="text-right font-semibold text-slate-900">{formatHours(totals.totalWorkHours)}</TableCell>
             <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.baseSalaryTotal)}</TableCell>
-            <TableCell className="text-right font-semibold text-slate-900">--</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.hourlyRateTotal)}</TableCell>
             <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.grossPay)}</TableCell>
             <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.deductionsTotal)}</TableCell>
             <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.netPay)}</TableCell>
@@ -347,6 +413,36 @@ function PayrollSummaryTable({ rows }: { rows: PayrollSummaryRow[] }) {
         </TableBody>
       </Table>
     </div>
+  )
+}
+
+function SortTrigger({
+  label,
+  field,
+  sortField,
+  sortDirection,
+  onClick,
+}: {
+  label: string
+  field: SummarySortField
+  sortField: SummarySortField
+  sortDirection: SortDirection
+  onClick: (field: SummarySortField) => void
+}) {
+  const isActive = field === sortField
+  const nextDirection = isActive && sortDirection === 'asc' ? '↓' : '↑'
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(field)}
+      className={cn(
+        'inline-flex items-center gap-1 text-xs font-medium text-slate-600 transition hover:text-slate-900',
+        isActive && 'text-slate-900'
+      )}
+    >
+      <span>{label}</span>
+      <span aria-hidden>{nextDirection}</span>
+    </button>
   )
 }
 
@@ -722,9 +818,11 @@ export function PrincipalPayrollClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isRouting, startTransition] = useTransition()
+  const [sortField, setSortField] = useState<SummarySortField>('name')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
 
   const summaryRows = useMemo<PayrollSummaryRow[]>(() => {
-    return teachers.map((entry) => ({
+    const unsorted = teachers.map((entry) => ({
       id: entry.teacher.id,
       name: entry.teacher.name ?? entry.teacher.email ?? '이름 미등록',
       totalWorkHours: entry.breakdown.totalWorkHours,
@@ -734,7 +832,17 @@ export function PrincipalPayrollClient({
       deductionsTotal: entry.breakdown.deductionsTotal,
       netPay: entry.breakdown.netPay,
     }))
-  }, [teachers])
+    const sorted = [...unsorted].sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1
+      if (sortField === 'name') {
+        return (a.name ?? '').localeCompare(b.name ?? '', 'ko') * direction
+      }
+      const valueA = a[sortField]
+      const valueB = b[sortField]
+      return (valueA - valueB) * direction
+    })
+    return sorted
+  }, [teachers, sortField, sortDirection])
 
   const navigateToMonth = (token: string) => {
     const params = new URLSearchParams(searchParams?.toString())
@@ -763,6 +871,17 @@ export function PrincipalPayrollClient({
     const option = teacherOptions.find((item) => item.id === selectedTeacherId)
     return option?.label ?? '전체 교직원'
   }, [selectedTeacherId, teacherOptions])
+
+  const handleSort = (field: SummarySortField) => {
+    setSortField((prevField) => {
+      if (prevField === field) {
+        setSortDirection((prevDirection) => (prevDirection === 'asc' ? 'desc' : 'asc'))
+        return prevField
+      }
+      setSortDirection('asc')
+      return field
+    })
+  }
 
   return (
     <section className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -821,7 +940,7 @@ export function PrincipalPayrollClient({
       {summaryRows.length > 0 && (
         <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-medium text-slate-900">정산 요약</h2>
-          <PayrollSummaryTable rows={summaryRows} />
+          <PayrollSummaryTable rows={summaryRows} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
         </section>
       )}
 
