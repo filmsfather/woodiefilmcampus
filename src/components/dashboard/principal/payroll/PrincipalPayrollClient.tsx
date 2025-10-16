@@ -58,6 +58,17 @@ interface IncentiveDraft {
   amount: string
 }
 
+interface PayrollSummaryRow {
+  id: string
+  name: string
+  totalWorkHours: number
+  baseSalaryTotal: number
+  hourlyRate: number
+  grossPay: number
+  deductionsTotal: number
+  netPay: number
+}
+
 function generateDraftId(): string {
   return Math.random().toString(36).slice(2, 10)
 }
@@ -274,6 +285,67 @@ function WeeklySummaryList({ breakdown }: { breakdown: PayrollCalculationBreakdo
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function PayrollSummaryTable({ rows }: { rows: PayrollSummaryRow[] }) {
+  const totals = rows.reduce(
+    (acc, row) => {
+      return {
+        totalWorkHours: acc.totalWorkHours + row.totalWorkHours,
+        baseSalaryTotal: acc.baseSalaryTotal + row.baseSalaryTotal,
+        grossPay: acc.grossPay + row.grossPay,
+        deductionsTotal: acc.deductionsTotal + row.deductionsTotal,
+        netPay: acc.netPay + row.netPay,
+      }
+    },
+    {
+      totalWorkHours: 0,
+      baseSalaryTotal: 0,
+      grossPay: 0,
+      deductionsTotal: 0,
+      netPay: 0,
+    }
+  )
+
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>이름</TableHead>
+            <TableHead className="text-right">근무시간</TableHead>
+            <TableHead className="text-right">기본급</TableHead>
+            <TableHead className="text-right">시급</TableHead>
+            <TableHead className="text-right">총지급액</TableHead>
+            <TableHead className="text-right">공제금 합계</TableHead>
+            <TableHead className="text-right">실지급금</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => (
+            <TableRow key={row.id}>
+              <TableCell className="font-medium text-slate-900">{row.name}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatHours(row.totalWorkHours)}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatCurrency(row.baseSalaryTotal)}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatCurrency(row.hourlyRate)}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatCurrency(row.grossPay)}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatCurrency(row.deductionsTotal)}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatCurrency(row.netPay)}</TableCell>
+            </TableRow>
+          ))}
+          <TableRow className="bg-slate-50">
+            <TableCell className="font-semibold text-slate-900">총계</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">{formatHours(totals.totalWorkHours)}</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.baseSalaryTotal)}</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">--</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.grossPay)}</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.deductionsTotal)}</TableCell>
+            <TableCell className="text-right font-semibold text-slate-900">{formatCurrency(totals.netPay)}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
     </div>
   )
 }
@@ -651,6 +723,19 @@ export function PrincipalPayrollClient({
   const searchParams = useSearchParams()
   const [isRouting, startTransition] = useTransition()
 
+  const summaryRows = useMemo<PayrollSummaryRow[]>(() => {
+    return teachers.map((entry) => ({
+      id: entry.teacher.id,
+      name: entry.teacher.name ?? entry.teacher.email ?? '이름 미등록',
+      totalWorkHours: entry.breakdown.totalWorkHours,
+      baseSalaryTotal: entry.breakdown.baseSalaryTotal,
+      hourlyRate: entry.payrollProfile.hourlyRate,
+      grossPay: entry.breakdown.grossPay,
+      deductionsTotal: entry.breakdown.deductionsTotal,
+      netPay: entry.breakdown.netPay,
+    }))
+  }, [teachers])
+
   const navigateToMonth = (token: string) => {
     const params = new URLSearchParams(searchParams?.toString())
     params.set('month', token)
@@ -732,6 +817,13 @@ export function PrincipalPayrollClient({
           </Select>
         </div>
       </header>
+
+      {summaryRows.length > 0 && (
+        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-medium text-slate-900">정산 요약</h2>
+          <PayrollSummaryTable rows={summaryRows} />
+        </section>
+      )}
 
       {teachers.length === 0 ? (
         <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
