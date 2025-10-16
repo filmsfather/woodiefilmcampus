@@ -1,12 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ComponentProps } from 'react'
 import { useRouter } from 'next/navigation'
 
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 
-export function SignOutButton() {
+interface SignOutButtonProps {
+  className?: string
+  variant?: ComponentProps<typeof Button>['variant']
+  size?: ComponentProps<typeof Button>['size']
+}
+
+export function SignOutButton({
+  className,
+  variant = 'outline',
+  size = 'default',
+}: SignOutButtonProps = {}) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -19,7 +29,13 @@ export function SignOutButton() {
   }
 
   return (
-    <Button variant="outline" onClick={handleSignOut} disabled={loading}>
+    <Button
+      variant={variant}
+      size={size}
+      className={className}
+      onClick={handleSignOut}
+      disabled={loading}
+    >
       {loading ? '로그아웃 중...' : '로그아웃'}
     </Button>
   )
