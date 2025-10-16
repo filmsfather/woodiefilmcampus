@@ -432,5 +432,15 @@ export async function upsertPayrollRun(
       console.error('[payroll] failed to upsert acknowledgement', ackError)
       throw new Error('확인 요청 정보를 저장하지 못했습니다.')
     }
+  } else {
+    const { error: deleteAckError } = await supabase
+      .from('teacher_payroll_acknowledgements')
+      .delete()
+      .eq('run_id', run.id)
+
+    if (deleteAckError) {
+      console.error('[payroll] failed to remove acknowledgement', deleteAckError)
+      throw new Error('확인 요청 정보를 초기화하지 못했습니다.')
+    }
   }
 }

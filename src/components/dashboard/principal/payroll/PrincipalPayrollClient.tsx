@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { previewPayrollAdjustments, requestPayrollConfirmation } from '@/app/dashboard/principal/payroll/actions'
+import { requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
@@ -551,10 +551,10 @@ function TeacherPayrollCard({
     formData.append('incentives', incentivesPayload)
 
     startPreviewTransition(() => {
-      previewPayrollAdjustments(formData)
+      savePayrollDraft(formData)
         .then((result) => {
           if (!result?.success || !result.breakdown) {
-            setFeedback({ type: 'error', message: result?.error ?? '인센티브를 반영하지 못했습니다.' })
+            setFeedback({ type: 'error', message: result?.error ?? '인센티브를 저장하지 못했습니다.' })
             return
           }
           setCurrentBreakdown(result.breakdown)
@@ -564,11 +564,12 @@ function TeacherPayrollCard({
           setIncentives(result.breakdown.adjustments
             .filter((item) => !item.isDeduction && !previousIncentiveKeys.has(toIncentiveKey(item.label, item.amount)))
             .map((item) => createIncentiveDraft(item.label === '인센티브' ? '' : item.label, item.amount)))
-          setFeedback({ type: 'success', message: '인센티브를 반영해 정산 미리보기를 업데이트했습니다.' })
+          setFeedback({ type: 'success', message: '인센티브를 저장하고 정산 정보를 갱신했습니다.' })
+          router.refresh()
         })
         .catch((error) => {
-          console.error('[payroll] preview incentives error', error)
-          setFeedback({ type: 'error', message: '인센티브 미리보기 중 오류가 발생했습니다.' })
+          console.error('[payroll] save incentives error', error)
+          setFeedback({ type: 'error', message: '인센티브 저장 중 오류가 발생했습니다.' })
         })
     })
   }
