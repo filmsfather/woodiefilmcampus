@@ -7,6 +7,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ExternalSubstituteModal } from '@/components/dashboard/principal/payroll/ExternalSubstituteModal'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -821,6 +822,7 @@ export function PrincipalPayrollClient({
   const [isRouting, startTransition] = useTransition()
   const [sortField, setSortField] = useState<SummarySortField>('name')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [isExternalModalOpen, setExternalModalOpen] = useState(false)
 
   const summaryRows = useMemo<PayrollSummaryRow[]>(() => {
     const unsorted = teachers.map((entry) => ({
@@ -885,7 +887,8 @@ export function PrincipalPayrollClient({
   }
 
   return (
-    <section className="mx-auto flex max-w-6xl flex-col gap-6">
+    <>
+      <section className="mx-auto flex max-w-6xl flex-col gap-6">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-slate-900">임금관리</h1>
@@ -899,6 +902,15 @@ export function PrincipalPayrollClient({
             className="mr-2"
           >
             <Link href="/dashboard/principal/payroll/profiles">급여 프로필 관리</Link>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="mr-2"
+            onClick={() => setExternalModalOpen(true)}
+          >
+            외부 대타 현황
           </Button>
           <Button
             type="button"
@@ -956,6 +968,12 @@ export function PrincipalPayrollClient({
           ))}
         </div>
       )}
-    </section>
+      </section>
+      <ExternalSubstituteModal
+        open={isExternalModalOpen}
+        onOpenChange={setExternalModalOpen}
+        monthToken={monthToken}
+      />
+    </>
   )
 }

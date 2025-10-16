@@ -7,6 +7,7 @@ import {
   type TeacherProfileSummary,
   type WorkLogEntry,
   type WorkLogReviewStatus,
+  type ExternalTeacherPayStatus,
   type WorkLogStatus,
   type WorkLogSubstituteType,
 } from '@/lib/work-logs'
@@ -36,6 +37,7 @@ interface WorkLogRowWithTeacher {
   external_teacher_bank: string | null
   external_teacher_account: string | null
   external_teacher_hours: number | null
+  external_teacher_pay_status: ExternalTeacherPayStatus
   notes: string | null
   review_status: WorkLogReviewStatus
   review_note: string | null
@@ -218,6 +220,78 @@ export async function fetchApprovedWorkLogsByTeacher(
     acc[entry.teacherId].push(entry)
     return acc
   }, {})
+}
+
+
+export interface ExternalSubstituteEntry {
+  id: string
+  teacher: TeacherProfileSummary | null
+  workDate: string
+  workHours: number | null
+  notes: string | null
+  externalTeacherName: string | null
+  externalTeacherPhone: string | null
+  externalTeacherBank: string | null
+  externalTeacherAccount: string | null
+  externalTeacherHours: number | null
+  payStatus: ExternalTeacherPayStatus
+}
+
+export async function fetchExternalSubstituteEntries(
+  startDate: string,
+  endExclusiveDate: string
+): Promise<ExternalSubstituteEntry[]> {
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('work_log_entries')
+    .select(`
+      id,
+      teacher_id,
+      work_date,
+      work_hours,
+      notes,
+      external_teacher_name,
+      external_teacher_phone,
+      external_teacher_bank,
+      external_teacher_account,
+      external_teacher_hours,
+      external_teacher_pay_status,
+      teacher:profiles!work_log_entries_teacher_id_fkey ( id, name, email )
+    `)
+    .eq('substitute_type', 'external')
+    .gte('work_date', startDate)
+    .lt('work_date', endExclusiveDate)
+    .order('work_date', { ascending: true })
+
+  if (error) {
+    console.error('[payroll] failed to fetch external substitutes', error)
+    return []
+  }
+
+  return (data ?? []).map((row) => {
+    const teacherRecord = Array.isArray(row.teacher) ? row.teacher[0] ?? null : row.teacher
+    const teacherSummary = teacherRecord
+      ? summarizeTeacherProfile({
+          id: teacherRecord.id,
+          name: teacherRecord.name ?? null,
+          email: teacherRecord.email ?? null,
+        })
+      : null
+
+    return {
+      id: row.id,
+      teacher: teacherSummary,
+      workDate: row.work_date,
+      workHours: row.work_hours,
+      notes: row.notes ?? null,
+      externalTeacherName: row.external_teacher_name ?? null,
+      externalTeacherPhone: row.external_teacher_phone ?? null,
+      externalTeacherBank: row.external_teacher_bank ?? null,
+      externalTeacherAccount: row.external_teacher_account ?? null,
+      externalTeacherHours: row.external_teacher_hours ?? null,
+      payStatus: (row.external_teacher_pay_status as ExternalTeacherPayStatus | null) ?? 'pending',
+    }
+  })
 }
 
 export async function fetchTeacherDirectory(): Promise<Record<string, TeacherProfileSummary>> {

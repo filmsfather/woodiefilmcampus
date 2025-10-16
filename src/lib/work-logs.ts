@@ -1,6 +1,7 @@
 export type WorkLogStatus = 'work' | 'substitute' | 'absence' | 'tardy'
 export type WorkLogReviewStatus = 'pending' | 'approved' | 'rejected'
 export type WorkLogSubstituteType = 'internal' | 'external'
+export type ExternalTeacherPayStatus = 'pending' | 'completed'
 
 export interface WorkLogEntry {
   id: string
@@ -22,6 +23,7 @@ export interface WorkLogEntry {
   reviewedAt: string | null
   createdAt: string
   updatedAt: string
+  externalTeacherPayStatus: ExternalTeacherPayStatus
 }
 
 export interface WorkLogEntryWithTeacher extends WorkLogEntry {
@@ -48,6 +50,7 @@ export interface WorkLogEntryRow {
   reviewed_at: string | null
   created_at: string
   updated_at: string
+  external_teacher_pay_status: ExternalTeacherPayStatus
 }
 
 export const WORK_LOG_ENTRY_SELECT_FIELDS = `
@@ -69,8 +72,7 @@ export const WORK_LOG_ENTRY_SELECT_FIELDS = `
   reviewed_by,
   reviewed_at,
   created_at,
-  updated_at
-`
+undefined`
 
 export const WORK_LOG_STATUS_OPTIONS: Array<{
   value: WorkLogStatus
@@ -132,6 +134,7 @@ export function mapWorkLogRow(row: WorkLogEntryRow): WorkLogEntry {
     reviewedAt: row.reviewed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    externalTeacherPayStatus: row.external_teacher_pay_status,
   }
 }
 

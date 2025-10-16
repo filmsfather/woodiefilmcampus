@@ -3,13 +3,15 @@
 import { randomUUID } from 'node:crypto'
 
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
-import { resolveMonthRange } from '@/lib/work-logs'
+import { resolveMonthRange, type ExternalTeacherPayStatus } from '@/lib/work-logs'
 import {
   computeTeacherPayroll,
   fetchApprovedWorkLogsByTeacher,
+  fetchExternalSubstituteEntries,
   fetchTeacherDirectory,
   loadPayrollRunDetails,
   loadPayrollRuns,
@@ -31,6 +33,8 @@ const adjustmentSchema = z.object({
   amount: z.coerce.number(),
   isDeduction: z.coerce.boolean().optional(),
 })
+
+const externalPayStatusSchema = z.enum(['pending', 'completed'])
 
 const requestSchema = z.object({
   teacherId: z.string().uuid('선생님 ID가 올바르지 않습니다.'),
@@ -383,6 +387,79 @@ export async function savePayrollDraft(formData: FormData) {
     message: messagePreview,
     breakdown: computation.breakdown,
   }
+}
+
+
+export async function loadExternalSubstitutes(monthToken: string | null | undefined) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'principal') {
+    return { error: '외부 대타 현황을 확인할 권한이 없습니다.' }
+  }
+
+  const monthRange = resolveMonthRange(monthToken)
+
+  const entries = await fetchExternalSubstituteEntries(monthRange.startDate, monthRange.endExclusiveDate)
+  const totalHours = entries.reduce((sum, entry) => sum + (entry.externalTeacherHours ?? entry.workHours ?? 0), 0)
+  const teacherCount = new Set(entries.map((entry) => entry.teacher?.id).filter(Boolean)).size
+
+  return {
+    success: true,
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      teacher: entry.teacher,
+      workDate: entry.workDate,
+      workHours: entry.workHours,
+      notes: entry.notes,
+      externalTeacherName: entry.externalTeacherName,
+      externalTeacherPhone: entry.externalTeacherPhone,
+      externalTeacherBank: entry.externalTeacherBank,
+      externalTeacherAccount: entry.externalTeacherAccount,
+      externalTeacherHours: entry.externalTeacherHours,
+      payStatus: entry.payStatus,
+    })),
+    summary: {
+      totalCount: entries.length,
+      totalHours,
+      teacherCount,
+      monthLabel: monthRange.label,
+    },
+  }
+}
+
+const updateExternalPayStatusSchema = z.object({
+  entryId: z.string().uuid('근무일지 ID가 올바르지 않습니다.'),
+  status: externalPayStatusSchema,
+})
+
+export async function updateExternalSubstitutePayStatus(input: { entryId: string; status: ExternalTeacherPayStatus }) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'principal') {
+    return { error: '외부 대타 지급 상태를 변경할 권한이 없습니다.' }
+  }
+
+  const parsed = updateExternalPayStatusSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '지급 상태 입력을 확인해주세요.' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('work_log_entries')
+    .update({ external_teacher_pay_status: parsed.data.status })
+    .eq('id', parsed.data.entryId)
+
+  if (error) {
+    console.error('[payroll] failed to update external pay status', error)
+    return { error: '지급 상태를 업데이트하지 못했습니다.' }
+  }
+
+  revalidatePath('/dashboard/principal/payroll')
+
+  return { success: true }
 }
 
 export async function requestPayrollConfirmation(formData: FormData) {
