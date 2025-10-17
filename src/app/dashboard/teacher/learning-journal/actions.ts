@@ -13,7 +13,7 @@ import {
   type UpdateLearningJournalEntryStatusInput,
 } from '@/lib/validation/learning-journal'
 import type { ActionState } from '@/app/dashboard/manager/classes/action-state'
-import { refreshLearningJournalWeeklyData } from '@/lib/learning-journals'
+import { ensureLearningJournalShareToken, refreshLearningJournalWeeklyData } from '@/lib/learning-journals'
 
 const TEACHER_LEARNING_JOURNAL_PATH = '/dashboard/teacher/learning-journal'
 function revalidateEntryPath(entryId: string) {
@@ -232,6 +232,14 @@ export async function updateLearningJournalEntryStatusAction(
     if (updateError) {
       console.error('[learning-journal] entry status update error', updateError)
       return makeErrorState('상태를 변경하지 못했습니다.')
+    }
+
+    if (nextStatus === 'published') {
+      try {
+        await ensureLearningJournalShareToken(parsed.data.entryId)
+      } catch (shareTokenError) {
+        console.error('[learning-journal] share token ensure error', shareTokenError)
+      }
     }
 
     await insertEntryLog(parsed.data.entryId, previousStatus, nextStatus, profile.id)

@@ -17,6 +17,7 @@ import {
   fetchLearningJournalEntryDetail,
   fetchLearningJournalGreeting,
   fetchLearningJournalComments,
+  fetchLearningJournalShareToken,
 } from '@/lib/learning-journals'
 import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 
@@ -106,6 +107,16 @@ export default async function PrincipalLearningJournalReviewPage({
 
       greeting = fetchedGreeting
       academicEvents = fetchedEvents
+    }
+  }
+
+  let shareUrl: string | null = null
+  if (targetEntry && targetEntry.status === 'published') {
+    const token = await fetchLearningJournalShareToken(targetEntry.id)
+
+    if (token) {
+      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? ''
+      shareUrl = `${baseUrl ? `${baseUrl}` : ''}/learning-journal/share/${token}`
     }
   }
 
@@ -395,22 +406,47 @@ export default async function PrincipalLearningJournalReviewPage({
               weekly={targetEntry.weekly}
               comments={comments}
               actionPanel={
-                <div className="flex flex-wrap gap-2">
-                  <form action={publishAction}>
-                    <input type="hidden" name="entryId" value={targetEntry.id} />
-                    <input type="hidden" name="status" value="published" />
-                    <Button type="submit" disabled={targetEntry.status === 'published'}>
-                      공개 승인
-                    </Button>
-                  </form>
-                  <form action={revertAction}>
-                    <input type="hidden" name="entryId" value={targetEntry.id} />
-                    <input type="hidden" name="status" value="draft" />
-                    <Button type="submit" variant="outline" disabled={targetEntry.status === 'draft'}>
-                      작성 중으로 되돌리기
-                    </Button>
-                  </form>
-                  <RegenerateWeeklyButton entryId={targetEntry.id} />
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <form action={publishAction}>
+                      <input type="hidden" name="entryId" value={targetEntry.id} />
+                      <input type="hidden" name="status" value="published" />
+                      <Button type="submit" disabled={targetEntry.status === 'published'}>
+                        공개 승인
+                      </Button>
+                    </form>
+                    <form action={revertAction}>
+                      <input type="hidden" name="entryId" value={targetEntry.id} />
+                      <input type="hidden" name="status" value="draft" />
+                      <Button type="submit" variant="outline" disabled={targetEntry.status === 'draft'}>
+                        작성 중으로 되돌리기
+                      </Button>
+                    </form>
+                    <RegenerateWeeklyButton entryId={targetEntry.id} />
+                  </div>
+
+                  {shareUrl ? (
+                    <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                      <p className="font-medium text-slate-500">학부모 공유 링크</p>
+                      <p className="break-all rounded-md bg-white px-3 py-2 text-slate-900 shadow-sm">
+                        {shareUrl}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button asChild size="sm" variant="outline">
+                          <a href={shareUrl} target="_blank" rel="noopener noreferrer">
+                            새 창에서 열기
+                          </a>
+                        </Button>
+                      </div>
+                      <p className="text-[10px] text-slate-500">
+                        링크를 받은 학부모는 별도 로그인 없이 학습일지를 확인할 수 있습니다. 안전하게 전달해주세요.
+                      </p>
+                    </div>
+                  ) : targetEntry.status === 'published' ? (
+                    <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-700">
+                      공유 링크를 불러오지 못했습니다. 페이지를 새로고침하거나 다시 시도해주세요.
+                    </div>
+                  ) : null}
                 </div>
               }
             />

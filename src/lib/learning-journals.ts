@@ -1,3 +1,5 @@
+import { randomBytes } from 'crypto'
+
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import {
@@ -17,6 +19,7 @@ import {
   type LearningJournalWeekAssignmentItem,
   type LearningJournalWeeklySubjectData,
   type ClassLearningJournalTemplate,
+  type SharedLearningJournalSnapshot,
 } from '@/types/learning-journal'
 import type { LearningJournalSubject } from '@/types/learning-journal'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -1796,3 +1799,345 @@ export const LEARNING_JOURNAL_SUBJECT_OPTIONS = LEARNING_JOURNAL_SUBJECT_DISPLAY
   value: subject,
   label: LEARNING_JOURNAL_SUBJECT_INFO[subject].label,
 }))
+
+const SHARE_TOKEN_BYTE_LENGTH = 24
+
+interface LearningJournalShareTokenRow {
+  id: string
+  entry_id: string
+  token: string
+  expires_at: string | null
+  last_accessed_at: string | null
+  revoked_at: string | null
+  entry?: StudentEntryRow | StudentEntryRow[] | null
+}
+
+function generateShareTokenCandidate() {
+  return randomBytes(SHARE_TOKEN_BYTE_LENGTH).toString('base64url')
+}
+
+function isShareTokenActive(row: LearningJournalShareTokenRow, reference: Date) {
+  if (row.revoked_at) {
+    return false
+  }
+
+  if (!row.expires_at) {
+    return true
+  }
+
+  const expiresAt = DateUtil.toUTCDate(row.expires_at)
+  return expiresAt.getTime() >= reference.getTime()
+}
+
+function pickShareTokenEntry(row: LearningJournalShareTokenRow) {
+  if (!row.entry) {
+    return null
+  }
+
+  if (Array.isArray(row.entry)) {
+    return row.entry[0] ?? null
+  }
+
+  return row.entry
+}
+
+export async function ensureLearningJournalShareToken(entryId: string): Promise<string | null> {
+  if (!entryId) {
+    return null
+  }
+
+  const supabase = createAdminClient()
+  const now = new Date()
+
+  const { data: existingRow, error: existingError } = await supabase
+    .from('learning_journal_share_tokens')
+    .select('id, entry_id, token, expires_at, last_accessed_at, revoked_at')
+    .eq('entry_id', entryId)
+    .maybeSingle<LearningJournalShareTokenRow>()
+
+  if (existingError) {
+    console.error('[learning-journal] share token fetch error', existingError)
+    return null
+  }
+
+  if (existingRow && isShareTokenActive(existingRow, now)) {
+    return existingRow.token
+  }
+
+  const MAX_ATTEMPTS = 5
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+    const token = generateShareTokenCandidate()
+    const payload = {
+      token,
+      revoked_at: null,
+      last_accessed_at: null,
+      expires_at: null,
+    }
+
+    if (existingRow?.id) {
+      const { error: updateError } = await supabase
+        .from('learning_journal_share_tokens')
+        .update(payload)
+        .eq('id', existingRow.id)
+
+      if (!updateError) {
+        return token
+      }
+
+      if (updateError.code !== '23505') {
+        console.error('[learning-journal] share token update error', updateError)
+        return null
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('learning_journal_share_tokens')
+        .insert({
+          entry_id: entryId,
+          token,
+          expires_at: null,
+          revoked_at: null,
+          last_accessed_at: null,
+        })
+
+      if (!insertError) {
+        return token
+      }
+
+      if (insertError.code !== '23505') {
+        console.error('[learning-journal] share token insert error', insertError)
+        return null
+      }
+    }
+  }
+
+  console.error('[learning-journal] failed to generate unique share token')
+  return null
+}
+
+export async function fetchLearningJournalShareToken(entryId: string): Promise<string | null> {
+  if (!entryId) {
+    return null
+  }
+
+  const supabase = createAdminClient()
+  const now = new Date()
+
+  const { data, error } = await supabase
+    .from('learning_journal_share_tokens')
+    .select('id, entry_id, token, expires_at, last_accessed_at, revoked_at')
+    .eq('entry_id', entryId)
+    .maybeSingle<LearningJournalShareTokenRow>()
+
+  if (error) {
+    console.error('[learning-journal] share token fetch by entry error', error)
+    return null
+  }
+
+  if (!data || !isShareTokenActive(data, now)) {
+    return null
+  }
+
+  return data.token
+}
+
+export async function fetchLearningJournalEntryByShareToken(
+  token: string
+): Promise<SharedLearningJournalSnapshot | null> {
+  if (!token) {
+    return null
+  }
+
+  const supabase = createAdminClient()
+  const now = new Date()
+
+  const { data: shareRow, error: shareError } = await supabase
+    .from('learning_journal_share_tokens')
+    .select(`
+      id,
+      entry_id,
+      token,
+      expires_at,
+      last_accessed_at,
+      revoked_at,
+      entry:learning_journal_entries (
+        id,
+        period_id,
+        student_id,
+        status,
+        completion_rate,
+        last_generated_at,
+        submitted_at,
+        published_at,
+        archived_at,
+        created_at,
+        updated_at,
+        summary_json,
+        weekly_json,
+        student:profiles!learning_journal_entries_student_id_fkey (
+          id,
+          name,
+          email,
+          parent_phone
+        ),
+        period:learning_journal_periods!learning_journal_entries_period_id_fkey (
+          id,
+          class_id,
+          start_date,
+          end_date,
+          label,
+          status,
+          classes:classes!learning_journal_periods_class_id_fkey (
+            id,
+            name
+          )
+        )
+      )
+    `)
+    .eq('token', token)
+    .maybeSingle<LearningJournalShareTokenRow>()
+
+  if (shareError) {
+    console.error('[learning-journal] share token lookup error', shareError)
+    return null
+  }
+
+  if (!shareRow || !isShareTokenActive(shareRow, now)) {
+    return null
+  }
+
+  const entryRow = pickShareTokenEntry(shareRow)
+
+  if (!entryRow || entryRow.status !== 'published') {
+    return null
+  }
+
+  const pickedPeriod = pickPeriod(entryRow.period)
+
+  if (!pickedPeriod) {
+    return null
+  }
+
+  const classInfo = pickClassFromPeriod(pickedPeriod)
+  const student = pickSingleRelation(entryRow.student)
+
+  const entryDetail: LearningJournalEntryDetail = {
+    id: entryRow.id,
+    periodId: entryRow.period_id,
+    studentId: entryRow.student_id,
+    status: entryRow.status,
+    completionRate: entryRow.completion_rate,
+    lastGeneratedAt: entryRow.last_generated_at,
+    submittedAt: entryRow.submitted_at,
+    publishedAt: entryRow.published_at,
+    archivedAt: entryRow.archived_at,
+    summary: entryRow.summary_json,
+    weekly: entryRow.weekly_json,
+    createdAt: entryRow.created_at,
+    updatedAt: entryRow.updated_at,
+  }
+
+  const period = {
+    id: pickedPeriod.id,
+    classId: pickedPeriod.class_id,
+    className: classInfo?.name ?? null,
+    startDate: pickedPeriod.start_date,
+    endDate: pickedPeriod.end_date,
+    label: pickedPeriod.label ?? null,
+    status: (pickedPeriod.status ?? 'draft') as LearningJournalPeriod['status'],
+  }
+
+  const monthTokens = deriveMonthTokensForRange(period.startDate, period.endDate)
+
+  let greeting: LearningJournalGreeting | null = null
+  if (monthTokens.length > 0) {
+    const { data: greetingRow, error: greetingError } = await supabase
+      .from('learning_journal_greetings')
+      .select('month_token, message, principal_id, published_at, created_at, updated_at')
+      .eq('month_token', monthTokens[0])
+      .maybeSingle<GreetingRow>()
+
+    if (greetingError) {
+      console.error('[learning-journal] share greeting fetch error', greetingError)
+    } else if (greetingRow) {
+      greeting = {
+        monthToken: greetingRow.month_token,
+        message: greetingRow.message,
+        principalId: greetingRow.principal_id,
+        publishedAt: greetingRow.published_at,
+        createdAt: greetingRow.created_at,
+        updatedAt: greetingRow.updated_at,
+      }
+    }
+  }
+
+  let academicEvents: LearningJournalAcademicEvent[] = []
+  if (monthTokens.length > 0) {
+    const { data: eventsData, error: eventsError } = await supabase
+      .from('learning_journal_academic_events')
+      .select('id, month_token, title, start_date, end_date, memo, created_by, created_at, updated_at')
+      .in('month_token', monthTokens)
+      .order('start_date', { ascending: true })
+
+    if (eventsError) {
+      console.error('[learning-journal] share academic events fetch error', eventsError)
+    } else {
+      academicEvents = (eventsData ?? []).map((row) => ({
+        id: row.id,
+        monthToken: row.month_token,
+        title: row.title,
+        startDate: row.start_date,
+        endDate: row.end_date ?? null,
+        memo: row.memo ?? null,
+        createdBy: row.created_by ?? null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }))
+    }
+  }
+
+  let comments: LearningJournalComment[] = []
+  const { data: commentsData, error: commentsError } = await supabase
+    .from('learning_journal_comments')
+    .select('id, entry_id, role_scope, subject, teacher_id, body, created_at, updated_at')
+    .eq('entry_id', entryDetail.id)
+    .order('role_scope', { ascending: true })
+    .order('created_at', { ascending: true })
+
+  if (commentsError) {
+    console.error('[learning-journal] share comments fetch error', commentsError)
+  } else {
+    comments = (commentsData ?? []).map((row) => ({
+      id: row.id,
+      entryId: row.entry_id,
+      roleScope: row.role_scope,
+      subject: (row.subject ?? null) as LearningJournalComment['subject'],
+      teacherId: row.teacher_id ?? null,
+      body: row.body ?? null,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    }))
+  }
+
+  try {
+    await supabase
+      .from('learning_journal_share_tokens')
+      .update({ last_accessed_at: DateUtil.toISOString(now) })
+      .eq('id', shareRow.id)
+  } catch (updateError) {
+    console.error('[learning-journal] share token access update error', updateError)
+  }
+
+  return {
+    entry: entryDetail,
+    student: {
+      id: student?.id ?? entryRow.student_id,
+      name: student?.name ?? student?.email ?? null,
+      email: student?.email ?? null,
+      parentPhone: (student as { parent_phone?: string | null } | null)?.parent_phone ?? null,
+    },
+    period,
+    greeting,
+    academicEvents,
+    comments,
+  }
+}

@@ -199,6 +199,28 @@ export interface LearningJournalWeekAssignmentItem {
   note: string | null
 }
 
+export interface SharedLearningJournalSnapshot {
+  entry: LearningJournalEntryDetail
+  student: {
+    id: string
+    name: string | null
+    email: string | null
+    parentPhone?: string | null
+  }
+  period: {
+    id: string
+    classId: string
+    className: string | null
+    startDate: string
+    endDate: string
+    label: string | null
+    status: LearningJournalPeriodStatus
+  }
+  greeting: LearningJournalGreeting | null
+  academicEvents: LearningJournalAcademicEvent[]
+  comments: LearningJournalComment[]
+}
+
 export interface LearningJournalWeekSubjectSnapshot {
   materials: LearningJournalWeekMaterialItem[]
   assignments: LearningJournalWeekAssignmentItem[]
