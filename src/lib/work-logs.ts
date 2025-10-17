@@ -72,7 +72,9 @@ export const WORK_LOG_ENTRY_SELECT_FIELDS = `
   reviewed_by,
   reviewed_at,
   created_at,
-undefined`
+  updated_at,
+  external_teacher_pay_status
+`
 
 export const WORK_LOG_STATUS_OPTIONS: Array<{
   value: WorkLogStatus
