@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { ensurePrincipalProfile } from '@/lib/authz'
-import { ensureLearningJournalShareToken } from '@/lib/learning-journals'
+import { notifyParentOfLearningJournalPublish } from '@/lib/learning-journal-notifications'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   deleteLearningJournalGreetingSchema,
@@ -212,11 +212,7 @@ export async function updateEntryStatusByPrincipalAction(formData: FormData) {
   }
 
   if (status === 'published') {
-    try {
-      await ensureLearningJournalShareToken(entryId)
-    } catch (shareTokenError) {
-      console.error('[learning-journal] principal ensure share token error', shareTokenError)
-    }
+    await notifyParentOfLearningJournalPublish(entryId)
   }
 
   await insertEntryLog(admin, entryId, current.status ?? null, status, profile.id)

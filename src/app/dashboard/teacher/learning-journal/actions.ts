@@ -13,7 +13,8 @@ import {
   type UpdateLearningJournalEntryStatusInput,
 } from '@/lib/validation/learning-journal'
 import type { ActionState } from '@/app/dashboard/manager/classes/action-state'
-import { ensureLearningJournalShareToken, refreshLearningJournalWeeklyData } from '@/lib/learning-journals'
+import { refreshLearningJournalWeeklyData } from '@/lib/learning-journals'
+import { notifyParentOfLearningJournalPublish } from '@/lib/learning-journal-notifications'
 
 const TEACHER_LEARNING_JOURNAL_PATH = '/dashboard/teacher/learning-journal'
 function revalidateEntryPath(entryId: string) {
@@ -235,11 +236,7 @@ export async function updateLearningJournalEntryStatusAction(
     }
 
     if (nextStatus === 'published') {
-      try {
-        await ensureLearningJournalShareToken(parsed.data.entryId)
-      } catch (shareTokenError) {
-        console.error('[learning-journal] share token ensure error', shareTokenError)
-      }
+      await notifyParentOfLearningJournalPublish(parsed.data.entryId)
     }
 
     await insertEntryLog(parsed.data.entryId, previousStatus, nextStatus, profile.id)

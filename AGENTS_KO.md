@@ -32,7 +32,7 @@
 - 수동 검증 결과(개발 서버 기동, 린트 통과)와 환경 변수 변경 사항을 체크리스트로 공유하세요.
 
 ## 보안 및 구성 팁
-- Supabase 자격 증명은 `.env.local`에 보관하고(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) 저장소에는 커밋하지 마세요.
+- Supabase 자격 증명은 `.env.local`에 보관하고(`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) 저장소에는 커밋하지 마세요. SOLAPI 문자 발송을 사용하려면 `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER_NUMBER`, `NEXT_PUBLIC_SITE_URL` 환경 변수도 함께 설정해야 합니다.
 - 에지 미들웨어가 인증 쿠키를 재발급하므로 변경 후 비로그인/로그인 모두에서 내비게이션을 다시 확인하세요.
 - `components.json`을 수정할 때는 추가된 shadcn 컴포넌트를 검토해 불필요한 번들 증가를 막으세요.
 

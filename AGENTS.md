@@ -32,7 +32,7 @@
 - Include screenshots or brief screen captures for UI changes, list manual checks (dev build, lint), and call out required environment variable updates.
 
 ## Security & Configuration Tips
-- Store Supabase credentials in `.env.local` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) and never commit secrets.
+- Store Supabase credentials in `.env.local` (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) and never commit secrets. When enabling SOLAPI messaging, add `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`, `SOLAPI_SENDER_NUMBER`, and `NEXT_PUBLIC_SITE_URL` as well.
 - The edge middleware caches auth cookies; after touching it, verify both anonymous and authenticated navigation in dev.
 - Audit third-party shadcn imports when updating `components.json` to keep unused components out of the bundle.
 
