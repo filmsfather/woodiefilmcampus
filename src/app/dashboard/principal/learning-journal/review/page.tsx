@@ -133,6 +133,15 @@ export default async function PrincipalLearningJournalReviewPage({
   const renderStatusBadge = (status: 'submitted' | 'draft' | 'published' | 'archived') =>
     STATUS_LABEL[status] ?? status
 
+  const smsEnvStatus = [
+    { label: 'SOLAPI_API_KEY', ok: Boolean(process.env.SOLAPI_API_KEY) },
+    { label: 'SOLAPI_API_SECRET', ok: Boolean(process.env.SOLAPI_API_SECRET) },
+    { label: 'SOLAPI_SENDER_NUMBER', ok: Boolean(process.env.SOLAPI_SENDER_NUMBER) },
+    { label: 'NEXT_PUBLIC_SITE_URL', ok: Boolean(process.env.NEXT_PUBLIC_SITE_URL) },
+  ] as const
+
+  const isSmsReady = smsEnvStatus.every((item) => item.ok)
+
   return (
     <section className="space-y-8">
       <div className="space-y-3">
@@ -144,6 +153,30 @@ export default async function PrincipalLearningJournalReviewPage({
           </p>
         </header>
       </div>
+
+      <Card className={isSmsReady ? 'border-emerald-200' : 'border-amber-300'}>
+        <CardHeader>
+          <CardTitle className="text-lg text-slate-900">학부모 문자 발송 환경</CardTitle>
+          <CardDescription>공유 링크 문자 발송에 필요한 환경 변수의 설정 상태입니다.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="flex flex-wrap gap-2">
+            {smsEnvStatus.map((item) => (
+              <span
+                key={item.label}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${item.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+              >
+                {item.label}: {item.ok ? 'OK' : '설정 필요'}
+              </span>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            {isSmsReady
+              ? '모든 값이 정상적으로 감지되었습니다. 승인 시 학부모에게 문자가 발송됩니다.'
+              : '하나 이상의 값이 비어 있습니다. 환경 변수를 다시 설정한 뒤 재배포해야 문자 발송이 동작합니다.'}
+          </p>
+        </CardContent>
+      </Card>
 
       <Card className="border-slate-200">
         <CardHeader>
