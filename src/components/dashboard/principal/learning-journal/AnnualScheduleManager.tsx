@@ -283,7 +283,7 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                     <TableCell className="text-slate-600">
                       {formatTuitionLabel(schedule.tuitionDueDate, schedule.tuitionAmount)}
                     </TableCell>
-                    <TableCell className="max-w-sm whitespace-normal text-slate-500">
+                    <TableCell className="max-w-sm whitespace-pre-line text-slate-500">
                       {schedule.memo ? schedule.memo : '-'}
                     </TableCell>
                     <TableCell className="text-right">
