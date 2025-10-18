@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendCounselingReservationConfirmationSMS } from '@/lib/solapi'
 
 const reservationSchema = z.object({
   slotId: z.string().uuid('유효한 상담 슬롯이 아닙니다.'),
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
 
     const { data: slot, error: slotError } = await supabase
       .from('counseling_slots')
-      .select('id, status, counseling_date')
+      .select('id, status, counseling_date, start_time')
       .eq('id', slotId)
       .maybeSingle()
 
@@ -110,6 +111,22 @@ export async function POST(request: Request) {
     revalidatePath('/counseling/reserve')
     revalidatePath('/dashboard/manager/counseling/slots')
     revalidatePath('/dashboard/manager/counseling/reservations')
+
+    if (slot?.start_time) {
+      const smsResult = await sendCounselingReservationConfirmationSMS({
+        phoneNumber: contactPhone,
+        studentName,
+        counselingDate: slot.counseling_date,
+        startTime: slot.start_time,
+      })
+
+      if (!smsResult) {
+        console.warn('[counseling] 예약 확인 문자 발송에 실패했습니다.', {
+          slotId,
+          contactPhone,
+        })
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
