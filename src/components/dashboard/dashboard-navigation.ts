@@ -60,6 +60,7 @@ const managerSections: NavigationSection[] = [
       { label: '구성원 관리', href: '/dashboard/manager/members' },
       { label: '인쇄 요청 관리', href: '/dashboard/manager/print-requests' },
       { label: '반 관리', href: '/dashboard/manager/classes' },
+      { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
       { label: '학습일지 관리', href: '/dashboard/manager/learning-journal' },
       { label: '교사 대시보드 열기', href: '/dashboard/teacher' },
     ],
@@ -95,6 +96,7 @@ const teacherSections: NavigationSection[] = [
     title: '수업자료',
     items: [
       { label: '수업자료 아카이브', href: '/dashboard/teacher/class-materials' },
+      { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
       { label: '월간 학습 계획', href: '/dashboard/teacher/learning-journal/templates' },
       { label: '입시자료 아카이브', href: '/dashboard/teacher/admission-materials' },
     ],
@@ -122,6 +124,7 @@ const studentSections: NavigationSection[] = [
     id: 'student-todo',
     title: '해야할 일',
     items: [
+      { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
       { label: '이번달 학습 계획', href: '/dashboard/student/monthly-plan' },
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
     ],
