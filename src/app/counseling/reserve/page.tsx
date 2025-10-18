@@ -1,6 +1,10 @@
 
 import { PublicCounselingReservation } from '@/components/counseling/PublicCounselingReservation'
-import { getMonthRange, getTodayISOInKst } from '@/lib/counseling'
+import {
+  CounselingSlotStatus,
+  getMonthRange,
+  getTodayISOInKst,
+} from '@/lib/counseling'
 import { createClient } from '@/lib/supabase/server'
 
 interface SearchParams {
@@ -11,7 +15,7 @@ interface SlotRow {
   id: string
   counseling_date: string
   start_time: string
-  status: 'open'
+  status: CounselingSlotStatus
 }
 
 interface QuestionRow {
@@ -44,7 +48,7 @@ export default async function CounselingReservePage({ searchParams }: { searchPa
     supabase
       .from('counseling_slots')
       .select('id, counseling_date, start_time, status')
-      .eq('status', 'open')
+      .in('status', ['open', 'booked'])
       .gte('counseling_date', start)
       .lte('counseling_date', end)
       .order('counseling_date', { ascending: true })
@@ -69,15 +73,21 @@ export default async function CounselingReservePage({ searchParams }: { searchPa
   const monthSummaryMap = new Map<string, number>()
 
   for (const slot of slots) {
-    const count = monthSummaryMap.get(slot.counseling_date) ?? 0
-    monthSummaryMap.set(slot.counseling_date, count + 1)
+    if (!monthSummaryMap.has(slot.counseling_date)) {
+      monthSummaryMap.set(slot.counseling_date, 0)
+    }
+
+    if (slot.status === 'open') {
+      const count = monthSummaryMap.get(slot.counseling_date) ?? 0
+      monthSummaryMap.set(slot.counseling_date, count + 1)
+    }
   }
 
   const monthSummary = Array.from(monthSummaryMap.entries()).map(([date, open]) => ({ date, open }))
 
   const daySlots = slots
     .filter((slot) => slot.counseling_date === selectedDate)
-    .map((slot) => ({ id: slot.id, start_time: slot.start_time }))
+    .map((slot) => ({ id: slot.id, start_time: slot.start_time, status: slot.status }))
 
   const questions = (questionRows ?? []).map((question: QuestionRow) => ({
     id: question.id,

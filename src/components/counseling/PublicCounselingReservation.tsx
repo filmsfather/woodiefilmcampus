@@ -4,7 +4,13 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle2, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 
-import { CalendarCell, buildCalendarCells, toDisplayTime } from '@/lib/counseling'
+import {
+  CalendarCell,
+  CounselingSlotStatus,
+  buildCalendarCells,
+  getKstDate,
+  toDisplayTime,
+} from '@/lib/counseling'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +23,7 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 interface PublicDaySlot {
   id: string
   start_time: string
+  status: CounselingSlotStatus
 }
 
 interface DaySummaryItem {
@@ -77,9 +84,18 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
   const month = Number(monthStr)
   const summaryMap = useMemo(() => new Map(monthSummary.map((item) => [item.date, item])), [monthSummary])
   const calendarCells: CalendarCell[] = useMemo(() => buildCalendarCells(year, month), [year, month])
-  const sortedDaySlots = useMemo(() =>
-    [...daySlots].sort((a, b) => (a.start_time < b.start_time ? -1 : 1)),
-  [daySlots])
+  const sortedDaySlots = useMemo(
+    () => [...daySlots].sort((a, b) => (a.start_time < b.start_time ? -1 : 1)),
+    [daySlots]
+  )
+  const upcomingSlots = useMemo(() => {
+    const now = getKstDate()
+    return sortedDaySlots.filter((slot) => {
+      const slotDateTime = new Date(`${selectedDate}T${slot.start_time}+09:00`)
+      return slotDateTime.getTime() >= now.getTime()
+    })
+  }, [sortedDaySlots, selectedDate])
+  const hasOpenSlots = useMemo(() => upcomingSlots.some((slot) => slot.status === 'open'), [upcomingSlots])
 
   const todayDate = new Date(`${today}T00:00:00Z`)
   const selectedMonthDate = new Date(Date.UTC(year, month - 1, 1))
@@ -106,7 +122,10 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
     handleSelectDate(targetDate)
   }
 
-  const handleTimeSelect = (slotId: string, timeLabel: string) => {
+  const handleTimeSelect = (slotId: string, timeLabel: string, status: CounselingSlotStatus) => {
+    if (status !== 'open') {
+      return
+    }
     setSelectedSlotId(slotId)
     setSelectedSlotLabel(timeLabel)
     setErrorMessage(null)
@@ -254,25 +273,38 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-wrap gap-2">
-                {sortedDaySlots.length === 0 ? (
+                {upcomingSlots.length === 0 ? (
                   <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                    선택한 날짜에는 예약 가능한 시간이 없습니다.
+                    선택한 날짜에는 표시할 상담 시간이 없습니다.
                   </div>
+                ) : (
+                  upcomingSlots.map((slot) => {
+                    const label = toDisplayTime(slot.start_time)
+                    const isActive = selectedSlotId === slot.id
+                    const isBooked = slot.status === 'booked'
+                    const isOpen = slot.status === 'open'
+                    const buttonVariant = isActive ? 'default' : isBooked ? 'secondary' : 'outline'
+                    return (
+                      <div key={slot.id} className="flex flex-col items-start gap-1">
+                        <Button
+                          type="button"
+                          variant={buttonVariant}
+                          onClick={() => handleTimeSelect(slot.id, label, slot.status)}
+                          disabled={!isOpen}
+                          className={!isOpen ? 'cursor-not-allowed opacity-70' : undefined}
+                        >
+                          {label}
+                        </Button>
+                        {!isOpen ? (
+                          <span className="text-xs text-slate-500">예약 완료된 시간입니다.</span>
+                        ) : null}
+                      </div>
+                    )
+                  })
+                )}
+                {upcomingSlots.length > 0 && !hasOpenSlots ? (
+                  <span className="text-xs text-slate-500">현재 선택한 날짜의 상담 시간이 모두 예약되었습니다.</span>
                 ) : null}
-                {sortedDaySlots.map((slot) => {
-                  const label = toDisplayTime(slot.start_time)
-                  const isActive = selectedSlotId === slot.id
-                  return (
-                    <Button
-                      key={slot.id}
-                      type="button"
-                      variant={isActive ? 'default' : 'outline'}
-                      onClick={() => handleTimeSelect(slot.id, label)}
-                    >
-                      {label}
-                    </Button>
-                  )
-                })}
               </div>
             </CardContent>
           </Card>
