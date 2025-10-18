@@ -252,7 +252,7 @@ export function ManagerSlotPlanner({ selectedDate, today, daySlots, monthSummary
               {selectedDate} ({selectedWeekday}) 일정
             </CardTitle>
             <p className="text-sm text-slate-600">
-              AM 08:00 ~ PM 12:00 사이에서 상담 가능 시간을 선택하거나 상태를 변경하세요.
+              AM 08:00 ~ PM 11:00 사이에서 상담 가능 시간을 선택하거나 상태를 변경하세요.
             </p>
           </CardHeader>
           <CardContent className="space-y-3">

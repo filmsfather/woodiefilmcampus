@@ -50,7 +50,7 @@ export interface CounselingQuestion {
 
 export const COUNSELING_SLOT_INTERVAL_MINUTES = 30
 export const COUNSELING_START_HOUR = 8
-export const COUNSELING_END_HOUR = 12
+export const COUNSELING_END_HOUR = 23
 export const KST_OFFSET_MINUTES = 9 * 60
 
 export function getKstDate(now: Date = new Date()): Date {
