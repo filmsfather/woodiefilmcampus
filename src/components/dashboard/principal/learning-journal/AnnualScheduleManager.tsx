@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useActionState } from 'react'
 
-import DateUtil from '@/lib/date-util'
 import {
   upsertLearningJournalAnnualScheduleAction,
   deleteLearningJournalAnnualScheduleAction,
@@ -20,6 +19,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  formatAnnualScheduleDateRange,
+  formatAnnualScheduleTuitionLabel,
+} from '@/lib/learning-journal-annual-schedule'
 
 interface AnnualScheduleManagerProps {
   schedules: LearningJournalAnnualSchedule[]
@@ -29,48 +32,6 @@ interface AnnualScheduleFormProps {
   defaultValues?: LearningJournalAnnualSchedule | null
   onCancel: () => void
   mode: 'create' | 'edit'
-}
-
-function formatDateRange(start: string, end: string) {
-  const startLabel = DateUtil.formatForDisplay(start, {
-    locale: 'ko-KR',
-    timeZone: 'Asia/Seoul',
-    month: 'numeric',
-    day: 'numeric',
-  })
-  const endLabel = DateUtil.formatForDisplay(end, {
-    locale: 'ko-KR',
-    timeZone: 'Asia/Seoul',
-    month: 'numeric',
-    day: 'numeric',
-  })
-
-  return `${startLabel} ~ ${endLabel}`
-}
-
-function formatTuitionLabel(dueDate: string | null, amount: number | null) {
-  if (!dueDate && (amount === null || Number.isNaN(amount))) {
-    return '-'
-  }
-
-  const dueDateLabel = dueDate
-    ? `납부일 ${DateUtil.formatForDisplay(dueDate, {
-        locale: 'ko-KR',
-        timeZone: 'Asia/Seoul',
-        month: 'numeric',
-        day: 'numeric',
-      })}`
-    : null
-
-  const amountLabel = typeof amount === 'number' && Number.isFinite(amount)
-    ? `${amount.toLocaleString('ko-KR')}원`
-    : null
-
-  if (dueDateLabel && amountLabel) {
-    return `${dueDateLabel} / ${amountLabel}`
-  }
-
-  return dueDateLabel ?? amountLabel ?? '-'
 }
 
 function AnnualScheduleForm({ defaultValues, onCancel, mode }: AnnualScheduleFormProps) {
@@ -278,13 +239,13 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                   <TableRow key={schedule.id} className={isEditing ? 'bg-slate-50' : undefined}>
                     <TableCell className="text-slate-900">{schedule.periodLabel}</TableCell>
                     <TableCell className="text-slate-600">
-                      {formatDateRange(schedule.startDate, schedule.endDate)}
+                      {formatAnnualScheduleDateRange(schedule.startDate, schedule.endDate)}
                     </TableCell>
                     <TableCell className="max-w-sm whitespace-pre-line text-slate-500">
                       {schedule.memo ? schedule.memo : '-'}
                     </TableCell>
                     <TableCell className="text-slate-600">
-                      {formatTuitionLabel(schedule.tuitionDueDate, schedule.tuitionAmount)}
+                      {formatAnnualScheduleTuitionLabel(schedule.tuitionDueDate, schedule.tuitionAmount)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">

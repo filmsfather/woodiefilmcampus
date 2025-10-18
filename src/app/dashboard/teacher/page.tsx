@@ -62,6 +62,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
       },
       {
+        label: '연간 일정',
+        href: '/dashboard/learning-journal/annual-schedule',
+        description: '연간 학습 계획을 확인해 수업 준비에 활용하세요.',
+        variant: 'outline',
+      },
+      {
         label: '월간 학습 계획',
         href: '/dashboard/teacher/learning-journal/templates',
         description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',

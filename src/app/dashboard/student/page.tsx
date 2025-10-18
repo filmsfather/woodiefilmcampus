@@ -17,6 +17,12 @@ interface DashboardActionItem {
 
 const TODO_ACTIONS: DashboardActionItem[] = [
   {
+    label: '연간 학습 일정',
+    href: '/dashboard/learning-journal/annual-schedule',
+    description: '한 해의 주요 커리큘럼과 일정을 한눈에 확인하세요.',
+    variant: 'outline',
+  },
+  {
     label: '이번달 학습 계획',
     href: '/dashboard/student/monthly-plan',
     description: '과목별 커리큘럼을 살펴보고 월간 학습 동선을 한눈에 정리합니다.',
