@@ -265,8 +265,8 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
               <TableRow>
                 <TableHead>기간명</TableHead>
                 <TableHead>기간(날짜)</TableHead>
-                <TableHead>수업료</TableHead>
                 <TableHead>비고</TableHead>
+                <TableHead>수업료</TableHead>
                 <TableHead className="text-right">액션</TableHead>
               </TableRow>
             </TableHeader>
@@ -280,11 +280,11 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                     <TableCell className="text-slate-600">
                       {formatDateRange(schedule.startDate, schedule.endDate)}
                     </TableCell>
-                    <TableCell className="text-slate-600">
-                      {formatTuitionLabel(schedule.tuitionDueDate, schedule.tuitionAmount)}
-                    </TableCell>
                     <TableCell className="max-w-sm whitespace-pre-line text-slate-500">
                       {schedule.memo ? schedule.memo : '-'}
+                    </TableCell>
+                    <TableCell className="text-slate-600">
+                      {formatTuitionLabel(schedule.tuitionDueDate, schedule.tuitionAmount)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
