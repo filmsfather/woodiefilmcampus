@@ -14,6 +14,19 @@ export function ManagerQuickLinks() {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card>
         <CardHeader className="gap-2">
+          <CardTitle className="text-lg">상담 관리</CardTitle>
+          <CardDescription>
+            상담 예약 가능한 시간을 설정하고 신청 현황을 주·일별로 확인합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/dashboard/manager/counseling/slots">상담 관리 열기</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader className="gap-2">
           <CardTitle className="text-lg">구성원 관리</CardTitle>
           <CardDescription>
             승인된 학생과 교사의 연락처, 반 배정을 한 화면에서 편집하고 삭제할 수 있습니다.

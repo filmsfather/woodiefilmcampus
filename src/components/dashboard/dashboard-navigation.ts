@@ -54,6 +54,15 @@ const managerSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'manager-counseling',
+    title: '상담 관리',
+    items: [
+      { label: '슬롯 설정', href: '/dashboard/manager/counseling/slots' },
+      { label: '예약 현황', href: '/dashboard/manager/counseling/reservations' },
+      { label: '질문 항목', href: '/dashboard/manager/counseling/questions' },
+    ],
+  },
+  {
     id: 'manager-operations',
     title: '운영 도구',
     items: [
