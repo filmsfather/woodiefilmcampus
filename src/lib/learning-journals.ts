@@ -11,6 +11,7 @@ import {
   type LearningJournalEntryLog,
   type LearningJournalEntryStatus,
   type LearningJournalGreeting,
+  type LearningJournalAnnualSchedule,
   type LearningJournalPeriod,
   type LearningJournalPeriodWithClass,
   type LearningJournalStudentSnapshot,
@@ -349,6 +350,36 @@ interface GreetingRow {
   published_at: string | null
   created_at: string
   updated_at: string
+}
+
+interface AnnualScheduleRow {
+  id: string
+  period_label: string
+  start_date: string
+  end_date: string
+  tuition_due_date: string | null
+  tuition_amount: number | null
+  memo: string | null
+  display_order: number | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+function mapAnnualScheduleRow(row: AnnualScheduleRow): LearningJournalAnnualSchedule {
+  return {
+    id: row.id,
+    periodLabel: row.period_label,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    tuitionDueDate: row.tuition_due_date,
+    tuitionAmount: row.tuition_amount,
+    memo: row.memo ?? null,
+    displayOrder: row.display_order ?? 0,
+    createdBy: row.created_by ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 export function calculatePeriodEnd(startDateIso: string, cycleLengthDays = 28): string {
@@ -1787,6 +1818,22 @@ export async function fetchLearningJournalAcademicEvents(monthTokens: string[]):
   }))
 }
 
+export async function fetchLearningJournalAnnualSchedules(): Promise<LearningJournalAnnualSchedule[]> {
+  const supabase = createServerSupabase()
+  const { data, error } = await supabase
+    .from('learning_journal_annual_schedules')
+    .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, display_order, created_by, created_at, updated_at')
+    .order('display_order', { ascending: true })
+    .order('start_date', { ascending: true })
+
+  if (error) {
+    console.error('[learning-journal] annual schedules fetch error', error)
+    return []
+  }
+
+  return (data ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
+}
+
 const LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER: LearningJournalSubject[] = [
   'directing',
   'screenwriting',
@@ -2095,6 +2142,21 @@ export async function fetchLearningJournalEntryByShareToken(
     }
   }
 
+  let annualSchedules: LearningJournalAnnualSchedule[] = []
+  const { data: annualScheduleData, error: annualScheduleError } = await supabase
+    .from('learning_journal_annual_schedules')
+    .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, display_order, created_by, created_at, updated_at')
+    .order('display_order', { ascending: true })
+    .order('start_date', { ascending: true })
+
+  if (annualScheduleError) {
+    console.error('[learning-journal] share annual schedule fetch error', annualScheduleError)
+  } else {
+    annualSchedules = (annualScheduleData ?? []).map((row) =>
+      mapAnnualScheduleRow(row as AnnualScheduleRow)
+    )
+  }
+
   let comments: LearningJournalComment[] = []
   const { data: commentsData, error: commentsError } = await supabase
     .from('learning_journal_comments')
@@ -2139,5 +2201,6 @@ export async function fetchLearningJournalEntryByShareToken(
     greeting,
     academicEvents,
     comments,
+    annualSchedules,
   }
 }

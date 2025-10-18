@@ -4,6 +4,7 @@ import DateUtil from '@/lib/date-util'
 import {
   deriveMonthTokensForRange,
   fetchLearningJournalGreeting,
+  fetchLearningJournalAnnualSchedules,
   fetchLearningJournalPeriodsForManager,
   fetchLearningJournalPeriodStats,
   resolveMonthToken,
@@ -12,6 +13,7 @@ import { GreetingForm } from '@/components/dashboard/principal/learning-journal/
 import { GreetingPreview } from '@/components/dashboard/principal/learning-journal/GreetingPreview'
 import { PeriodProgressTable } from '@/components/dashboard/principal/learning-journal/PeriodProgressTable'
 import { MonthSelect } from '@/components/dashboard/manager/learning-journal/MonthSelect'
+import { AnnualScheduleManager } from '@/components/dashboard/principal/learning-journal/AnnualScheduleManager'
 
 function formatMonthLabel(monthToken: string) {
   const [year, month] = monthToken.split('-')
@@ -37,6 +39,7 @@ export default async function PrincipalLearningJournalPage({
     deriveMonthTokensForRange(period.startDate, period.endDate)
   )
   const monthOptions = Array.from(new Set([activeMonth, ...monthTokensFromPeriods]))
+  const annualSchedules = await fetchLearningJournalAnnualSchedules()
 
   return (
     <section className="space-y-8">
@@ -71,6 +74,8 @@ export default async function PrincipalLearningJournalPage({
         </div>
         <PeriodProgressTable periods={periods} stats={stats} />
       </div>
+
+      <AnnualScheduleManager schedules={annualSchedules} />
     </section>
   )
 }

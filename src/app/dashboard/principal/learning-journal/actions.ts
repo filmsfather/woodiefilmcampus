@@ -7,8 +7,12 @@ import { notifyParentOfLearningJournalPublish } from '@/lib/learning-journal-not
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   deleteLearningJournalGreetingSchema,
+  deleteLearningJournalAnnualScheduleSchema,
   upsertLearningJournalGreetingSchema,
+  upsertLearningJournalAnnualScheduleSchema,
   type UpsertLearningJournalGreetingInput,
+  type UpsertLearningJournalAnnualScheduleInput,
+  type DeleteLearningJournalAnnualScheduleInput,
 } from '@/lib/validation/learning-journal'
 import type { ActionState } from '@/app/dashboard/manager/classes/action-state'
 
@@ -39,6 +43,102 @@ function parseGreetingPayload(formData: FormData):
   }
 
   const parsed = upsertLearningJournalGreetingSchema.safeParse(payload)
+
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      error: parsed.error.flatten().fieldErrors,
+    }
+  }
+
+  return { success: true, data: parsed.data }
+}
+
+function normalizeTuitionAmount(raw: string | undefined): number | null {
+  if (!raw) {
+    return null
+  }
+
+  const cleaned = raw.replace(/,/g, '').trim()
+
+  if (!cleaned) {
+    return null
+  }
+
+  const parsed = Number(cleaned)
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return null
+  }
+
+  return Math.round(parsed)
+}
+
+type ParsedAnnualSchedulePayload = Omit<
+  UpsertLearningJournalAnnualScheduleInput,
+  'tuitionAmount' | 'memo'
+> & {
+  tuitionAmount: number | null
+  memo: string | null
+}
+
+function parseAnnualSchedulePayload(formData: FormData):
+  | { success: true; data: ParsedAnnualSchedulePayload }
+  | { success: false; error: Record<string, string[]> } {
+  const payload = {
+    scheduleId: formData.get('scheduleId')?.toString() ?? undefined,
+    periodLabel: formData.get('periodLabel')?.toString() ?? '',
+    startDate: formData.get('startDate')?.toString() ?? '',
+    endDate: formData.get('endDate')?.toString() ?? '',
+    tuitionDueDate: formData.get('tuitionDueDate')?.toString() ?? '',
+    tuitionAmount: formData.get('tuitionAmount')?.toString() ?? '',
+    memo: formData.get('memo')?.toString() ?? '',
+  }
+
+  const parsed = upsertLearningJournalAnnualScheduleSchema.safeParse(payload)
+
+  if (!parsed.success) {
+    return {
+      success: false as const,
+      error: parsed.error.flatten().fieldErrors,
+    }
+  }
+
+  const tuitionAmount = normalizeTuitionAmount(parsed.data.tuitionAmount)
+
+  if (parsed.data.tuitionAmount && parsed.data.tuitionAmount.trim().length > 0 && tuitionAmount === null) {
+    return {
+      success: false,
+      error: {
+        tuitionAmount: ['수업료는 숫자만 입력해주세요.'],
+      },
+    }
+  }
+
+  const memo = parsed.data.memo && parsed.data.memo.trim().length > 0 ? parsed.data.memo.trim() : null
+
+  return {
+    success: true,
+    data: {
+      scheduleId: parsed.data.scheduleId,
+      periodLabel: parsed.data.periodLabel,
+      startDate: parsed.data.startDate,
+      endDate: parsed.data.endDate,
+      tuitionDueDate: parsed.data.tuitionDueDate,
+      tuitionAmount,
+      memo,
+    },
+  }
+}
+
+function parseAnnualScheduleIdentifier(formData: FormData):
+  | { success: true; data: DeleteLearningJournalAnnualScheduleInput }
+  | { success: false; error: Record<string, string[]> } {
+  const payload = {
+    scheduleId: formData.get('scheduleId')?.toString() ?? '',
+  }
+
+  const parsed = deleteLearningJournalAnnualScheduleSchema.safeParse(payload)
 
   if (!parsed.success) {
     return {
@@ -131,6 +231,106 @@ export async function deleteLearningJournalGreetingAction(
   } catch (caughtError) {
     console.error('[learning-journal] greeting delete unexpected error', caughtError)
     return makeErrorState('인사말을 삭제하는 중 문제가 발생했습니다.')
+  }
+}
+
+export async function upsertLearningJournalAnnualScheduleAction(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const profile = await ensurePrincipalProfile()
+
+  if (!profile) {
+    return makeErrorState('연간 일정을 관리할 권한이 없습니다.')
+  }
+
+  const parsed = parseAnnualSchedulePayload(formData)
+
+  if (!parsed.success) {
+    return makeErrorState('입력값을 다시 확인해주세요.', parsed.error)
+  }
+
+  const supabase = createAdminClient()
+
+  try {
+    const payload = {
+      period_label: parsed.data.periodLabel,
+      start_date: parsed.data.startDate,
+      end_date: parsed.data.endDate,
+      tuition_due_date: parsed.data.tuitionDueDate,
+      tuition_amount: parsed.data.tuitionAmount,
+      memo: parsed.data.memo,
+    }
+
+    if (parsed.data.scheduleId) {
+      const { error } = await supabase
+        .from('learning_journal_annual_schedules')
+        .update(payload)
+        .eq('id', parsed.data.scheduleId)
+
+      if (error) {
+        console.error('[learning-journal] annual schedule update error', error)
+        return makeErrorState('연간 일정을 수정하지 못했습니다.')
+      }
+
+      revalidatePath(PRINCIPAL_LEARNING_JOURNAL_PATH)
+      return makeSuccessState('연간 일정을 수정했습니다.')
+    }
+
+    const { error } = await supabase
+      .from('learning_journal_annual_schedules')
+      .insert({
+        ...payload,
+        created_by: profile.id,
+      })
+
+    if (error) {
+      console.error('[learning-journal] annual schedule insert error', error)
+      return makeErrorState('연간 일정을 추가하지 못했습니다.')
+    }
+
+    revalidatePath(PRINCIPAL_LEARNING_JOURNAL_PATH)
+    return makeSuccessState('연간 일정을 추가했습니다.')
+  } catch (caughtError) {
+    console.error('[learning-journal] annual schedule upsert unexpected error', caughtError)
+    return makeErrorState('연간 일정을 저장하는 중 문제가 발생했습니다.')
+  }
+}
+
+export async function deleteLearningJournalAnnualScheduleAction(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const profile = await ensurePrincipalProfile()
+
+  if (!profile) {
+    return makeErrorState('연간 일정을 삭제할 권한이 없습니다.')
+  }
+
+  const parsed = parseAnnualScheduleIdentifier(formData)
+
+  if (!parsed.success) {
+    return makeErrorState('삭제할 연간 일정 정보를 확인하지 못했습니다.', parsed.error)
+  }
+
+  const supabase = createAdminClient()
+
+  try {
+    const { error } = await supabase
+      .from('learning_journal_annual_schedules')
+      .delete()
+      .eq('id', parsed.data.scheduleId)
+
+    if (error) {
+      console.error('[learning-journal] annual schedule delete error', error)
+      return makeErrorState('연간 일정을 삭제하지 못했습니다.')
+    }
+
+    revalidatePath(PRINCIPAL_LEARNING_JOURNAL_PATH)
+    return makeSuccessState('연간 일정을 삭제했습니다.')
+  } catch (caughtError) {
+    console.error('[learning-journal] annual schedule delete unexpected error', caughtError)
+    return makeErrorState('연간 일정을 삭제하는 중 문제가 발생했습니다.')
   }
 }
 

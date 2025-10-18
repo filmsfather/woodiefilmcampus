@@ -110,6 +110,20 @@ export interface LearningJournalGreeting {
   updatedAt: string
 }
 
+export interface LearningJournalAnnualSchedule {
+  id: string
+  periodLabel: string
+  startDate: string
+  endDate: string
+  tuitionDueDate: string | null
+  tuitionAmount: number | null
+  memo: string | null
+  displayOrder: number
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface LearningJournalAcademicEvent {
   id: string
   monthToken: string
@@ -219,6 +233,7 @@ export interface SharedLearningJournalSnapshot {
   greeting: LearningJournalGreeting | null
   academicEvents: LearningJournalAcademicEvent[]
   comments: LearningJournalComment[]
+  annualSchedules: LearningJournalAnnualSchedule[]
 }
 
 export interface LearningJournalWeekSubjectSnapshot {

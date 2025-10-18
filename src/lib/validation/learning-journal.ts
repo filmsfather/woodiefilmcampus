@@ -63,6 +63,60 @@ export const deleteLearningJournalGreetingSchema = z.object({
   monthToken: monthTokenSchema,
 })
 
+const nullableIsoDateInputSchema = z
+  .union([isoDateSchema, z.literal('')])
+  .transform((value) => (value === '' ? null : value))
+
+export const upsertLearningJournalAnnualScheduleSchema = z
+  .object({
+    scheduleId: uuidSchema.optional(),
+    periodLabel: z
+      .string()
+      .trim()
+      .min(1, { message: '기간명을 입력해주세요.' })
+      .max(120, '기간명은 최대 120자까지 입력할 수 있습니다.'),
+    startDate: isoDateSchema,
+    endDate: isoDateSchema,
+    tuitionDueDate: nullableIsoDateInputSchema,
+    tuitionAmount: z
+      .string()
+      .trim()
+      .regex(/^[0-9,]*$/, '수업료는 숫자만 입력할 수 있습니다.')
+      .max(15, '수업료는 15자리 이하의 숫자로 입력해주세요.')
+      .optional()
+      .or(z.literal('')),
+    memo: z
+      .string()
+      .trim()
+      .max(2_000, '비고는 최대 2,000자까지 입력할 수 있습니다.')
+      .optional()
+      .or(z.literal('')),
+  })
+  .superRefine((value, ctx) => {
+    const start = new Date(value.startDate)
+    const end = new Date(value.endDate)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['startDate'],
+        message: '기간 날짜가 올바르지 않습니다.',
+      })
+      return
+    }
+
+    if (end < start) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['endDate'],
+        message: '종료일은 시작일 이후여야 합니다.',
+      })
+    }
+  })
+
+export const deleteLearningJournalAnnualScheduleSchema = z.object({
+  scheduleId: uuidSchema,
+})
+
 export const upsertLearningJournalAcademicEventSchema = z.object({
   eventId: uuidSchema.optional(),
   monthToken: monthTokenSchema,
@@ -128,6 +182,12 @@ export type UpsertLearningJournalGreetingInput = z.infer<typeof upsertLearningJo
 export type UpsertLearningJournalAcademicEventInput = z.infer<typeof upsertLearningJournalAcademicEventSchema>
 export type SaveLearningJournalCommentInput = z.infer<typeof saveLearningJournalCommentSchema>
 export type UpdateLearningJournalEntryStatusInput = z.infer<typeof updateLearningJournalEntryStatusSchema>
+export type UpsertLearningJournalAnnualScheduleInput = z.infer<
+  typeof upsertLearningJournalAnnualScheduleSchema
+>
+export type DeleteLearningJournalAnnualScheduleInput = z.infer<
+  typeof deleteLearningJournalAnnualScheduleSchema
+>
 
 export const upsertClassLearningJournalWeekSchema = z
   .object({
