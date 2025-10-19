@@ -326,7 +326,7 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                           {label}
                         </Button>
                         {!isOpen ? (
-                          <span className="text-xs text-slate-500">예약 완료된 시간입니다.</span>
+                          <span className="text-xs text-slate-500">예약 마감</span>
                         ) : null}
                       </div>
                     )
