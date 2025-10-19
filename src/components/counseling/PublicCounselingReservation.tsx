@@ -91,6 +91,9 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
   const upcomingSlots = useMemo(() => {
     const now = getKstDate()
     return sortedDaySlots.filter((slot) => {
+      if (slot.status === 'booked') {
+        return true
+      }
       const slotDateTime = new Date(`${selectedDate}T${slot.start_time}+09:00`)
       return slotDateTime.getTime() >= now.getTime()
     })
