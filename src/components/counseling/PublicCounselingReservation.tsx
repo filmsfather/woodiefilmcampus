@@ -252,16 +252,17 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                 const isToday = cell.date === today
                 const hasAvailableSlots = (summary?.open ?? 0) > 0
                 const buttonClasses = [
-                  'relative flex h-16 flex-col items-center justify-center rounded-lg p-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
-                  cell.inCurrentMonth ? 'bg-white text-slate-900 hover:bg-slate-50' : 'bg-transparent text-slate-300 hover:bg-transparent',
+                  'relative flex h-16 flex-col items-center justify-center rounded-lg p-1 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
                 ]
 
-                if (hasAvailableSlots) {
-                  buttonClasses.push('bg-primary/10 text-primary hover:bg-primary/20')
-                }
-
-                if (isSelected) {
-                  buttonClasses.push('bg-primary text-primary-foreground hover:bg-primary')
+                if (!cell.inCurrentMonth) {
+                  buttonClasses.push('bg-transparent text-slate-300 hover:bg-transparent')
+                } else if (isSelected) {
+                  buttonClasses.push('bg-primary text-primary-foreground shadow-sm')
+                } else if (hasAvailableSlots) {
+                  buttonClasses.push('bg-primary/15 text-primary hover:bg-primary/25')
+                } else {
+                  buttonClasses.push('bg-white text-slate-900 hover:bg-slate-50')
                 }
 
                 return (
@@ -272,9 +273,19 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                     className={buttonClasses.join(' ')}
                   >
                     <span className="absolute right-2 top-2 flex h-2 w-2 items-center justify-center">
-                      {isToday ? <span className={isSelected ? 'h-2 w-2 rounded-full bg-primary-foreground/80' : 'h-2 w-2 rounded-full bg-primary'} /> : null}
+                      {isToday ? (
+                        <span
+                          className={
+                            isSelected
+                              ? 'h-2 w-2 rounded-full bg-primary-foreground/90'
+                              : hasAvailableSlots
+                                ? 'h-2 w-2 rounded-full bg-primary/70'
+                                : 'h-2 w-2 rounded-full bg-primary'
+                          }
+                        />
+                      ) : null}
                     </span>
-                    <span className="text-sm font-medium">{cell.label}</span>
+                    <span className="text-sm">{cell.label}</span>
                   </button>
                 )
               })}
