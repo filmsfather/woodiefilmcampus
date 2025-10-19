@@ -9,7 +9,13 @@ import { sendCounselingReservationConfirmationSMS } from '@/lib/solapi'
 const reservationSchema = z.object({
   slotId: z.string().uuid('유효한 상담 슬롯이 아닙니다.'),
   studentName: z.string().trim().min(1, '학생 이름을 입력해주세요.'),
-  contactPhone: z.string().trim().min(1, '연락 가능한 전화번호를 입력해주세요.'),
+  contactPhone: z
+    .string()
+    .trim()
+    .transform((value) => value.replace(/\D/g, ''))
+    .refine((value) => /^01[0-9]{8,9}$/.test(value), {
+      message: '휴대폰 번호는 010으로 시작하는 숫자만 입력해주세요.',
+    }),
   academicRecord: z.string().trim().max(200).optional().nullable(),
   targetUniversity: z.string().trim().max(200).optional().nullable(),
   question: z.string().trim().max(500).optional().nullable(),

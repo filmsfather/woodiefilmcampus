@@ -65,6 +65,10 @@ const initialFormState = (questions: PublicQuestion[]): FormState => ({
   additionalAnswers: Object.fromEntries(questions.map((item) => [item.field_key, ''])),
 })
 
+const sanitizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 11)
+
+const isValidPhoneNumber = (value: string) => /^01[0-9]{8,9}$/.test(value)
+
 function formatRangeLabel(date: string) {
   const weekday = WEEKDAY_LABELS[new Date(`${date}T00:00:00Z`).getUTCDay()]
   return `${date} (${weekday})`
@@ -138,7 +142,7 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
   const handleFormChange = (key: keyof FormState, value: string) => {
     setForm((prev) => ({
       ...prev,
-      [key]: value,
+      [key]: key === 'contactPhone' ? sanitizePhoneInput(value) : value,
     }))
   }
 
@@ -158,8 +162,15 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
       setErrorMessage('예약 시간을 먼저 선택해주세요.')
       return
     }
-    if (!form.studentName.trim() || !form.contactPhone.trim()) {
+    const cleanPhone = sanitizePhoneInput(form.contactPhone)
+
+    if (!form.studentName.trim() || !cleanPhone) {
       setErrorMessage('학생 이름과 연락처를 입력해주세요.')
+      return
+    }
+
+    if (!isValidPhoneNumber(cleanPhone)) {
+      setErrorMessage('휴대폰 번호는 010으로 시작하는 숫자만 입력해주세요.')
       return
     }
 
@@ -170,7 +181,7 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
     const payload = {
       slotId: selectedSlotId,
       studentName: form.studentName.trim(),
-      contactPhone: form.contactPhone.trim(),
+      contactPhone: cleanPhone,
       academicRecord: form.academicRecord.trim() || null,
       targetUniversity: form.targetUniversity.trim() || null,
       question: form.question.trim() || null,
@@ -347,9 +358,14 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                       id="contact-phone"
                       value={form.contactPhone}
                       onChange={(event) => handleFormChange('contactPhone', event.target.value)}
-                      placeholder="010-0000-0000"
+                      placeholder="숫자만 입력해주세요 (예: 01012345678)"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={11}
+                      autoComplete="tel"
                       required
                     />
+                    <p className="text-xs text-slate-500">휴대폰 번호는 하이픈 없이 숫자만 입력해주세요.</p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="academic-record">내신 성적</Label>
