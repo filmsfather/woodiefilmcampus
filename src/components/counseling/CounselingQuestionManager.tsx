@@ -16,15 +16,17 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 
 interface QuestionItem {
   id: string
   field_key: string
   prompt: string
-  field_type: 'text' | 'textarea'
+  field_type: 'text' | 'textarea' | 'select'
   is_required: boolean
   is_active: boolean
   position: number
+  select_options: string[]
 }
 
 interface CounselingQuestionManagerProps {
@@ -33,11 +35,12 @@ interface CounselingQuestionManagerProps {
 
 export function CounselingQuestionManager({ questions }: CounselingQuestionManagerProps) {
   const [createPrompt, setCreatePrompt] = useState('')
-  const [createFieldType, setCreateFieldType] = useState<'text' | 'textarea'>('text')
+  const [createFieldType, setCreateFieldType] = useState<'text' | 'textarea' | 'select'>('text')
   const [createRequired, setCreateRequired] = useState(false)
+  const [createSelectOptions, setCreateSelectOptions] = useState('')
   const [busyQuestion, setBusyQuestion] = useState<string | null>(null)
   const [busyCreate, setBusyCreate] = useState(false)
-  const [drafts, setDrafts] = useState<Record<string, { prompt: string; fieldType: 'text' | 'textarea'; isRequired: boolean; isActive: boolean }>>(
+  const [drafts, setDrafts] = useState<Record<string, { prompt: string; fieldType: 'text' | 'textarea' | 'select'; isRequired: boolean; isActive: boolean; optionsText: string }>>(
     () =>
       Object.fromEntries(
         questions.map((question) => [question.id, {
@@ -45,9 +48,15 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
           fieldType: question.field_type,
           isRequired: question.is_required,
           isActive: question.is_active,
+          optionsText: (question.select_options ?? []).join('\n'),
         }])
       )
   )
+
+  const parseOptions = (raw: string) => raw.split('\n').map((item) => item.trim()).filter((item) => item.length > 0)
+  const canSubmitCreate =
+    createPrompt.trim().length > 0 &&
+    (createFieldType !== 'select' || parseOptions(createSelectOptions).length >= 2)
 
   const handleCreate = async () => {
     if (!createPrompt.trim()) {
@@ -59,10 +68,12 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
         prompt: createPrompt.trim(),
         fieldType: createFieldType,
         isRequired: createRequired,
+        selectOptions: createFieldType === 'select' ? parseOptions(createSelectOptions) : undefined,
       })
       setCreatePrompt('')
       setCreateFieldType('text')
       setCreateRequired(false)
+      setCreateSelectOptions('')
     } catch (error) {
       console.error('[counseling] create question failed', error)
     } finally {
@@ -83,6 +94,7 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
         fieldType: draft.fieldType,
         isRequired: draft.isRequired,
         isActive: draft.isActive,
+        selectOptions: draft.fieldType === 'select' ? parseOptions(draft.optionsText) : undefined,
       })
     } catch (error) {
       console.error('[counseling] update question failed', error)
@@ -132,13 +144,22 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
           <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <Label>필드 타입</Label>
-              <Select value={createFieldType} onValueChange={(value) => setCreateFieldType(value as 'text' | 'textarea')}>
+              <Select
+                value={createFieldType}
+                onValueChange={(value) => {
+                  setCreateFieldType(value as 'text' | 'textarea' | 'select')
+                  if (value !== 'select') {
+                    setCreateSelectOptions('')
+                  }
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="입력 타입" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="text">단답형 입력</SelectItem>
                   <SelectItem value="textarea">서술형 입력</SelectItem>
+                  <SelectItem value="select">선택형 (드롭다운)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -151,8 +172,21 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
               <Label htmlFor="new-required">필수 질문</Label>
             </div>
           </div>
+          {createFieldType === 'select' ? (
+            <div className="space-y-2">
+              <Label htmlFor="new-select-options">선택지 (줄바꿈으로 구분)</Label>
+              <Textarea
+                id="new-select-options"
+                value={createSelectOptions}
+                onChange={(event) => setCreateSelectOptions(event.target.value)}
+                placeholder={'예:\n영상 촬영\n디자인\n연출'}
+                rows={4}
+              />
+              <p className="text-xs text-slate-500">최소 2개 이상, 최대 20개의 선택지를 입력해주세요.</p>
+            </div>
+          ) : null}
           <div className="flex justify-end">
-            <Button onClick={handleCreate} disabled={busyCreate || !createPrompt.trim()}>
+            <Button onClick={handleCreate} disabled={busyCreate || !canSubmitCreate}>
               {busyCreate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               질문 추가
             </Button>
@@ -172,8 +206,10 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
             fieldType: question.field_type,
             isRequired: question.is_required,
             isActive: question.is_active,
+            optionsText: (question.select_options ?? []).join('\n'),
           }
           const isBusy = busyQuestion === question.id
+          const canSave = draft.fieldType !== 'select' || parseOptions(draft.optionsText).length >= 2
           return (
             <Card key={question.id} className="border-slate-200 shadow-sm">
               <CardHeader className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -230,7 +266,7 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
                           ...prev,
                           [question.id]: {
                             ...draft,
-                            fieldType: value as 'text' | 'textarea',
+                            fieldType: value as 'text' | 'textarea' | 'select',
                           },
                         }))
                       }
@@ -241,6 +277,7 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
                       <SelectContent>
                         <SelectItem value="text">단답형 입력</SelectItem>
                         <SelectItem value="textarea">서술형 입력</SelectItem>
+                        <SelectItem value="select">선택형 (드롭다운)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -277,8 +314,28 @@ export function CounselingQuestionManager({ questions }: CounselingQuestionManag
                     <Label htmlFor={`active-${question.id}`}>예약 폼에 표시</Label>
                   </div>
                 </div>
+                {draft.fieldType === 'select' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor={`options-${question.id}`}>선택지 (줄바꿈으로 구분)</Label>
+                    <Textarea
+                      id={`options-${question.id}`}
+                      value={draft.optionsText}
+                      onChange={(event) =>
+                        setDrafts((prev) => ({
+                          ...prev,
+                          [question.id]: {
+                            ...draft,
+                            optionsText: event.target.value,
+                          },
+                        }))
+                      }
+                      rows={4}
+                    />
+                    <p className="text-xs text-slate-500">최소 2개 이상, 최대 20개의 선택지를 입력해주세요.</p>
+                  </div>
+                ) : null}
                 <div className="flex justify-end">
-                  <Button size="sm" onClick={() => handleUpdate(question.id)} disabled={isBusy}>
+                  <Button size="sm" onClick={() => handleUpdate(question.id)} disabled={isBusy || !canSave}>
                     {isBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     변경 사항 저장
                   </Button>

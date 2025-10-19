@@ -22,9 +22,10 @@ interface QuestionRow {
   id: string
   field_key: string
   prompt: string
-  field_type: 'text' | 'textarea'
+  field_type: 'text' | 'textarea' | 'select'
   is_required: boolean
   position: number
+  select_options: string[]
 }
 
 function normalizeDate(value: string | undefined, fallback: string) {
@@ -55,7 +56,7 @@ export default async function CounselingReservePage({ searchParams }: { searchPa
       .order('start_time', { ascending: true }),
     supabase
       .from('counseling_questions')
-      .select('id, field_key, prompt, field_type, is_required, position')
+      .select('id, field_key, prompt, field_type, is_required, position, select_options')
       .eq('is_active', true)
       .order('position', { ascending: true })
       .order('created_at', { ascending: true }),
@@ -95,6 +96,7 @@ export default async function CounselingReservePage({ searchParams }: { searchPa
     prompt: question.prompt,
     field_type: question.field_type,
     is_required: question.is_required,
+    select_options: question.select_options ?? [],
   }))
 
   return (

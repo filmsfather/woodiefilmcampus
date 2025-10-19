@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
@@ -35,8 +36,9 @@ interface PublicQuestion {
   id: string
   field_key: string
   prompt: string
-  field_type: 'text' | 'textarea'
+  field_type: 'text' | 'textarea' | 'select'
   is_required: boolean
+  select_options: string[]
 }
 
 interface PublicCounselingReservationProps {
@@ -52,7 +54,6 @@ interface FormState {
   contactPhone: string
   academicRecord: string
   targetUniversity: string
-  question: string
   additionalAnswers: Record<string, string>
 }
 
@@ -61,7 +62,6 @@ const initialFormState = (questions: PublicQuestion[]): FormState => ({
   contactPhone: '',
   academicRecord: '',
   targetUniversity: '',
-  question: '',
   additionalAnswers: Object.fromEntries(questions.map((item) => [item.field_key, ''])),
 })
 
@@ -174,9 +174,33 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
       return
     }
 
+    for (const question of questions) {
+      if (!question.is_required) {
+        continue
+      }
+      const answer = form.additionalAnswers[question.field_key] ?? ''
+      if (question.field_type === 'select') {
+        if (typeof answer !== 'string' || !question.select_options.includes(answer)) {
+          setErrorMessage('필수 질문을 모두 입력해주세요.')
+          return
+        }
+      } else if (typeof answer !== 'string' || answer.trim().length === 0) {
+        setErrorMessage('필수 질문을 모두 입력해주세요.')
+        return
+      }
+    }
+
     setIsSubmitting(true)
     setErrorMessage(null)
     setSuccessMessage(null)
+
+    const normalizedAnswers = Object.entries(form.additionalAnswers).reduce<Record<string, string>>((acc, [key, raw]) => {
+      const value = typeof raw === 'string' ? raw.trim() : ''
+      if (value.length > 0) {
+        acc[key] = value
+      }
+      return acc
+    }, {})
 
     const payload = {
       slotId: selectedSlotId,
@@ -184,10 +208,7 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
       contactPhone: cleanPhone,
       academicRecord: form.academicRecord.trim() || null,
       targetUniversity: form.targetUniversity.trim() || null,
-      question: form.question.trim() || null,
-      additionalAnswers: Object.fromEntries(
-        Object.entries(form.additionalAnswers).filter(([, value]) => value.trim().length > 0)
-      ),
+      additionalAnswers: normalizedAnswers,
     }
 
     try {
@@ -393,25 +414,14 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="target-university">희망 대학/학과</Label>
+                    <Label htmlFor="target-university">희망 대학 (모두 입력)</Label>
                     <Input
                       id="target-university"
                       value={form.targetUniversity}
                       onChange={(event) => handleFormChange('targetUniversity', event.target.value)}
-                      placeholder="예: 한국예술종합학교 영상원"
+                      placeholder="예: 한국예술종합학교 영상원, 중앙대학교 영화학과"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="question">상담 시 궁금한 점</Label>
-                  <Textarea
-                    id="question"
-                    value={form.question}
-                    onChange={(event) => handleFormChange('question', event.target.value)}
-                    placeholder="상담에서 다루고 싶은 내용을 적어주세요."
-                    rows={3}
-                  />
                 </div>
 
                 {questions.length > 0 ? (
@@ -430,6 +440,29 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                             rows={3}
                             required={question.is_required}
                           />
+                        ) : question.field_type === 'select' ? (
+                          <div className="space-y-1">
+                            <Select
+                              value={form.additionalAnswers[question.field_key] ?? ''}
+                              onValueChange={(value) => handleAdditionalChange(question.field_key, value)}
+                              disabled={question.select_options.length === 0}
+                            >
+                              <SelectTrigger id={`additional-${question.id}`} aria-label={question.prompt}>
+                                <SelectValue placeholder={question.select_options.length === 0 ? '선택지가 없습니다' : '선택해주세요'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {!question.is_required ? <SelectItem value="">선택 안 함</SelectItem> : null}
+                                {question.select_options.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {question.select_options.length === 0 ? (
+                              <p className="text-xs text-red-500">선택지가 준비되지 않았습니다. 관리자에게 문의해주세요.</p>
+                            ) : null}
+                          </div>
                         ) : (
                           <Input
                             id={`additional-${question.id}`}

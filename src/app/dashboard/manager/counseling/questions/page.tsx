@@ -7,10 +7,11 @@ interface QuestionRow {
   id: string
   field_key: string
   prompt: string
-  field_type: 'text' | 'textarea'
+  field_type: 'text' | 'textarea' | 'select'
   is_required: boolean
   is_active: boolean
   position: number
+  select_options: string[]
 }
 
 export default async function ManagerCounselingQuestionsPage() {
@@ -19,7 +20,7 @@ export default async function ManagerCounselingQuestionsPage() {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('counseling_questions')
-    .select('id, field_key, prompt, field_type, is_required, is_active, position')
+    .select('id, field_key, prompt, field_type, is_required, is_active, position, select_options')
     .order('position', { ascending: true })
     .order('created_at', { ascending: true })
 

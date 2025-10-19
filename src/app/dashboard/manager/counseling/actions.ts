@@ -291,11 +291,35 @@ export async function updateCounselingReservationMemo(payload: unknown) {
   return { success: true as const }
 }
 
-const createQuestionSchema = z.object({
-  prompt: z.string().trim().min(1, '질문 내용을 입력해주세요.').max(200),
-  fieldType: z.enum(['text', 'textarea']).default('text'),
-  isRequired: z.boolean().default(false),
-})
+const selectOptionsSchema = z
+  .array(z.string().trim().min(1, '선택지는 비어 있을 수 없습니다.'))
+  .max(20, '선택지는 최대 20개까지 추가할 수 있습니다.')
+
+function dedupeOptions(options?: string[]) {
+  if (!options) {
+    return [] as string[]
+  }
+  const trimmed = options.map((item) => item.trim()).filter((item) => item.length > 0)
+  return Array.from(new Set(trimmed))
+}
+
+const createQuestionSchema = z
+  .object({
+    prompt: z.string().trim().min(1, '질문 내용을 입력해주세요.').max(200),
+    fieldType: z.enum(['text', 'textarea', 'select']).default('text'),
+    isRequired: z.boolean().default(false),
+    selectOptions: selectOptionsSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.fieldType === 'select') {
+      const options = value.selectOptions?.map((item) => item.trim()).filter(Boolean) ?? []
+      const uniqueOptions = Array.from(new Set(options))
+
+      if (uniqueOptions.length < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: '선택형 질문은 최소 2개 이상의 선택지가 필요합니다.', path: ['selectOptions'] })
+      }
+    }
+  })
 
 export async function createCounselingQuestion(input: unknown) {
   const manager = await requireManagerProfile()
@@ -306,7 +330,7 @@ export async function createCounselingQuestion(input: unknown) {
     return { error: issue?.message ?? '질문 정보를 확인해주세요.' }
   }
 
-  const { prompt, fieldType, isRequired } = parsed.data
+  const { prompt, fieldType, isRequired, selectOptions } = parsed.data
   const supabase = createAdminClient()
 
   const { data: lastQuestion } = await supabase
@@ -326,6 +350,7 @@ export async function createCounselingQuestion(input: unknown) {
       is_required: isRequired,
       field_key: generateQuestionFieldKey('question'),
       position,
+      select_options: fieldType === 'select' ? dedupeOptions(selectOptions) : [],
       created_by: manager.id,
       updated_by: manager.id,
     })
@@ -340,13 +365,25 @@ export async function createCounselingQuestion(input: unknown) {
   return { success: true as const }
 }
 
-const updateQuestionSchema = z.object({
-  id: z.string().uuid('유효한 질문 ID가 아닙니다.'),
-  prompt: z.string().trim().min(1, '질문 내용을 입력해주세요.').max(200),
-  fieldType: z.enum(['text', 'textarea']).default('text'),
-  isRequired: z.boolean().default(false),
-  isActive: z.boolean().default(true),
-})
+const updateQuestionSchema = z
+  .object({
+    id: z.string().uuid('유효한 질문 ID가 아닙니다.'),
+    prompt: z.string().trim().min(1, '질문 내용을 입력해주세요.').max(200),
+    fieldType: z.enum(['text', 'textarea', 'select']).default('text'),
+    isRequired: z.boolean().default(false),
+    isActive: z.boolean().default(true),
+    selectOptions: selectOptionsSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.fieldType === 'select') {
+      const options = value.selectOptions?.map((item) => item.trim()).filter(Boolean) ?? []
+      const uniqueOptions = Array.from(new Set(options))
+
+      if (uniqueOptions.length < 2) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: '선택형 질문은 최소 2개 이상의 선택지가 필요합니다.', path: ['selectOptions'] })
+      }
+    }
+  })
 
 export async function updateCounselingQuestion(payload: unknown) {
   const manager = await requireManagerProfile()
@@ -357,7 +394,7 @@ export async function updateCounselingQuestion(payload: unknown) {
     return { error: issue?.message ?? '질문 정보를 확인해주세요.' }
   }
 
-  const { id, prompt, isRequired, fieldType, isActive } = parsed.data
+  const { id, prompt, isRequired, fieldType, isActive, selectOptions } = parsed.data
   const supabase = createAdminClient()
 
   const { error } = await supabase
@@ -367,6 +404,7 @@ export async function updateCounselingQuestion(payload: unknown) {
       is_required: isRequired,
       field_type: fieldType,
       is_active: isActive,
+      select_options: fieldType === 'select' ? dedupeOptions(selectOptions) : [],
       updated_by: manager.id,
     })
     .eq('id', id)

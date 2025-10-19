@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'crypto'
 
 export type CounselingSlotStatus = 'open' | 'booked' | 'closed'
 export type CounselingReservationStatus = 'confirmed' | 'completed' | 'canceled'
-export type CounselingQuestionFieldType = 'text' | 'textarea'
+export type CounselingQuestionFieldType = 'text' | 'textarea' | 'select'
 
 export interface CounselingSlot {
   id: string
@@ -42,6 +42,7 @@ export interface CounselingQuestion {
   is_required: boolean
   is_active: boolean
   position: number
+  select_options: string[]
   created_by: string | null
   updated_by: string | null
   created_at: string
