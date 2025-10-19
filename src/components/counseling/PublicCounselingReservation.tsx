@@ -69,6 +69,8 @@ const sanitizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 
 
 const isValidPhoneNumber = (value: string) => /^01[0-9]{8,9}$/.test(value)
 
+const SELECT_EMPTY_VALUE = '__none__'
+
 function formatRangeLabel(date: string) {
   const weekday = WEEKDAY_LABELS[new Date(`${date}T00:00:00Z`).getUTCDay()]
   return `${date} (${weekday})`
@@ -147,11 +149,12 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
   }
 
   const handleAdditionalChange = (fieldKey: string, value: string) => {
+    const normalizedValue = value === SELECT_EMPTY_VALUE ? '' : value
     setForm((prev) => ({
       ...prev,
       additionalAnswers: {
         ...prev.additionalAnswers,
-        [fieldKey]: value,
+        [fieldKey]: normalizedValue,
       },
     }))
   }
@@ -443,7 +446,7 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                         ) : question.field_type === 'select' ? (
                           <div className="space-y-1">
                             <Select
-                              value={form.additionalAnswers[question.field_key] ?? ''}
+                              value={(form.additionalAnswers[question.field_key] ?? '') || SELECT_EMPTY_VALUE}
                               onValueChange={(value) => handleAdditionalChange(question.field_key, value)}
                               disabled={question.select_options.length === 0}
                             >
@@ -451,7 +454,7 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                                 <SelectValue placeholder={question.select_options.length === 0 ? '선택지가 없습니다' : '선택해주세요'} />
                               </SelectTrigger>
                               <SelectContent>
-                                {!question.is_required ? <SelectItem value="">선택 안 함</SelectItem> : null}
+                                {!question.is_required ? <SelectItem value={SELECT_EMPTY_VALUE}>선택 안 함</SelectItem> : null}
                                 {question.select_options.map((option) => (
                                   <SelectItem key={option} value={option}>
                                     {option}
