@@ -252,21 +252,16 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                 const isToday = cell.date === today
                 const hasAvailableSlots = (summary?.open ?? 0) > 0
                 const buttonClasses = [
-                  'flex h-16 flex-col items-center justify-center rounded-lg p-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
+                  'relative flex h-16 flex-col items-center justify-center rounded-lg p-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
+                  cell.inCurrentMonth ? 'bg-white text-slate-900 hover:bg-slate-50' : 'bg-transparent text-slate-300 hover:bg-transparent',
                 ]
 
-                if (cell.inCurrentMonth) {
-                  buttonClasses.push('bg-white text-slate-900 hover:bg-slate-50')
-                } else {
-                  buttonClasses.push('bg-slate-100 text-slate-400')
-                }
-
                 if (hasAvailableSlots) {
-                  buttonClasses.push('bg-emerald-50 text-emerald-900 hover:bg-emerald-100')
+                  buttonClasses.push('bg-primary/10 text-primary hover:bg-primary/20')
                 }
 
                 if (isSelected) {
-                  buttonClasses.push('bg-emerald-500 text-white hover:bg-emerald-500')
+                  buttonClasses.push('bg-primary text-primary-foreground hover:bg-primary')
                 }
 
                 return (
@@ -276,8 +271,8 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                     onClick={() => handleSelectDate(cell.date)}
                     className={buttonClasses.join(' ')}
                   >
-                    <span className="flex w-full items-center justify-end">
-                      {isToday ? <span className="h-2 w-2 rounded-full bg-emerald-500" /> : null}
+                    <span className="absolute right-2 top-2 flex h-2 w-2 items-center justify-center">
+                      {isToday ? <span className={isSelected ? 'h-2 w-2 rounded-full bg-primary-foreground/80' : 'h-2 w-2 rounded-full bg-primary'} /> : null}
                     </span>
                     <span className="text-sm font-medium">{cell.label}</span>
                   </button>
