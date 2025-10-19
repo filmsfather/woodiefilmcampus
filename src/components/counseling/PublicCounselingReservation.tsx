@@ -250,26 +250,36 @@ export function PublicCounselingReservation({ today, selectedDate, daySlots, mon
                 const summary = summaryMap.get(cell.date)
                 const isSelected = cell.date === selectedDate
                 const isToday = cell.date === today
+                const hasAvailableSlots = (summary?.open ?? 0) > 0
+                const buttonClasses = [
+                  'flex h-16 flex-col items-center justify-center rounded-lg p-1 text-xs transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2',
+                ]
+
+                if (cell.inCurrentMonth) {
+                  buttonClasses.push('bg-white text-slate-900 hover:bg-slate-50')
+                } else {
+                  buttonClasses.push('bg-slate-100 text-slate-400')
+                }
+
+                if (hasAvailableSlots) {
+                  buttonClasses.push('bg-emerald-50 text-emerald-900 hover:bg-emerald-100')
+                }
+
+                if (isSelected) {
+                  buttonClasses.push('bg-emerald-500 text-white hover:bg-emerald-500')
+                }
+
                 return (
                   <button
                     key={cell.date}
                     type="button"
                     onClick={() => handleSelectDate(cell.date)}
-                    className={[
-                      'flex h-16 flex-col items-center justify-between rounded-lg border p-1 text-xs transition',
-                      cell.inCurrentMonth ? 'bg-white' : 'bg-slate-50 text-slate-400',
-                      isSelected ? 'border-emerald-400 bg-emerald-50 text-emerald-900' : 'border-slate-200 hover:border-slate-300',
-                    ].join(' ')}
+                    className={buttonClasses.join(' ')}
                   >
-                    <span className="flex w-full items-center justify-between">
-                      <span className="text-sm font-medium">{cell.label}</span>
+                    <span className="flex w-full items-center justify-end">
                       {isToday ? <span className="h-2 w-2 rounded-full bg-emerald-500" /> : null}
                     </span>
-                    {summary ? (
-                      <span className="text-[10px] text-slate-500">예약 가능 {summary.open}개</span>
-                    ) : (
-                      <span className="text-[10px] text-slate-400">예약 없음</span>
-                    )}
+                    <span className="text-sm font-medium">{cell.label}</span>
                   </button>
                 )
               })}
