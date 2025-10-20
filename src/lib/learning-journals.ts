@@ -382,6 +382,35 @@ function mapAnnualScheduleRow(row: AnnualScheduleRow): LearningJournalAnnualSche
   }
 }
 
+export async function fetchAllAnnualSchedules(): Promise<LearningJournalAnnualSchedule[]> {
+  const supabase = createAdminClient()
+
+  const { data, error } = await supabase
+    .from('learning_journal_annual_schedules')
+    .select(
+      `id,
+       period_label,
+       start_date,
+       end_date,
+       tuition_due_date,
+       tuition_amount,
+       memo,
+       display_order,
+       created_by,
+       created_at,
+       updated_at`
+    )
+    .order('display_order', { ascending: true })
+    .order('start_date', { ascending: true })
+
+  if (error) {
+    console.error('[learning-journal] fetch annual schedules error', error)
+    return []
+  }
+
+  return (data ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
+}
+
 export function calculatePeriodEnd(startDateIso: string, cycleLengthDays = 28): string {
   const startDate = DateUtil.toUTCDate(startDateIso)
   const endDate = DateUtil.addDays(startDate, cycleLengthDays - 1)

@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import DateUtil from '@/lib/date-util'
+import type { LearningJournalAnnualSchedule } from '@/types/learning-journal'
 
 type DesiredClass = 'weekday' | 'saturday' | 'sunday' | 'regular'
 
@@ -70,11 +72,49 @@ const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
 
 const detailsContent = `상담 과정에서 제공된 연간 일정표와 수강료 안내를 다시 확인해 주세요. 등록 이후 취소 시 재등록이 제한될 수 있습니다.`
 
-function sanitizePhone(value: string) {
-  return value.replace(/\D/g, '').slice(0, 11)
+const sanitizePhone = (value: string) => value.replace(/\D/g, '').slice(0, 11)
+const isValidPhoneNumber = (value: string) => /^01[0-9]{8,9}$/.test(value)
+const sanitizeStudentNumber = (value: string) => value.replace(/\D/g, '').slice(0, 12)
+
+interface EnrollmentApplicationFormProps {
+  annualSchedules: LearningJournalAnnualSchedule[]
 }
 
-export function EnrollmentApplicationForm() {
+const formatRangeLabel = (start: string, end: string) =>
+  `${DateUtil.formatForDisplay(start, {
+    locale: 'ko-KR',
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+  })} ~ ${DateUtil.formatForDisplay(end, {
+    locale: 'ko-KR',
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+  })}`
+
+const formatTuitionLabel = (dueDate: string | null, amount: number | null) => {
+  const dueLabel = dueDate
+    ? `납부일 ${DateUtil.formatForDisplay(dueDate, {
+        locale: 'ko-KR',
+        timeZone: 'Asia/Seoul',
+        month: 'numeric',
+        day: 'numeric',
+      })}`
+    : null
+
+  const amountLabel = typeof amount === 'number' && Number.isFinite(amount)
+    ? `${amount.toLocaleString('ko-KR')}원`
+    : null
+
+  if (dueLabel && amountLabel) {
+    return `${dueLabel} / ${amountLabel}`
+  }
+
+  return dueLabel ?? amountLabel ?? '-'
+}
+
+export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplicationFormProps) {
   const [studentName, setStudentName] = useState('')
   const [studentNumber, setStudentNumber] = useState('')
   const [parentPhone, setParentPhone] = useState('')
@@ -86,12 +126,13 @@ export function EnrollmentApplicationForm() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const selectedClassInfo = desiredClass ? CLASS_OPTIONS[desiredClass] : null
+  const hasAnnualSchedules = annualSchedules.length > 0
 
   const canSubmit = useMemo(() => {
     if (!studentName.trim() || !studentNumber.trim()) {
       return false
     }
-    if (parentPhone.length < 10) {
+    if (!isValidPhoneNumber(parentPhone)) {
       return false
     }
     if (!desiredClass) {
@@ -104,7 +145,7 @@ export function EnrollmentApplicationForm() {
       return false
     }
     return true
-  }, [desiredClass, parentPhone.length, saturdayBriefing, scheduleFeeConfirmed, studentName, studentNumber])
+  }, [desiredClass, parentPhone, saturdayBriefing, scheduleFeeConfirmed, studentName, studentNumber])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -159,8 +200,8 @@ export function EnrollmentApplicationForm() {
         <Image
           src="/enrollment-logo.png"
           alt="Woodie Film Campus"
-          width={160}
-          height={80}
+          width={220}
+          height={194}
           priority
         />
         <div className="space-y-1">
@@ -187,8 +228,9 @@ export function EnrollmentApplicationForm() {
               <span className="text-sm font-medium text-slate-700">학생 번호</span>
               <Input
                 value={studentNumber}
-                onChange={(event) => setStudentNumber(event.target.value)}
-                placeholder="예: 2024-001"
+                inputMode="numeric"
+                onChange={(event) => setStudentNumber(sanitizeStudentNumber(event.target.value))}
+                placeholder="예: 2024001"
               />
             </label>
           </div>
@@ -201,7 +243,9 @@ export function EnrollmentApplicationForm() {
               onChange={(event) => setParentPhone(sanitizePhone(event.target.value))}
               placeholder="예: 01012345678"
             />
-            <p className="mt-1 text-xs text-slate-500">숫자만 입력해주세요. (010으로 시작)</p>
+            <p className="mt-1 text-xs text-slate-500">
+              숫자만 입력해주세요. (010으로 시작, {parentPhone.length}/11자리)
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -296,7 +340,42 @@ export function EnrollmentApplicationForm() {
 
           <details className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
             <summary className="cursor-pointer font-medium text-slate-800">연간 일정 및 수강료 안내 확인하기</summary>
-            <p className="mt-3 leading-relaxed">{detailsContent}</p>
+            <div className="mt-3 space-y-4 leading-relaxed">
+              <p>{detailsContent}</p>
+              {hasAnnualSchedules ? (
+                <div className="space-y-3">
+                  {annualSchedules.map((item) => (
+                    <div
+                      key={item.id}
+                      className="space-y-3 rounded-md border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-700"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-medium text-slate-500">기간명</span>
+                        <span className="text-base font-semibold text-slate-900">{item.periodLabel}</span>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">기간</p>
+                          <p>{formatRangeLabel(item.startDate, item.endDate)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">수강료</p>
+                          <p>{formatTuitionLabel(item.tuitionDueDate, item.tuitionAmount)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-slate-500">비고</p>
+                          <p className="text-slate-500">{item.memo ?? '-'}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                  연간 일정 정보가 준비 중입니다. 상담 팀에 문의해 주세요.
+                </p>
+              )}
+            </div>
           </details>
 
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
