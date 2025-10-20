@@ -1,8 +1,10 @@
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ClassesManager } from '@/components/dashboard/manager/classes/ClassesManager'
+import { TimetableManager } from '@/components/dashboard/manager/classes/TimetableManager'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
 import type { ClassSummary, ProfileOption } from '@/types/class'
+import type { TimetableSummary } from '@/types/timetable'
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -126,6 +128,127 @@ export default async function ManagerClassesPage({
 
   const teacherOptionMap = new Map(teacherOptions.map((option) => [option.id, option]))
   const studentOptionMap = new Map(studentOptions.map((option) => [option.id, option]))
+  const classNameMap = new Map(classRows.map((row) => [row.id, row.name]))
+
+  const { data: timetableRowsData, error: timetableError } = await supabase
+    .from('timetables')
+    .select('id, name, created_at, updated_at')
+    .order('created_at', { ascending: true })
+
+  if (timetableError) {
+    console.error('Failed to load timetables', timetableError)
+  }
+
+  const timetableRows = timetableRowsData ?? []
+  const timetableIds = timetableRows.map((row) => row.id)
+
+  let timetableTeacherRows: Array<{ id: string; timetable_id: string; teacher_id: string; position: number }> = []
+  let timetablePeriodRows: Array<{ id: string; timetable_id: string; name: string; position: number }> = []
+  let timetableAssignmentRows: Array<{
+    id: string
+    timetable_id: string
+    teacher_column_id: string
+    period_id: string
+    class_id: string
+  }> = []
+
+  if (timetableIds.length > 0) {
+    const [{ data: teacherRowsData, error: teacherRowsError }, { data: periodRowsData, error: periodRowsError }, { data: assignmentRowsData, error: assignmentRowsError }] =
+      await Promise.all([
+        supabase
+          .from('timetable_teachers')
+          .select('id, timetable_id, teacher_id, position')
+          .in('timetable_id', timetableIds)
+          .order('position', { ascending: true }),
+        supabase
+          .from('timetable_periods')
+          .select('id, timetable_id, name, position')
+          .in('timetable_id', timetableIds)
+          .order('position', { ascending: true }),
+        supabase
+          .from('timetable_assignments')
+          .select('id, timetable_id, teacher_column_id, period_id, class_id')
+          .in('timetable_id', timetableIds),
+      ])
+
+    if (teacherRowsError) {
+      console.error('Failed to load timetable teacher columns', teacherRowsError)
+    }
+
+    if (periodRowsError) {
+      console.error('Failed to load timetable periods', periodRowsError)
+    }
+
+    if (assignmentRowsError) {
+      console.error('Failed to load timetable assignments', assignmentRowsError)
+    }
+
+    timetableTeacherRows = teacherRowsData ?? []
+    timetablePeriodRows = periodRowsData ?? []
+    timetableAssignmentRows = assignmentRowsData ?? []
+  }
+
+  const timetableTeacherGroups = new Map<string, typeof timetableTeacherRows>()
+  const timetablePeriodGroups = new Map<string, typeof timetablePeriodRows>()
+  const timetableAssignmentGroups = new Map<string, typeof timetableAssignmentRows>()
+
+  for (const row of timetableTeacherRows) {
+    const current = timetableTeacherGroups.get(row.timetable_id) ?? []
+    current.push(row)
+    timetableTeacherGroups.set(row.timetable_id, current)
+  }
+
+  for (const row of timetablePeriodRows) {
+    const current = timetablePeriodGroups.get(row.timetable_id) ?? []
+    current.push(row)
+    timetablePeriodGroups.set(row.timetable_id, current)
+  }
+
+  for (const row of timetableAssignmentRows) {
+    const current = timetableAssignmentGroups.get(row.timetable_id) ?? []
+    current.push(row)
+    timetableAssignmentGroups.set(row.timetable_id, current)
+  }
+
+  const timetables: TimetableSummary[] = timetableRows.map((row) => {
+    const teacherColumns = (timetableTeacherGroups.get(row.id) ?? []).map((teacherRow) => {
+      const profile = teacherOptionMap.get(teacherRow.teacher_id)
+      return {
+        id: teacherRow.id,
+        timetableId: teacherRow.timetable_id,
+        position: teacherRow.position,
+        teacherId: teacherRow.teacher_id,
+        teacherName: profile?.name ?? null,
+        teacherEmail: profile?.email ?? null,
+      }
+    })
+
+    const periods = (timetablePeriodGroups.get(row.id) ?? []).map((periodRow) => ({
+      id: periodRow.id,
+      timetableId: periodRow.timetable_id,
+      position: periodRow.position,
+      name: periodRow.name,
+    }))
+
+    const assignments = (timetableAssignmentGroups.get(row.id) ?? []).map((assignmentRow) => ({
+      id: assignmentRow.id,
+      timetableId: assignmentRow.timetable_id,
+      teacherColumnId: assignmentRow.teacher_column_id,
+      periodId: assignmentRow.period_id,
+      classId: assignmentRow.class_id,
+      className: classNameMap.get(assignmentRow.class_id) ?? '이름 없는 반',
+    }))
+
+    return {
+      id: row.id,
+      name: row.name,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      teacherColumns,
+      periods,
+      assignments,
+    }
+  })
 
   const classTeachersMap = new Map<string, Array<{ teacher_id: string; is_homeroom: boolean | null }>>()
   const classStudentsMap = new Map<string, Array<{ student_id: string }>>()
@@ -207,6 +330,12 @@ export default async function ManagerClassesPage({
           </p>
         </div>
       </div>
+
+      <TimetableManager
+        timetables={timetables}
+        classes={classSummaries}
+        teacherOptions={teacherOptions}
+      />
 
       <ClassesManager
         classes={filteredClasses}
