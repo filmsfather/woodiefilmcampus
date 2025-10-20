@@ -29,6 +29,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Select,
   SelectContent,
@@ -668,8 +669,8 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-        <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:w-80 lg:shrink-0">
+      <div className="space-y-4">
+        <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
             <CalendarDays className="size-4 text-slate-500" />
             <span className="text-sm font-medium text-slate-700">시간표 목록</span>
@@ -703,7 +704,7 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
           </div>
         </aside>
 
-        <div className="flex-1 space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           {selectedTimetable ? (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 rounded-md border border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
@@ -811,23 +812,26 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                           <td className="border border-slate-200 px-4 py-3 align-top">
                             {editingPeriodId === period.id ? (
                               <div className="flex items-center gap-2">
-                                <Input
+                                <Textarea
                                   value={periodDraftName}
                                   onChange={(event) => setPeriodDraftName(event.target.value)}
                                   onBlur={() => handleUpdatePeriodName(period)}
                                   onKeyDown={(event) => {
-                                    if (event.key === 'Enter') {
+                                    if (event.key === 'Enter' && !event.shiftKey) {
                                       event.preventDefault()
                                       handleUpdatePeriodName(period)
                                     }
                                   }}
+                                  className="min-h-[72px] resize-none"
                                   autoFocus
                                 />
                               </div>
                             ) : (
                               <div className="flex items-center justify-between gap-2">
                                 <div>
-                                  <div className="text-sm font-medium text-slate-800">{period.name}</div>
+                                  <div className="whitespace-pre-line text-sm font-medium text-slate-800">
+                                    {period.name}
+                                  </div>
                                   {isEditing ? (
                                     <div className="text-xs text-slate-500">교시 순서 {period.position + 1}</div>
                                   ) : null}
