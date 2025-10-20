@@ -19,6 +19,29 @@ type TeacherDashboardSection = {
 
 const TEACHER_SECTIONS: TeacherDashboardSection[] = [
   {
+    title: '일정관리',
+    description: '연간 및 월간 학습 일정과 수업 시간표를 확인하세요.',
+    actions: [
+      {
+        label: '연간 일정',
+        href: '/dashboard/learning-journal/annual-schedule',
+        description: '연간 학습 계획을 확인해 수업 준비에 활용하세요.',
+      },
+      {
+        label: '월간 학습 계획',
+        href: '/dashboard/teacher/learning-journal/templates',
+        description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
+        variant: 'outline',
+      },
+      {
+        label: '수업 시간표',
+        href: '/dashboard/teacher/timetable',
+        description: '담당 시간표와 소속 반 정보를 확인하세요.',
+        variant: 'outline',
+      },
+    ],
+  },
+  {
     title: '근무관리',
     description: '근무일지를 작성하고 승인 현황을 확인하세요.',
     actions: [
@@ -36,59 +59,7 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     ],
   },
   {
-    title: '문제집 아카이브',
-    description: '문제집을 생성·편집하고 저장된 워크북을 관리하세요.',
-    actions: [
-      {
-        label: '문제집 만들기',
-        href: '/dashboard/workbooks/new',
-        description: '새 문제집을 작성하는 마법사로 이동합니다.',
-      },
-      {
-        label: '출판된 문제집 확인',
-        href: '/dashboard/workbooks',
-        description: '출판된 문제집과 보관 중인 자료를 살펴보세요.',
-        variant: 'outline',
-      },
-    ],
-  },
-  {
-    title: '수업자료',
-    description: '수업과 입시에 필요한 자료 아카이브를 한곳에서 확인하세요.',
-    actions: [
-      {
-        label: '시간표 확인',
-        href: '/dashboard/teacher/timetable',
-        description: '담당 시간표와 소속 반 정보를 확인하세요.',
-      },
-      {
-        label: '수업자료 아카이브',
-        href: '/dashboard/teacher/class-materials',
-        description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
-        variant: 'outline',
-      },
-      {
-        label: '연간 일정',
-        href: '/dashboard/learning-journal/annual-schedule',
-        description: '연간 학습 계획을 확인해 수업 준비에 활용하세요.',
-        variant: 'outline',
-      },
-      {
-        label: '월간 학습 계획',
-        href: '/dashboard/teacher/learning-journal/templates',
-        description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
-        variant: 'outline',
-      },
-      {
-        label: '입시자료 아카이브',
-        href: '/dashboard/teacher/admission-materials',
-        description: '입시 대비 자료와 일정을 관리하고 학생과 공유하세요.',
-        variant: 'outline',
-      },
-    ],
-  },
-  {
-    title: '과제 관리',
+    title: '과제관리',
     description: '반과 학생에게 과제를 배정하고 평가 흐름을 관리하세요.',
     actions: [
       {
@@ -106,6 +77,40 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         label: '학생 아틀리에',
         href: '/dashboard/teacher/atelier',
         description: '학생 제출물을 추천하거나 목록에서 정리하세요.',
+        variant: 'outline',
+      },
+    ],
+  },
+  {
+    title: '수업자료',
+    description: '수업과 입시에 필요한 자료 아카이브를 한곳에서 확인하세요.',
+    actions: [
+      {
+        label: '수업자료 아카이브',
+        href: '/dashboard/teacher/class-materials',
+        description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
+      },
+      {
+        label: '입시자료 아카이브',
+        href: '/dashboard/teacher/admission-materials',
+        description: '입시 대비 자료와 일정을 관리하고 학생과 공유하세요.',
+        variant: 'outline',
+      },
+    ],
+  },
+  {
+    title: '문제집 관리',
+    description: '문제집을 생성·편집하고 저장된 워크북을 관리하세요.',
+    actions: [
+      {
+        label: '문제집 만들기',
+        href: '/dashboard/workbooks/new',
+        description: '새 문제집을 작성하는 마법사로 이동합니다.',
+      },
+      {
+        label: '출판된 문제집 확인',
+        href: '/dashboard/workbooks',
+        description: '출판된 문제집과 보관 중인 자료를 살펴보세요.',
         variant: 'outline',
       },
     ],

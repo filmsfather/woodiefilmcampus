@@ -85,6 +85,15 @@ const teacherSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'teacher-schedule',
+    title: '일정관리',
+    items: [
+      { label: '연간 일정', href: '/dashboard/learning-journal/annual-schedule' },
+      { label: '월간 학습 계획', href: '/dashboard/teacher/learning-journal/templates' },
+      { label: '수업 시간표', href: '/dashboard/teacher/timetable' },
+    ],
+  },
+  {
     id: 'teacher-work',
     title: '근무관리',
     items: [
@@ -93,11 +102,12 @@ const teacherSections: NavigationSection[] = [
     ],
   },
   {
-    id: 'teacher-workbooks',
-    title: '문제집 아카이브',
+    id: 'teacher-assignments',
+    title: '과제관리',
     items: [
-      { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
-      { label: '출판된 문제집 확인', href: '/dashboard/workbooks' },
+      { label: '과제 출제하기', href: '/dashboard/assignments/new' },
+      { label: '과제 검사하기', href: '/dashboard/teacher/review' },
+      { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
     ],
   },
   {
@@ -105,18 +115,15 @@ const teacherSections: NavigationSection[] = [
     title: '수업자료',
     items: [
       { label: '수업자료 아카이브', href: '/dashboard/teacher/class-materials' },
-      { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
-      { label: '월간 학습 계획', href: '/dashboard/teacher/learning-journal/templates' },
       { label: '입시자료 아카이브', href: '/dashboard/teacher/admission-materials' },
     ],
   },
   {
-    id: 'teacher-assignments',
-    title: '과제 관리',
+    id: 'teacher-workbooks',
+    title: '문제집 관리',
     items: [
-      { label: '과제 출제하기', href: '/dashboard/assignments/new' },
-      { label: '과제 검사하기', href: '/dashboard/teacher/review' },
-      { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
+      { label: '출판된 문제집 확인', href: '/dashboard/workbooks' },
     ],
   },
 ]
