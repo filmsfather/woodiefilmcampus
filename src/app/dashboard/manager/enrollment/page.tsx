@@ -18,7 +18,6 @@ export default async function ManagerEnrollmentApplicationsPage() {
     .select(
        `id,
         student_name,
-        student_number,
         parent_phone,
         student_phone,
         desired_class,

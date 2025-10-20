@@ -74,7 +74,6 @@ const detailsContent = `상담 과정에서 제공된 연간 일정표와 수강
 
 const sanitizePhone = (value: string) => value.replace(/\D/g, '').slice(0, 11)
 const isValidPhoneNumber = (value: string) => /^01[0-9]{8,9}$/.test(value)
-const sanitizeStudentNumber = (value: string) => value.replace(/\D/g, '').slice(0, 12)
 
 interface EnrollmentApplicationFormProps {
   annualSchedules: LearningJournalAnnualSchedule[]
@@ -116,7 +115,6 @@ const formatTuitionLabel = (dueDate: string | null, amount: number | null) => {
 
 export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplicationFormProps) {
   const [studentName, setStudentName] = useState('')
-  const [studentNumber, setStudentNumber] = useState('')
   const [parentPhone, setParentPhone] = useState('')
   const [alternatePhone, setAlternatePhone] = useState('')
   const [desiredClass, setDesiredClass] = useState<DesiredClass | null>(null)
@@ -130,7 +128,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
   const hasAnnualSchedules = annualSchedules.length > 0
 
   const canSubmit = useMemo(() => {
-    if (!studentName.trim() || !studentNumber.trim()) {
+    if (!studentName.trim()) {
       return false
     }
     if (!isValidPhoneNumber(parentPhone)) {
@@ -149,7 +147,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
       return false
     }
     return true
-  }, [alternatePhone, desiredClass, parentPhone, saturdayBriefing, scheduleFeeConfirmed, studentName, studentNumber])
+  }, [alternatePhone, desiredClass, parentPhone, saturdayBriefing, scheduleFeeConfirmed, studentName])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -168,7 +166,6 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           studentName,
-          studentNumber,
           parentPhone,
           studentPhone: alternatePhone ? alternatePhone : undefined,
           desiredClass,
@@ -186,7 +183,6 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
 
       setSuccessMessage('등록원서가 접수되었습니다. 확정 안내는 개별 연락으로 전달됩니다.')
       setStudentName('')
-      setStudentNumber('')
       setParentPhone('')
       setAlternatePhone('')
       setDesiredClass(null)
@@ -221,52 +217,35 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
           <CardTitle className="text-base font-semibold text-foreground">기본 정보</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-foreground">학생 이름</span>
-              <Input
-                value={studentName}
-                onChange={(event) => setStudentName(event.target.value)}
-                placeholder="예: 홍길동"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-foreground">학생 번호</span>
-              <Input
-                value={studentNumber}
-                inputMode="numeric"
-                onChange={(event) => setStudentNumber(sanitizeStudentNumber(event.target.value))}
-                placeholder="예: 01012345678"
-              />
-            </label>
+          <div className="space-y-2">
+            <span className="text-sm font-medium text-foreground">학생 이름</span>
+            <Input
+              value={studentName}
+              onChange={(event) => setStudentName(event.target.value)}
+              placeholder="예: 홍길동"
+            />
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="parent-phone">부모님 번호</Label>
-              <Input
-                id="parent-phone"
-                inputMode="numeric"
-                value={parentPhone}
-                onChange={(event) => setParentPhone(sanitizePhone(event.target.value))}
-                placeholder="예: 01012345678"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                숫자만 입력해주세요. (010으로 시작, {parentPhone.length}/11자리)
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="student-phone">학생 번호 (선택)</Label>
-              <Input
-                id="student-phone"
-                inputMode="numeric"
-                value={alternatePhone}
-                onChange={(event) => setAlternatePhone(sanitizePhone(event.target.value))}
-                placeholder="예: 01012345678"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                학생 본인 연락처가 있으면 입력해주세요. (선택 사항)
-              </p>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="student-phone">학생 번호 (선택)</Label>
+            <Input
+              id="student-phone"
+              inputMode="numeric"
+              value={alternatePhone}
+              onChange={(event) => setAlternatePhone(sanitizePhone(event.target.value))}
+              placeholder="예: 01012345678"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">학생 본인 연락처가 있으면 입력해주세요. (선택 사항)</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="parent-phone">부모님 번호</Label>
+            <Input
+              id="parent-phone"
+              inputMode="numeric"
+              value={parentPhone}
+              onChange={(event) => setParentPhone(sanitizePhone(event.target.value))}
+              placeholder="예: 01012345678"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">숫자만 입력해주세요. (010으로 시작, {parentPhone.length}/11자리)</p>
           </div>
         </CardContent>
       </Card>

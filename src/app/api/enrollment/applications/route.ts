@@ -10,7 +10,6 @@ const classEnum = z.enum(['weekday', 'saturday', 'sunday', 'regular'])
 const applicationSchema = z
   .object({
     studentName: z.string().trim().min(1, '학생 이름을 입력해주세요.'),
-    studentNumber: z.string().trim().min(1, '학생 번호를 입력해주세요.').max(50),
     parentPhone: z
       .string()
       .trim()
@@ -52,7 +51,6 @@ export async function POST(request: Request) {
 
     const {
       studentName,
-      studentNumber,
       parentPhone,
       studentPhone,
       desiredClass,
@@ -64,7 +62,6 @@ export async function POST(request: Request) {
     const supabase = createAdminClient()
     const { error } = await supabase.from('enrollment_applications').insert({
       student_name: studentName.trim(),
-      student_number: studentNumber.trim(),
       parent_phone: parentPhone,
       student_phone: studentPhone ? studentPhone : null,
       desired_class: desiredClass,
@@ -89,23 +86,18 @@ export async function POST(request: Request) {
 
     const desiredClassLabel = classLabelMap[desiredClass] ?? desiredClass
 
-    const smsTasks: Array<Promise<boolean>> = [
+    const recipients = new Set<string>([parentPhone])
+    if (studentPhone) {
+      recipients.add(studentPhone)
+    }
+
+    const smsTasks = Array.from(recipients).map((phoneNumber) =>
       sendEnrollmentApplicationConfirmationSMS({
-        phoneNumber: parentPhone,
+        phoneNumber,
         studentName,
         desiredClassLabel,
-      }),
-    ]
-
-    if (studentPhone) {
-      smsTasks.push(
-        sendEnrollmentApplicationConfirmationSMS({
-          phoneNumber: studentPhone,
-          studentName,
-          desiredClassLabel,
-        })
-      )
-    }
+      })
+    )
 
     Promise.allSettled(smsTasks).catch((smsError) => {
       console.error('[enrollment] application sms send error', smsError)
