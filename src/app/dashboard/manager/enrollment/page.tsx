@@ -16,11 +16,12 @@ export default async function ManagerEnrollmentApplicationsPage() {
   const { data, error } = await supabase
     .from('enrollment_applications')
     .select(
-      `id,
-       student_name,
-       student_number,
-       parent_phone,
-       desired_class,
+       `id,
+        student_name,
+        student_number,
+        parent_phone,
+        student_phone,
+        desired_class,
        saturday_briefing_received,
        schedule_fee_confirmed,
        created_at

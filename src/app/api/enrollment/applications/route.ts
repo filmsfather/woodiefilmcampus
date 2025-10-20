@@ -18,6 +18,14 @@ const applicationSchema = z
       .refine((value) => /^01[0-9]{8,9}$/.test(value), {
         message: '휴대폰 번호는 010으로 시작하는 숫자만 입력해주세요.',
       }),
+    studentPhone: z
+      .string()
+      .trim()
+      .optional()
+      .transform((value) => (value ? value.replace(/\D/g, '') : ''))
+      .refine((value) => !value || /^01[0-9]{8,9}$/.test(value), {
+        message: '학생 연락처는 010으로 시작하는 숫자만 입력해주세요.',
+      }),
     desiredClass: classEnum,
     saturdayBriefing: z.enum(['yes', 'no']).optional(),
     scheduleFeeConfirmed: z.enum(['confirmed', 'unconfirmed']),
@@ -42,7 +50,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: issue?.message ?? '입력값을 확인해주세요.' }, { status: 400 })
     }
 
-    const { studentName, studentNumber, parentPhone, desiredClass, saturdayBriefing, scheduleFeeConfirmed } =
+    const {
+      studentName,
+      studentNumber,
+      parentPhone,
+      studentPhone,
+      desiredClass,
+      saturdayBriefing,
+      scheduleFeeConfirmed,
+    } =
       parsed.data
 
     const supabase = createAdminClient()
@@ -50,6 +66,7 @@ export async function POST(request: Request) {
       student_name: studentName.trim(),
       student_number: studentNumber.trim(),
       parent_phone: parentPhone,
+      student_phone: studentPhone ? studentPhone : null,
       desired_class: desiredClass,
       saturday_briefing_received:
         desiredClass === 'saturday' ? saturdayBriefing === 'yes' : null,
@@ -72,11 +89,25 @@ export async function POST(request: Request) {
 
     const desiredClassLabel = classLabelMap[desiredClass] ?? desiredClass
 
-    sendEnrollmentApplicationConfirmationSMS({
-      phoneNumber: parentPhone,
-      studentName,
-      desiredClassLabel,
-    }).catch((smsError) => {
+    const smsTasks: Array<Promise<boolean>> = [
+      sendEnrollmentApplicationConfirmationSMS({
+        phoneNumber: parentPhone,
+        studentName,
+        desiredClassLabel,
+      }),
+    ]
+
+    if (studentPhone) {
+      smsTasks.push(
+        sendEnrollmentApplicationConfirmationSMS({
+          phoneNumber: studentPhone,
+          studentName,
+          desiredClassLabel,
+        })
+      )
+    }
+
+    Promise.allSettled(smsTasks).catch((smsError) => {
       console.error('[enrollment] application sms send error', smsError)
     })
 

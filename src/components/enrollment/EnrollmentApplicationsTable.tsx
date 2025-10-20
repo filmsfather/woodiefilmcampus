@@ -14,6 +14,7 @@ export interface EnrollmentApplicationItem {
   student_name: string
   student_number: string
   parent_phone: string
+  student_phone: string | null
   desired_class: 'weekday' | 'saturday' | 'sunday' | 'regular'
   saturday_briefing_received: boolean | null
   schedule_fee_confirmed: boolean | null
@@ -57,6 +58,7 @@ export function EnrollmentApplicationsTable({ applications }: { applications: En
             <TableHead className="whitespace-nowrap">학생 이름</TableHead>
             <TableHead className="whitespace-nowrap">학생 번호</TableHead>
             <TableHead className="whitespace-nowrap">부모님 번호</TableHead>
+            <TableHead className="whitespace-nowrap">학생 번호</TableHead>
             <TableHead className="whitespace-nowrap">희망 반</TableHead>
             <TableHead className="whitespace-nowrap">토요반 안내</TableHead>
             <TableHead className="whitespace-nowrap">일정/수강료 확인</TableHead>
@@ -74,6 +76,7 @@ export function EnrollmentApplicationsTable({ applications }: { applications: En
               <TableCell className="font-medium text-slate-900">{item.student_name}</TableCell>
               <TableCell>{item.student_number}</TableCell>
               <TableCell>{formatPhone(item.parent_phone)}</TableCell>
+              <TableCell>{item.student_phone ? formatPhone(item.student_phone) : <span className="text-slate-500">-</span>}</TableCell>
               <TableCell>
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
                   {classLabelMap[item.desired_class]}

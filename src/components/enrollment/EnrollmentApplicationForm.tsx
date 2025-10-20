@@ -118,6 +118,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
   const [studentName, setStudentName] = useState('')
   const [studentNumber, setStudentNumber] = useState('')
   const [parentPhone, setParentPhone] = useState('')
+  const [alternatePhone, setAlternatePhone] = useState('')
   const [desiredClass, setDesiredClass] = useState<DesiredClass | null>(null)
   const [saturdayBriefing, setSaturdayBriefing] = useState<'yes' | 'no' | null>(null)
   const [scheduleFeeConfirmed, setScheduleFeeConfirmed] = useState<'confirmed' | 'unconfirmed' | null>(null)
@@ -135,6 +136,9 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
     if (!isValidPhoneNumber(parentPhone)) {
       return false
     }
+    if (alternatePhone && !isValidPhoneNumber(alternatePhone)) {
+      return false
+    }
     if (!desiredClass) {
       return false
     }
@@ -145,7 +149,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
       return false
     }
     return true
-  }, [desiredClass, parentPhone, saturdayBriefing, scheduleFeeConfirmed, studentName, studentNumber])
+  }, [alternatePhone, desiredClass, parentPhone, saturdayBriefing, scheduleFeeConfirmed, studentName, studentNumber])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -166,6 +170,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
           studentName,
           studentNumber,
           parentPhone,
+          studentPhone: alternatePhone ? alternatePhone : undefined,
           desiredClass,
           saturdayBriefing: desiredClass === 'saturday' ? saturdayBriefing ?? undefined : undefined,
           scheduleFeeConfirmed,
@@ -183,6 +188,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
       setStudentName('')
       setStudentNumber('')
       setParentPhone('')
+      setAlternatePhone('')
       setDesiredClass(null)
       setSaturdayBriefing(null)
       setScheduleFeeConfirmed(null)
@@ -234,18 +240,33 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
               />
             </label>
           </div>
-          <div>
-            <Label htmlFor="parent-phone">부모님 번호</Label>
-            <Input
-              id="parent-phone"
-              inputMode="numeric"
-              value={parentPhone}
-              onChange={(event) => setParentPhone(sanitizePhone(event.target.value))}
-              placeholder="예: 01012345678"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">
-              숫자만 입력해주세요. (010으로 시작, {parentPhone.length}/11자리)
-            </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="parent-phone">부모님 번호</Label>
+              <Input
+                id="parent-phone"
+                inputMode="numeric"
+                value={parentPhone}
+                onChange={(event) => setParentPhone(sanitizePhone(event.target.value))}
+                placeholder="예: 01012345678"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                숫자만 입력해주세요. (010으로 시작, {parentPhone.length}/11자리)
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="student-phone">학생 번호 (선택)</Label>
+              <Input
+                id="student-phone"
+                inputMode="numeric"
+                value={alternatePhone}
+                onChange={(event) => setAlternatePhone(sanitizePhone(event.target.value))}
+                placeholder="예: 01012345678"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                학생 본인 연락처가 있으면 입력해주세요. (선택 사항)
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
