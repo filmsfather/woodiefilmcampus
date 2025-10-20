@@ -54,23 +54,27 @@ const managerSections: NavigationSection[] = [
     ],
   },
   {
-    id: 'manager-counseling',
-    title: '상담 관리',
+    id: 'manager-registration',
+    title: '등록관리',
     items: [
-      { label: '슬롯 설정', href: '/dashboard/manager/counseling/slots' },
-      { label: '예약 현황', href: '/dashboard/manager/counseling/reservations' },
-      { label: '질문 항목', href: '/dashboard/manager/counseling/questions' },
+      { label: '등록원서 보기', href: '/dashboard/manager/enrollment' },
+      { label: '상담관리 열기', href: '/dashboard/manager/counseling/slots' },
+      { label: '구성원 관리', href: '/dashboard/manager/members' },
+    ],
+  },
+  {
+    id: 'manager-classes',
+    title: '반 관리',
+    items: [
+      { label: '반관리 열기', href: '/dashboard/manager/classes' },
+      { label: '학습일지 관리', href: '/dashboard/manager/learning-journal' },
     ],
   },
   {
     id: 'manager-operations',
-    title: '운영 도구',
+    title: '업무관리',
     items: [
-      { label: '구성원 관리', href: '/dashboard/manager/members' },
-      { label: '인쇄 요청 관리', href: '/dashboard/manager/print-requests' },
-      { label: '반 관리', href: '/dashboard/manager/classes' },
-      { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
-      { label: '학습일지 관리', href: '/dashboard/manager/learning-journal' },
+      { label: '인쇄요청 관리', href: '/dashboard/manager/print-requests' },
       { label: '교사 대시보드 열기', href: '/dashboard/teacher' },
     ],
   },

@@ -3,106 +3,74 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
   Card,
+  CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
 
+type ManagerQuickLinkAction = {
+  label: string
+  href: string
+  variant?: 'default' | 'outline' | 'secondary'
+}
+
+type ManagerQuickLinkSection = {
+  title: string
+  description: string
+  actions: ManagerQuickLinkAction[]
+}
+
+const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
+  {
+    title: '등록관리',
+    description: '등록부터 상담, 구성원 관리를 빠르게 실행하세요.',
+    actions: [
+      { label: '등록원서 보기', href: '/dashboard/manager/enrollment' },
+      { label: '상담관리 열기', href: '/dashboard/manager/counseling/slots', variant: 'outline' },
+      { label: '구성원 관리', href: '/dashboard/manager/members', variant: 'outline' },
+    ],
+  },
+  {
+    title: '반 관리',
+    description: '반 편성과 학습일지를 한 화면에서 정리하세요.',
+    actions: [
+      { label: '반관리 열기', href: '/dashboard/manager/classes' },
+      { label: '학습일지 관리', href: '/dashboard/manager/learning-journal', variant: 'outline' },
+    ],
+  },
+  {
+    title: '업무관리',
+    description: '운영 업무를 효율적으로 처리하세요.',
+    actions: [
+      { label: '인쇄요청 관리', href: '/dashboard/manager/print-requests' },
+      { label: '교사 대시보드 열기', href: '/dashboard/teacher', variant: 'secondary' },
+    ],
+  },
+]
+
 export function ManagerQuickLinks() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">등록원서 접수</CardTitle>
-          <CardDescription>
-            온라인 등록원서를 제출한 학생 목록을 확인하고 상담 후속 안내를 진행합니다.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/dashboard/manager/enrollment">등록원서 보기</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">상담 관리</CardTitle>
-          <CardDescription>
-            상담 예약 가능한 시간을 설정하고 신청 현황을 주·일별로 확인합니다.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/dashboard/manager/counseling/slots">상담 관리 열기</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">구성원 관리</CardTitle>
-          <CardDescription>
-            승인된 학생과 교사의 연락처, 반 배정을 한 화면에서 편집하고 삭제할 수 있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/dashboard/manager/members">구성원 관리 열기</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">인쇄 요청 관리</CardTitle>
-          <CardDescription>
-            주간 인쇄 요청을 확인하고 완료·취소 상태를 업데이트하세요.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/dashboard/manager/print-requests">인쇄 요청 열기</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">반 관리</CardTitle>
-          <CardDescription>
-            반을 생성하고 담임·담당 교사 및 학생 배정을 한 곳에서 처리할 수 있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/dashboard/manager/classes">반 관리 열기</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">학습일지 관리</CardTitle>
-          <CardDescription>
-            반별 4주 주기를 설정하고 주요 학사 일정을 등록해 교사 학습일지 작성을 지원하세요.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild>
-            <Link href="/dashboard/manager/learning-journal">학습일지 관리</Link>
-          </Button>
-        </CardFooter>
-      </Card>
-      <Card>
-        <CardHeader className="gap-2">
-          <CardTitle className="text-lg">교사 업무 도구</CardTitle>
-          <CardDescription>
-            근무일지, 수업자료, 입시자료 등 교사 대시보드를 바로 열 수 있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button asChild variant="secondary">
-            <Link href="/dashboard/teacher">교사 대시보드 열기</Link>
-          </Button>
-        </CardFooter>
-      </Card>
+      {QUICK_LINK_SECTIONS.map((section) => (
+        <Card key={section.title}>
+          <CardHeader className="gap-2">
+            <CardTitle className="text-lg">{section.title}</CardTitle>
+            <CardDescription>{section.description}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {section.actions.map((action, index) => (
+              <Button
+                key={action.href}
+                asChild
+                variant={action.variant ?? (index === 0 ? 'default' : 'outline')}
+              >
+                <Link href={action.href}>{action.label}</Link>
+              </Button>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }
