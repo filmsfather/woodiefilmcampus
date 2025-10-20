@@ -341,7 +341,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
           ) : null}
 
           <details className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
-            <summary className="cursor-pointer font-medium text-foreground">연간 일정 및 수강료 안내 확인하기</summary>
+            <summary className="cursor-pointer font-medium text-foreground">연간 일정 및 수강료 안내 확인하기 (펼치기)</summary>
             <div className="mt-3 space-y-4 leading-relaxed">
               <p>{detailsContent}</p>
               {hasAnnualSchedules ? (
