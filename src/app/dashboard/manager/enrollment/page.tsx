@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 
+import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
 import { EnrollmentApplicationsTable } from '@/components/enrollment/EnrollmentApplicationsTable'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
@@ -13,26 +14,38 @@ export default async function ManagerEnrollmentApplicationsPage() {
   await requireAuthForDashboard('manager')
   const supabase = createClient()
 
-  const { data, error } = await supabase
-    .from('enrollment_applications')
-    .select(
-       `id,
-        student_name,
-        parent_phone,
-        student_phone,
-        desired_class,
-       saturday_briefing_received,
-       schedule_fee_confirmed,
-       created_at
-      `
-    )
-    .order('created_at', { ascending: false })
+  const [pendingStudentsResult, applicationsResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, email, name, student_phone, parent_phone, academic_record, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('enrollment_applications')
+      .select(
+        `id,
+         student_name,
+         parent_phone,
+         student_phone,
+         desired_class,
+         saturday_briefing_received,
+         schedule_fee_confirmed,
+         created_at
+        `
+      )
+      .order('created_at', { ascending: false }),
+  ])
 
-  if (error) {
-    console.error('[enrollment] fetch applications error', error)
+  if (pendingStudentsResult.error) {
+    console.error('[enrollment] pending students error', pendingStudentsResult.error)
   }
 
-  const applications = data ?? []
+  if (applicationsResult.error) {
+    console.error('[enrollment] fetch applications error', applicationsResult.error)
+  }
+
+  const pendingStudents = pendingStudentsResult.data ?? []
+  const applications = applicationsResult.data ?? []
 
   return (
     <section className="space-y-6">
@@ -40,6 +53,7 @@ export default async function ManagerEnrollmentApplicationsPage() {
         <h1 className="text-2xl font-semibold text-slate-900">등록원서 접수 현황</h1>
         <p className="text-sm text-slate-600">접수된 학생 등록 정보를 확인하고 상담 일정 안내를 진행하세요.</p>
       </div>
+      <PendingApprovalList students={pendingStudents} />
       <EnrollmentApplicationsTable applications={applications} />
     </section>
   )

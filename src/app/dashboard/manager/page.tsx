@@ -1,6 +1,5 @@
 import Link from 'next/link'
 
-import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
 import { ManagerQuickLinks } from '@/components/dashboard/manager/ManagerQuickLinks'
 import { ManagerStatsOverview } from '@/components/dashboard/manager/ManagerStatsOverview'
 import { AnnualScheduleTable } from '@/components/dashboard/learning-journal/AnnualScheduleTable'
@@ -14,12 +13,11 @@ export default async function ManagerDashboardPage() {
   const { profile } = await requireAuthForDashboard('manager')
   const supabase = createClient()
 
-  const [pendingStudentsResult, approvedCountResult, annualSchedules] = await Promise.all([
+  const [pendingCountResult, approvedCountResult, annualSchedules] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, email, name, student_phone, parent_phone, academic_record, created_at')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true }),
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending'),
     supabase
       .from('profiles')
       .select('id', { count: 'exact', head: true })
@@ -27,12 +25,11 @@ export default async function ManagerDashboardPage() {
     fetchLearningJournalAnnualSchedules(),
   ])
 
-  if (pendingStudentsResult.error) {
-    console.error('[manager] pending students error', pendingStudentsResult.error)
+  if (pendingCountResult.error) {
+    console.error('[manager] pending count error', pendingCountResult.error)
   }
 
-  const pendingStudents = pendingStudentsResult.data ?? []
-  const pendingCount = pendingStudents.length
+  const pendingCount = pendingCountResult.count ?? 0
   const approvedCount = approvedCountResult.count ?? 0
   const schedulePreview = annualSchedules.slice(0, 4)
   const hasMoreSchedules = annualSchedules.length > schedulePreview.length
@@ -74,8 +71,6 @@ export default async function ManagerDashboardPage() {
           </div>
         </CardContent>
       </Card>
-
-      <PendingApprovalList students={pendingStudents} />
     </section>
   )
 }
