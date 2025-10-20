@@ -35,7 +35,7 @@ const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
   },
   saturday: {
     label: '토요반',
-    tagline: '토요일 집중 수업',
+    tagline: '예비고3 2026년도 수시 대비',
     sections: [
       { title: '1교시', lines: ['오전 11시 30분 ~ 오후 1시 20분'] },
       { title: '점심시간', lines: ['오후 1시 20분 ~ 오후 2시 10분'] },
@@ -56,7 +56,7 @@ const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
   },
   regular: {
     label: '정시반',
-    tagline: '화·목 집중 저녁 수업',
+    tagline: '현역 2025년도 정시 직전대비',
     sections: [
       {
         title: '화요일',
