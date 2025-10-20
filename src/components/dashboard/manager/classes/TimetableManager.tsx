@@ -774,7 +774,7 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                   <table className="w-full min-w-[720px] table-fixed border-collapse">
                     <thead>
                       <tr>
-                        <th className="w-48 border border-slate-200 bg-slate-50 px-4 py-2 text-left text-sm font-medium text-slate-700">
+                        <th className="w-40 border border-slate-200 bg-slate-50 px-4 py-2 text-left text-sm font-medium text-slate-700">
                           교시 이름
                         </th>
                         {selectedTimetable.teacherColumns.map((column) => (
