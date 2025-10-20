@@ -12,7 +12,7 @@ export default async function EnrollmentApplicationPage() {
   const annualSchedules = await fetchAllAnnualSchedules()
 
   return (
-    <main className="min-h-screen bg-slate-50">
+    <main className="min-h-screen bg-muted">
       <EnrollmentApplicationForm annualSchedules={annualSchedules} />
     </main>
   )

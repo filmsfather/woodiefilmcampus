@@ -205,19 +205,19 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
           priority
         />
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">등록원서</h1>
-          <p className="text-sm text-slate-600">아래 내용을 작성하면 가장 빠른 개강 일정으로 안내해 드립니다.</p>
+          <h1 className="text-2xl font-semibold text-foreground">등록원서</h1>
+          <p className="text-sm text-muted-foreground">아래 내용을 작성하면 가장 빠른 개강 일정으로 안내해 드립니다.</p>
         </div>
       </div>
 
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border shadow-sm">
         <CardHeader>
-          <CardTitle className="text-base font-semibold text-slate-900">기본 정보</CardTitle>
+          <CardTitle className="text-base font-semibold text-foreground">기본 정보</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">학생 이름</span>
+              <span className="text-sm font-medium text-foreground">학생 이름</span>
               <Input
                 value={studentName}
                 onChange={(event) => setStudentName(event.target.value)}
@@ -225,12 +225,12 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
               />
             </label>
             <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700">학생 번호</span>
+              <span className="text-sm font-medium text-foreground">학생 번호</span>
               <Input
                 value={studentNumber}
                 inputMode="numeric"
                 onChange={(event) => setStudentNumber(sanitizeStudentNumber(event.target.value))}
-                placeholder="예: 2024001"
+                placeholder="예: 01012345678"
               />
             </label>
           </div>
@@ -243,17 +243,17 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
               onChange={(event) => setParentPhone(sanitizePhone(event.target.value))}
               placeholder="예: 01012345678"
             />
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               숫자만 입력해주세요. (010으로 시작, {parentPhone.length}/11자리)
             </p>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border shadow-sm">
         <CardHeader className="space-y-2">
-          <CardTitle className="text-base font-semibold text-slate-900">희망 반</CardTitle>
-          <p className="text-sm text-slate-600">원하는 반을 선택하면 시간표가 펼쳐집니다.</p>
+          <CardTitle className="text-base font-semibold text-foreground">희망 반</CardTitle>
+          <p className="text-sm text-muted-foreground">원하는 반을 선택하면 시간표가 펼쳐집니다.</p>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-2">
@@ -273,30 +273,32 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                     }
                   }}
                   className={clsx(
-                    'flex flex-col gap-2 rounded-lg border px-4 py-3 text-left transition hover:border-emerald-300 hover:bg-emerald-50/70',
-                    selected ? 'border-emerald-400 bg-emerald-50 text-emerald-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700'
+                    'flex flex-col gap-2 rounded-lg border px-4 py-3 text-left transition',
+                    selected
+                      ? 'border-primary bg-primary/10 text-primary shadow-sm'
+                      : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-primary/10'
                   )}
                 >
                   <span className="text-sm font-semibold">{option.label}</span>
-                  <span className="text-xs text-slate-500">{option.tagline}</span>
+                  <span className="text-xs text-muted-foreground">{option.tagline}</span>
                 </button>
               )
             })}
           </div>
 
           {selectedClassInfo ? (
-            <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-4 text-slate-800">
+            <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/10 p-4 text-foreground">
               <div className="flex flex-wrap items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                <CheckCircle2 className="h-4 w-4 text-primary" />
                 <span className="text-sm font-medium">
                   {selectedClassInfo.label}을 선택하셨습니다. 가장 빠른 개강일에 배정됩니다.
                 </span>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {selectedClassInfo.sections.map((section) => (
-                  <div key={section.title} className="rounded-md border border-emerald-200 bg-white/80 p-3 text-sm">
-                    <p className="font-semibold text-emerald-900">{section.title}</p>
-                    <ul className="mt-2 space-y-1 text-slate-600">
+                  <div key={section.title} className="rounded-md border border-border bg-card p-3 text-sm">
+                    <p className="font-semibold text-primary">{section.title}</p>
+                    <ul className="mt-2 space-y-1 text-muted-foreground">
                       {section.lines.map((line) => (
                         <li key={line}>{line}</li>
                       ))}
@@ -308,8 +310,8 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
           ) : null}
 
           {desiredClass === 'saturday' ? (
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-medium text-slate-800">토요반 상담 및 수업 안내를 받으셨나요?</p>
+            <div className="rounded-lg border border-border bg-muted p-4">
+              <p className="text-sm font-medium text-foreground">토요반 상담 및 수업 안내를 받으셨나요?</p>
               <div className="mt-3 flex flex-wrap gap-3">
                 {[
                   { value: 'yes', label: '네' },
@@ -320,8 +322,8 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                     className={clsx(
                       'flex items-center gap-2 rounded-md border px-3 py-2 text-sm shadow-sm transition',
                       saturdayBriefing === option.value
-                        ? 'border-emerald-400 bg-white text-emerald-900'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+                        ? 'border-primary bg-card text-primary'
+                        : 'border-border bg-card text-muted-foreground hover:border-primary/40'
                     )}
                   >
                     <input
@@ -338,8 +340,8 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
             </div>
           ) : null}
 
-          <details className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-            <summary className="cursor-pointer font-medium text-slate-800">연간 일정 및 수강료 안내 확인하기</summary>
+          <details className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">연간 일정 및 수강료 안내 확인하기</summary>
             <div className="mt-3 space-y-4 leading-relaxed">
               <p>{detailsContent}</p>
               {hasAnnualSchedules ? (
@@ -347,43 +349,43 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                   {annualSchedules.map((item) => (
                     <div
                       key={item.id}
-                      className="space-y-3 rounded-md border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-700"
+                      className="space-y-3 rounded-md border border-border bg-muted p-3 text-sm text-foreground"
                     >
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium text-slate-500">기간명</span>
-                        <span className="text-base font-semibold text-slate-900">{item.periodLabel}</span>
+                        <span className="text-xs font-medium text-muted-foreground">기간명</span>
+                        <span className="text-base font-semibold text-foreground">{item.periodLabel}</span>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-3">
                         <div>
-                          <p className="text-xs font-medium text-slate-500">기간</p>
+                          <p className="text-xs font-medium text-muted-foreground">기간</p>
                           <p>{formatRangeLabel(item.startDate, item.endDate)}</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-slate-500">수강료</p>
+                          <p className="text-xs font-medium text-muted-foreground">수강료</p>
                           <p>{formatTuitionLabel(item.tuitionDueDate, item.tuitionAmount)}</p>
                         </div>
                         <div>
-                          <p className="text-xs font-medium text-slate-500">비고</p>
-                          <p className="text-slate-500">{item.memo ?? '-'}</p>
+                          <p className="text-xs font-medium text-muted-foreground">비고</p>
+                          <p className="text-muted-foreground">{item.memo ?? '-'}</p>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-sm text-slate-500">
+                <p className="rounded-md border border-dashed border-border bg-muted p-3 text-sm text-muted-foreground">
                   연간 일정 정보가 준비 중입니다. 상담 팀에 문의해 주세요.
                 </p>
               )}
             </div>
           </details>
 
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="rounded-lg border border-secondary/40 bg-secondary/10 p-4 text-sm text-secondary">
             등록 후 취소 시 재등록에 제한이 있을 수 있습니다.
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm font-medium text-slate-800">수업 일정 및 수강료를 확인하셨나요?</p>
+            <p className="text-sm font-medium text-foreground">수업 일정 및 수강료를 확인하셨나요?</p>
             <div className="flex flex-wrap gap-3">
               {[
                 { value: 'confirmed', label: '확인' },
@@ -394,8 +396,8 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                   className={clsx(
                     'flex items-center gap-2 rounded-md border px-3 py-2 text-sm shadow-sm transition',
                     scheduleFeeConfirmed === option.value
-                      ? 'border-emerald-400 bg-white text-emerald-900'
-                      : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300'
+                      ? 'border-primary bg-card text-primary'
+                      : 'border-border bg-card text-muted-foreground hover:border-primary/40'
                   )}
                 >
                   <input
@@ -409,7 +411,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                 </label>
               ))}
             </div>
-            <Badge variant="secondary" className="bg-slate-100 text-xs text-slate-600">
+            <Badge variant="secondary" className="bg-muted text-xs text-muted-foreground">
               확인을 선택하시면 개강 및 안내 메시지가 우선 발송됩니다.
             </Badge>
           </div>
@@ -418,13 +420,13 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {errorMessage ? (
-          <Alert variant="destructive" className="border-red-200 bg-red-50 text-red-700">
+          <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{errorMessage}</AlertDescription>
           </Alert>
         ) : null}
         {successMessage ? (
-          <Alert className="border-emerald-200 bg-emerald-50 text-emerald-800">
+          <Alert className="border-primary/40 bg-primary/10 text-primary">
             <CheckCircle2 className="h-4 w-4" />
             <AlertDescription>{successMessage}</AlertDescription>
           </Alert>
