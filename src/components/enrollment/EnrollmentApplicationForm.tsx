@@ -226,7 +226,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="student-phone">학생 번호 (선택)</Label>
+            <Label htmlFor="student-phone">학생 번호</Label>
             <Input
               id="student-phone"
               inputMode="numeric"
@@ -234,7 +234,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
               onChange={(event) => setAlternatePhone(sanitizePhone(event.target.value))}
               placeholder="예: 01012345678"
             />
-            <p className="mt-1 text-xs text-muted-foreground">학생 본인 연락처가 있으면 입력해주세요. (선택 사항)</p>
+            <p className="mt-1 text-xs text-muted-foreground">수업 안내 문자가 발송됩니다. 정확히 기입해주세요.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="parent-phone">부모님 번호</Label>
