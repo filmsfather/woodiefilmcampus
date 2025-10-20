@@ -99,7 +99,7 @@ export default async function ManagerClassesPage({
     supabase
       .from('profiles')
       .select('id, name, email')
-      .eq('role', 'teacher')
+      .in('role', ['teacher', 'principal'])
       .eq('status', 'approved')
       .order('name', { ascending: true, nullsFirst: false }),
     supabase
