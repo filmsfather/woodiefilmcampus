@@ -57,9 +57,15 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     description: '수업과 입시에 필요한 자료 아카이브를 한곳에서 확인하세요.',
     actions: [
       {
+        label: '시간표 확인',
+        href: '/dashboard/teacher/timetable',
+        description: '담당 시간표와 소속 반 정보를 확인하세요.',
+      },
+      {
         label: '수업자료 아카이브',
         href: '/dashboard/teacher/class-materials',
         description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
+        variant: 'outline',
       },
       {
         label: '연간 일정',
