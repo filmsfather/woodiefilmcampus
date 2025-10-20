@@ -46,7 +46,7 @@ export function DashboardSidebar({
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
         {sections.map((section) => (
           <div key={section.id} className="space-y-2">
-            <p className="rounded-md bg-[var(--sidebar-accent)] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--sidebar-accent-foreground)]">
+            <p className="rounded-md bg-[var(--secondary)] px-2 py-1 text-xs font-semibold uppercase tracking-wide text-[var(--secondary-foreground)]">
               {section.title}
             </p>
             <div className="space-y-1">
