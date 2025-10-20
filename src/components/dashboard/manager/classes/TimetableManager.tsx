@@ -1,7 +1,18 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { CalendarDays, Check, Edit2, LayoutGrid, Loader2, Plus, Trash2, Users } from 'lucide-react'
+import {
+  CalendarDays,
+  Check,
+  Edit2,
+  Eye,
+  LayoutGrid,
+  Loader2,
+  PenSquare,
+  Plus,
+  Trash2,
+  Users,
+} from 'lucide-react'
 
 import {
   addTimetableTeacherAction,
@@ -76,6 +87,7 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
   const [periodDraftName, setPeriodDraftName] = useState('')
   const [teacherToAdd, setTeacherToAdd] = useState<string>('')
   const [isLoading, startTransition] = useTransition()
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     setItems(timetables)
@@ -101,6 +113,14 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
   useEffect(() => {
     setTimetableNameDraft(selectedTimetable?.name ?? '')
   }, [selectedTimetable?.id, selectedTimetable?.name])
+
+  useEffect(() => {
+    if (!isEditing) {
+      setEditingPeriodId(null)
+      setPeriodDraftName('')
+      setIsAssignmentSheetOpen(false)
+    }
+  }, [isEditing])
 
   const assignmentsByCell = useMemo(() => {
     const map = new Map<string, TimetableAssignment[]>()
@@ -592,6 +612,17 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant={isEditing ? 'default' : 'outline'}
+            onClick={() => setIsEditing((prev) => !prev)}
+          >
+            {isEditing ? (
+              <Eye className="mr-2 size-4" />
+            ) : (
+              <PenSquare className="mr-2 size-4" />
+            )}
+            {isEditing ? '편집 종료' : '구성 편집'}
+          </Button>
           <Button variant="outline" onClick={() => setIsCreatingTimetable((prev) => !prev)}>
             <Plus className="mr-2 size-4" /> 새 시간표 생성
           </Button>
@@ -703,34 +734,39 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                   <div className="flex items-center gap-2 text-sm text-slate-600">
                     <LayoutGrid className="size-4" /> 선생님/교시 구성
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Select value={teacherToAdd} onValueChange={(value) => setTeacherToAdd(value)}>
-                      <SelectTrigger className="min-w-[180px]">
-                        <SelectValue placeholder="선생님 선택" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableTeacherOptions.length === 0 ? (
-                          <SelectItem value="" disabled>
-                            추가할 선생님 없음
-                          </SelectItem>
-                        ) : (
-                          availableTeacherOptions.map((option) => (
-                            <SelectItem key={option.id} value={option.id}>
-                              {option.name ?? option.email ?? '이름 없음'}
+                  {isEditing ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Select value={teacherToAdd} onValueChange={(value) => setTeacherToAdd(value)}>
+                        <SelectTrigger className="min-w-[180px]">
+                          <SelectValue placeholder="선생님 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableTeacherOptions.length === 0 ? (
+                            <SelectItem value="" disabled>
+                              추가할 선생님 없음
                             </SelectItem>
-                          ))
+                          ) : (
+                            availableTeacherOptions.map((option) => (
+                              <SelectItem key={option.id} value={option.id}>
+                                {option.name ?? option.email ?? '이름 없음'}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={handleAddTeacher}
+                        disabled={!teacherToAdd || pendingAction === 'add-teacher'}
+                      >
+                        {pendingAction === 'add-teacher' ? (
+                          <Loader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <Plus className="mr-2 size-4" />
                         )}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleAddTeacher} disabled={!teacherToAdd || pendingAction === 'add-teacher'}>
-                      {pendingAction === 'add-teacher' ? (
-                        <Loader2 className="mr-2 size-4 animate-spin" />
-                      ) : (
-                        <Plus className="mr-2 size-4" />
-                      )}
-                      선생님 추가
-                    </Button>
-                  </div>
+                        선생님 추가
+                      </Button>
+                    </div>
+                  ) : null}
                 </header>
 
                 <div className="overflow-auto">
@@ -750,16 +786,20 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                                 <div className="text-sm font-semibold text-slate-800">
                                   {column.teacherName ?? column.teacherEmail ?? '이름 없음'}
                                 </div>
-                                <div className="text-xs text-slate-500">포지션 {column.position + 1}</div>
+                                {isEditing ? (
+                                  <div className="text-xs text-slate-500">열 순서 {column.position + 1}</div>
+                                ) : null}
                               </div>
-                              <button
-                                type="button"
-                                className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                                onClick={() => handleRemoveTeacher(column)}
-                                title="선생님 제거"
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
+                              {isEditing ? (
+                                <button
+                                  type="button"
+                                  className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                  onClick={() => handleRemoveTeacher(column)}
+                                  title="선생님 제거"
+                                >
+                                  <Trash2 className="size-4" />
+                                </button>
+                              ) : null}
                             </div>
                           </th>
                         ))}
@@ -788,26 +828,30 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                               <div className="flex items-center justify-between gap-2">
                                 <div>
                                   <div className="text-sm font-medium text-slate-800">{period.name}</div>
-                                  <div className="text-xs text-slate-500">순서 {period.position + 1}</div>
+                                  {isEditing ? (
+                                    <div className="text-xs text-slate-500">교시 순서 {period.position + 1}</div>
+                                  ) : null}
                                 </div>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                                    onClick={() => handleStartEditPeriod(period)}
-                                    title="교시 이름 수정"
-                                  >
-                                    <Edit2 className="size-4" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                                    onClick={() => handleDeletePeriod(period)}
-                                    title="교시 삭제"
-                                  >
-                                    <Trash2 className="size-4" />
-                                  </button>
-                                </div>
+                                {isEditing ? (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                      onClick={() => handleStartEditPeriod(period)}
+                                      title="교시 이름 수정"
+                                    >
+                                      <Edit2 className="size-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                                      onClick={() => handleDeletePeriod(period)}
+                                      title="교시 삭제"
+                                    >
+                                      <Trash2 className="size-4" />
+                                    </button>
+                                  </div>
+                                ) : null}
                               </div>
                             )}
                           </td>
@@ -818,43 +862,10 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                             return (
                               <td key={column.id} className="border border-slate-200 px-3 py-3 align-top">
                                 {assignments.length === 0 ? (
-                                  <button
-                                    type="button"
-                                    className="w-full rounded-md border border-dashed border-slate-300 px-3 py-6 text-sm text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
-                                    onClick={() =>
-                                      openAssignmentsSheet({
-                                        timetableId: selectedTimetable.id,
-                                        teacherColumnId: column.id,
-                                        periodId: period.id,
-                                      })
-                                    }
-                                  >
-                                    <Plus className="mr-2 inline size-4" /> 반 배정하기
-                                  </button>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <div className="flex flex-wrap gap-2">
-                                      {assignments.map((assignment) => (
-                                        <Badge
-                                          key={assignment.id}
-                                          variant="secondary"
-                                          className="cursor-pointer"
-                                          onClick={() =>
-                                            openAssignmentsSheet({
-                                              timetableId: selectedTimetable.id,
-                                              teacherColumnId: column.id,
-                                              periodId: period.id,
-                                            })
-                                          }
-                                        >
-                                          {assignment.className}
-                                        </Badge>
-                                      ))}
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-8 px-2 text-xs text-slate-500"
+                                  isEditing ? (
+                                    <button
+                                      type="button"
+                                      className="w-full rounded-md border border-dashed border-slate-300 px-3 py-6 text-sm text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
                                       onClick={() =>
                                         openAssignmentsSheet({
                                           timetableId: selectedTimetable.id,
@@ -863,8 +874,55 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                                         })
                                       }
                                     >
-                                      수정
-                                    </Button>
+                                      <Plus className="mr-2 inline size-4" /> 반 배정하기
+                                    </button>
+                                  ) : (
+                                    <div className="rounded-md border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
+                                      배정 없음
+                                    </div>
+                                  )
+                                ) : (
+                                  <div className="space-y-2">
+                                    <div className="flex flex-wrap gap-2">
+                                      {assignments.map((assignment) => (
+                                        <Badge
+                                          key={assignment.id}
+                                          variant="secondary"
+                                          className={cn(
+                                            'cursor-default',
+                                            isEditing && 'cursor-pointer',
+                                          )}
+                                          onClick={
+                                            isEditing
+                                              ? () =>
+                                                  openAssignmentsSheet({
+                                                    timetableId: selectedTimetable.id,
+                                                    teacherColumnId: column.id,
+                                                    periodId: period.id,
+                                                  })
+                                              : undefined
+                                          }
+                                        >
+                                          {assignment.className}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                    {isEditing ? (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs text-slate-500"
+                                        onClick={() =>
+                                          openAssignmentsSheet({
+                                            timetableId: selectedTimetable.id,
+                                            teacherColumnId: column.id,
+                                            periodId: period.id,
+                                          })
+                                        }
+                                      >
+                                        수정
+                                      </Button>
+                                    ) : null}
                                   </div>
                                 )}
                               </td>
@@ -872,13 +930,18 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                           })}
                         </tr>
                       ))}
-                      <tr>
-                        <td className="border border-slate-200 px-4 py-3" colSpan={selectedTimetable.teacherColumns.length + 1}>
-                          <Button variant="outline" onClick={handleAddPeriod}>
-                            <Plus className="mr-2 size-4" /> 교시 추가
-                          </Button>
-                        </td>
-                      </tr>
+                      {isEditing ? (
+                        <tr>
+                          <td
+                            className="border border-slate-200 px-4 py-3"
+                            colSpan={selectedTimetable.teacherColumns.length + 1}
+                          >
+                            <Button variant="outline" onClick={handleAddPeriod}>
+                              <Plus className="mr-2 size-4" /> 교시 추가
+                            </Button>
+                          </td>
+                        </tr>
+                      ) : null}
                     </tbody>
                   </table>
                 </div>
@@ -892,7 +955,7 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
         </div>
       </div>
 
-      <Sheet open={isAssignmentSheetOpen} onOpenChange={setIsAssignmentSheetOpen}>
+      <Sheet open={isAssignmentSheetOpen && isEditing} onOpenChange={setIsAssignmentSheetOpen}>
         <SheetContent className="w-full max-w-xl">
           <SheetHeader>
             <SheetTitle>반 배정</SheetTitle>
