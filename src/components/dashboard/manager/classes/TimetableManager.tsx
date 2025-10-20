@@ -603,107 +603,107 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
   }, [classSearch, classes])
 
   return (
-    <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">시간표 관리</h2>
-          <p className="text-sm text-slate-500">
-            원하는 선생님과 교시를 추가한 뒤, 셀 단위로 반을 배정하여 운영 시간을 관리하세요.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={isEditing ? 'default' : 'outline'}
-            onClick={() => setIsEditing((prev) => !prev)}
-          >
-            {isEditing ? (
-              <Eye className="mr-2 size-4" />
-            ) : (
-              <PenSquare className="mr-2 size-4" />
+    <section className="space-y-4">
+      <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+        <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-slate-900">시간표 관리</h2>
+            <p className="text-sm text-slate-500">
+              원하는 선생님과 교시를 추가한 뒤, 셀 단위로 반을 배정하여 운영 시간을 관리하세요.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={isEditing ? 'default' : 'outline'}
+              onClick={() => setIsEditing((prev) => !prev)}
+            >
+              {isEditing ? (
+                <Eye className="mr-2 size-4" />
+              ) : (
+                <PenSquare className="mr-2 size-4" />
+              )}
+              {isEditing ? '편집 종료' : '구성 편집'}
+            </Button>
+            <Button variant="outline" onClick={() => setIsCreatingTimetable((prev) => !prev)}>
+              <Plus className="mr-2 size-4" /> 새 시간표 생성
+            </Button>
+          </div>
+        </header>
+
+        {feedback ? (
+          <div
+            className={cn(
+              'mt-4 rounded-md border px-4 py-2 text-sm',
+              feedback.type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-destructive/40 bg-destructive/10 text-destructive',
             )}
-            {isEditing ? '편집 종료' : '구성 편집'}
-          </Button>
-          <Button variant="outline" onClick={() => setIsCreatingTimetable((prev) => !prev)}>
-            <Plus className="mr-2 size-4" /> 새 시간표 생성
-          </Button>
-        </div>
-      </header>
+          >
+            {feedback.message}
+          </div>
+        ) : null}
 
-      {feedback ? (
-        <div
-          className={cn(
-            'rounded-md border px-4 py-2 text-sm',
-            feedback.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-destructive/40 bg-destructive/10 text-destructive',
-          )}
-        >
-          {feedback.message}
-        </div>
-      ) : null}
-
-      {isCreatingTimetable ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              value={newTimetableName}
-              onChange={(event) => setNewTimetableName(event.target.value)}
-              placeholder="예) 토요반 정규 시간표"
-              className="sm:w-64"
-            />
-            <div className="flex gap-2">
-              <Button onClick={handleCreateTimetable} disabled={isLoading}>
-                {pendingAction === 'create-timetable' ? (
-                  <Loader2 className="mr-2 size-4 animate-spin" />
-                ) : null}
-                생성
-              </Button>
-              <Button variant="ghost" onClick={() => setIsCreatingTimetable(false)}>
-                취소
-              </Button>
+        {isCreatingTimetable ? (
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                value={newTimetableName}
+                onChange={(event) => setNewTimetableName(event.target.value)}
+                placeholder="예) 토요반 정규 시간표"
+                className="sm:w-64"
+              />
+              <div className="flex gap-2">
+                <Button onClick={handleCreateTimetable} disabled={isLoading}>
+                  {pendingAction === 'create-timetable' ? (
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                  ) : null}
+                  생성
+                </Button>
+                <Button variant="ghost" onClick={() => setIsCreatingTimetable(false)}>
+                  취소
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
-        <aside className="space-y-4">
-          <div className="rounded-md border border-slate-200">
-            <div className="flex items-center gap-2 border-b border-slate-200 px-4 py-3">
-              <CalendarDays className="size-4 text-slate-500" />
-              <span className="text-sm font-medium text-slate-700">시간표 목록</span>
-            </div>
-            <div className="max-h-[420px] overflow-y-auto">
-              {items.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-slate-500">생성된 시간표가 없습니다.</p>
-              ) : (
-                <ul className="divide-y divide-slate-200">
-                  {items.map((item) => (
-                    <li key={item.id}>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedTimetableId(item.id)}
-                        className={cn(
-                          'flex w-full items-center justify-between px-4 py-3 text-left text-sm transition',
-                          item.id === selectedTimetableId
-                            ? 'bg-slate-100 font-medium text-slate-900'
-                            : 'hover:bg-slate-50 text-slate-600',
-                        )}
-                      >
-                        <span>{item.name}</span>
-                        {item.id === selectedTimetableId ? (
-                          <Check className="size-4 text-emerald-600" />
-                        ) : null}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <aside className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm lg:w-80 lg:shrink-0">
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+            <CalendarDays className="size-4 text-slate-500" />
+            <span className="text-sm font-medium text-slate-700">시간표 목록</span>
+          </div>
+          <div className="mt-3 max-h-[420px] overflow-y-auto">
+            {items.length === 0 ? (
+              <p className="px-2 py-3 text-sm text-slate-500">생성된 시간표가 없습니다.</p>
+            ) : (
+              <ul className="divide-y divide-slate-200">
+                {items.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTimetableId(item.id)}
+                      className={cn(
+                        'flex w-full items-center justify-between px-2 py-3 text-left text-sm transition',
+                        item.id === selectedTimetableId
+                          ? 'bg-slate-100 font-medium text-slate-900'
+                          : 'hover:bg-slate-50 text-slate-600',
+                      )}
+                    >
+                      <span>{item.name}</span>
+                      {item.id === selectedTimetableId ? (
+                        <Check className="size-4 text-emerald-600" />
+                      ) : null}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </aside>
 
-        <div className="space-y-4">
+        <div className="flex-1 space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           {selectedTimetable ? (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 rounded-md border border-slate-200 p-4 lg:flex-row lg:items-center lg:justify-between">
