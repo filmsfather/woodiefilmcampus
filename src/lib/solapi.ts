@@ -13,6 +13,12 @@ interface SendCounselingReservationParams {
   startTime: string
 }
 
+interface SendEnrollmentConfirmationParams {
+  phoneNumber: string
+  studentName: string
+  desiredClassLabel: string
+}
+
 
 let solapiService: SolapiMessageService | null = null
 let missingConfigLogged = false
@@ -187,6 +193,57 @@ export async function sendCounselingReservationConfirmationSMS({
     return true
   } catch (error) {
     console.error('[solapi] 상담 예약 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
+export async function sendEnrollmentApplicationConfirmationSMS({
+  phoneNumber,
+  studentName,
+  desiredClassLabel,
+}: SendEnrollmentConfirmationParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const senderRaw = process.env.SOLAPI_SENDER_NUMBER
+  const sender = normalizePhoneNumber(senderRaw)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 등록원서 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 등록원서 연락처가 없거나 형식이 올바르지 않아 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const displayName = studentName.trim() || '학생'
+  const classLabel = desiredClassLabel.trim() || '희망반'
+
+  const messageLines = [
+    '[우디필름캠퍼스 등록 안내]',
+    `${displayName} 학생 ${classLabel} 등록원서 접수가 완료되었습니다.`,
+    '실장님 확인 후 수업 안내 문자를 발송 드리겠습니다.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 등록원서 문자 발송 중 오류가 발생했습니다.', error)
     return false
   }
 }

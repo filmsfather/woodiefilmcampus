@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendEnrollmentApplicationConfirmationSMS } from '@/lib/solapi'
 
 const classEnum = z.enum(['weekday', 'saturday', 'sunday', 'regular'])
 
@@ -61,6 +62,24 @@ export async function POST(request: Request) {
     }
 
     revalidatePath('/dashboard/manager/enrollment')
+
+    const classLabelMap: Record<typeof desiredClass, string> = {
+      weekday: '평일반',
+      saturday: '토요반',
+      sunday: '일요반',
+      regular: '정시반',
+    }
+
+    const desiredClassLabel = classLabelMap[desiredClass] ?? desiredClass
+
+    sendEnrollmentApplicationConfirmationSMS({
+      phoneNumber: parentPhone,
+      studentName,
+      desiredClassLabel,
+    }).catch((smsError) => {
+      console.error('[enrollment] application sms send error', smsError)
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('[enrollment] application api unexpected error', error)
