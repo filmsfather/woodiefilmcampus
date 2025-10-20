@@ -14,6 +14,19 @@ export function ManagerQuickLinks() {
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <Card>
         <CardHeader className="gap-2">
+          <CardTitle className="text-lg">등록원서 접수</CardTitle>
+          <CardDescription>
+            온라인 등록원서를 제출한 학생 목록을 확인하고 상담 후속 안내를 진행합니다.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button asChild>
+            <Link href="/dashboard/manager/enrollment">등록원서 보기</Link>
+          </Button>
+        </CardFooter>
+      </Card>
+      <Card>
+        <CardHeader className="gap-2">
           <CardTitle className="text-lg">상담 관리</CardTitle>
           <CardDescription>
             상담 예약 가능한 시간을 설정하고 신청 현황을 주·일별로 확인합니다.
