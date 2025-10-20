@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import clsx from 'clsx'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
@@ -181,7 +182,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
         return
       }
 
-      setSuccessMessage('등록원서가 접수되었습니다. 확정 안내는 개별 연락으로 전달됩니다.')
+      setSuccessMessage('등록원서 제출이 완료되었습니다.')
       setStudentName('')
       setParentPhone('')
       setAlternatePhone('')
@@ -194,6 +195,31 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (successMessage) {
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 px-4 py-20 text-center">
+        <Image
+          src="/enrollment-logo.png"
+          alt="Woodie Film Campus"
+          width={220}
+          height={194}
+          priority
+        />
+        <div className="space-y-3">
+          <h1 className="text-2xl font-semibold text-foreground">{successMessage}</h1>
+          <p className="text-sm text-muted-foreground">
+            WoodieCampus 회원 가입을 진행해주세요. 수업 안내, 과제, 학습일지는 모두 WoodieCampus에서 이루어집니다.
+          </p>
+        </div>
+        <Button asChild size="lg" className="min-w-[220px]">
+          <Link href="https://woodiecampus.com" target="_blank" rel="noopener noreferrer">
+            WoodieCampus 회원가입 하기
+          </Link>
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -423,12 +449,6 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
           <Alert variant="destructive" className="border-destructive/40 bg-destructive/10 text-destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{errorMessage}</AlertDescription>
-          </Alert>
-        ) : null}
-        {successMessage ? (
-          <Alert className="border-primary/40 bg-primary/10 text-primary">
-            <CheckCircle2 className="h-4 w-4" />
-            <AlertDescription>{successMessage}</AlertDescription>
           </Alert>
         ) : null}
         <Button type="submit" size="lg" disabled={!canSubmit || isSubmitting} className="w-full">

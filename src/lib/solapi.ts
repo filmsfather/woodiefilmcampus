@@ -232,7 +232,8 @@ export async function sendEnrollmentApplicationConfirmationSMS({
   const messageLines = [
     '[우디필름캠퍼스 등록 안내]',
     `${displayName} 학생 ${classLabel} 등록원서 접수가 완료되었습니다.`,
-    '실장님 확인 후 수업 안내 문자를 발송 드리겠습니다.',
+    '실장님 확인 후 수업 안내 문자를 드리겠습니다.',
+    '수업 자료와 사전 과제는 WoodieCampus에서 제공됩니다. 학생 계정이 없다면 지금 가입해주세요: https://woodiecampus.com',
   ]
 
   try {
