@@ -99,9 +99,11 @@ export async function POST(request: Request) {
       })
     )
 
-    Promise.allSettled(smsTasks).catch((smsError) => {
+    try {
+      await Promise.allSettled(smsTasks)
+    } catch (smsError) {
       console.error('[enrollment] application sms send error', smsError)
-    })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {
