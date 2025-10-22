@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-export const WORKBOOK_SUBJECTS = ['연출', '작법', '연구', '통합', '한예종'] as const
+export const WORKBOOK_SUBJECTS = ['연출', '작법', '연구', '통합', '한예종', '사전과제'] as const
 export const WORKBOOK_TYPES = ['srs', 'pdf', 'writing', 'film', 'lecture'] as const
 
 export const WORKBOOK_TITLES: Record<(typeof WORKBOOK_TYPES)[number], string> = {
