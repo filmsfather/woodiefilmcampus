@@ -37,7 +37,11 @@ export function AnnualScheduleTable({
             {schedules.map((schedule) => (
               <TableRow
                 key={schedule.id}
-                className={cn(schedule.category === 'annual' ? 'bg-slate-50' : undefined)}
+                className={cn(
+                  schedule.category === 'annual'
+                    ? 'bg-primary/10'
+                    : 'bg-secondary/10'
+                )}
               >
                 <TableCell
                   className={cn(

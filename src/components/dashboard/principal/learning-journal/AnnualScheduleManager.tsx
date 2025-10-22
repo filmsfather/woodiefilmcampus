@@ -268,8 +268,12 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                   <TableRow
                     key={schedule.id}
                     className={cn(
-                      schedule.category === 'annual' ? 'bg-slate-50' : undefined,
-                      isEditing ? 'bg-slate-100' : undefined
+                      schedule.category === 'annual' ? 'bg-primary/10' : 'bg-secondary/10',
+                      isEditing
+                        ? schedule.category === 'annual'
+                          ? 'ring-1 ring-primary/40'
+                          : 'ring-1 ring-secondary/40'
+                        : undefined
                     )}
                   >
                     <TableCell className="text-slate-600">

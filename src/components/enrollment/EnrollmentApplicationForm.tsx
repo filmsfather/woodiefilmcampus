@@ -376,8 +376,10 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                     <div
                       key={item.id}
                       className={clsx(
-                        'space-y-3 rounded-md border border-border p-3 text-sm text-foreground',
-                        item.category === 'annual' ? 'bg-slate-50' : 'bg-muted'
+                        'space-y-3 rounded-md border p-3 text-sm text-foreground',
+                        item.category === 'annual'
+                          ? 'border-primary/30 bg-primary/10'
+                          : 'border-secondary/30 bg-secondary/10'
                       )}
                     >
                       <div className="flex flex-col gap-1">
