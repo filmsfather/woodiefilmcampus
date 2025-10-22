@@ -268,7 +268,7 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                   <TableRow
                     key={schedule.id}
                     className={cn(
-                      schedule.category === 'annual' ? 'bg-primary/10' : 'bg-secondary/10',
+                      schedule.category === 'annual' ? 'bg-primary/10' : undefined,
                       isEditing
                         ? schedule.category === 'annual'
                           ? 'ring-1 ring-primary/40'

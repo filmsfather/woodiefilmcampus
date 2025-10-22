@@ -160,9 +160,7 @@ export default async function SharedLearningJournalPage({ params }: SharedLearni
                       key={schedule.id}
                       className={cn(
                         'grid gap-3 rounded-md px-2 py-3 sm:grid-cols-4 sm:items-start',
-                        schedule.category === 'annual'
-                          ? 'bg-primary/10'
-                          : 'bg-secondary/10'
+                        schedule.category === 'annual' ? 'bg-primary/10' : undefined
                       )}
                     >
                       <div>

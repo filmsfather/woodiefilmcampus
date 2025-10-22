@@ -38,9 +38,7 @@ export function AnnualScheduleTable({
               <TableRow
                 key={schedule.id}
                 className={cn(
-                  schedule.category === 'annual'
-                    ? 'bg-primary/10'
-                    : 'bg-secondary/10'
+                  schedule.category === 'annual' ? 'bg-primary/10' : undefined
                 )}
               >
                 <TableCell

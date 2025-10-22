@@ -379,7 +379,7 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                         'space-y-3 rounded-md border p-3 text-sm text-foreground',
                         item.category === 'annual'
                           ? 'border-primary/30 bg-primary/10'
-                          : 'border-secondary/30 bg-secondary/10'
+                          : 'border-border/60'
                       )}
                     >
                       <div className="flex flex-col gap-1">
