@@ -17,7 +17,7 @@ export function AnnualScheduleTable({
   schedules,
   showTuition = false,
   className,
-  emptyMessage = '등록된 연간 일정이 없습니다.',
+  emptyMessage = '등록된 일정이 없습니다.',
 }: AnnualScheduleTableProps) {
   const hasSchedules = schedules.length > 0
 

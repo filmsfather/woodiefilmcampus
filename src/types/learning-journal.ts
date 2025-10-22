@@ -110,6 +110,8 @@ export interface LearningJournalGreeting {
   updatedAt: string
 }
 
+export type LearningJournalAnnualScheduleCategory = 'annual' | 'film_production'
+
 export interface LearningJournalAnnualSchedule {
   id: string
   periodLabel: string
@@ -118,6 +120,7 @@ export interface LearningJournalAnnualSchedule {
   tuitionDueDate: string | null
   tuitionAmount: number | null
   memo: string | null
+  category: LearningJournalAnnualScheduleCategory
   displayOrder: number
   createdBy: string | null
   createdAt: string

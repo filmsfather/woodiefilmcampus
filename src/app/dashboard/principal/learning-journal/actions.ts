@@ -87,6 +87,7 @@ function parseAnnualSchedulePayload(formData: FormData):
   | { success: false; error: Record<string, string[]> } {
   const payload = {
     scheduleId: formData.get('scheduleId')?.toString() ?? undefined,
+    category: formData.get('category')?.toString() ?? '',
     periodLabel: formData.get('periodLabel')?.toString() ?? '',
     startDate: formData.get('startDate')?.toString() ?? '',
     endDate: formData.get('endDate')?.toString() ?? '',
@@ -121,6 +122,7 @@ function parseAnnualSchedulePayload(formData: FormData):
     success: true,
     data: {
       scheduleId: parsed.data.scheduleId,
+      category: parsed.data.category,
       periodLabel: parsed.data.periodLabel,
       startDate: parsed.data.startDate,
       endDate: parsed.data.endDate,
@@ -260,6 +262,7 @@ export async function upsertLearningJournalAnnualScheduleAction(
       tuition_due_date: parsed.data.tuitionDueDate,
       tuition_amount: parsed.data.tuitionAmount,
       memo: parsed.data.memo,
+      category: parsed.data.category,
     }
 
     if (parsed.data.scheduleId) {

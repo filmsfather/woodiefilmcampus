@@ -70,6 +70,7 @@ const nullableIsoDateInputSchema = z
 export const upsertLearningJournalAnnualScheduleSchema = z
   .object({
     scheduleId: uuidSchema.optional(),
+    category: z.enum(['annual', 'film_production']),
     periodLabel: z
       .string()
       .trim()

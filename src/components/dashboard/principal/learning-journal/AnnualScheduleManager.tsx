@@ -22,7 +22,12 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   formatAnnualScheduleDateRange,
   formatAnnualScheduleTuitionLabel,
+  getAnnualScheduleCategoryLabel,
+  LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_OPTIONS,
 } from '@/lib/learning-journal-annual-schedule'
+
+const SELECT_CLASS_NAME =
+  'border-input h-9 w-full rounded-md border bg-white px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
 
 interface AnnualScheduleManagerProps {
   schedules: LearningJournalAnnualSchedule[]
@@ -55,6 +60,8 @@ function AnnualScheduleForm({ defaultValues, onCancel, mode }: AnnualScheduleFor
     return defaultValues.tuitionAmount.toLocaleString('ko-KR')
   }, [defaultValues])
 
+  const defaultCategory = defaultValues?.category ?? 'annual'
+
   return (
     <form
       action={formAction}
@@ -71,6 +78,26 @@ function AnnualScheduleForm({ defaultValues, onCancel, mode }: AnnualScheduleFor
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="category">일정 유형</Label>
+          <select
+            id="category"
+            name="category"
+            defaultValue={defaultCategory}
+            className={SELECT_CLASS_NAME}
+            disabled={isPending}
+            required
+          >
+            {LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          {fieldErrors.category ? (
+            <p className="text-xs text-rose-600">{fieldErrors.category[0]}</p>
+          ) : null}
+        </div>
         <div className="space-y-2">
           <Label htmlFor="periodLabel">기간명</Label>
           <Input
@@ -167,7 +194,7 @@ function AnnualScheduleForm({ defaultValues, onCancel, mode }: AnnualScheduleFor
           취소
         </Button>
         <Button type="submit" disabled={isPending} className="sm:w-32">
-          {isPending ? '저장 중...' : mode === 'edit' ? '연간 일정 수정' : '연간 일정 추가'}
+          {isPending ? '저장 중...' : mode === 'edit' ? '일정 수정' : '일정 추가'}
         </Button>
       </div>
     </form>
@@ -213,7 +240,7 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-slate-500">
-            {hasSchedules ? `총 ${schedules.length}개의 일정이 등록되어 있습니다.` : '등록된 연간 일정이 없습니다.'}
+            {hasSchedules ? `총 ${schedules.length}개의 일정이 등록되어 있습니다.` : '등록된 일정이 없습니다.'}
           </p>
           <Button onClick={() => setActiveForm('create')} disabled={Boolean(activeForm)}>
             새 묶음 추가
@@ -224,6 +251,7 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>유형</TableHead>
                 <TableHead>기간명</TableHead>
                 <TableHead>기간(날짜)</TableHead>
                 <TableHead>비고</TableHead>
@@ -237,6 +265,9 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
 
                 return (
                   <TableRow key={schedule.id} className={isEditing ? 'bg-slate-50' : undefined}>
+                    <TableCell className="text-slate-600">
+                      {getAnnualScheduleCategoryLabel(schedule.category)}
+                    </TableCell>
                     <TableCell className="text-slate-900">{schedule.periodLabel}</TableCell>
                     <TableCell className="text-slate-600">
                       {formatAnnualScheduleDateRange(schedule.startDate, schedule.endDate)}

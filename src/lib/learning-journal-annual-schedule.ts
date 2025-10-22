@@ -1,4 +1,28 @@
 import DateUtil from '@/lib/date-util'
+import type { LearningJournalAnnualScheduleCategory } from '@/types/learning-journal'
+
+export const LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_LABELS: Record<
+  LearningJournalAnnualScheduleCategory,
+  string
+> = {
+  annual: '연간 일정',
+  film_production: '영화제작 특강 일정',
+}
+
+export const LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_ORDER: LearningJournalAnnualScheduleCategory[] = [
+  'annual',
+  'film_production',
+]
+
+export const LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_OPTIONS =
+  LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_ORDER.map((value) => ({
+    value,
+    label: LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_LABELS[value],
+  }))
+
+export function getAnnualScheduleCategoryLabel(category: LearningJournalAnnualScheduleCategory) {
+  return LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_LABELS[category] ?? category
+}
 
 export function formatAnnualScheduleDateRange(start: string, end: string) {
   const startLabel = DateUtil.formatForDisplay(start, {

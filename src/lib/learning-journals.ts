@@ -364,6 +364,7 @@ interface AnnualScheduleRow {
   created_by: string | null
   created_at: string
   updated_at: string
+  category: string
 }
 
 function mapAnnualScheduleRow(row: AnnualScheduleRow): LearningJournalAnnualSchedule {
@@ -375,6 +376,7 @@ function mapAnnualScheduleRow(row: AnnualScheduleRow): LearningJournalAnnualSche
     tuitionDueDate: row.tuition_due_date,
     tuitionAmount: row.tuition_amount,
     memo: row.memo ?? null,
+    category: (row.category ?? 'annual') as LearningJournalAnnualSchedule['category'],
     displayOrder: row.display_order ?? 0,
     createdBy: row.created_by ?? null,
     createdAt: row.created_at,
@@ -395,6 +397,7 @@ export async function fetchAllAnnualSchedules(): Promise<LearningJournalAnnualSc
        tuition_due_date,
        tuition_amount,
        memo,
+       category,
        display_order,
        created_by,
        created_at,
@@ -1851,7 +1854,7 @@ export async function fetchLearningJournalAnnualSchedules(): Promise<LearningJou
   const supabase = createServerSupabase()
   const { data, error } = await supabase
     .from('learning_journal_annual_schedules')
-    .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, display_order, created_by, created_at, updated_at')
+    .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, category, display_order, created_by, created_at, updated_at')
     .order('display_order', { ascending: true })
     .order('start_date', { ascending: true })
 
@@ -2174,7 +2177,7 @@ export async function fetchLearningJournalEntryByShareToken(
   let annualSchedules: LearningJournalAnnualSchedule[] = []
   const { data: annualScheduleData, error: annualScheduleError } = await supabase
     .from('learning_journal_annual_schedules')
-    .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, display_order, created_by, created_at, updated_at')
+    .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, category, display_order, created_by, created_at, updated_at')
     .order('display_order', { ascending: true })
     .order('start_date', { ascending: true })
 
