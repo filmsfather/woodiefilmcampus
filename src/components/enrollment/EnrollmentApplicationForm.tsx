@@ -375,7 +375,10 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                   {annualSchedules.map((item) => (
                     <div
                       key={item.id}
-                      className="space-y-3 rounded-md border border-border bg-muted p-3 text-sm text-foreground"
+                      className={clsx(
+                        'space-y-3 rounded-md border border-border p-3 text-sm text-foreground',
+                        item.category === 'annual' ? 'bg-slate-50' : 'bg-muted'
+                      )}
                     >
                       <div className="flex flex-col gap-1">
                         <span className="text-xs font-medium text-muted-foreground">기간명</span>

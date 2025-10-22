@@ -26,21 +26,24 @@ export function AnnualScheduleTable({
       {hasSchedules ? (
         <Table>
           <TableHeader>
-              <TableRow>
-                <TableHead>기간명</TableHead>
-                <TableHead>기간(날짜)</TableHead>
-                <TableHead>비고</TableHead>
-                {showTuition ? <TableHead>수업료</TableHead> : null}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {schedules.map((schedule) => (
-                <TableRow key={schedule.id}>
-                  <TableCell
-                    className={cn(
-                      'text-slate-900',
-                      schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
-                    )}
+            <TableRow>
+              <TableHead>기간명</TableHead>
+              <TableHead>기간(날짜)</TableHead>
+              <TableHead>비고</TableHead>
+              {showTuition ? <TableHead>수업료</TableHead> : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {schedules.map((schedule) => (
+              <TableRow
+                key={schedule.id}
+                className={cn(schedule.category === 'annual' ? 'bg-slate-50' : undefined)}
+              >
+                <TableCell
+                  className={cn(
+                    'text-slate-900',
+                    schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
+                  )}
                   >
                     {schedule.periodLabel}
                   </TableCell>

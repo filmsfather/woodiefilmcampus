@@ -158,7 +158,10 @@ export default async function SharedLearningJournalPage({ params }: SharedLearni
                   {annualSchedules.map((schedule) => (
                     <div
                       key={schedule.id}
-                      className="grid gap-3 py-3 sm:grid-cols-4 sm:items-start"
+                      className={cn(
+                        'grid gap-3 py-3 sm:grid-cols-4 sm:items-start',
+                        schedule.category === 'annual' ? 'rounded-md bg-slate-50/80 px-2' : undefined
+                      )}
                     >
                       <div>
                         <p className="text-xs font-medium text-slate-500 sm:hidden">기간명</p>

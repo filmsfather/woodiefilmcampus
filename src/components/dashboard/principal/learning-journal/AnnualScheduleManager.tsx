@@ -265,7 +265,13 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                 const isEditing = activeForm && activeForm !== 'create' && activeForm.id === schedule.id
 
                 return (
-                  <TableRow key={schedule.id} className={isEditing ? 'bg-slate-50' : undefined}>
+                  <TableRow
+                    key={schedule.id}
+                    className={cn(
+                      schedule.category === 'annual' ? 'bg-slate-50' : undefined,
+                      isEditing ? 'bg-slate-100' : undefined
+                    )}
+                  >
                     <TableCell className="text-slate-600">
                       {getAnnualScheduleCategoryLabel(schedule.category)}
                     </TableCell>
