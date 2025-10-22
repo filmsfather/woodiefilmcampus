@@ -1,10 +1,11 @@
+import Link from 'next/link'
+
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import {
   deriveMonthTokensForRange,
   fetchLearningJournalGreeting,
-  fetchLearningJournalAnnualSchedules,
   fetchLearningJournalPeriodsForManager,
   fetchLearningJournalPeriodStats,
   resolveMonthToken,
@@ -13,7 +14,7 @@ import { GreetingForm } from '@/components/dashboard/principal/learning-journal/
 import { GreetingPreview } from '@/components/dashboard/principal/learning-journal/GreetingPreview'
 import { PeriodProgressTable } from '@/components/dashboard/principal/learning-journal/PeriodProgressTable'
 import { MonthSelect } from '@/components/dashboard/manager/learning-journal/MonthSelect'
-import { AnnualScheduleManager } from '@/components/dashboard/principal/learning-journal/AnnualScheduleManager'
+import { Button } from '@/components/ui/button'
 
 function formatMonthLabel(monthToken: string) {
   const [year, month] = monthToken.split('-')
@@ -39,7 +40,6 @@ export default async function PrincipalLearningJournalPage({
     deriveMonthTokensForRange(period.startDate, period.endDate)
   )
   const monthOptions = Array.from(new Set([activeMonth, ...monthTokensFromPeriods]))
-  const annualSchedules = await fetchLearningJournalAnnualSchedules()
 
   return (
     <section className="space-y-8">
@@ -75,7 +75,17 @@ export default async function PrincipalLearningJournalPage({
         <PeriodProgressTable periods={periods} stats={stats} />
       </div>
 
-      <AnnualScheduleManager schedules={annualSchedules} />
+      <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-6">
+        <div className="space-y-1">
+          <h2 className="text-xl font-semibold text-slate-900">연간 일정 관리</h2>
+          <p className="text-sm text-slate-500">학부모 가정 안내에 노출될 연간 일정을 별도 페이지에서 관리하세요.</p>
+        </div>
+        <Button asChild className="w-full sm:w-auto">
+          <Link href="/dashboard/principal/learning-journal/annual-schedule">
+            연간 일정 페이지로 이동
+          </Link>
+        </Button>
+      </div>
     </section>
   )
 }
