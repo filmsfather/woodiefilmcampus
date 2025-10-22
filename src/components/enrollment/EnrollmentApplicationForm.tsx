@@ -379,7 +379,14 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
                     >
                       <div className="flex flex-col gap-1">
                         <span className="text-xs font-medium text-muted-foreground">기간명</span>
-                        <span className="text-base font-semibold text-foreground">{item.periodLabel}</span>
+                        <span
+                          className={clsx(
+                            'text-base text-foreground',
+                            item.category === 'annual' ? 'font-semibold' : 'font-medium'
+                          )}
+                        >
+                          {item.periodLabel}
+                        </span>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-3">
                         <div>

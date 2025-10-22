@@ -26,20 +26,27 @@ export function AnnualScheduleTable({
       {hasSchedules ? (
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>기간명</TableHead>
-              <TableHead>기간(날짜)</TableHead>
-              <TableHead>비고</TableHead>
-              {showTuition ? <TableHead>수업료</TableHead> : null}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {schedules.map((schedule) => (
-              <TableRow key={schedule.id}>
-                <TableCell className="text-slate-900">{schedule.periodLabel}</TableCell>
-                <TableCell className="text-slate-600">
-                  {formatAnnualScheduleDateRange(schedule.startDate, schedule.endDate)}
-                </TableCell>
+              <TableRow>
+                <TableHead>기간명</TableHead>
+                <TableHead>기간(날짜)</TableHead>
+                <TableHead>비고</TableHead>
+                {showTuition ? <TableHead>수업료</TableHead> : null}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {schedules.map((schedule) => (
+                <TableRow key={schedule.id}>
+                  <TableCell
+                    className={cn(
+                      'text-slate-900',
+                      schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
+                    )}
+                  >
+                    {schedule.periodLabel}
+                  </TableCell>
+                  <TableCell className="text-slate-600">
+                    {formatAnnualScheduleDateRange(schedule.startDate, schedule.endDate)}
+                  </TableCell>
                 <TableCell className="max-w-sm whitespace-pre-line text-slate-500">
                   {schedule.memo ? schedule.memo : '-'}
                 </TableCell>

@@ -5,8 +5,8 @@ export const LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_LABELS: Record<
   LearningJournalAnnualScheduleCategory,
   string
 > = {
-  annual: '연간 일정',
-  film_production: '영화제작 특강 일정',
+  annual: '정규 일정',
+  film_production: '특강 일정',
 }
 
 export const LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_ORDER: LearningJournalAnnualScheduleCategory[] = [

@@ -2,6 +2,7 @@ import { randomBytes } from 'crypto'
 
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_ORDER } from '@/lib/learning-journal-annual-schedule'
 import {
   LEARNING_JOURNAL_SUBJECTS,
   LEARNING_JOURNAL_SUBJECT_INFO,
@@ -384,6 +385,31 @@ function mapAnnualScheduleRow(row: AnnualScheduleRow): LearningJournalAnnualSche
   }
 }
 
+const ANNUAL_SCHEDULE_CATEGORY_PRIORITY = new Map(
+  LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_ORDER.map((value, index) => [value, index])
+)
+
+function sortAnnualSchedules<T extends LearningJournalAnnualSchedule>(schedules: T[]): T[] {
+  return schedules.sort((a, b) => {
+    if (a.displayOrder !== b.displayOrder) {
+      return a.displayOrder - b.displayOrder
+    }
+
+    if (a.startDate !== b.startDate) {
+      return a.startDate.localeCompare(b.startDate)
+    }
+
+    const aPriority = ANNUAL_SCHEDULE_CATEGORY_PRIORITY.get(a.category) ?? Number.MAX_SAFE_INTEGER
+    const bPriority = ANNUAL_SCHEDULE_CATEGORY_PRIORITY.get(b.category) ?? Number.MAX_SAFE_INTEGER
+
+    if (aPriority !== bPriority) {
+      return aPriority - bPriority
+    }
+
+    return a.periodLabel.localeCompare(b.periodLabel)
+  })
+}
+
 export async function fetchAllAnnualSchedules(): Promise<LearningJournalAnnualSchedule[]> {
   const supabase = createAdminClient()
 
@@ -411,7 +437,9 @@ export async function fetchAllAnnualSchedules(): Promise<LearningJournalAnnualSc
     return []
   }
 
-  return (data ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
+  return sortAnnualSchedules(
+    (data ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
+  )
 }
 
 export function calculatePeriodEnd(startDateIso: string, cycleLengthDays = 28): string {
@@ -1863,7 +1891,9 @@ export async function fetchLearningJournalAnnualSchedules(): Promise<LearningJou
     return []
   }
 
-  return (data ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
+  return sortAnnualSchedules(
+    (data ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
+  )
 }
 
 const LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER: LearningJournalSubject[] = [
@@ -2184,8 +2214,8 @@ export async function fetchLearningJournalEntryByShareToken(
   if (annualScheduleError) {
     console.error('[learning-journal] share annual schedule fetch error', annualScheduleError)
   } else {
-    annualSchedules = (annualScheduleData ?? []).map((row) =>
-      mapAnnualScheduleRow(row as AnnualScheduleRow)
+    annualSchedules = sortAnnualSchedules(
+      (annualScheduleData ?? []).map((row) => mapAnnualScheduleRow(row as AnnualScheduleRow))
     )
   }
 

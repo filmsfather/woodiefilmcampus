@@ -25,6 +25,7 @@ import {
   getAnnualScheduleCategoryLabel,
   LEARNING_JOURNAL_ANNUAL_SCHEDULE_CATEGORY_OPTIONS,
 } from '@/lib/learning-journal-annual-schedule'
+import { cn } from '@/lib/utils'
 
 const SELECT_CLASS_NAME =
   'border-input h-9 w-full rounded-md border bg-white px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
@@ -104,7 +105,7 @@ function AnnualScheduleForm({ defaultValues, onCancel, mode }: AnnualScheduleFor
             id="periodLabel"
             name="periodLabel"
             defaultValue={defaultValues?.periodLabel ?? ''}
-            placeholder="예: 정규 · 영화제작 특강"
+            placeholder="예: 정규 · 특강"
             required
             disabled={isPending}
             maxLength={120}
@@ -268,7 +269,14 @@ export function AnnualScheduleManager({ schedules }: AnnualScheduleManagerProps)
                     <TableCell className="text-slate-600">
                       {getAnnualScheduleCategoryLabel(schedule.category)}
                     </TableCell>
-                    <TableCell className="text-slate-900">{schedule.periodLabel}</TableCell>
+                    <TableCell
+                      className={cn(
+                        'text-slate-900',
+                        schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
+                      )}
+                    >
+                      {schedule.periodLabel}
+                    </TableCell>
                     <TableCell className="text-slate-600">
                       {formatAnnualScheduleDateRange(schedule.startDate, schedule.endDate)}
                     </TableCell>

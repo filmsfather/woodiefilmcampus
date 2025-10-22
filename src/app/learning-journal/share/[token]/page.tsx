@@ -4,6 +4,7 @@ import { LearningJournalEntryContent } from '@/components/dashboard/learning-jou
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import DateUtil from '@/lib/date-util'
 import { fetchLearningJournalEntryByShareToken } from '@/lib/learning-journals'
+import { cn } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -161,7 +162,14 @@ export default async function SharedLearningJournalPage({ params }: SharedLearni
                     >
                       <div>
                         <p className="text-xs font-medium text-slate-500 sm:hidden">기간명</p>
-                        <p className="font-medium text-slate-900">{schedule.periodLabel}</p>
+                        <p
+                          className={cn(
+                            'text-slate-900',
+                            schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
+                          )}
+                        >
+                          {schedule.periodLabel}
+                        </p>
                       </div>
                       <div>
                         <p className="text-xs font-medium text-slate-500 sm:hidden">기간(날짜)</p>
