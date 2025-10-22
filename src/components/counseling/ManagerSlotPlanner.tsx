@@ -289,7 +289,7 @@ export function ManagerSlotPlanner({ selectedDate, today, daySlots, monthSummary
               </div>
             </div>
 
-            <div className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200">
+            <div className="grid gap-3 sm:grid-cols-2">
               {timeline.map((slot) => {
                 const existing = slotByLabel.get(slot.label)
                 const isBusy = busySlotId === existing?.id
@@ -299,87 +299,98 @@ export function ManagerSlotPlanner({ selectedDate, today, daySlots, monthSummary
                   const reservation = existing.reservations.find((item) => item.status === 'confirmed')
                   const status = formatSlotStatus(existing.status)
                   return (
-                    <div key={slot.label} className="grid grid-cols-[80px_1fr] items-stretch bg-white p-3 text-sm">
-                      <div className="font-semibold text-slate-700">{slot.label}</div>
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge className={status.tone}>{status.label}</Badge>
-                          {existing.notes ? (
-                            <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                              {existing.notes}
-                            </span>
+                    <div
+                      key={slot.label}
+                      className="rounded-lg border border-slate-200 bg-white p-3 text-sm shadow-sm"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="mt-0.5 font-semibold text-slate-700">{slot.label}</span>
+                        <Badge className={status.tone}>{status.label}</Badge>
+                        {existing.notes ? (
+                          <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                            {existing.notes}
+                          </span>
+                        ) : null}
+                        <div className="ml-auto flex items-center gap-2">
+                          {existing.status === 'open' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUpdateSlot(existing.id, 'closed')}
+                              disabled={isBusy}
+                            >
+                              닫기
+                            </Button>
                           ) : null}
-                          <div className="ml-auto flex items-center gap-2">
-                            {existing.status === 'open' ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleUpdateSlot(existing.id, 'closed')}
-                                disabled={isBusy}
-                              >
-                                닫기
-                              </Button>
+                          {existing.status === 'closed' ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUpdateSlot(existing.id, 'open')}
+                              disabled={isBusy}
+                            >
+                              다시 열기
+                            </Button>
+                          ) : null}
+                          {existing.status === 'open' ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => handleDeleteSlot(existing.id)}
+                              disabled={isBusy}
+                              aria-label="삭제"
+                            >
+                              ×
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                      {reservation ? (
+                        <div className="mt-3 rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold">{reservation.student_name}</span>
+                            <Badge className={formatReservationStatus(reservation.status).tone}>
+                              {formatReservationStatus(reservation.status).label}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 grid gap-1 text-[11px] text-emerald-700/90">
+                            <span>연락처: {reservation.contact_phone}</span>
+                            {reservation.target_university ? (
+                              <span>희망 대학: {reservation.target_university}</span>
                             ) : null}
-                            {existing.status === 'closed' ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleUpdateSlot(existing.id, 'open')}
-                                disabled={isBusy}
-                              >
-                                다시 열기
-                              </Button>
-                            ) : null}
-                            {existing.status === 'open' ? (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => handleDeleteSlot(existing.id)}
-                                disabled={isBusy}
-                                aria-label="삭제"
-                              >
-                                ×
-                              </Button>
-                            ) : null}
+                            {reservation.question ? <span>문의: {reservation.question}</span> : null}
                           </div>
                         </div>
-                        {reservation ? (
-                          <div className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-semibold">{reservation.student_name}</span>
-                              <Badge className={formatReservationStatus(reservation.status).tone}>
-                                {formatReservationStatus(reservation.status).label}
-                              </Badge>
-                            </div>
-                            <div className="mt-1 grid gap-1 text-[11px] text-emerald-700/90">
-                              <span>연락처: {reservation.contact_phone}</span>
-                              {reservation.target_university ? (
-                                <span>희망 대학: {reservation.target_university}</span>
-                              ) : null}
-                              {reservation.question ? <span>문의: {reservation.question}</span> : null}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
+                      ) : null}
                     </div>
                   )
                 }
 
+                const checkboxId = `slot-${slot.label.replace(':', '-')}`
+
                 return (
-                  <button
+                  <label
                     key={slot.label}
-                    type="button"
-                    onClick={() => toggleSelection(slot.label)}
+                    htmlFor={checkboxId}
                     className={[
-                      'grid grid-cols-[80px_1fr] items-center bg-white p-3 text-left text-sm transition',
-                      isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50',
+                      'flex cursor-pointer flex-col justify-between rounded-lg border border-slate-200 bg-white p-3 text-sm transition',
+                      isSelected ? 'border-emerald-300 bg-emerald-50 ring-2 ring-emerald-100' : 'hover:border-slate-300',
                     ].join(' ')}
                   >
-                    <span className="font-semibold text-slate-700">{slot.label}</span>
-                    <span className="text-xs text-slate-500">
-                      예약 가능 슬롯이 없습니다. 클릭해서 시간을 열 수 있습니다.
+                    <div className="flex items-center gap-3">
+                      <input
+                        id={checkboxId}
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        checked={isSelected}
+                        onChange={() => toggleSelection(slot.label)}
+                      />
+                      <span className="font-semibold text-slate-700">{slot.label}</span>
+                    </div>
+                    <span className="mt-2 text-xs text-slate-500">
+                      예약 가능 슬롯이 없습니다. 체크해서 시간을 열 수 있습니다.
                     </span>
-                  </button>
+                  </label>
                 )
               })}
             </div>
