@@ -103,6 +103,7 @@ const teacherSections: NavigationSection[] = [
     items: [
       { label: '근무일지 작성', href: '/dashboard/teacher/work-journal' },
       { label: '학습일지 작성', href: '/dashboard/teacher/learning-journal' },
+      { label: '공지사항', href: '/dashboard/teacher/notices' },
     ],
   },
   {

@@ -56,6 +56,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '반별 학습일지를 작성하고 제출 상태를 관리하세요.',
         variant: 'outline',
       },
+      {
+        label: '공지사항',
+        href: '/dashboard/teacher/notices',
+        description: '원장·실장·선생님과 공지를 공유하고 확인 현황을 추적하세요.',
+        variant: 'outline',
+      },
     ],
   },
   {
