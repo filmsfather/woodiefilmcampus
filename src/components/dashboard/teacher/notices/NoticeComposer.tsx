@@ -15,9 +15,20 @@ import RichTextEditor from '@/components/ui/rich-text-editor'
 import type { StaffProfile } from '@/lib/notice-board'
 import { MAX_NOTICE_ATTACHMENT_SIZE } from '@/lib/notice-board'
 
+interface NoticeComposerDefaults {
+  noticeId?: string
+  title?: string
+  body?: string
+  recipientIds?: string[]
+  attachments?: { id: string; name?: string | null }[]
+}
+
 interface NoticeComposerProps {
   recipients: StaffProfile[]
   onSubmit: (formData: FormData) => Promise<{ success?: boolean; error?: string; noticeId?: string }>
+  defaults?: NoticeComposerDefaults
+  submitLabel?: string
+  onDelete?: ((formData: FormData) => Promise<{ success?: boolean; error?: string }>) | null
 }
 
 const ROLE_LABEL: Record<StaffProfile['role'], string> = {
@@ -35,14 +46,23 @@ function formatFileSize(bytes: number) {
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)}${units[index]}`
 }
 
-export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
+export function NoticeComposer({ recipients, onSubmit, defaults, submitLabel = '공지 저장', onDelete }: NoticeComposerProps) {
   const router = useRouter()
-  const [title, setTitle] = useState('')
-  const [body, setBody] = useState('')
-  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set())
+  const [title, setTitle] = useState(defaults?.title ?? '')
+  const [body, setBody] = useState(defaults?.body ?? '')
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(
+    () => new Set(defaults?.recipientIds ?? [])
+  )
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [isDeleting, startDeleteTransition] = useTransition()
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<Set<string>>(new Set())
+
+  const existingAttachments = useMemo(
+    () => defaults?.attachments ?? [],
+    [defaults?.attachments]
+  )
 
   const groupedRecipients = useMemo(() => {
     return recipients.reduce<Record<StaffProfile['role'], StaffProfile[]>>(
@@ -56,6 +76,18 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
 
   const totalSelectedSize = useMemo(() => selectedFiles.reduce((acc, file) => acc + file.size, 0), [selectedFiles])
   const maxSizeLabel = useMemo(() => formatFileSize(MAX_NOTICE_ATTACHMENT_SIZE), [])
+
+  const toggleExistingAttachment = (id: string) => {
+    setRemovedAttachmentIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   const toggleRecipient = (id: string) => {
     setSelectedRecipients((prev) => {
@@ -127,12 +159,20 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
 
     const form = event.currentTarget
     const formData = new FormData(form)
+    if (defaults?.noticeId) {
+      formData.set('noticeId', defaults.noticeId)
+    }
     formData.set('title', trimmedTitle)
     formData.set('body', body)
     formData.delete('recipientIds')
+    formData.delete('removeAttachmentIds')
 
     selectedRecipients.forEach((id) => {
       formData.append('recipientIds', id)
+    })
+
+    removedAttachmentIds.forEach((id) => {
+      formData.append('removeAttachmentIds', id)
     })
 
     startTransition(async () => {
@@ -143,8 +183,38 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
         return
       }
 
-      if (result?.success && result.noticeId) {
-        router.push(`/dashboard/teacher/notices/${result.noticeId}`)
+      if (result?.success) {
+        const targetId = result.noticeId ?? defaults?.noticeId ?? null
+        if (targetId) {
+          router.push(`/dashboard/teacher/notices/${targetId}`)
+          router.refresh()
+        } else {
+          router.push('/dashboard/teacher/notices')
+          router.refresh()
+        }
+      }
+    })
+  }
+
+  const handleDelete = () => {
+    if (!onDelete || !defaults?.noticeId) {
+      return
+    }
+
+    setError(null)
+
+    startDeleteTransition(async () => {
+      const deleteFormData = new FormData()
+      deleteFormData.set('noticeId', defaults.noticeId!)
+      const result = await onDelete(deleteFormData)
+
+      if (result?.error) {
+        setError(result.error)
+        return
+      }
+
+      if (result?.success) {
+        router.push('/dashboard/teacher/notices')
         router.refresh()
       }
     })
@@ -153,10 +223,30 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
   return (
     <Card className="border-slate-200">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-xl text-slate-900">공지 정보</CardTitle>
-        <CardDescription className="text-sm text-slate-600">
-          공지 제목과 본문을 작성하고 공유 대상을 선택하세요. 첨부 이미지는 총 {maxSizeLabel}까지 업로드할 수 있습니다.
-        </CardDescription>
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-1">
+            <CardTitle className="text-xl text-slate-900">공지 정보</CardTitle>
+            <CardDescription className="text-sm text-slate-600">
+              공지 제목과 본문을 작성하고 공유 대상을 선택하세요. 첨부 이미지는 총 {maxSizeLabel}까지 업로드할 수 있습니다.
+            </CardDescription>
+          </div>
+          {onDelete && defaults?.noticeId ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isPending || isDeleting}
+            >
+              {isDeleting ? (
+                <span className="flex items-center gap-2">
+                  <LoadingSpinner className="h-4 w-4" /> 삭제 중...
+                </span>
+              ) : (
+                '공지 삭제'
+              )}
+            </Button>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent>
         {error ? (
@@ -165,6 +255,8 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
           </Alert>
         ) : null}
         <form className="space-y-6" onSubmit={handleSubmit}>
+          {defaults?.noticeId ? <input type="hidden" name="noticeId" value={defaults.noticeId} /> : null}
+
           <div className="space-y-2">
             <Label htmlFor="notice-title">제목</Label>
             <Input
@@ -189,6 +281,43 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
             />
             <input type="hidden" name="body" value={body} />
           </div>
+
+          {existingAttachments.length > 0 ? (
+            <div className="space-y-2">
+              <Label>기존 첨부 이미지</Label>
+              <div className="space-y-2 rounded-md border border-slate-200 p-3 text-sm text-slate-700">
+                {existingAttachments.map((attachment) => {
+                  const isRemoved = removedAttachmentIds.has(attachment.id)
+                  return (
+                    <div
+                      key={attachment.id}
+                      className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div>
+                        <p className={`text-sm ${isRemoved ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                          {attachment.name ?? '첨부 이미지'}
+                        </p>
+                        {isRemoved ? (
+                          <p className="text-xs text-rose-500">삭제 예정</p>
+                        ) : (
+                          <p className="text-xs text-slate-500">유지 중</p>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant={isRemoved ? 'secondary' : 'outline'}
+                        size="sm"
+                        onClick={() => toggleExistingAttachment(attachment.id)}
+                        disabled={isPending}
+                      >
+                        {isRemoved ? '삭제 취소' : '삭제'}
+                      </Button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -281,13 +410,13 @@ export function NoticeComposer({ recipients, onSubmit }: NoticeComposerProps) {
           </div>
 
           <div className="flex items-center justify-end gap-2">
-            <Button type="submit" disabled={isPending} className="min-w-[120px]">
+            <Button type="submit" disabled={isPending || isDeleting} className="min-w-[120px]">
               {isPending ? (
                 <span className="flex items-center gap-2">
                   <LoadingSpinner className="h-4 w-4" /> 저장 중...
                 </span>
               ) : (
-                '공지 저장'
+                submitLabel
               )}
             </Button>
           </div>

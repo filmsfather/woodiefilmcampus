@@ -1,8 +1,10 @@
 /* eslint-disable @next/next/no-img-element */
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { NoticeAcknowledgeButton } from '@/components/dashboard/teacher/notices/NoticeAcknowledgeButton'
+import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { fetchNoticeDetail } from '@/lib/notice-board'
@@ -39,6 +41,7 @@ export default async function NoticeDetailPage({ params }: { params: { noticeId:
     notFound()
   }
 
+  const canManageNotice = profile.role === 'principal' || notice.author.id === profile.id
   const viewerRecipient = notice.recipients.find((recipient) => recipient.isViewer)
   const canAcknowledge = Boolean(viewerRecipient && !viewerRecipient.acknowledgedAt && !notice.viewerIsAuthor)
   const shouldRenderAcknowledgement = Boolean(viewerRecipient)
@@ -60,7 +63,14 @@ export default async function NoticeDetailPage({ params }: { params: { noticeId:
         <div className="space-y-1">
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <h1 className="text-2xl font-semibold text-slate-900">{notice.title}</h1>
-            <Badge variant={acknowledgementVariant}>{acknowledgementLabel}</Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant={acknowledgementVariant}>{acknowledgementLabel}</Badge>
+              {canManageNotice ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/dashboard/teacher/notices/${notice.id}/edit`}>공지 수정</Link>
+                </Button>
+              ) : null}
+            </div>
           </div>
           <p className="text-sm text-slate-600">
             작성자 {notice.author.name} ({ROLE_LABEL[notice.author.role]}) · 등록일 {formatKoreanDate(notice.createdAt)} · 확인 현황
