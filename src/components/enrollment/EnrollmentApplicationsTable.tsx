@@ -72,16 +72,20 @@ function renderStatus(item: EnrollmentApplicationItem) {
 interface EnrollmentApplicationsTableProps {
   title?: string
   emptyHint?: string
+  actions?: React.ReactNode
   applications: EnrollmentApplicationItem[]
 }
 
-export function EnrollmentApplicationsTable({ title, emptyHint, applications }: EnrollmentApplicationsTableProps) {
+export function EnrollmentApplicationsTable({ title, emptyHint, actions, applications }: EnrollmentApplicationsTableProps) {
   if (applications.length === 0) {
     return (
       <Card className="border-slate-200">
         {title ? (
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold text-slate-900">{title}</CardTitle>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="text-base font-semibold text-slate-900">{title}</CardTitle>
+              {actions}
+            </div>
           </CardHeader>
         ) : null}
         <CardContent>
@@ -97,7 +101,10 @@ export function EnrollmentApplicationsTable({ title, emptyHint, applications }: 
     <Card className="border-slate-200">
       {title ? (
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold text-slate-900">{title}</CardTitle>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base font-semibold text-slate-900">{title}</CardTitle>
+            {actions}
+          </div>
         </CardHeader>
       ) : null}
       <CardContent className="px-0 pb-0">

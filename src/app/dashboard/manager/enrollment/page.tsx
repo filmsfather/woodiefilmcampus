@@ -90,9 +90,15 @@ export default async function ManagerEnrollmentApplicationsPage() {
         <h1 className="text-2xl font-semibold text-slate-900">등록원서 접수 현황</h1>
         <p className="text-sm text-slate-600">접수된 학생 등록 정보를 확인하고 상담 일정 안내를 진행하세요.</p>
       </div>
-      <EnrollmentStatusSyncButton hasPending={activeApplications.length > 0} />
       <PendingApprovalList students={pendingStudents} />
-      <EnrollmentApplicationsTable title="미확인 · 가입완료" applications={activeApplications} emptyHint="미확인 또는 가입완료 상태의 등록원서가 없습니다." />
+      <EnrollmentApplicationsTable
+        title="미확인 · 가입완료"
+        actions={(
+          <EnrollmentStatusSyncButton hasPending={activeApplications.length > 0} />
+        )}
+        applications={activeApplications}
+        emptyHint="미확인 또는 가입완료 상태의 등록원서가 없습니다."
+      />
       <EnrollmentApplicationsTable title="반배정 완료" applications={assignedApplications} emptyHint="아직 반배정 완료된 학생이 없습니다." />
     </section>
   )
