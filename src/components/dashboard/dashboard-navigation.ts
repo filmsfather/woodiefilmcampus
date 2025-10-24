@@ -67,6 +67,7 @@ const managerSections: NavigationSection[] = [
     title: '반 관리',
     items: [
       { label: '반관리 열기', href: '/dashboard/manager/classes' },
+      { label: '결석확인', href: '/dashboard/manager/absences' },
       { label: '학습일지 관리', href: '/dashboard/manager/learning-journal' },
     ],
   },
@@ -101,6 +102,7 @@ const teacherSections: NavigationSection[] = [
     id: 'teacher-work',
     title: '근무관리',
     items: [
+      { label: '결석확인', href: '/dashboard/teacher/absences' },
       { label: '근무일지 작성', href: '/dashboard/teacher/work-journal' },
       { label: '학습일지 작성', href: '/dashboard/teacher/learning-journal' },
       { label: '공지사항', href: '/dashboard/teacher/notices' },
