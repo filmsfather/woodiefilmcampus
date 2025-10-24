@@ -215,11 +215,22 @@ export async function syncEnrollmentApplicationStatuses() {
       return { success: true as const, updated: 0 }
     }
 
-    const { error: updateError } = await supabase.from('enrollment_applications').upsert(updates)
+    for (const payload of updates) {
+      const { error: updateError } = await supabase
+        .from('enrollment_applications')
+        .update({
+          status: payload.status,
+          status_updated_at: payload.status_updated_at,
+          status_updated_by: payload.status_updated_by,
+          matched_profile_id: payload.matched_profile_id,
+          assigned_class_id: payload.assigned_class_id,
+        })
+        .eq('id', payload.id)
 
-    if (updateError) {
-      console.error('[enrollment] sync update error', updateError)
-      return { error: '등록원서 상태 갱신 중 오류가 발생했습니다.' }
+      if (updateError) {
+        console.error('[enrollment] sync update error', updateError)
+        return { error: '등록원서 상태 갱신 중 오류가 발생했습니다.' }
+      }
     }
 
     revalidatePath('/dashboard/manager/enrollment')
