@@ -1,3 +1,5 @@
+import Link from 'next/link'
+
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ClassesManager } from '@/components/dashboard/manager/classes/ClassesManager'
 import { TimetableManager } from '@/components/dashboard/manager/classes/TimetableManager'
@@ -5,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
 import type { ClassSummary, ProfileOption } from '@/types/class'
 import type { TimetableSummary } from '@/types/timetable'
+import { Button } from '@/components/ui/button'
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -323,11 +326,16 @@ export default async function ManagerClassesPage({
     <section className="space-y-6">
       <div className="space-y-3">
         <DashboardBackLink fallbackHref="/dashboard/manager" label="실장 허브로 돌아가기" />
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">반 관리</h1>
-          <p className="text-slate-600">
-            승인된 교사와 학생을 기반으로 반을 생성하고 담당 교사·학생 배정을 관리할 수 있습니다.
-          </p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-slate-900">반 관리</h1>
+            <p className="text-slate-600">
+              승인된 교사와 학생을 기반으로 반을 생성하고 담당 교사·학생 배정을 관리할 수 있습니다.
+            </p>
+          </div>
+          <Button asChild variant="outline">
+            <Link href="/dashboard/manager/absences">결석확인</Link>
+          </Button>
         </div>
       </div>
 

@@ -36,6 +36,7 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
     description: '반 편성과 학습일지를 한 화면에서 정리하세요.',
     actions: [
       { label: '반관리 열기', href: '/dashboard/manager/classes' },
+      { label: '결석확인', href: '/dashboard/manager/absences', variant: 'outline' },
       { label: '학습일지 관리', href: '/dashboard/manager/learning-journal', variant: 'outline' },
     ],
   },

@@ -46,9 +46,15 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     description: '근무일지를 작성하고 승인 현황을 확인하세요.',
     actions: [
       {
+        label: '결석확인',
+        href: '/dashboard/teacher/absences',
+        description: '결석계를 작성하고 주간 결석 현황을 확인하세요.',
+      },
+      {
         label: '근무일지 작성',
         href: '/dashboard/teacher/work-journal',
         description: '월별 근무 기록을 작성하고 원장 승인 상태를 확인합니다.',
+        variant: 'outline',
       },
       {
         label: '학습일지 작성',
