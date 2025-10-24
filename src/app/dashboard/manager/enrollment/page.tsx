@@ -45,7 +45,7 @@ export default async function ManagerEnrollmentApplicationsPage() {
       .order('created_at', { ascending: false }),
     supabase
       .from('profiles')
-      .select('id, email, name, student_phone, parent_phone, academic_record, created_at, updated_at, role, status')
+      .select('id, email, name, student_phone, parent_phone, academic_record, role, status')
       .eq('status', 'approved')
       .eq('role', 'student')
       .order('created_at', { ascending: true }),
@@ -94,8 +94,6 @@ export default async function ManagerEnrollmentApplicationsPage() {
         studentPhone: student.student_phone ?? null,
         parentPhone: student.parent_phone ?? null,
         academicRecord: student.academic_record ?? null,
-        approvedAt: student.created_at,
-        updatedAt: student.updated_at,
       })
     }
   }

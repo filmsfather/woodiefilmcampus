@@ -1,3 +1,6 @@
+import Link from 'next/link'
+
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -7,7 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import DateUtil from '@/lib/date-util'
 
 export interface UnassignedStudentSummary {
   id: string
@@ -16,8 +18,6 @@ export interface UnassignedStudentSummary {
   studentPhone: string | null
   parentPhone: string | null
   academicRecord: string | null
-  approvedAt: string
-  updatedAt: string
 }
 
 function formatPhone(value: string | null) {
@@ -36,16 +36,6 @@ function formatPhone(value: string | null) {
   }
 
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
-}
-
-function formatDate(value: string) {
-  try {
-    return DateUtil.formatForDisplay(value, {
-      dateStyle: 'medium',
-    })
-  } catch {
-    return value
-  }
 }
 
 export function UnassignedStudentsTable({ students }: { students: UnassignedStudentSummary[] }) {
@@ -97,8 +87,7 @@ export function UnassignedStudentsTable({ students }: { students: UnassignedStud
                 <TableHead className="w-40">학생 번호</TableHead>
                 <TableHead className="w-40">부모님 번호</TableHead>
                 <TableHead className="w-44">성적</TableHead>
-                <TableHead className="w-32">승인일</TableHead>
-                <TableHead className="w-32">최근 업데이트</TableHead>
+                <TableHead className="w-32 text-right">액션</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -113,8 +102,11 @@ export function UnassignedStudentsTable({ students }: { students: UnassignedStud
                   <TableCell>{formatPhone(student.studentPhone)}</TableCell>
                   <TableCell>{formatPhone(student.parentPhone)}</TableCell>
                   <TableCell>{student.academicRecord?.trim() ? student.academicRecord : '-'}</TableCell>
-                  <TableCell>{formatDate(student.approvedAt)}</TableCell>
-                  <TableCell>{formatDate(student.updatedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/manager/members?focus=${student.id}`}>정보 수정</Link>
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
