@@ -1,7 +1,9 @@
 import { Metadata } from 'next'
 
+import type { EnrollmentApplicationItem } from '@/components/enrollment/EnrollmentApplicationsTable'
 import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
 import { EnrollmentApplicationsTable } from '@/components/enrollment/EnrollmentApplicationsTable'
+import { EnrollmentStatusSyncButton } from '@/components/dashboard/manager/EnrollmentStatusSyncButton'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 
@@ -30,7 +32,12 @@ export default async function ManagerEnrollmentApplicationsPage() {
          desired_class,
          saturday_briefing_received,
          schedule_fee_confirmed,
-         created_at
+         created_at,
+         status,
+         status_updated_at,
+         status_updated_by,
+         matched_profile_id,
+         assigned_class_id
         `
       )
       .order('created_at', { ascending: false }),
@@ -45,7 +52,37 @@ export default async function ManagerEnrollmentApplicationsPage() {
   }
 
   const pendingStudents = pendingStudentsResult.data ?? []
-  const applications = applicationsResult.data ?? []
+  const applicationsRaw = applicationsResult.data ?? []
+
+  const assignedClassIds = Array.from(
+    new Set(
+      applicationsRaw
+        .map((item) => item.assigned_class_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  )
+
+  let classNameMap = new Map<string, string>()
+
+  if (assignedClassIds.length > 0) {
+    const { data: classes, error: classesError } = await supabase
+      .from('classes')
+      .select('id, name')
+      .in('id', assignedClassIds)
+
+    if (classesError) {
+      console.error('[enrollment] fetch classes error', classesError)
+    } else if (classes) {
+      classNameMap = new Map(classes.map((item) => [item.id, item.name ?? '']))
+    }
+  }
+
+  const applications: EnrollmentApplicationItem[] = applicationsRaw.map((item) => ({
+    ...item,
+    assigned_class_name: item.assigned_class_id ? classNameMap.get(item.assigned_class_id) ?? null : null,
+  }))
+  const activeApplications = applications.filter((item) => item.status !== 'assigned')
+  const assignedApplications = applications.filter((item) => item.status === 'assigned')
 
   return (
     <section className="space-y-6">
@@ -53,8 +90,10 @@ export default async function ManagerEnrollmentApplicationsPage() {
         <h1 className="text-2xl font-semibold text-slate-900">등록원서 접수 현황</h1>
         <p className="text-sm text-slate-600">접수된 학생 등록 정보를 확인하고 상담 일정 안내를 진행하세요.</p>
       </div>
+      <EnrollmentStatusSyncButton hasPending={activeApplications.length > 0} />
       <PendingApprovalList students={pendingStudents} />
-      <EnrollmentApplicationsTable applications={applications} />
+      <EnrollmentApplicationsTable title="미확인 · 가입완료" applications={activeApplications} emptyHint="미확인 또는 가입완료 상태의 등록원서가 없습니다." />
+      <EnrollmentApplicationsTable title="반배정 완료" applications={assignedApplications} emptyHint="아직 반배정 완료된 학생이 없습니다." />
     </section>
   )
 }

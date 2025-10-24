@@ -1,4 +1,5 @@
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -18,6 +19,12 @@ export interface EnrollmentApplicationItem {
   saturday_briefing_received: boolean | null
   schedule_fee_confirmed: boolean | null
   created_at: string
+  status: 'pending' | 'confirmed' | 'assigned'
+  status_updated_at: string
+  status_updated_by: string | null
+  matched_profile_id: string | null
+  assigned_class_id: string | null
+  assigned_class_name?: string | null
 }
 
 const classLabelMap: Record<EnrollmentApplicationItem['desired_class'], string> = {
@@ -39,17 +46,62 @@ function formatPhone(value: string) {
   return `${value.slice(0, 3)}-${value.slice(3, 6)}-${value.slice(6)}`
 }
 
-export function EnrollmentApplicationsTable({ applications }: { applications: EnrollmentApplicationItem[] }) {
+function renderStatus(item: EnrollmentApplicationItem) {
+  switch (item.status) {
+    case 'assigned':
+      return (
+        <Badge variant="secondary" className="bg-indigo-100 text-indigo-800">
+          배정 완료{item.assigned_class_name ? ` · ${item.assigned_class_name}` : ''}
+        </Badge>
+      )
+    case 'confirmed':
+      return (
+        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+          가입 완료
+        </Badge>
+      )
+    default:
+      return (
+        <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+          미확인
+        </Badge>
+      )
+  }
+}
+
+interface EnrollmentApplicationsTableProps {
+  title?: string
+  emptyHint?: string
+  applications: EnrollmentApplicationItem[]
+}
+
+export function EnrollmentApplicationsTable({ title, emptyHint, applications }: EnrollmentApplicationsTableProps) {
   if (applications.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500">
-        아직 접수된 등록원서가 없습니다.
-      </div>
+      <Card className="border-slate-200">
+        {title ? (
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold text-slate-900">{title}</CardTitle>
+          </CardHeader>
+        ) : null}
+        <CardContent>
+          <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center text-sm text-slate-500">
+            {emptyHint ?? '아직 접수된 등록원서가 없습니다.'}
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
+    <Card className="border-slate-200">
+      {title ? (
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-semibold text-slate-900">{title}</CardTitle>
+        </CardHeader>
+      ) : null}
+      <CardContent className="px-0 pb-0">
+        <div className="overflow-x-auto">
       <Table>
         <TableHeader className="bg-slate-50">
           <TableRow>
@@ -60,6 +112,7 @@ export function EnrollmentApplicationsTable({ applications }: { applications: En
             <TableHead className="whitespace-nowrap">희망 반</TableHead>
             <TableHead className="whitespace-nowrap">토요반 안내</TableHead>
             <TableHead className="whitespace-nowrap">일정/수강료 확인</TableHead>
+            <TableHead className="whitespace-nowrap">상태</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -99,10 +152,21 @@ export function EnrollmentApplicationsTable({ applications }: { applications: En
                   <span className="text-slate-700">미확인</span>
                 )}
               </TableCell>
+              <TableCell className="space-y-1">
+                {renderStatus(item)}
+                <div className="text-xs text-slate-500">
+                  {DateUtil.formatForDisplay(item.status_updated_at, {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                  })}
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
