@@ -1,9 +1,11 @@
 import { Metadata } from 'next'
 
 import type { EnrollmentApplicationItem } from '@/components/enrollment/EnrollmentApplicationsTable'
+import type { UnassignedStudentSummary } from '@/components/dashboard/manager/UnassignedStudentsTable'
 import { PendingApprovalList } from '@/components/dashboard/manager/PendingApprovalList'
 import { EnrollmentApplicationsTable } from '@/components/enrollment/EnrollmentApplicationsTable'
 import { EnrollmentStatusSyncButton } from '@/components/dashboard/manager/EnrollmentStatusSyncButton'
+import { UnassignedStudentsTable } from '@/components/dashboard/manager/UnassignedStudentsTable'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 
@@ -16,7 +18,7 @@ export default async function ManagerEnrollmentApplicationsPage() {
   await requireAuthForDashboard('manager')
   const supabase = createClient()
 
-  const [pendingStudentsResult, applicationsResult] = await Promise.all([
+  const [pendingStudentsResult, applicationsResult, approvedStudentsResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, email, name, student_phone, parent_phone, academic_record, created_at')
@@ -41,6 +43,12 @@ export default async function ManagerEnrollmentApplicationsPage() {
         `
       )
       .order('created_at', { ascending: false }),
+    supabase
+      .from('profiles')
+      .select('id, email, name, student_phone, parent_phone, academic_record, created_at, updated_at, role, status')
+      .eq('status', 'approved')
+      .eq('role', 'student')
+      .order('created_at', { ascending: true }),
   ])
 
   if (pendingStudentsResult.error) {
@@ -51,8 +59,46 @@ export default async function ManagerEnrollmentApplicationsPage() {
     console.error('[enrollment] fetch applications error', applicationsResult.error)
   }
 
+  if (approvedStudentsResult.error) {
+    console.error('[enrollment] fetch approved students error', approvedStudentsResult.error)
+  }
+
   const pendingStudents = pendingStudentsResult.data ?? []
   const applicationsRaw = applicationsResult.data ?? []
+  const approvedStudents = approvedStudentsResult.data ?? []
+
+  const studentIds = approvedStudents.map((student) => student.id)
+  const unassignedStudents: UnassignedStudentSummary[] = []
+
+  if (studentIds.length > 0) {
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from('class_students')
+      .select('student_id')
+      .in('student_id', studentIds)
+
+    if (assignmentError) {
+      console.error('[enrollment] fetch class assignments error', assignmentError)
+    }
+
+    const assignedIds = new Set(assignmentRows?.map((row) => row.student_id) ?? [])
+
+    for (const student of approvedStudents) {
+      if (assignedIds.has(student.id)) {
+        continue
+      }
+
+      unassignedStudents.push({
+        id: student.id,
+        name: student.name ?? null,
+        email: student.email,
+        studentPhone: student.student_phone ?? null,
+        parentPhone: student.parent_phone ?? null,
+        academicRecord: student.academic_record ?? null,
+        approvedAt: student.created_at,
+        updatedAt: student.updated_at,
+      })
+    }
+  }
 
   const assignedClassIds = Array.from(
     new Set(
@@ -91,6 +137,7 @@ export default async function ManagerEnrollmentApplicationsPage() {
         <p className="text-sm text-slate-600">접수된 학생 등록 정보를 확인하고 상담 일정 안내를 진행하세요.</p>
       </div>
       <PendingApprovalList students={pendingStudents} />
+      <UnassignedStudentsTable students={unassignedStudents} />
       <EnrollmentApplicationsTable
         title="미확인 · 가입완료"
         actions={(
