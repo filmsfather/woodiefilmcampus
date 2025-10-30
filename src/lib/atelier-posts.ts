@@ -287,6 +287,10 @@ export async function fetchAtelierPosts({
 
   const trimmedStudentName = typeof studentName === 'string' && studentName.trim().length > 0 ? studentName.trim() : null
 
+  const profilesSelect = trimmedStudentName
+    ? 'profiles:profiles!inner(id, name)'
+    : 'profiles:profiles!atelier_posts_student_id_fkey(id, name)'
+
   let query = admin
     .from('atelier_posts')
     .select(
@@ -305,7 +309,7 @@ export async function fetchAtelierPosts({
        featured_commented_at,
        hidden_by_student,
        hidden_at,
-       profiles:profiles!atelier_posts_student_id_fkey(id, name),
+       ${profilesSelect},
         classes:classes!atelier_posts_class_id_fkey(id, name),
         workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
       `,
