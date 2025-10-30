@@ -287,14 +287,7 @@ export async function fetchAtelierPosts({
 
   const trimmedStudentName = typeof studentName === 'string' && studentName.trim().length > 0 ? studentName.trim() : null
 
-  const profilesSelect = trimmedStudentName
-    ? 'profiles:profiles!inner!atelier_posts_student_id_fkey(id, name)'
-    : 'profiles:profiles!atelier_posts_student_id_fkey(id, name)'
-
-  let query = admin
-    .from('atelier_posts')
-    .select(
-      `id,
+  const baseSelect = `id,
        student_task_id,
        student_id,
        class_id,
@@ -309,12 +302,36 @@ export async function fetchAtelierPosts({
        featured_commented_at,
        hidden_by_student,
        hidden_at,
-       ${profilesSelect},
+       profiles:profiles!atelier_posts_student_id_fkey(id, name),
         classes:classes!atelier_posts_class_id_fkey(id, name),
         workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
-      `,
-      { count: 'exact' }
-    )
+      ` as const
+
+  const filteredSelect = `id,
+       student_task_id,
+       student_id,
+       class_id,
+       assignment_id,
+       workbook_id,
+       media_asset_id,
+       submitted_at,
+       is_featured,
+       featured_by,
+       featured_at,
+       featured_comment,
+       featured_commented_at,
+       hidden_by_student,
+       hidden_at,
+       profiles:profiles!inner(id, name),
+        classes:classes!atelier_posts_class_id_fkey(id, name),
+        workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
+      ` as const
+
+  const select = trimmedStudentName ? filteredSelect : baseSelect
+
+  let query = admin
+    .from('atelier_posts')
+    .select(select, { count: 'exact' })
     .eq('is_deleted', false)
     .not('media_asset_id', 'is', null)
     .order('submitted_at', { ascending: false })
