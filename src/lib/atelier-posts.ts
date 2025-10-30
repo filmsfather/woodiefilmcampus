@@ -288,7 +288,7 @@ export async function fetchAtelierPosts({
   const trimmedStudentName = typeof studentName === 'string' && studentName.trim().length > 0 ? studentName.trim() : null
 
   const profilesSelect = trimmedStudentName
-    ? 'profiles:profiles!inner(id, name)'
+    ? 'profiles:profiles!inner!atelier_posts_student_id_fkey(id, name)'
     : 'profiles:profiles!atelier_posts_student_id_fkey(id, name)'
 
   let query = admin
