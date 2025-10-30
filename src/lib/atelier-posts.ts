@@ -256,6 +256,7 @@ export interface FetchAtelierOptions {
   weekLabel?: string | null
   classId?: string | null
   featuredOnly?: boolean
+  studentName?: string | null
 }
 
 export interface AtelierListResult {
@@ -275,6 +276,7 @@ export async function fetchAtelierPosts({
   weekLabel,
   classId,
   featuredOnly,
+  studentName,
 }: FetchAtelierOptions): Promise<AtelierListResult> {
   const admin = createAdminClient()
 
@@ -282,6 +284,8 @@ export async function fetchAtelierPosts({
   const safePage = Math.max(page, 1)
   const from = (safePage - 1) * safePerPage
   const to = from + safePerPage - 1
+
+  const trimmedStudentName = typeof studentName === 'string' && studentName.trim().length > 0 ? studentName.trim() : null
 
   let query = admin
     .from('atelier_posts')
@@ -333,6 +337,11 @@ export async function fetchAtelierPosts({
     query = query.or(orFilter)
   } else {
     query = query.eq('hidden_by_student', false)
+  }
+
+  if (trimmedStudentName) {
+    const escapedPattern = `%${escapeIlikePattern(trimmedStudentName)}%`
+    query = query.ilike('profiles.name', escapedPattern)
   }
 
   const { data, error, count } = await query
@@ -594,4 +603,8 @@ function pickFirstRelation<T extends Record<string, unknown>>(value: unknown): T
   }
 
   return typeof value === 'object' && value !== null ? (value as T) : null
+}
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, (match) => `\\${match}`)
 }

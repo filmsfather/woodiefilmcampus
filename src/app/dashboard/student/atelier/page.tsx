@@ -41,6 +41,14 @@ function isFeatured(value: string | string[] | undefined): boolean {
   return value === '1'
 }
 
+function parseSearchText(value: string | string[] | undefined): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
 export default async function StudentAtelierPage({ searchParams = {} }: StudentAtelierPageProps) {
   const { profile } = await requireAuthForDashboard('student')
 
@@ -52,6 +60,7 @@ export default async function StudentAtelierPage({ searchParams = {} }: StudentA
   const weekLabel = parseFilterValue(searchParams.week, FILTER_VALUE.WEEK_NONE)
   const classId = parseFilterValue(searchParams.class, FILTER_VALUE.CLASS_NONE)
   const featuredOnly = isFeatured(searchParams.featured)
+  const studentName = parseSearchText(searchParams.student)
 
   const data = await fetchAtelierPosts({
     viewerId: profile.id,
@@ -61,6 +70,7 @@ export default async function StudentAtelierPage({ searchParams = {} }: StudentA
     weekLabel,
     classId,
     featuredOnly,
+    studentName,
   })
 
   return (
@@ -78,6 +88,7 @@ export default async function StudentAtelierPage({ searchParams = {} }: StudentA
         currentWeekLabel={weekLabel}
         currentClassId={classId}
         featuredOnly={featuredOnly}
+        currentStudentName={studentName}
       />
 
       <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">

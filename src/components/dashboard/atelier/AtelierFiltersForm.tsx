@@ -12,6 +12,7 @@ interface AtelierFiltersFormProps {
   currentWeekLabel: string | null
   currentClassId: string | null
   featuredOnly: boolean
+  currentStudentName: string | null
 }
 
 function mapWeekValue(value: string | null): string {
@@ -40,13 +41,15 @@ export function AtelierFiltersForm({
   currentWeekLabel,
   currentClassId,
   featuredOnly,
+  currentStudentName,
 }: AtelierFiltersFormProps) {
   const hasActiveFilters = Boolean(
     (currentWeekLabel && currentWeekLabel.length > 0) ||
       currentWeekLabel === '' ||
       (currentClassId && currentClassId.length > 0) ||
       currentClassId === '' ||
-      featuredOnly
+      featuredOnly ||
+      (currentStudentName && currentStudentName.length > 0)
   )
 
   return (
@@ -55,7 +58,7 @@ export function AtelierFiltersForm({
       action={basePath}
       className="flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
     >
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <label className="flex flex-col gap-2 text-sm text-slate-600">
           <span className="font-medium text-slate-800">주차</span>
           <select
@@ -97,6 +100,17 @@ export function AtelierFiltersForm({
         <label className="flex items-center gap-2 text-sm text-slate-600">
           <input type="checkbox" name="featured" value="1" defaultChecked={featuredOnly} />
           <span className="font-medium text-slate-800">추천만 보기</span>
+        </label>
+
+        <label className="flex flex-col gap-2 text-sm text-slate-600 md:col-span-2 lg:col-span-1">
+          <span className="font-medium text-slate-800">학생 이름</span>
+          <input
+            type="text"
+            name="student"
+            defaultValue={currentStudentName ?? ''}
+            placeholder="이름 검색"
+            className="w-full rounded-md border border-slate-300 bg-white p-2 text-sm"
+          />
         </label>
       </div>
 
