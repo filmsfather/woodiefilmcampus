@@ -132,8 +132,16 @@ export default async function PrincipalPayrollPage({ searchParams }: PrincipalPa
       adjustments,
     })
 
-    const messagePreview = latestRun?.messagePreview
-      ?? buildPayrollMessage(createMessageContext(teacherSummary.name ?? teacherSummary.email ?? null, monthRange.label, breakdown))
+    const messagePreview =
+      latestRun?.messagePreview ??
+      buildPayrollMessage(
+        createMessageContext(
+          teacherSummary.name ?? teacherSummary.email ?? null,
+          monthRange.label,
+          payrollProfile.contractType,
+          breakdown
+        )
+      )
 
     const requestNoteRaw = runMeta ? runMeta['requestNote'] : undefined
     const requestNote = typeof requestNoteRaw === 'string' ? requestNoteRaw : null

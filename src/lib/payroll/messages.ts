@@ -1,4 +1,9 @@
-import type { PayrollAdjustmentInput, PayrollCalculationBreakdown, PayrollMessageContext } from './types'
+import type {
+  PayrollAdjustmentInput,
+  PayrollCalculationBreakdown,
+  PayrollMessageContext,
+  TeacherContractType,
+} from './types'
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR', {
   style: 'currency',
@@ -40,7 +45,7 @@ export function buildPayrollMessage(context: PayrollMessageContext): string {
 
   lines.push(`- 근무시간: ${formatHours(context.totalWorkHours)}`)
   lines.push(`- 근무급: ${formatCurrency(context.hourlyTotal)}`)
-  if (context.weeklyHolidayAllowance > 0) {
+  if (context.contractType !== 'freelancer' && context.weeklyHolidayAllowance > 0) {
     lines.push(`- 주휴수당: ${formatCurrency(context.weeklyHolidayAllowance)}`)
   }
   if (context.baseSalaryTotal > 0) {
@@ -74,6 +79,7 @@ export function buildPayrollMessage(context: PayrollMessageContext): string {
 export function createMessageContext(
   teacherName: string | null,
   periodLabel: string,
+  contractType: TeacherContractType,
   breakdown: PayrollCalculationBreakdown
 ): PayrollMessageContext {
   return {
@@ -86,5 +92,6 @@ export function createMessageContext(
     adjustments: breakdown.adjustments,
     deductions: breakdown.deductionDetails,
     netPay: breakdown.netPay,
+    contractType,
   }
 }

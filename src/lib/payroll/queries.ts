@@ -343,7 +343,12 @@ export async function computeTeacherPayroll(
 
   const periodLabel = `${startDate.getFullYear()}년 ${startDate.getMonth() + 1}월`
   const message = buildPayrollMessage(
-    createMessageContext(teacher.name ?? teacher.email ?? null, periodLabel, breakdown)
+    createMessageContext(
+      teacher.name ?? teacher.email ?? null,
+      periodLabel,
+      payrollProfile.contractType,
+      breakdown
+    )
   )
 
   return {

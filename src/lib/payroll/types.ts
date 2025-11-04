@@ -134,6 +134,7 @@ export interface PayrollMessageContext {
     amount: number
   }>
   netPay: number
+  contractType: TeacherContractType
 }
 
 export interface PayrollWithAck extends TeacherPayrollRun {
