@@ -95,3 +95,22 @@ export function createMessageContext(
     contractType,
   }
 }
+
+export function sanitizePayrollMessage(
+  message: string | null | undefined,
+  contractType: TeacherContractType
+): string | null {
+  if (!message) {
+    return message ?? null
+  }
+
+  if (contractType !== 'freelancer') {
+    return message
+  }
+
+  const filtered = message
+    .split(/\r?\n/u)
+    .filter((line) => !line.includes('주휴수당'))
+
+  return filtered.join('\n')
+}

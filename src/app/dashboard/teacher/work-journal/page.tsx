@@ -10,7 +10,8 @@ import {
   type TeacherProfileSummary,
   type WorkLogEntryRow,
 } from '@/lib/work-logs'
-import type { WeeklyWorkSummary } from '@/lib/payroll/types'
+import type { TeacherContractType, WeeklyWorkSummary } from '@/lib/payroll/types'
+import { sanitizePayrollMessage } from '@/lib/payroll/messages'
 import { TeacherPayrollCard } from '@/components/dashboard/teacher/work-journal/TeacherPayrollCard'
 import { WorkJournalClient } from '@/components/dashboard/teacher/work-journal/WorkJournalClient'
 
@@ -32,6 +33,17 @@ interface TeacherPayrollCardData {
   totalWorkHours: number | null
   weeklyHolidayAllowanceHours: number | null
   weeklySummaries: WeeklyWorkSummary[]
+}
+
+interface TeacherPayrollRunRow {
+  id: string
+  gross_pay: string | number | null
+  net_pay: string | number | null
+  status: 'draft' | 'pending_ack' | 'confirmed'
+  contract_type: TeacherContractType
+  message_preview: string | null
+  requested_at: string | null
+  meta: Record<string, unknown> | null
 }
 
 function parseNumeric(value: string | number | null | undefined): number {
@@ -114,11 +126,12 @@ export default async function TeacherWorkJournalPage({ searchParams }: TeacherWo
   try {
     const { data: payrollRows, error: payrollError } = await supabase
       .from('teacher_payroll_runs')
-      .select('id, gross_pay, net_pay, status, message_preview, requested_at, meta')
+      .select('id, gross_pay, net_pay, status, contract_type, message_preview, requested_at, meta')
       .eq('teacher_id', profile.id)
       .gte('period_start', monthRange.startDate)
       .lte('period_end', monthRange.endExclusiveDate)
       .order('updated_at', { ascending: false })
+      .returns<TeacherPayrollRunRow[]>()
 
     if (payrollError) {
       console.error('[teacher-work-journal] payroll load error', payrollError)
@@ -147,12 +160,15 @@ export default async function TeacherWorkJournalPage({ searchParams }: TeacherWo
       const rawRequestNote = meta?.['requestNote']
       const requestNote = typeof rawRequestNote === 'string' ? rawRequestNote : null
 
+      const contractType = runRow.contract_type ?? 'none'
+      const messagePreview = sanitizePayrollMessage(runRow.message_preview ?? null, contractType)
+
       payrollCard = {
         runId: runRow.id,
         status: runRow.status as 'draft' | 'pending_ack' | 'confirmed',
         grossPay: parseNumeric(runRow.gross_pay),
         netPay: parseNumeric(runRow.net_pay),
-        messagePreview: runRow.message_preview ?? null,
+        messagePreview,
         requestedAt: runRow.requested_at ?? null,
         confirmedAt: ackRow?.confirmed_at ?? null,
         acknowledgementStatus: (ackRow?.status as 'pending' | 'confirmed' | undefined) ?? null,

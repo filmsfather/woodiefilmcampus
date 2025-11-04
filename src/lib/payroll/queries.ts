@@ -21,7 +21,7 @@ import type {
   TeacherPayrollRunItem,
 } from './types'
 import { calculatePayroll } from './calculate'
-import { buildPayrollMessage, createMessageContext } from './messages'
+import { buildPayrollMessage, createMessageContext, sanitizePayrollMessage } from './messages'
 import { fetchTeacherPayrollProfiles } from './config'
 
 interface WorkLogRowWithTeacher {
@@ -143,7 +143,7 @@ function mapRun(row: TeacherPayrollRunRow): TeacherPayrollRun {
     deductionsTotal: parseNumeric(row.deductions_total),
     netPay: parseNumeric(row.net_pay),
     status: row.status,
-    messagePreview: row.message_preview,
+    messagePreview: sanitizePayrollMessage(row.message_preview, row.contract_type),
     meta: row.meta ?? {},
     requestedBy: row.requested_by,
     requestedAt: row.requested_at,
