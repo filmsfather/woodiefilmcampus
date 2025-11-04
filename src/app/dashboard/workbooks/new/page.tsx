@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 }
 
 export default async function WorkbookCreatePage() {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
   return (
     <section className="space-y-6">

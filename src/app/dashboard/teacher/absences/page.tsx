@@ -42,7 +42,7 @@ export default async function TeacherAbsencesPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = createServerSupabase()
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
   const weekStart = DateUtil.formatISODate(weekRange.start)

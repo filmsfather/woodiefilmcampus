@@ -15,7 +15,7 @@ interface PageProps {
 }
 
 export default async function TeacherAssignmentReviewPage({ params, searchParams }: PageProps) {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = createServerSupabase()
 
   const { data: assignmentRow, error } = await supabase

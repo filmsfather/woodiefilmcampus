@@ -13,7 +13,7 @@ export default async function EnsureLearningJournalEntryPage({
 }: {
   searchParams?: SearchParams
 }) {
-  await requireAuthForDashboard('teacher')
+  await requireAuthForDashboard(['teacher', 'manager'])
 
   const studentId = typeof searchParams?.student === 'string' ? searchParams.student : null
   const periodId = typeof searchParams?.period === 'string' ? searchParams.period : null

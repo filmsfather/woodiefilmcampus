@@ -14,12 +14,12 @@ type DeleteResult = {
   message?: string
 }
 
-function isTeacherOrPrincipal(profile: UserProfile | null | undefined): profile is UserProfile {
-  return Boolean(profile && (profile.role === 'teacher' || profile.role === 'principal'))
+function isTeacherManagerOrPrincipal(profile: UserProfile | null | undefined): profile is UserProfile {
+  return Boolean(profile && ['teacher', 'manager', 'principal'].includes(profile.role))
 }
 
 function canManageAssignment(profile: UserProfile, assignedBy: string | null | undefined) {
-  if (profile.role === 'principal') {
+  if (profile.role === 'principal' || profile.role === 'manager') {
     return true
   }
   return Boolean(assignedBy && assignedBy === profile.id)
@@ -46,8 +46,8 @@ type EvaluationInput = z.infer<typeof evaluationSchema>
 export async function evaluateSubmission(input: EvaluationInput) {
   const { profile } = await getAuthContext()
 
-  if (!isTeacherOrPrincipal(profile)) {
-    return { error: '교사 또는 원장 계정으로만 평가할 수 있습니다.' }
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 평가할 수 있습니다.' }
   }
 
   const parsed = evaluationSchema.safeParse(input)
@@ -203,8 +203,8 @@ type ToggleInput = z.infer<typeof toggleSchema>
 export async function toggleStudentTaskStatus(input: ToggleInput) {
   const { profile } = await getAuthContext()
 
-  if (!isTeacherOrPrincipal(profile)) {
-    return { error: '교사 또는 원장 계정으로만 변경할 수 있습니다.' }
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 변경할 수 있습니다.' }
   }
 
   const parsed = toggleSchema.safeParse(input)
@@ -346,8 +346,8 @@ type PrintRequestResult =
 export async function createPrintRequest(input: PrintRequestInput): Promise<PrintRequestResult> {
   const { profile } = await getAuthContext()
 
-  if (!isTeacherOrPrincipal(profile)) {
-    return { error: '교사 또는 원장 계정으로만 인쇄를 요청할 수 있습니다.' }
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 인쇄를 요청할 수 있습니다.' }
   }
 
   const parsed = printRequestSchema.safeParse(input)
@@ -565,8 +565,8 @@ type CancelPrintRequestInput = z.infer<typeof cancelPrintRequestSchema>
 export async function cancelPrintRequest(input: CancelPrintRequestInput) {
   const { profile } = await getAuthContext()
 
-  if (!isTeacherOrPrincipal(profile)) {
-    return { error: '교사 또는 원장 계정으로만 취소할 수 있습니다.' }
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 취소할 수 있습니다.' }
   }
 
   const parsed = cancelPrintRequestSchema.safeParse(input)
@@ -643,8 +643,8 @@ export async function deleteStudentTask(input: DeleteStudentInput): Promise<Dele
   let stage = 'start'
   const { profile } = await getAuthContext()
 
-  if (!isTeacherOrPrincipal(profile)) {
-    return { error: `교사 또는 원장 계정으로만 삭제할 수 있습니다. [stage=${stage}]`, message: stage }
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: `교사·실장·원장 계정으로만 삭제할 수 있습니다. [stage=${stage}]`, message: stage }
   }
 
   const parsed = deleteStudentSchema.safeParse(input)
@@ -742,8 +742,8 @@ type DeleteTargetInput = z.infer<typeof deleteTargetSchema>
 export async function deleteAssignmentTarget(input: DeleteTargetInput): Promise<DeleteResult> {
   const { profile } = await getAuthContext()
 
-  if (!isTeacherOrPrincipal(profile)) {
-    return { error: '교사 또는 원장 계정만 과제를 삭제할 수 있습니다.' }
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정만 과제를 삭제할 수 있습니다.' }
   }
 
   const parsed = deleteTargetSchema.safeParse(input)

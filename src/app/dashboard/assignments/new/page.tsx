@@ -71,7 +71,7 @@ function compareClasses(a: AssignmentClassSummary, b: AssignmentClassSummary) {
 }
 
 export default async function AssignmentCreatePage() {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = createServerSupabase()
 
   DateUtil.clearServerClock()

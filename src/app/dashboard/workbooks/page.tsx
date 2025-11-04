@@ -35,7 +35,7 @@ interface WorkbookListItem {
 }
 
 export default async function WorkbookListPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
-  await requireAuthForDashboard('teacher')
+  await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = createServerSupabase()
 
   const subjectFilter = ensureArray(searchParams.subject)

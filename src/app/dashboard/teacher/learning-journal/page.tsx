@@ -47,7 +47,7 @@ export default async function TeacherLearningJournalPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
   if (!profile) {
     return null

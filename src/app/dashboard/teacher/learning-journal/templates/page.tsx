@@ -16,7 +16,7 @@ export default async function LearningJournalTemplatePage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
-  const { profile } = await requireAuthForDashboard('teacher')
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
   const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
   const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })

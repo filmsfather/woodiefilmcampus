@@ -438,8 +438,8 @@ const acknowledgeSchema = z.object({
 export async function confirmPayrollAcknowledgement(formData: FormData) {
   const { profile } = await getAuthContext()
 
-  if (!profile || profile.role !== 'teacher') {
-    return { error: '급여 정산 확인은 교사만 진행할 수 있습니다.' }
+  if (!profile || (profile.role !== 'teacher' && profile.role !== 'manager')) {
+    return { error: '급여 정산 확인은 교사 또는 실장만 진행할 수 있습니다.' }
   }
 
   const parsed = acknowledgeSchema.safeParse(Object.fromEntries(formData.entries()))
