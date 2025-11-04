@@ -119,10 +119,10 @@ export default async function TeacherReviewOverviewPage({
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = createServerSupabase()
-  const isPrincipal = profile.role === 'principal'
+  const canSeeAllClasses = profile.role === 'principal' || profile.role === 'manager'
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
 
-  const classQuery = isPrincipal
+  const classQuery = canSeeAllClasses
     ? supabase
         .from('classes')
         .select('id, name')
@@ -161,7 +161,7 @@ export default async function TeacherReviewOverviewPage({
     .gte('due_at', DateUtil.toISOString(weekRange.start))
     .lt('due_at', DateUtil.toISOString(weekRange.endExclusive))
 
-  if (!isPrincipal) {
+  if (!canSeeAllClasses) {
     assignmentQuery.eq('assigned_by', profile.id)
   }
 
@@ -178,7 +178,7 @@ export default async function TeacherReviewOverviewPage({
     console.error('[teacher] assignment overview fetch error', assignmentError)
   }
 
-  const managedClasses: ManagedClass[] = isPrincipal
+  const managedClasses: ManagedClass[] = canSeeAllClasses
     ? ((classRows as RawPrincipalClassRow[] | null | undefined)?.map((row) =>
         row.id
           ? {
