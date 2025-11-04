@@ -52,6 +52,7 @@ function cloneAdjustment(input: PayrollAdjustmentInput): PayrollAdjustmentInput 
 export function calculatePayroll(input: PayrollCalculationInput): PayrollCalculationBreakdown {
   const periodStart = new Date(input.periodStart)
   const periodEnd = new Date(input.periodEnd)
+  const allowWeeklyHoliday = input.contractType !== 'freelancer'
 
   const weekMap = new Map<string, WeeklyWorkSummary>()
 
@@ -103,6 +104,7 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
 
   for (const summary of weeklySummaries) {
     const eligible =
+      allowWeeklyHoliday &&
       summary.totalWorkHours >= 15 &&
       !summary.containsTardy &&
       !summary.containsAbsence &&
@@ -115,13 +117,14 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   }
 
   const totalWorkHours = weeklySummaries.reduce((sum, summary) => sum + summary.totalWorkHours, 0)
-  const weeklyHolidayAllowanceHours = weeklySummaries.reduce(
-    (sum, summary) => sum + summary.weeklyHolidayAllowanceHours,
-    0
-  )
+  const weeklyHolidayAllowanceHours = allowWeeklyHoliday
+    ? weeklySummaries.reduce((sum, summary) => sum + summary.weeklyHolidayAllowanceHours, 0)
+    : 0
 
   const hourlyTotal = roundCurrency(totalWorkHours * input.hourlyRate)
-  const weeklyHolidayAllowance = roundCurrency(weeklyHolidayAllowanceHours * input.hourlyRate)
+  const weeklyHolidayAllowance = allowWeeklyHoliday
+    ? roundCurrency(weeklyHolidayAllowanceHours * input.hourlyRate)
+    : 0
   const baseSalaryTotal = roundCurrency(input.baseSalaryAmount ?? 0)
 
   const normalizedAdjustments = (input.adjustments ?? []).map(cloneAdjustment)
