@@ -4,6 +4,7 @@ import type {
   PayrollMessageContext,
   TeacherContractType,
 } from './types'
+import { FREELANCER_WITHHOLDING_RATE } from './constants'
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR', {
   style: 'currency',
@@ -96,9 +97,15 @@ export function createMessageContext(
   }
 }
 
+interface SanitizeOptions {
+  netPay?: number
+  weeklyHolidayAllowance?: number
+}
+
 export function sanitizePayrollMessage(
   message: string | null | undefined,
-  contractType: TeacherContractType
+  contractType: TeacherContractType,
+  options?: SanitizeOptions
 ): string | null {
   if (!message) {
     return message ?? null
@@ -108,9 +115,28 @@ export function sanitizePayrollMessage(
     return message
   }
 
-  const filtered = message
+  const lines = message
     .split(/\r?\n/u)
     .filter((line) => !line.includes('주휴수당'))
 
-  return filtered.join('\n')
+  if (
+    options &&
+    typeof options.netPay === 'number' &&
+    typeof options.weeklyHolidayAllowance === 'number' &&
+    options.weeklyHolidayAllowance > 0
+  ) {
+    const adjustedNet = adjustFreelancerNetPay(options.netPay, options.weeklyHolidayAllowance)
+    const netLineIndex = lines.findIndex((line) => line.startsWith('실지급 예정 금액'))
+    if (netLineIndex >= 0) {
+      lines[netLineIndex] = `실지급 예정 금액: ${formatCurrency(adjustedNet)}`
+    }
+  }
+
+  return lines.join('\n')
+}
+
+function adjustFreelancerNetPay(netPay: number, weeklyHolidayAllowance: number): number {
+  const deductionPortion = weeklyHolidayAllowance * (1 - FREELANCER_WITHHOLDING_RATE)
+  const adjusted = netPay - deductionPortion
+  return adjusted < 0 ? 0 : Math.round(adjusted * 100) / 100
 }

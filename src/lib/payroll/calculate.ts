@@ -6,6 +6,7 @@ import type {
   PayrollCalculationInput,
   WeeklyWorkSummary,
 } from './types'
+import { FREELANCER_WITHHOLDING_RATE } from './constants'
 
 const WEEKLY_HOLIDAY_STANDARD_DAYS = 5
 
@@ -149,7 +150,7 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
     deductionDetails.push({ label: '장기요양보험 (건강보험의 12.81%)', amount: longTermCare })
     deductionDetails.push({ label: '고용보험 (0.9%)', amount: employmentInsurance })
   } else if (input.contractType === 'freelancer') {
-    const withholding = roundCurrency(grossPay * 0.033)
+    const withholding = roundCurrency(grossPay * FREELANCER_WITHHOLDING_RATE)
     deductionDetails.push({ label: '프리랜서 원천징수 (3.3%)', amount: withholding })
   }
 

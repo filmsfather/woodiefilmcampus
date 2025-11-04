@@ -1,0 +1,1 @@
+export const FREELANCER_WITHHOLDING_RATE = 0.033

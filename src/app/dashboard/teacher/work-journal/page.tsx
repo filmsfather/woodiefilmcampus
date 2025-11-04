@@ -12,6 +12,7 @@ import {
 } from '@/lib/work-logs'
 import type { TeacherContractType, WeeklyWorkSummary } from '@/lib/payroll/types'
 import { sanitizePayrollMessage } from '@/lib/payroll/messages'
+import { FREELANCER_WITHHOLDING_RATE } from '@/lib/payroll/constants'
 import { TeacherPayrollCard } from '@/components/dashboard/teacher/work-journal/TeacherPayrollCard'
 import { WorkJournalClient } from '@/components/dashboard/teacher/work-journal/WorkJournalClient'
 
@@ -41,6 +42,7 @@ interface TeacherPayrollRunRow {
   net_pay: string | number | null
   status: 'draft' | 'pending_ack' | 'confirmed'
   contract_type: TeacherContractType
+  weekly_holiday_allowance: string | number | null
   message_preview: string | null
   requested_at: string | null
   meta: Record<string, unknown> | null
@@ -66,6 +68,23 @@ function parseOptionalNumeric(value: unknown): number | null {
     return Number.isNaN(parsed) ? null : parsed
   }
   return null
+}
+
+function adjustFreelancerTotals(
+  contractType: TeacherContractType,
+  grossPay: number,
+  netPay: number,
+  weeklyHolidayAllowance: number
+) {
+  if (contractType !== 'freelancer' || weeklyHolidayAllowance <= 0) {
+    return { grossPay, netPay }
+  }
+  const adjustedGross = Math.max(0, grossPay - weeklyHolidayAllowance)
+  const adjustedNet = Math.max(0, netPay - weeklyHolidayAllowance * (1 - FREELANCER_WITHHOLDING_RATE))
+  return {
+    grossPay: Math.round(adjustedGross * 100) / 100,
+    netPay: Math.round(adjustedNet * 100) / 100,
+  }
 }
 
 export default async function TeacherWorkJournalPage({ searchParams }: TeacherWorkJournalPageProps) {
@@ -126,7 +145,7 @@ export default async function TeacherWorkJournalPage({ searchParams }: TeacherWo
   try {
     const { data: payrollRows, error: payrollError } = await supabase
       .from('teacher_payroll_runs')
-      .select('id, gross_pay, net_pay, status, contract_type, message_preview, requested_at, meta')
+      .select('id, gross_pay, net_pay, status, contract_type, weekly_holiday_allowance, message_preview, requested_at, meta')
       .eq('teacher_id', profile.id)
       .gte('period_start', monthRange.startDate)
       .lte('period_end', monthRange.endExclusiveDate)
@@ -161,13 +180,21 @@ export default async function TeacherWorkJournalPage({ searchParams }: TeacherWo
       const requestNote = typeof rawRequestNote === 'string' ? rawRequestNote : null
 
       const contractType = runRow.contract_type ?? 'none'
-      const messagePreview = sanitizePayrollMessage(runRow.message_preview ?? null, contractType)
+      const grossPayRaw = parseNumeric(runRow.gross_pay)
+      const netPayRaw = parseNumeric(runRow.net_pay)
+      const weeklyHolidayAllowance = parseNumeric(runRow.weekly_holiday_allowance)
+      const { grossPay, netPay } = adjustFreelancerTotals(contractType, grossPayRaw, netPayRaw, weeklyHolidayAllowance)
+
+      const messagePreview = sanitizePayrollMessage(runRow.message_preview ?? null, contractType, {
+        netPay: netPayRaw,
+        weeklyHolidayAllowance,
+      })
 
       payrollCard = {
         runId: runRow.id,
         status: runRow.status as 'draft' | 'pending_ack' | 'confirmed',
-        grossPay: parseNumeric(runRow.gross_pay),
-        netPay: parseNumeric(runRow.net_pay),
+        grossPay,
+        netPay,
         messagePreview,
         requestedAt: runRow.requested_at ?? null,
         confirmedAt: ackRow?.confirmed_at ?? null,

@@ -127,6 +127,14 @@ function parseNumeric(value: string | number | null): number {
 }
 
 function mapRun(row: TeacherPayrollRunRow): TeacherPayrollRun {
+  const hourlyTotal = parseNumeric(row.hourly_total)
+  const weeklyHolidayAllowance = parseNumeric(row.weekly_holiday_allowance)
+  const baseSalaryTotal = parseNumeric(row.base_salary_total)
+  const adjustmentTotal = parseNumeric(row.adjustment_total)
+  const grossPay = parseNumeric(row.gross_pay)
+  const deductionsTotal = parseNumeric(row.deductions_total)
+  const netPay = parseNumeric(row.net_pay)
+
   return {
     id: row.id,
     teacherId: row.teacher_id,
@@ -135,15 +143,18 @@ function mapRun(row: TeacherPayrollRunRow): TeacherPayrollRun {
     periodEnd: row.period_end,
     contractType: row.contract_type,
     insuranceEnrolled: row.insurance_enrolled,
-    hourlyTotal: parseNumeric(row.hourly_total),
-    weeklyHolidayAllowance: parseNumeric(row.weekly_holiday_allowance),
-    baseSalaryTotal: parseNumeric(row.base_salary_total),
-    adjustmentTotal: parseNumeric(row.adjustment_total),
-    grossPay: parseNumeric(row.gross_pay),
-    deductionsTotal: parseNumeric(row.deductions_total),
-    netPay: parseNumeric(row.net_pay),
+    hourlyTotal,
+    weeklyHolidayAllowance,
+    baseSalaryTotal,
+    adjustmentTotal,
+    grossPay,
+    deductionsTotal,
+    netPay,
     status: row.status,
-    messagePreview: sanitizePayrollMessage(row.message_preview, row.contract_type),
+    messagePreview: sanitizePayrollMessage(row.message_preview, row.contract_type, {
+      netPay,
+      weeklyHolidayAllowance,
+    }),
     meta: row.meta ?? {},
     requestedBy: row.requested_by,
     requestedAt: row.requested_at,
