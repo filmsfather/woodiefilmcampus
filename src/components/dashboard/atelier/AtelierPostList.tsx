@@ -176,14 +176,26 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
   const renderActions = (item: AtelierPostListItem) => {
     const actions: ReactElement[] = []
 
-    if (item.download) {
-      actions.push(
-        <Button key="download" asChild size="sm" variant="outline">
-          <a href={item.download.url} target="_blank" rel="noreferrer">
-            <Download className="h-4 w-4" />
-          </a>
-        </Button>
-      )
+    if (item.attachments.length > 0) {
+      item.attachments.forEach((attachment, index) => {
+        actions.push(
+          <Button
+            key={`download-${attachment.id}`}
+            asChild
+            size="sm"
+            variant="outline"
+            disabled={!attachment.url}
+            title={attachment.filename}
+          >
+            <a href={attachment.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-1">
+              <Download className="h-4 w-4" />
+              <span className="max-w-[120px] truncate text-xs sm:text-sm">
+                {attachment.filename || `파일 ${index + 1}`}
+              </span>
+            </a>
+          </Button>
+        )
+      })
     }
 
     const isOwner = item.studentId === viewerId
@@ -306,9 +318,9 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
               </TableRow>
             ) : (
               sortedItems.map((item) => {
-                const download = item.download
                 const isOwner = item.studentId === viewerId
                 const hidden = item.hiddenByStudent
+                const hasAttachments = item.attachments.length > 0
 
                 return (
                   <TableRow key={item.id} className={hidden ? 'bg-slate-50' : undefined}>
@@ -356,7 +368,11 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
                             숨김
                           </Badge>
                         ) : null}
-                        {download ? null : (
+                        {hasAttachments ? (
+                          <Badge variant="outline" className="text-slate-500">
+                            첨부 {item.attachments.length}개
+                          </Badge>
+                        ) : (
                           <Badge variant="outline" className="text-red-500">
                             파일 없음
                           </Badge>

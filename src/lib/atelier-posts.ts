@@ -9,6 +9,71 @@ interface SyncPostArgs {
   submittedAt?: string
 }
 
+type SubmissionAttachmentOrder = {
+  mediaAssetId: string
+  order: number
+}
+
+async function fetchSubmissionAttachmentOrder(
+  admin: ReturnType<typeof createAdminClient>,
+  submissionId: string,
+  fallbackMediaAssetId: string | null
+): Promise<SubmissionAttachmentOrder[]> {
+  const { data, error } = await admin
+    .from('task_submission_assets')
+    .select('media_asset_id, order_index')
+    .eq('submission_id', submissionId)
+    .order('order_index', { ascending: true })
+
+  if (error) {
+    console.error('[atelier] failed to load submission assets', error)
+  }
+
+  const attachments = (data ?? [])
+    .map((row, index) => {
+      const mediaAssetId = typeof row.media_asset_id === 'string' ? row.media_asset_id : null
+      if (!mediaAssetId) {
+        return null
+      }
+      const order = typeof row.order_index === 'number' ? row.order_index : index
+      return { mediaAssetId, order }
+    })
+    .filter((row): row is SubmissionAttachmentOrder => Boolean(row))
+    .sort((a, b) => a.order - b.order)
+
+  if (attachments.length === 0 && fallbackMediaAssetId) {
+    return [{ mediaAssetId: fallbackMediaAssetId, order: 0 }]
+  }
+
+  return attachments
+}
+
+async function replaceAtelierPostAssets(
+  admin: ReturnType<typeof createAdminClient>,
+  params: { postId: string; studentId: string; attachments: SubmissionAttachmentOrder[] }
+) {
+  const { postId, studentId, attachments } = params
+
+  await admin.from('atelier_post_assets').delete().eq('post_id', postId)
+
+  if (attachments.length === 0) {
+    return
+  }
+
+  const payload = attachments.map((attachment, index) => ({
+    post_id: postId,
+    media_asset_id: attachment.mediaAssetId,
+    order_index: index,
+    created_by: studentId,
+  }))
+
+  const { error } = await admin.from('atelier_post_assets').insert(payload)
+
+  if (error) {
+    console.error('[atelier] failed to sync post assets', error)
+  }
+}
+
 export async function syncAtelierPostForPdfSubmission({
   studentTaskId,
   studentId,
@@ -52,6 +117,34 @@ export async function syncAtelierPostForPdfSubmission({
 
   const timestamp = submittedAt ?? new Date().toISOString()
 
+  const attachments = await fetchSubmissionAttachmentOrder(admin, taskSubmissionId, mediaAssetId)
+
+  if (attachments.length === 0) {
+    console.warn('[atelier] submission has no attachments; skipping post sync', { taskSubmissionId })
+    return
+  }
+
+  const primaryAttachmentId = attachments[0]?.mediaAssetId ?? mediaAssetId
+
+  if (!primaryAttachmentId) {
+    console.warn('[atelier] unable to determine primary attachment for submission', { taskSubmissionId })
+    return
+  }
+
+  const updatePayload = {
+    task_submission_id: taskSubmissionId,
+    media_asset_id: primaryAttachmentId,
+    assignment_id: (taskRow.assignment_id as string | null) ?? null,
+    class_id: (taskRow.class_id as string | null) ?? null,
+    workbook_id: workbookId,
+    submitted_at: timestamp,
+    hidden_by_student: false,
+    hidden_at: null,
+    is_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+  }
+
   const { data: existingRow, error: existingError } = await admin
     .from('atelier_posts')
     .select('id')
@@ -63,45 +156,43 @@ export async function syncAtelierPostForPdfSubmission({
     return
   }
 
-  if (existingRow?.id) {
+  let postId = existingRow?.id ?? null
+
+  if (postId) {
     const { error: updateError } = await admin
       .from('atelier_posts')
-      .update({
-        task_submission_id: taskSubmissionId,
-        media_asset_id: mediaAssetId,
-        assignment_id: (taskRow.assignment_id as string | null) ?? null,
-        class_id: (taskRow.class_id as string | null) ?? null,
-        workbook_id: workbookId,
-        submitted_at: timestamp,
-        hidden_by_student: false,
-        hidden_at: null,
-        is_deleted: false,
-        deleted_at: null,
-        deleted_by: null,
-      })
-      .eq('id', existingRow.id)
+      .update(updatePayload)
+      .eq('id', postId)
 
     if (updateError) {
       console.error('[atelier] failed to update existing post', updateError)
+      return
+    }
+  } else {
+    const { data: insertedRow, error: insertError } = await admin
+      .from('atelier_posts')
+      .insert({
+        student_task_id: studentTaskId,
+        student_id: studentId,
+        ...updatePayload,
+      })
+      .select('id')
+      .single()
+
+    if (insertError || !insertedRow?.id) {
+      console.error('[atelier] failed to insert post', insertError)
+      return
     }
 
+    postId = insertedRow.id
+  }
+
+  if (!postId) {
+    console.error('[atelier] missing post id after sync', { studentTaskId, taskSubmissionId })
     return
   }
 
-  const { error: insertError } = await admin.from('atelier_posts').insert({
-    student_task_id: studentTaskId,
-    student_id: studentId,
-    task_submission_id: taskSubmissionId,
-    assignment_id: (taskRow.assignment_id as string | null) ?? null,
-    class_id: (taskRow.class_id as string | null) ?? null,
-    workbook_id: workbookId,
-    media_asset_id: mediaAssetId,
-    submitted_at: timestamp,
-  })
-
-  if (insertError) {
-    console.error('[atelier] failed to insert post', insertError)
-  }
+  await replaceAtelierPostAssets(admin, { postId, studentId, attachments })
 }
 
 export async function setAtelierPostHidden({
@@ -238,7 +329,12 @@ export interface AtelierPostListItem {
   featuredCommentedAt: string | null
   hiddenByStudent: boolean
   mediaAssetId: string
-  download: { url: string; filename: string } | null
+  attachments: Array<{
+    id: string
+    mediaAssetId: string
+    filename: string
+    url: string | null
+  }>
 }
 
 export interface AtelierFilters {
@@ -304,7 +400,8 @@ export async function fetchAtelierPosts({
        hidden_at,
        profiles:profiles!atelier_posts_student_id_fkey(id, name),
         classes:classes!atelier_posts_class_id_fkey(id, name),
-        workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
+        workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label),
+        atelier_post_assets(id, order_index, media_asset_id)
       ` as const
 
   const filteredSelect = `id,
@@ -324,7 +421,8 @@ export async function fetchAtelierPosts({
        hidden_at,
        profiles:profiles!atelier_posts_student_id_fkey!inner(id, name),
         classes:classes!atelier_posts_class_id_fkey(id, name),
-        workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label)
+        workbooks:workbooks!atelier_posts_workbook_id_fkey(id, title, subject, week_label),
+        atelier_post_assets(id, order_index, media_asset_id)
       ` as const
 
   const select = trimmedStudentName ? filteredSelect : baseSelect
@@ -381,7 +479,25 @@ export async function fetchAtelierPosts({
 
   const rows = (data ?? []) as Array<Record<string, unknown>>
 
-  const mediaAssetIds = Array.from(new Set(rows.map((row) => row.media_asset_id).filter(Boolean)))
+  const mediaAssetIdSet = new Set<string>()
+
+  for (const row of rows) {
+    if (typeof row.media_asset_id === 'string') {
+      mediaAssetIdSet.add(row.media_asset_id)
+    }
+
+    const attachmentRows = Array.isArray(row.atelier_post_assets) ? row.atelier_post_assets : []
+    for (const attachment of attachmentRows) {
+      const mediaId = typeof (attachment as { media_asset_id?: unknown })?.media_asset_id === 'string'
+        ? (attachment as { media_asset_id: string }).media_asset_id
+        : null
+      if (mediaId) {
+        mediaAssetIdSet.add(mediaId)
+      }
+    }
+  }
+
+  const mediaAssetIds = Array.from(mediaAssetIdSet)
 
   const assetLookup = new Map<string, { bucket: string | null; path: string | null; metadata: JsonRecord | null }>()
 
@@ -472,6 +588,60 @@ export async function fetchAtelierPosts({
         ? row.hidden_by_student
         : Boolean(row.hidden_by_student)
 
+      const rawAttachments = Array.isArray(row.atelier_post_assets) ? row.atelier_post_assets : []
+      let attachments = rawAttachments
+        .map((attachment, index) => {
+          if (!attachment || typeof attachment !== 'object') {
+            return null
+          }
+
+          const attachmentId = typeof (attachment as { id?: unknown }).id === 'string'
+            ? ((attachment as { id: string }).id)
+            : null
+          const attachmentMediaId = typeof (attachment as { media_asset_id?: unknown }).media_asset_id === 'string'
+            ? ((attachment as { media_asset_id: string }).media_asset_id)
+            : null
+          const orderIndex = typeof (attachment as { order_index?: unknown }).order_index === 'number'
+            ? ((attachment as { order_index: number }).order_index)
+            : index
+
+          if (!attachmentId || !attachmentMediaId) {
+            return null
+          }
+
+          const download = downloadLookup.get(attachmentMediaId) ?? null
+
+          return {
+            id: attachmentId,
+            mediaAssetId: attachmentMediaId,
+            filename: download?.filename ?? '제출 파일',
+            url: download?.url ?? null,
+            order: orderIndex,
+          }
+        })
+        .filter((attachment): attachment is { id: string; mediaAssetId: string; filename: string; url: string | null; order: number } => Boolean(attachment))
+        .sort((a, b) => a.order - b.order)
+
+      if (attachments.length === 0 && mediaAssetId) {
+        const fallbackDownload = downloadLookup.get(mediaAssetId) ?? null
+        attachments = [
+          {
+            id: `${id ?? mediaAssetId}-primary`,
+            mediaAssetId,
+            filename: fallbackDownload?.filename ?? '제출 파일',
+            url: fallbackDownload?.url ?? null,
+            order: 0,
+          },
+        ]
+      }
+
+      const normalizedAttachments = attachments.map((attachment) => ({
+        id: attachment.id,
+        mediaAssetId: attachment.mediaAssetId,
+        filename: attachment.filename,
+        url: attachment.url,
+      }))
+
       return {
         id,
         studentTaskId,
@@ -492,7 +662,7 @@ export async function fetchAtelierPosts({
         featuredCommentedAt,
         hiddenByStudent,
         mediaAssetId,
-        download: downloadLookup.get(mediaAssetId) ?? null,
+        attachments: normalizedAttachments,
       }
     })
     .filter((item): item is AtelierPostListItem => Boolean(item))
