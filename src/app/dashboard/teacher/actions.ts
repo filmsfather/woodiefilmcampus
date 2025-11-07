@@ -394,13 +394,7 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
            submission_type,
            media_asset_id,
            created_at,
-           media_assets:media_assets!task_submissions_media_asset_id_fkey(
-             id,
-             bucket,
-             path,
-             mime_type,
-             metadata
-           )
+           task_submission_assets(id, order_index, media_asset_id, media_asset:media_assets(id, bucket, path, mime_type, metadata))
          )
         `
       )
@@ -428,9 +422,13 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
         submission_type: string | null
         media_asset_id: string | null
         created_at: string
-        media_assets?:
-          | { id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }
-          | Array<{ id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }>
+        task_submission_assets?: Array<{
+          id: string
+          media_asset_id: string | null
+          media_asset?:
+            | { id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }
+            | Array<{ id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }>
+        }>
       }>
     }>
 
@@ -457,33 +455,58 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
 
     filteredTasks.forEach((task) => {
       const submissions = task.task_submissions ?? []
-      const submission = submissions.find((sub) => Boolean(sub.media_asset_id))
+      const collectedAssets: Array<{
+        submissionId: string
+        mediaAssetId: string
+        assetFilename: string | null
+        assetMetadata: Record<string, unknown> | null
+      }> = []
 
-      if (!submission || !submission.media_asset_id) {
+      submissions.forEach((submission) => {
+        if (submission.submission_type !== 'pdf') {
+          return
+        }
+
+        const submissionAssets = submission.task_submission_assets ?? []
+
+        submissionAssets.forEach((asset) => {
+          const relation = Array.isArray(asset.media_asset) ? asset.media_asset[0] : asset.media_asset
+          if (!relation?.id) {
+            return
+          }
+
+          const metadata = (relation.metadata as Record<string, unknown> | null) ?? null
+          const filenameValue = (() => {
+            if (!metadata) {
+              return null
+            }
+            const candidate = metadata.originalName ?? metadata.filename ?? metadata.name
+            return typeof candidate === 'string' ? candidate : null
+          })()
+
+          collectedAssets.push({
+            submissionId: submission.id,
+            mediaAssetId: relation.id,
+            assetFilename: filenameValue,
+            assetMetadata: metadata,
+          })
+        })
+      })
+
+      if (collectedAssets.length === 0) {
         const profileRow = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
         skippedStudents.push(profileRow?.name ?? '이름 미정')
         return
       }
 
-      const assetRecord = Array.isArray(submission.media_assets)
-        ? submission.media_assets[0]
-        : submission.media_assets ?? null
-
-      const assetFilename = (() => {
-        if (!assetRecord?.metadata) {
-          return null
-        }
-        const metadata = assetRecord.metadata as Record<string, unknown>
-        const filenameValue = metadata.filename ?? metadata.original_filename ?? metadata.name
-        return typeof filenameValue === 'string' ? filenameValue : null
-      })()
-
-      printableItems.push({
-        studentTaskId: task.id,
-        submissionId: submission.id,
-        mediaAssetId: submission.media_asset_id,
-        assetMetadata: assetRecord?.metadata ?? null,
-        assetFilename,
+      collectedAssets.forEach((asset) => {
+        printableItems.push({
+          studentTaskId: task.id,
+          submissionId: asset.submissionId,
+          mediaAssetId: asset.mediaAssetId,
+          assetMetadata: asset.assetMetadata,
+          assetFilename: asset.assetFilename,
+        })
       })
     })
 

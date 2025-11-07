@@ -67,6 +67,31 @@ type StudentTaskSubmissionRow = {
   evaluated_at: string | null
   created_at: string
   updated_at: string
+  task_submission_assets?: TaskSubmissionAssetRow[] | null
+}
+
+type TaskSubmissionAssetRow = {
+  id: string
+  order_index: number | null
+  media_asset_id: string | null
+  media_asset?:
+    | {
+        id: string
+        bucket: string | null
+        path: string | null
+        mime_type: string | null
+        size: number | null
+        metadata: JsonRecord | null
+      }
+    | Array<{
+        id: string
+        bucket: string | null
+        path: string | null
+        mime_type: string | null
+        size: number | null
+        metadata: JsonRecord | null
+      }>
+    | null
 }
 
 type StudentTaskItemRow = {
@@ -327,11 +352,42 @@ function mapItemDetail(row: StudentTaskItemRow): StudentTaskItemDetail {
 }
 
 function mapSubmission(row: TaskSubmissionRow): StudentTaskSubmission {
+  const rawAssets = (row.task_submission_assets ?? [])
+    .filter((asset): asset is TaskSubmissionAssetRow => Boolean(asset))
+    .map((asset, index) => ({ asset, fallbackIndex: index }))
+    .sort((a, b) => {
+      const orderA = a.asset.order_index ?? a.fallbackIndex
+      const orderB = b.asset.order_index ?? b.fallbackIndex
+      return orderA - orderB
+    })
+
+  const assets = rawAssets
+    .map(({ asset }, index) => {
+      const relation = Array.isArray(asset.media_asset) ? asset.media_asset[0] : asset.media_asset
+
+      if (!relation || !asset.media_asset_id || !relation.path) {
+        return null
+      }
+
+      return {
+        id: asset.id,
+        mediaAssetId: asset.media_asset_id,
+        bucket: relation.bucket ?? 'submissions',
+        path: relation.path,
+        mimeType: relation.mime_type ?? null,
+        size: relation.size ?? null,
+        metadata: (relation.metadata as JsonRecord | null) ?? null,
+        order: asset.order_index ?? index,
+      }
+    })
+    .filter((asset): asset is StudentTaskSubmission['assets'][number] => Boolean(asset))
+
   return {
     id: row.id,
     submissionType: row.submission_type,
     content: row.content,
     mediaAssetId: row.media_asset_id,
+    assets,
     score: row.score,
     feedback: row.feedback,
     evaluatedBy: row.evaluated_by,
@@ -570,7 +626,8 @@ export async function fetchStudentTaskDetail(
   const { data: submissionRows, error: submissionError } = await supabase
     .from('task_submissions')
     .select(
-      'id, student_task_id, item_id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at'
+      `id, student_task_id, item_id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at,
+       task_submission_assets(id, order_index, media_asset_id, media_asset:media_assets(id, bucket, path, mime_type, size, metadata))`
     )
     .eq('student_task_id', row.id)
 

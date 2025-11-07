@@ -75,27 +75,36 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
   const statusLabel = getStatusLabel(task.status)
   const isCompleted = task.status === 'completed'
 
-  const pdfSubmission = task.submissions.find((submission) => submission.itemId === null && submission.mediaAssetId)
-  let pdfSignedUrl: { url: string; filename: string } | null = null
+  const pdfSubmission = task.submissions.find((submission) => submission.itemId === null && submission.submissionType === 'pdf')
 
-  if (pdfSubmission?.mediaAssetId) {
-    const { data: asset } = await supabase
-      .from('media_assets')
-      .select('bucket, path, metadata')
-      .eq('id', pdfSubmission.mediaAssetId)
-      .maybeSingle()
-
-    if (asset?.path) {
-      const bucketId = asset.bucket ?? 'submissions'
-      const { data: signed } = await supabase.storage.from(bucketId).createSignedUrl(asset.path, 60 * 30)
-
-      if (signed?.signedUrl) {
-        const originalName = (asset.metadata as { originalName?: string } | null)?.originalName
-        const filename = originalName ?? asset.path.split('/').pop() ?? '제출 파일'
-        pdfSignedUrl = { url: signed.signedUrl, filename }
+  const pdfSubmissionAssets = await Promise.all(
+    (pdfSubmission?.assets ?? []).map(async (asset) => {
+      if (!asset.path) {
+        return null
       }
-    }
-  }
+
+      const bucketId = asset.bucket ?? 'submissions'
+      const { data: signed, error: signedError } = await supabase.storage
+        .from(bucketId)
+        .createSignedUrl(asset.path, 60 * 30)
+
+      if (signedError) {
+        console.error('[student-task] failed to sign pdf submission asset', signedError)
+        return null
+      }
+
+      const metadata = (asset.metadata as { originalName?: string } | null) ?? null
+      const filename = metadata?.originalName ?? asset.path.split('/').pop() ?? '제출 파일'
+
+      return {
+        id: asset.id,
+        filename,
+        url: signed?.signedUrl ?? null,
+      }
+    })
+  )
+
+  const pdfSignedAssets = (pdfSubmissionAssets.filter(Boolean) as Array<{ id: string; filename: string; url: string | null }>)
 
   type AttachmentEntry = {
     id: string
@@ -166,7 +175,7 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
         <PdfTaskPanel
           studentTaskId={task.id}
           existingSubmission={pdfSubmission ?? null}
-          signedUrl={pdfSignedUrl}
+          existingAssets={pdfSignedAssets}
           instructions={workbookConfig.pdf?.instructions ?? null}
           items={pdfItems}
         />

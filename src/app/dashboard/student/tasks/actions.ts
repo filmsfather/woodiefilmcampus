@@ -30,28 +30,12 @@ function sanitizeSubmissionFileName(name: string) {
   return trimmed.replace(/[^a-zA-Z0-9_.-]/g, '_') || fallback
 }
 
-function parseUploadedFilePayload(value: FormDataEntryValue | null): UploadedFilePayload | null {
-  if (!value) {
-    return null
+function normalizeUploadedFileRecord(value: unknown, index = 0): UploadedFilePayload {
+  if (!value || typeof value !== 'object') {
+    throw new Error(`파일 정보가 올바르지 않습니다. (index: ${index})`)
   }
 
-  if (typeof value !== 'string' || value.trim().length === 0) {
-    return null
-  }
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(value)
-  } catch (error) {
-    console.error('[submitPdfSubmission] failed to parse uploaded payload', error)
-    throw new Error('파일 정보를 확인하지 못했습니다.')
-  }
-
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('파일 정보 형식이 올바르지 않습니다.')
-  }
-
-  const record = parsed as Record<string, unknown>
+  const record = value as Record<string, unknown>
   const bucket = typeof record.bucket === 'string' ? record.bucket : null
   const path = typeof record.path === 'string' ? record.path : null
   const size = typeof record.size === 'number' ? record.size : Number(record.size)
@@ -69,6 +53,50 @@ function parseUploadedFilePayload(value: FormDataEntryValue | null): UploadedFil
     mimeType,
     originalName,
   }
+}
+
+function parseUploadedFilePayload(value: FormDataEntryValue | null): UploadedFilePayload | null {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    console.error('[submitPdfSubmission] failed to parse uploaded payload', error)
+    throw new Error('파일 정보를 확인하지 못했습니다.')
+  }
+
+  return normalizeUploadedFileRecord(parsed)
+}
+
+function parseUploadedFileList(value: FormDataEntryValue | null): UploadedFilePayload[] {
+  if (!value) {
+    return []
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return []
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    console.error('[submitPdfSubmission] failed to parse uploaded payload list', error)
+    throw new Error('파일 정보를 확인하지 못했습니다.')
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('파일 정보 형식이 올바르지 않습니다.')
+  }
+
+  return parsed.map((entry, index) => normalizeUploadedFileRecord(entry, index))
 }
 
 export async function submitSrsAnswer({
@@ -667,12 +695,49 @@ export async function submitPdfSubmission(formData: FormData) {
   }
 
   const studentTaskId = studentTaskIdValue
-
-  let uploadedFile: UploadedFilePayload | null = null
+  let uploadedFiles: UploadedFilePayload[] = []
   try {
-    uploadedFile = parseUploadedFilePayload(formData.get('uploadedFile'))
+    uploadedFiles = parseUploadedFileList(formData.get('uploadedFiles'))
+    if (uploadedFiles.length === 0) {
+      const legacyPayload = parseUploadedFilePayload(formData.get('uploadedFile'))
+      if (legacyPayload) {
+        uploadedFiles = [legacyPayload]
+      }
+    }
   } catch (error) {
     return { success: false as const, error: error instanceof Error ? error.message : '파일 정보를 확인하지 못했습니다.' }
+  }
+
+  const removedAssetIds = Array.from(
+    new Set(
+      formData
+        .getAll('removedAssetIds')
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value): value is string => value.length > 0)
+    )
+  )
+
+  if (uploadedFiles.length === 0 && removedAssetIds.length === 0) {
+    return { success: false as const, error: '업로드할 PDF 파일을 추가하거나 삭제할 파일을 선택해주세요.' }
+  }
+
+  for (const file of uploadedFiles) {
+    if (file.bucket !== SUBMISSIONS_BUCKET) {
+      return { success: false as const, error: '허용되지 않은 저장소 경로입니다.' }
+    }
+
+    if (!file.path.startsWith(`student_tasks/${studentTaskId}/`)) {
+      return { success: false as const, error: '파일 경로가 과제 정보와 일치하지 않습니다.' }
+    }
+
+    if (file.mimeType !== 'application/pdf') {
+      return { success: false as const, error: 'PDF 파일만 업로드할 수 있습니다.' }
+    }
+
+    if (file.size > MAX_PDF_FILE_SIZE) {
+      const maxMb = Math.round(MAX_PDF_FILE_SIZE / (1024 * 1024))
+      return { success: false as const, error: `파일 용량은 최대 ${maxMb}MB까지 지원합니다.` }
+    }
   }
 
   const supabase = createServerSupabase()
@@ -683,36 +748,17 @@ export async function submitPdfSubmission(formData: FormData) {
     return { success: false as const, error: '해당 과제에 접근할 수 없습니다.' }
   }
 
-  if (!uploadedFile) {
-    return { success: false as const, error: '업로드할 PDF 파일을 선택해주세요.' }
-  }
-
-  if (uploadedFile.bucket !== SUBMISSIONS_BUCKET) {
-    return { success: false as const, error: '허용되지 않은 저장소 경로입니다.' }
-  }
-
-  if (!uploadedFile.path.startsWith(`student_tasks/${studentTaskId}/`)) {
-    return { success: false as const, error: '파일 경로가 과제 정보와 일치하지 않습니다.' }
-  }
-
-  if (uploadedFile.mimeType !== 'application/pdf') {
-    return { success: false as const, error: 'PDF 파일만 업로드할 수 있습니다.' }
-  }
-
-  if (uploadedFile.size > MAX_PDF_FILE_SIZE) {
-    const maxMb = Math.round(MAX_PDF_FILE_SIZE / (1024 * 1024))
-    return { success: false as const, error: `파일 용량은 최대 ${maxMb}MB까지 지원합니다.` }
-  }
-
-  const sanitizedName = sanitizeSubmissionFileName(uploadedFile.originalName)
-  const storagePath = uploadedFile.path
-
-  const uploadedObjects: Array<{ bucket: string; path: string }> = [{ bucket: SUBMISSIONS_BUCKET, path: storagePath }]
+  const uploadedObjects: Array<{ bucket: string; path: string }> = []
+  const createdMediaAssetIds: string[] = []
+  let createdSubmissionId: string | null = null
 
   try {
     const { data: existingSubmission, error: existingSubmissionError } = await supabase
       .from('task_submissions')
-      .select('id, media_asset_id')
+      .select(
+        `id,
+         task_submission_assets(id, order_index, media_asset_id, media_asset:media_assets(id, bucket, path, metadata))`
+      )
       .eq('student_task_id', studentTaskId)
       .is('item_id', null)
       .maybeSingle()
@@ -722,61 +768,161 @@ export async function submitPdfSubmission(formData: FormData) {
       throw new Error('제출 정보를 불러오지 못했습니다.')
     }
 
-    const oldAssetId: string | null = existingSubmission?.media_asset_id ?? null
+    let submissionId = existingSubmission?.id ?? null
 
-    const { data: mediaAsset, error: mediaAssetError } = await supabase
-      .from('media_assets')
-      .insert({
-        owner_id: profile.id,
-        scope: 'task_submission',
-        bucket: SUBMISSIONS_BUCKET,
-        path: storagePath,
-        mime_type: 'application/pdf',
-        size: uploadedFile.size,
-        metadata: { originalName: sanitizedName },
-      })
-      .select('id')
-      .single()
-
-    if (mediaAssetError) {
-      console.error('[submitPdfSubmission] failed to insert media_assets', mediaAssetError)
-      throw new Error('제출 파일 정보를 저장하지 못했습니다.')
-    }
-
-    let taskSubmissionId = existingSubmission?.id ?? null
-
-    if (existingSubmission) {
-      const { error: updateError } = await supabase
-        .from('task_submissions')
-        .update({
-          submission_type: 'pdf',
-          content: sanitizedName,
-          media_asset_id: mediaAsset.id,
-        })
-        .eq('id', existingSubmission.id)
-
-      if (updateError) {
-        console.error('[submitPdfSubmission] failed to update task_submissions', updateError)
-        throw new Error('제출 정보를 저장하지 못했습니다.')
-      }
-    } else {
-      const { data: insertedSubmission, error: insertError } = await supabase
+    if (!submissionId) {
+      const { data: insertedSubmission, error: insertSubmissionError } = await supabase
         .from('task_submissions')
         .insert({
           student_task_id: studentTaskId,
           submission_type: 'pdf',
-          content: sanitizedName,
-          media_asset_id: mediaAsset.id,
+          content: null,
+          media_asset_id: null,
         })
         .select('id')
         .single()
 
-      if (insertError || !insertedSubmission?.id) {
-        console.error('[submitPdfSubmission] failed to insert task_submissions', insertError)
+      if (insertSubmissionError || !insertedSubmission?.id) {
+        console.error('[submitPdfSubmission] failed to insert task submission', insertSubmissionError)
         throw new Error('제출 정보를 저장하지 못했습니다.')
       }
 
-      taskSubmissionId = insertedSubmission.id
+      submissionId = insertedSubmission.id
+      createdSubmissionId = insertedSubmission.id
+    }
+
+    const existingAssets = ((existingSubmission?.task_submission_assets ?? []) as Array<{
+      id: string
+      order_index: number | null
+      media_asset_id: string | null
+    }>).map((asset, index) => ({
+      id: asset.id,
+      mediaAssetId: asset.media_asset_id,
+      order: asset.order_index ?? index,
+    }))
+
+    const removalTargets = removedAssetIds.map((assetId) => existingAssets.find((asset) => asset.id === assetId)).filter(
+      (asset): asset is { id: string; mediaAssetId: string | null; order: number } => Boolean(asset)
+    )
+
+    if (removalTargets.length !== removedAssetIds.length) {
+      throw new Error('삭제할 파일 정보를 찾지 못했습니다. 새로고침 후 다시 시도해주세요.')
+    }
+
+    const finalAssetCount = existingAssets.length - removalTargets.length + uploadedFiles.length
+
+    if (finalAssetCount <= 0) {
+      throw new Error('최소 1개의 PDF 파일을 업로드해주세요.')
+    }
+
+    let nextOrderIndex = existingAssets.length - removalTargets.length
+
+    for (const file of uploadedFiles) {
+      uploadedObjects.push({ bucket: file.bucket, path: file.path })
+      const sanitizedName = sanitizeSubmissionFileName(file.originalName)
+
+      const { data: mediaAsset, error: mediaAssetError } = await supabase
+        .from('media_assets')
+        .insert({
+          owner_id: profile.id,
+          scope: 'task_submission',
+          bucket: SUBMISSIONS_BUCKET,
+          path: file.path,
+          mime_type: 'application/pdf',
+          size: file.size,
+          metadata: { originalName: sanitizedName },
+        })
+        .select('id')
+        .single()
+
+      if (mediaAssetError || !mediaAsset?.id) {
+        console.error('[submitPdfSubmission] failed to insert media asset', mediaAssetError)
+        throw new Error('제출 파일 정보를 저장하지 못했습니다.')
+      }
+
+      createdMediaAssetIds.push(mediaAsset.id)
+
+      const { error: submissionAssetError } = await supabase
+        .from('task_submission_assets')
+        .insert({
+          submission_id: submissionId,
+          media_asset_id: mediaAsset.id,
+          order_index: nextOrderIndex,
+          created_by: profile.id,
+        })
+
+      if (submissionAssetError) {
+        console.error('[submitPdfSubmission] failed to insert submission asset', submissionAssetError)
+        throw new Error('제출 파일 정보를 저장하지 못했습니다.')
+      }
+
+      nextOrderIndex += 1
+
+      const orphanIndex = uploadedObjects.findIndex((object) => object.path === file.path && object.bucket === file.bucket)
+      if (orphanIndex >= 0) {
+        uploadedObjects.splice(orphanIndex, 1)
+      }
+    }
+
+    for (const asset of removalTargets) {
+      if (asset.mediaAssetId) {
+        await removeMediaAsset(supabase, asset.mediaAssetId)
+      }
+    }
+
+    const { data: latestAssets, error: latestAssetsError } = await supabase
+      .from('task_submission_assets')
+      .select('id, order_index, media_asset:media_assets(id, metadata)')
+      .eq('submission_id', submissionId)
+      .order('order_index', { ascending: true })
+
+    if (latestAssetsError) {
+      console.error('[submitPdfSubmission] failed to reload submission assets', latestAssetsError)
+      throw new Error('제출 파일 정보를 불러오지 못했습니다.')
+    }
+
+    const normalizedAssets = (latestAssets ?? []).map((asset, index) => ({
+      id: asset.id,
+      orderIndex: asset.order_index ?? index,
+      mediaAsset: Array.isArray(asset.media_asset) ? asset.media_asset[0] : asset.media_asset,
+    }))
+
+    if (normalizedAssets.length === 0) {
+      throw new Error('최소 1개의 PDF 파일을 업로드해주세요.')
+    }
+
+    for (let index = 0; index < normalizedAssets.length; index += 1) {
+      const asset = normalizedAssets[index]
+      if (asset.orderIndex !== index) {
+        const { error: reorderError } = await supabase
+          .from('task_submission_assets')
+          .update({ order_index: index })
+          .eq('id', asset.id)
+
+        if (reorderError) {
+          console.error('[submitPdfSubmission] failed to reorder submission assets', reorderError)
+        } else {
+          asset.orderIndex = index
+        }
+      }
+    }
+
+    const primaryAsset = normalizedAssets[0]?.mediaAsset ?? null
+    const primaryAssetId = primaryAsset?.id ?? null
+    const primaryName = (primaryAsset?.metadata as { originalName?: string } | null)?.originalName ?? null
+
+    const { error: updateSubmissionError } = await supabase
+      .from('task_submissions')
+      .update({
+        submission_type: 'pdf',
+        content: primaryName ?? 'PDF 제출',
+        media_asset_id: primaryAssetId,
+      })
+      .eq('id', submissionId)
+
+    if (updateSubmissionError) {
+      console.error('[submitPdfSubmission] failed to update submission record', updateSubmissionError)
+      throw new Error('제출 정보를 저장하지 못했습니다.')
     }
 
     await supabase
@@ -784,18 +930,12 @@ export async function submitPdfSubmission(formData: FormData) {
       .update({ status: 'completed', completion_at: new Date().toISOString() })
       .eq('id', studentTaskId)
 
-    if (oldAssetId) {
-      await removeMediaAsset(supabase, oldAssetId)
-    }
-
-    const effectiveSubmissionId = taskSubmissionId ?? existingSubmission?.id ?? null
-
-    if (effectiveSubmissionId) {
+    if (primaryAssetId) {
       await syncAtelierPostForPdfSubmission({
         studentTaskId,
         studentId: profile.id,
-        taskSubmissionId: effectiveSubmissionId,
-        mediaAssetId: mediaAsset.id,
+        taskSubmissionId: submissionId,
+        mediaAssetId: primaryAssetId,
       })
     }
 
@@ -808,8 +948,16 @@ export async function submitPdfSubmission(formData: FormData) {
   } catch (error) {
     console.error('[submitPdfSubmission] unexpected error', error)
 
+    for (const mediaAssetId of createdMediaAssetIds) {
+      await removeMediaAsset(supabase, mediaAssetId)
+    }
+
     for (const object of uploadedObjects) {
       await supabase.storage.from(object.bucket).remove([object.path])
+    }
+
+    if (createdSubmissionId) {
+      await supabase.from('task_submissions').delete().eq('id', createdSubmissionId)
     }
 
     return {

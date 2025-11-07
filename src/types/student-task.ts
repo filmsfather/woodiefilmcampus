@@ -88,11 +88,23 @@ export interface StudentTaskDetail extends StudentTaskSummary {
   submissions: StudentTaskSubmission[]
 }
 
+export interface StudentTaskSubmissionAsset {
+  id: string
+  mediaAssetId: string
+  bucket: string
+  path: string
+  mimeType: string | null
+  size: number | null
+  metadata: Record<string, unknown> | null
+  order: number
+}
+
 export interface StudentTaskSubmission {
   id: string
   submissionType: string
   content: string | null
   mediaAssetId: string | null
+  assets: StudentTaskSubmissionAsset[]
   score: string | null
   feedback: string | null
   evaluatedBy: string | null
