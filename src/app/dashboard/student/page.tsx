@@ -284,7 +284,7 @@ export default async function StudentDashboardPage() {
                     <dd className="flex-none">:</dd>
                     <dd className="flex-1 text-slate-600">
                       {classInfo.homeroomTeacher
-                        ? classInfo.homeroomTeacher.name ?? classInfo.homeroomTeacher.email ?? '이름 미정'
+                        ? classInfo.homeroomTeacher.name ?? '이름 미정'
                         : '미지정'}
                     </dd>
                   </div>
@@ -293,9 +293,7 @@ export default async function StudentDashboardPage() {
                     <dd className="flex-none">:</dd>
                     <dd className="flex-1 text-slate-600">
                       {classInfo.otherTeachers.length > 0 ? (
-                        classInfo.otherTeachers
-                          .map((teacher) => teacher.name ?? teacher.email ?? '이름 미정')
-                          .join(' · ')
+                        classInfo.otherTeachers.map((teacher) => teacher.name ?? '이름 미정').join(' · ')
                       ) : (
                         '미지정'
                       )}
