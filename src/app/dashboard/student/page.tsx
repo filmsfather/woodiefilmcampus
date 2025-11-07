@@ -8,6 +8,8 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TimetableSummary } from '@/types/timetable'
 
+type ProfileDisplayNameRow = { id: string; display_name: string | null }
+
 type ActionVariant = 'default' | 'secondary' | 'outline'
 
 interface DashboardActionItem {
@@ -314,17 +316,17 @@ export default async function StudentDashboardPage() {
         }
       }
 
-      let teacherProfileMap = new Map<string, { name: string | null; email: string | null }>()
+      let teacherProfileMap = new Map<string, { name: string | null }>()
       if (teacherProfileIds.size > 0) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, name, email')
-          .in('id', Array.from(teacherProfileIds))
+        const { data, error } = await supabase.rpc('get_profile_display_names', {
+          target_ids: Array.from(teacherProfileIds),
+        })
 
         if (error) {
-          console.error('[student-dashboard] failed to load teacher profiles for timetables', error)
+          console.error('[student-dashboard] failed to load teacher names for timetables', error)
         } else {
-          teacherProfileMap = new Map((data ?? []).map((profile) => [profile.id, { name: profile.name ?? null, email: profile.email ?? null }]))
+          const rows = (data as ProfileDisplayNameRow[] | null) ?? []
+          teacherProfileMap = new Map(rows.map((profile) => [profile.id, { name: profile.display_name ?? null }]))
         }
       }
 
@@ -337,7 +339,7 @@ export default async function StudentDashboardPage() {
           position: row.position,
           teacherId: row.teacher_id,
           teacherName: profile?.name ?? null,
-          teacherEmail: profile?.email ?? null,
+          teacherEmail: null,
         }
 
         const current = teacherColumnsByTimetable.get(row.timetable_id) ?? []

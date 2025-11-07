@@ -11,11 +11,13 @@ interface ProfileOption {
   email: string | null
 }
 
-function toProfileOption(row: { id: string; name: string | null; email: string | null }): ProfileOption {
+type ProfileDisplayNameRow = { id: string; display_name: string | null }
+
+function toProfileOption(row: { id: string; display_name: string | null }): ProfileOption {
   return {
     id: row.id,
-    name: row.name,
-    email: row.email,
+    name: row.display_name,
+    email: null,
   }
 }
 
@@ -175,30 +177,30 @@ export default async function TeacherTimetablePage() {
 
   let teacherOptionMap = new Map<string, ProfileOption>()
   if (teacherProfileIds.size > 0) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, name, email')
-      .in('id', Array.from(teacherProfileIds))
+    const { data, error } = await supabase.rpc('get_profile_display_names', {
+      target_ids: Array.from(teacherProfileIds),
+    })
 
     if (error) {
-      console.error('Failed to load teacher profiles for timetable viewer', error)
+      console.error('Failed to load teacher names for timetable viewer', error)
     } else {
-      teacherOptionMap = new Map((data ?? []).map((row) => [row.id, toProfileOption(row)]))
+      const rows = (data as ProfileDisplayNameRow[] | null) ?? []
+      teacherOptionMap = new Map(rows.map((row) => [row.id, toProfileOption(row)]))
     }
   }
 
   const studentIds = new Set(classStudentRows.map((row) => row.student_id))
   let studentOptionMap = new Map<string, ProfileOption>()
   if (studentIds.size > 0) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, name, email')
-      .in('id', Array.from(studentIds))
+    const { data, error } = await supabase.rpc('get_profile_display_names', {
+      target_ids: Array.from(studentIds),
+    })
 
     if (error) {
-      console.error('Failed to load student profiles for timetable viewer', error)
+      console.error('Failed to load student names for timetable viewer', error)
     } else {
-      studentOptionMap = new Map((data ?? []).map((row) => [row.id, toProfileOption(row)]))
+      const rows = (data as ProfileDisplayNameRow[] | null) ?? []
+      studentOptionMap = new Map(rows.map((row) => [row.id, toProfileOption(row)]))
     }
   }
 
