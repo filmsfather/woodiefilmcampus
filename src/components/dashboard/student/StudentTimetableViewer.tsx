@@ -2,21 +2,11 @@
 
 import { useMemo, useState } from 'react'
 
-import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type {
-  TimetableAssignment,
-  TimetablePeriod,
-  TimetableSummary,
-  TimetableTeacherColumn,
-} from '@/types/timetable'
+import type { TimetablePeriod, TimetableSummary, TimetableTeacherColumn } from '@/types/timetable'
 
 interface StudentTimetableViewerProps {
   timetables: TimetableSummary[]
-}
-
-function sortColumns(columns: TimetableTeacherColumn[]) {
-  return [...columns].sort((a, b) => a.position - b.position)
 }
 
 function sortPeriods(periods: TimetablePeriod[]) {
@@ -38,26 +28,46 @@ export function StudentTimetableViewer({ timetables }: StudentTimetableViewerPro
     return timetables.find((item) => item.id === selectedTimetableId) ?? timetables[0] ?? null
   }, [selectedTimetableId, timetables])
 
-  const assignmentsByCell = useMemo(() => {
-    const map = new Map<string, TimetableAssignment[]>()
-
+  const teacherColumnMap = useMemo(() => {
     if (!selectedTimetable) {
-      return map
+      return new Map<string, TimetableTeacherColumn>()
     }
+
+    return new Map(selectedTimetable.teacherColumns.map((column) => [column.id, column]))
+  }, [selectedTimetable])
+
+  const periodAssignments = useMemo(() => {
+    if (!selectedTimetable) {
+      return [] as Array<{ periodId: string; periodName: string; assignments: Array<{ id: string; teacherLabel: string }> }>
+    }
+
+    const assignmentsByPeriod = new Map<string, Array<{ id: string; teacherLabel: string }>>()
 
     for (const assignment of selectedTimetable.assignments) {
-      const key = `${assignment.teacherColumnId}:${assignment.periodId}`
-      const current = map.get(key) ?? []
-      current.push(assignment)
-      map.set(key, current)
+      const column = assignment.teacherColumnId ? teacherColumnMap.get(assignment.teacherColumnId) ?? null : null
+      const teacherLabel = column?.teacherName ?? column?.teacherEmail ?? '담당 교사 미정'
+      const current = assignmentsByPeriod.get(assignment.periodId) ?? []
+      current.push({ id: assignment.id, teacherLabel })
+      assignmentsByPeriod.set(assignment.periodId, current)
     }
 
-    for (const [, assignments] of map) {
-      assignments.sort((a, b) => a.className.localeCompare(b.className, 'ko'))
-    }
+    return sortPeriods(selectedTimetable.periods)
+      .map((period) => {
+        const assignments = assignmentsByPeriod.get(period.id) ?? []
+        const sortedAssignments = [...assignments].sort((a, b) => a.teacherLabel.localeCompare(b.teacherLabel, 'ko'))
 
-    return map
-  }, [selectedTimetable])
+        if (sortedAssignments.length === 0) {
+          return null
+        }
+
+        return {
+          periodId: period.id,
+          periodName: period.name,
+          assignments: sortedAssignments,
+        }
+      })
+      .filter((value): value is { periodId: string; periodName: string; assignments: Array<{ id: string; teacherLabel: string }> } => value !== null)
+  }, [selectedTimetable, teacherColumnMap])
 
   if (!selectedTimetable) {
     return (
@@ -86,62 +96,27 @@ export function StudentTimetableViewer({ timetables }: StudentTimetableViewerPro
         </div>
       ) : null}
 
-      {selectedTimetable ? (
-        <div className="overflow-auto">
-          <table className="w-full min-w-[640px] table-fixed border-collapse">
-            <thead>
-              <tr>
-                <th className="w-40 border border-slate-200 bg-slate-50 px-4 py-2 text-left text-sm font-medium text-slate-700">
-                  교시
-                </th>
-                {sortColumns(selectedTimetable.teacherColumns).map((column) => (
-                  <th
-                    key={column.id}
-                    className="min-w-[160px] border border-slate-200 bg-slate-50 px-4 py-2 text-left text-sm font-medium text-slate-700"
-                  >
-                    {column.teacherName ?? '담당 교사 미정'}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sortPeriods(selectedTimetable.periods).map((period) => (
-                <tr key={period.id}>
-                  <td className="border border-slate-200 px-4 py-3 align-top">
-                    <div className="whitespace-pre-line text-sm font-medium text-slate-800">{period.name}</div>
-                  </td>
-                  {sortColumns(selectedTimetable.teacherColumns).map((column) => {
-                    const key = `${column.id}:${period.id}`
-                    const assignments = assignmentsByCell.get(key) ?? []
-
-                    return (
-                      <td key={column.id} className="border border-slate-200 px-3 py-3 align-top">
-                        {assignments.length === 0 ? (
-                          <div className="rounded-md border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
-                            배정 없음
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {assignments.map((assignment) => (
-                              <Badge key={assignment.id} variant="secondary" className="text-xs">
-                                {assignment.className}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="rounded-lg border border-slate-200">
+        <div className="border-b border-slate-200 px-4 py-3 text-sm font-medium text-slate-700">
+          {selectedTimetable.name}
         </div>
-      ) : (
-        <div className="rounded-md border border-dashed border-slate-200 px-4 py-12 text-center text-sm text-slate-500">
-          아직 확인할 수 있는 시간표가 없습니다.
-        </div>
-      )}
+        {periodAssignments.length > 0 ? (
+          <div className="divide-y divide-slate-200">
+            {periodAssignments.map((period) => (
+              <div key={period.periodId} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="text-sm font-semibold text-slate-900">{period.periodName}</div>
+                <div className="flex flex-col text-right text-sm text-slate-700">
+                  {period.assignments.map((assignment) => (
+                    <span key={assignment.id}>{assignment.teacherLabel}</span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-8 text-center text-sm text-slate-500">아직 배정된 수업이 없습니다.</div>
+        )}
+      </div>
     </div>
   )
 }
