@@ -9,6 +9,9 @@ import { submitPdfSubmission } from '@/app/dashboard/student/tasks/actions'
 import { Button } from '@/components/ui/button'
 import type { StudentTaskSubmission } from '@/types/student-task'
 import { Badge } from '@/components/ui/badge'
+import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
+import { MAX_PDF_FILE_SIZE } from '@/lib/storage/limits'
+import { buildRandomizedFileName, uploadFileToStorageViaClient } from '@/lib/storage-upload'
 
 interface PdfTaskPanelProps {
   studentTaskId: string
@@ -28,7 +31,7 @@ interface PdfTaskPanelProps {
   }>
 }
 
-const MAX_DISPLAY_SIZE_MB = 20
+const MAX_DISPLAY_SIZE_MB = Math.round(MAX_PDF_FILE_SIZE / (1024 * 1024))
 
 export function PdfTaskPanel({
   studentTaskId,
@@ -62,17 +65,34 @@ export function PdfTaskPanel({
       return
     }
 
-    const maxBytes = MAX_DISPLAY_SIZE_MB * 1024 * 1024
-    if (file.size > maxBytes) {
+    if (file.size > MAX_PDF_FILE_SIZE) {
       setErrorMessage(`파일 크기는 최대 ${MAX_DISPLAY_SIZE_MB}MB까지 지원합니다.`)
       return
     }
 
     startTransition(async () => {
       try {
+        const storagePath = `student_tasks/${studentTaskId}/${buildRandomizedFileName(file.name)}`
+
+        const uploaded = await uploadFileToStorageViaClient({
+          bucket: SUBMISSIONS_BUCKET,
+          file,
+          path: storagePath,
+          maxSizeBytes: MAX_PDF_FILE_SIZE,
+        })
+
         const formData = new FormData()
         formData.append('studentTaskId', studentTaskId)
-        formData.append('file', file)
+        formData.append(
+          'uploadedFile',
+          JSON.stringify({
+            bucket: SUBMISSIONS_BUCKET,
+            path: uploaded.path,
+            size: uploaded.size,
+            mimeType: uploaded.mimeType,
+            originalName: uploaded.originalName,
+          })
+        )
 
         const response = await submitPdfSubmission(formData)
 

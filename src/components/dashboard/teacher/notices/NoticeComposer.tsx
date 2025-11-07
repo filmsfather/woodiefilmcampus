@@ -13,7 +13,12 @@ import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import RichTextEditor from '@/components/ui/rich-text-editor'
 import type { StaffProfile } from '@/lib/notice-board'
-import { MAX_NOTICE_ATTACHMENT_SIZE } from '@/lib/notice-board'
+import { MAX_NOTICE_ATTACHMENT_SIZE, NOTICE_BOARD_BUCKET } from '@/lib/notice-board'
+import {
+  buildPendingStoragePath,
+  type UploadedObjectMeta,
+  uploadFileToStorageViaClient,
+} from '@/lib/storage-upload'
 
 interface NoticeComposerDefaults {
   noticeId?: string
@@ -29,6 +34,7 @@ interface NoticeComposerProps {
   defaults?: NoticeComposerDefaults
   submitLabel?: string
   onDelete?: ((formData: FormData) => Promise<{ success?: boolean; error?: string }>) | null
+  currentUserId: string
 }
 
 const ROLE_LABEL: Record<StaffProfile['role'], string> = {
@@ -46,7 +52,14 @@ function formatFileSize(bytes: number) {
   return `${value.toFixed(value >= 10 || index === 0 ? 0 : 1)}${units[index]}`
 }
 
-export function NoticeComposer({ recipients, onSubmit, defaults, submitLabel = '공지 저장', onDelete }: NoticeComposerProps) {
+export function NoticeComposer({
+  recipients,
+  onSubmit,
+  defaults,
+  submitLabel = '공지 저장',
+  onDelete,
+  currentUserId,
+}: NoticeComposerProps) {
   const router = useRouter()
   const [title, setTitle] = useState(defaults?.title ?? '')
   const [body, setBody] = useState(defaults?.body ?? '')
@@ -120,6 +133,7 @@ export function NoticeComposer({ recipients, onSubmit, defaults, submitLabel = '
   const handleFileChange = (event: FormEvent<HTMLInputElement>) => {
     const files = event.currentTarget.files
     setSelectedFiles(files ? Array.from(files) : [])
+    setError(null)
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -176,6 +190,43 @@ export function NoticeComposer({ recipients, onSubmit, defaults, submitLabel = '
     })
 
     startTransition(async () => {
+      try {
+        const uploadedAttachments: UploadedObjectMeta[] = []
+
+        for (const file of attachments) {
+          const storagePath = buildPendingStoragePath({
+            ownerId: currentUserId,
+            prefix: 'pending/notice-board',
+            fileName: file.name,
+          })
+
+          const meta = await uploadFileToStorageViaClient({
+            bucket: NOTICE_BOARD_BUCKET,
+            file,
+            path: storagePath,
+            maxSizeBytes: MAX_NOTICE_ATTACHMENT_SIZE,
+          })
+
+          uploadedAttachments.push({
+            bucket: NOTICE_BOARD_BUCKET,
+            path: meta.path,
+            size: meta.size,
+            mimeType: meta.mimeType,
+            originalName: meta.originalName,
+          })
+        }
+
+        if (uploadedAttachments.length > 0) {
+          formData.set('uploadedAttachments', JSON.stringify(uploadedAttachments))
+        } else {
+          formData.delete('uploadedAttachments')
+        }
+      } catch (uploadError) {
+        console.error('[NoticeComposer] upload failed', uploadError)
+        setError(uploadError instanceof Error ? uploadError.message : '첨부 파일 업로드에 실패했습니다.')
+        return
+      }
+
       const result = await onSubmit(formData)
 
       if (result?.error) {
@@ -184,6 +235,7 @@ export function NoticeComposer({ recipients, onSubmit, defaults, submitLabel = '
       }
 
       if (result?.success) {
+        setSelectedFiles([])
         const targetId = result.noticeId ?? defaults?.noticeId ?? null
         if (targetId) {
           router.push(`/dashboard/teacher/notices/${targetId}`)
@@ -382,7 +434,6 @@ export function NoticeComposer({ recipients, onSubmit, defaults, submitLabel = '
             <Label htmlFor="notice-attachments">첨부 이미지 (선택)</Label>
             <Input
               id="notice-attachments"
-              name="attachments"
               type="file"
               accept="image/*"
               multiple

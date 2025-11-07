@@ -16,7 +16,7 @@ import { PAST_EXAM_UNIVERSITIES } from '@/lib/admission-materials-constants'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
-const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
 
 export type AdmissionScheduleInput = {
   title: string

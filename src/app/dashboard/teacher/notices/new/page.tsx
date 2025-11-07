@@ -27,7 +27,7 @@ export default async function CreateNoticePage() {
         </div>
       </div>
 
-      <NoticeComposer recipients={recipients} onSubmit={createNotice} />
+      <NoticeComposer recipients={recipients} onSubmit={createNotice} currentUserId={profile.id} />
     </section>
   )
 }

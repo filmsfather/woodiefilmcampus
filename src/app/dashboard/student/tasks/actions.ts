@@ -1,7 +1,5 @@
 'use server'
 
-import { randomUUID } from 'crypto'
-
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
@@ -9,9 +7,69 @@ import { z } from 'zod'
 import { getAuthContext } from '@/lib/auth'
 import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
+import { MAX_PDF_FILE_SIZE } from '@/lib/storage/limits'
 
-const SUBMISSIONS_BUCKET = 'submissions'
-const MAX_PDF_FILE_SIZE = 20 * 1024 * 1024
+type UploadedFilePayload = {
+  bucket: string
+  path: string
+  size: number
+  mimeType: string
+  originalName: string
+}
+
+function sanitizeSubmissionFileName(name: string) {
+  const fallback = 'submission.pdf'
+  if (!name) {
+    return fallback
+  }
+  const trimmed = name.trim()
+  if (!trimmed) {
+    return fallback
+  }
+  return trimmed.replace(/[^a-zA-Z0-9_.-]/g, '_') || fallback
+}
+
+function parseUploadedFilePayload(value: FormDataEntryValue | null): UploadedFilePayload | null {
+  if (!value) {
+    return null
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    console.error('[submitPdfSubmission] failed to parse uploaded payload', error)
+    throw new Error('파일 정보를 확인하지 못했습니다.')
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('파일 정보 형식이 올바르지 않습니다.')
+  }
+
+  const record = parsed as Record<string, unknown>
+  const bucket = typeof record.bucket === 'string' ? record.bucket : null
+  const path = typeof record.path === 'string' ? record.path : null
+  const size = typeof record.size === 'number' ? record.size : Number(record.size)
+  const mimeType = typeof record.mimeType === 'string' ? record.mimeType : null
+  const originalName = typeof record.originalName === 'string' ? record.originalName : null
+
+  if (!bucket || !path || !Number.isFinite(size) || !mimeType || !originalName) {
+    throw new Error('파일 정보가 손상되었습니다.')
+  }
+
+  return {
+    bucket,
+    path,
+    size,
+    mimeType,
+    originalName,
+  }
+}
 
 export async function submitSrsAnswer({
   studentTaskItemId,
@@ -604,13 +662,18 @@ export async function submitPdfSubmission(formData: FormData) {
   }
 
   const studentTaskIdValue = formData.get('studentTaskId')
-  const fileValue = formData.get('file')
-
   if (typeof studentTaskIdValue !== 'string' || studentTaskIdValue.length === 0) {
     return { success: false as const, error: '과제 정보가 올바르지 않습니다.' }
   }
 
   const studentTaskId = studentTaskIdValue
+
+  let uploadedFile: UploadedFilePayload | null = null
+  try {
+    uploadedFile = parseUploadedFilePayload(formData.get('uploadedFile'))
+  } catch (error) {
+    return { success: false as const, error: error instanceof Error ? error.message : '파일 정보를 확인하지 못했습니다.' }
+  }
 
   const supabase = createServerSupabase()
 
@@ -620,44 +683,33 @@ export async function submitPdfSubmission(formData: FormData) {
     return { success: false as const, error: '해당 과제에 접근할 수 없습니다.' }
   }
 
-  if (!(fileValue instanceof File)) {
+  if (!uploadedFile) {
     return { success: false as const, error: '업로드할 PDF 파일을 선택해주세요.' }
   }
 
-  const file = fileValue
+  if (uploadedFile.bucket !== SUBMISSIONS_BUCKET) {
+    return { success: false as const, error: '허용되지 않은 저장소 경로입니다.' }
+  }
 
-  if (file.type !== 'application/pdf') {
+  if (!uploadedFile.path.startsWith(`student_tasks/${studentTaskId}/`)) {
+    return { success: false as const, error: '파일 경로가 과제 정보와 일치하지 않습니다.' }
+  }
+
+  if (uploadedFile.mimeType !== 'application/pdf') {
     return { success: false as const, error: 'PDF 파일만 업로드할 수 있습니다.' }
   }
 
-  if (file.size > MAX_PDF_FILE_SIZE) {
+  if (uploadedFile.size > MAX_PDF_FILE_SIZE) {
     const maxMb = Math.round(MAX_PDF_FILE_SIZE / (1024 * 1024))
     return { success: false as const, error: `파일 용량은 최대 ${maxMb}MB까지 지원합니다.` }
   }
 
-  const sanitizedName = file.name.replace(/[^a-zA-Z0-9_.-]/g, '_') || 'submission.pdf'
-  const storagePath = `student_tasks/${studentTaskId}/${randomUUID()}-${sanitizedName}`
+  const sanitizedName = sanitizeSubmissionFileName(uploadedFile.originalName)
+  const storagePath = uploadedFile.path
 
-  const fileBuffer = Buffer.from(await file.arrayBuffer())
-
-  const uploadedObjects: Array<{ bucket: string; path: string }> = []
+  const uploadedObjects: Array<{ bucket: string; path: string }> = [{ bucket: SUBMISSIONS_BUCKET, path: storagePath }]
 
   try {
-    const { error: uploadError } = await supabase.storage
-      .from(SUBMISSIONS_BUCKET)
-      .upload(storagePath, fileBuffer, {
-        cacheControl: '3600',
-        contentType: 'application/pdf',
-        upsert: false,
-      })
-
-    if (uploadError) {
-      console.error('[submitPdfSubmission] storage upload failed', uploadError)
-      return { success: false as const, error: '파일 업로드에 실패했습니다.' }
-    }
-
-    uploadedObjects.push({ bucket: SUBMISSIONS_BUCKET, path: storagePath })
-
     const { data: existingSubmission, error: existingSubmissionError } = await supabase
       .from('task_submissions')
       .select('id, media_asset_id')
@@ -680,7 +732,7 @@ export async function submitPdfSubmission(formData: FormData) {
         bucket: SUBMISSIONS_BUCKET,
         path: storagePath,
         mime_type: 'application/pdf',
-        size: file.size,
+        size: uploadedFile.size,
         metadata: { originalName: sanitizedName },
       })
       .select('id')

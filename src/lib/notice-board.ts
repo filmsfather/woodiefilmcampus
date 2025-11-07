@@ -4,7 +4,7 @@ import { ensureRichTextValue, isRichTextEmpty, sanitizeRichTextInput } from '@/l
 
 export const NOTICE_BOARD_BUCKET = 'notice-board'
 export const NOTICE_MEDIA_SCOPE = 'notice'
-export const MAX_NOTICE_ATTACHMENT_SIZE = 10 * 1024 * 1024 // 10MB total budget per post handled in actions
+export const MAX_NOTICE_ATTACHMENT_SIZE = 50 * 1024 * 1024 // 50MB total budget per post handled in actions
 
 export interface StaffProfile {
   id: string

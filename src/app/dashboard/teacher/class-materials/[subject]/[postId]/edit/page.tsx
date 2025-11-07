@@ -7,9 +7,11 @@ import {
   updateClassMaterialPost,
 } from '@/app/dashboard/teacher/class-materials/actions'
 import {
+  type ClassMaterialAssetType,
   getClassMaterialSubjectLabel,
   isClassMaterialSubject,
 } from '@/lib/class-materials'
+import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 export default async function EditClassMaterialPage({
@@ -17,6 +19,7 @@ export default async function EditClassMaterialPage({
 }: {
   params: { subject: string; postId: string }
 }) {
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   if (!isClassMaterialSubject(params.subject)) {
     notFound()
   }
@@ -32,8 +35,12 @@ export default async function EditClassMaterialPage({
        week_label,
        title,
        description,
-       class_material_asset:media_assets!class_material_posts_class_material_asset_id_fkey(metadata),
-       student_handout_asset:media_assets!class_material_posts_student_handout_asset_id_fkey(metadata)
+       attachments:class_material_post_assets!class_material_post_assets_post_id_fkey(
+         id,
+         kind,
+         order_index,
+         media_asset:media_assets(id, metadata)
+       )
       `
     )
     .eq('id', params.postId)
@@ -48,23 +55,27 @@ export default async function EditClassMaterialPage({
     notFound()
   }
 
-  const classMaterialAsset = Array.isArray(data.class_material_asset)
-    ? data.class_material_asset[0]
-    : data.class_material_asset
-  const studentHandoutAsset = Array.isArray(data.student_handout_asset)
-    ? data.student_handout_asset[0]
-    : data.student_handout_asset
-
-  const classMaterialMeta = (classMaterialAsset?.metadata as { originalName?: string } | null) ?? null
-  const studentHandoutMeta = (studentHandoutAsset?.metadata as { originalName?: string } | null) ?? null
+  const attachmentDefaults = (Array.isArray(data.attachments) ? data.attachments : [])
+    .map((attachment) => {
+      const mediaRelation = Array.isArray(attachment.media_asset)
+        ? attachment.media_asset[0]
+        : attachment.media_asset
+      const meta = (mediaRelation?.metadata as { originalName?: string } | null) ?? null
+      return {
+        id: String(attachment.id),
+        kind: (attachment.kind ?? 'class_material') as ClassMaterialAssetType,
+        name: meta?.originalName ?? '첨부 파일',
+        order: Number(attachment.order_index ?? 0),
+      }
+    })
+    .sort((a, b) => a.order - b.order)
 
   const defaults = {
     postId: data.id as string,
     weekLabel: data.week_label as string | null,
     title: data.title as string,
     description: data.description as string | null,
-    classMaterialName: classMaterialMeta?.originalName ?? null,
-    studentHandoutName: studentHandoutMeta?.originalName ?? null,
+    attachments: attachmentDefaults,
   }
 
   const title = getClassMaterialSubjectLabel(subject)
@@ -86,6 +97,7 @@ export default async function EditClassMaterialPage({
         submitLabel="자료 수정"
         onSubmit={updateClassMaterialPost}
         onDelete={deleteClassMaterialPost.bind(null, params.postId)}
+        currentUserId={profile.id}
       />
     </section>
   )

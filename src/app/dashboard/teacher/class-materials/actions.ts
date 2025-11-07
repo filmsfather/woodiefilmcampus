@@ -12,6 +12,7 @@ import {
   isClassMaterialSubject,
 } from '@/lib/class-materials'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import type { UploadedObjectMeta } from '@/lib/storage-upload'
 
 type ActionResult = {
   success?: boolean
@@ -29,7 +30,7 @@ type PrintRequestResult = {
   error?: string
 }
 
-const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
 
 function sanitizeFileName(name: string) {
   if (!name) {
@@ -38,80 +39,308 @@ function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9_.-]/g, '_')
 }
 
-async function uploadMaterialFile(
-  file: File,
-  subject: ClassMaterialSubject,
-  postId: string,
-  kind: 'class_material' | 'student_handout',
-  supabase: ReturnType<typeof createServerSupabase>,
-  ownerId: string
-) {
-  const sanitizedName = sanitizeFileName(file.name)
-  const storagePath = `${subject}/${postId}/${kind}/${randomUUID()}-${sanitizedName}`
-  const buffer = Buffer.from(await file.arrayBuffer())
+type UploadedClassMaterialAttachment = UploadedObjectMeta & {
+  kind: ClassMaterialAssetType
+}
 
-  const { error: uploadError } = await supabase.storage.from(CLASS_MATERIALS_BUCKET).upload(storagePath, buffer, {
-    cacheControl: '3600',
-    contentType: file.type || 'application/octet-stream',
-    upsert: false,
-  })
+type ClassMaterialPostAssetRow = {
+  id: string
+  kind: ClassMaterialAssetType
+  order_index: number
+  media_asset_id: string | null
+  media_asset?: {
+    id: string
+    bucket: string | null
+    path: string | null
+  } | null
+}
 
-  if (uploadError) {
-    console.error('[class-materials] storage upload failed', uploadError)
-    throw new Error('파일 업로드에 실패했습니다.')
+function normalizePostAssetRow(row: {
+  id: unknown
+  kind: unknown
+  order_index: unknown
+  media_asset_id: unknown
+  media_asset?: { id: unknown; bucket: unknown; path: unknown }[] | null
+}): ClassMaterialPostAssetRow {
+  const mediaRelation = Array.isArray(row.media_asset) ? row.media_asset[0] : row.media_asset
+  return {
+    id: String(row.id),
+    kind: (row.kind ?? 'class_material') as ClassMaterialAssetType,
+    order_index: Number(row.order_index ?? 0),
+    media_asset_id: row.media_asset_id ? String(row.media_asset_id) : null,
+    media_asset: mediaRelation
+      ? {
+          id: String(mediaRelation.id),
+          bucket: mediaRelation.bucket ? String(mediaRelation.bucket) : null,
+          path: mediaRelation.path ? String(mediaRelation.path) : null,
+        }
+      : null,
+  }
+}
+
+function parseUploadedClassMaterialAttachments(value: FormDataEntryValue | null | undefined) {
+  if (!value) {
+    return [] as UploadedClassMaterialAttachment[]
   }
 
-  const { data: asset, error: assetError } = await supabase
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return [] as UploadedClassMaterialAttachment[]
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    console.error('[class-materials] failed to parse attachment payload', error)
+    throw new Error('첨부 파일 정보를 확인하지 못했습니다.')
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('첨부 파일 정보 형식이 올바르지 않습니다.')
+  }
+
+  return parsed.map((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error(`첨부 파일 정보가 손상되었습니다. (index: ${index})`)
+    }
+
+    const record = item as Record<string, unknown>
+    const bucket = typeof record.bucket === 'string' ? record.bucket : null
+    const path = typeof record.path === 'string' ? record.path : null
+    const size = typeof record.size === 'number' ? record.size : Number(record.size)
+    const mimeType = typeof record.mimeType === 'string' ? record.mimeType : null
+    const originalName = typeof record.originalName === 'string' ? record.originalName : null
+    const kind = (record.kind as ClassMaterialAssetType | null) ?? null
+
+    if (!bucket || !path || !Number.isFinite(size) || !mimeType || !originalName || !kind) {
+      throw new Error('첨부 파일 정보가 올바르지 않습니다.')
+    }
+
+    if (bucket !== CLASS_MATERIALS_BUCKET) {
+      throw new Error('허용되지 않은 저장소 경로가 감지되었습니다.')
+    }
+
+    if (size > MAX_UPLOAD_SIZE) {
+      throw new Error('첨부 파일 용량 제한을 초과했습니다.')
+    }
+
+    return {
+      bucket,
+      path,
+      size,
+      mimeType,
+      originalName,
+      kind,
+    }
+  }) as UploadedClassMaterialAttachment[]
+}
+
+async function finalizeClassMaterialAttachment(
+  supabase: ReturnType<typeof createServerSupabase>,
+  params: {
+    attachment: UploadedClassMaterialAttachment
+    postId: string
+    subject: ClassMaterialSubject
+    ownerId: string
+    orderIndex: number
+  }
+) {
+  const { attachment, postId, subject, ownerId, orderIndex } = params
+  const sanitizedName = sanitizeFileName(attachment.originalName)
+  const finalPath = `${subject}/${postId}/${attachment.kind}/${randomUUID()}-${sanitizedName}`
+
+  if (attachment.path !== finalPath) {
+    const { error: moveError } = await supabase.storage.from(CLASS_MATERIALS_BUCKET).move(attachment.path, finalPath)
+    if (moveError) {
+      console.error('[class-materials] failed to move attachment', moveError, { from: attachment.path, to: finalPath })
+      throw new Error('첨부 파일을 이동하지 못했습니다.')
+    }
+  }
+
+  const { data: mediaAsset, error: mediaAssetError } = await supabase
     .from('media_assets')
     .insert({
       owner_id: ownerId,
       scope: 'class_material',
       bucket: CLASS_MATERIALS_BUCKET,
-      path: storagePath,
-      mime_type: file.type || null,
-      size: file.size,
+      path: finalPath,
+      mime_type: attachment.mimeType,
+      size: attachment.size,
       metadata: {
         originalName: sanitizedName,
-        kind,
+        kind: attachment.kind,
       },
     })
     .select('id')
     .single()
 
-  if (assetError || !asset?.id) {
-    console.error('[class-materials] media_assets insert failed', assetError)
-    await supabase.storage.from(CLASS_MATERIALS_BUCKET).remove([storagePath])
-    throw new Error('파일 정보를 저장하지 못했습니다.')
+  if (mediaAssetError || !mediaAsset?.id) {
+    console.error('[class-materials] failed to insert media asset', mediaAssetError)
+    await supabase.storage.from(CLASS_MATERIALS_BUCKET).remove([finalPath])
+    throw new Error('첨부 파일 정보를 저장하지 못했습니다.')
+  }
+
+  const { data: postAsset, error: postAssetError } = await supabase
+    .from('class_material_post_assets')
+    .insert({
+      post_id: postId,
+      kind: attachment.kind,
+      media_asset_id: mediaAsset.id as string,
+      order_index: orderIndex,
+      created_by: ownerId,
+    })
+    .select('id')
+    .single()
+
+  if (postAssetError || !postAsset?.id) {
+    console.error('[class-materials] failed to insert post asset', postAssetError)
+    await supabase.storage.from(CLASS_MATERIALS_BUCKET).remove([finalPath])
+    await supabase.from('media_assets').delete().eq('id', mediaAsset.id)
+    throw new Error('첨부 정보를 연결하지 못했습니다.')
   }
 
   return {
-    assetId: asset.id as string,
-    storagePath,
+    mediaAssetId: mediaAsset.id as string,
+    postAssetId: postAsset.id as string,
+    kind: attachment.kind,
+    path: finalPath,
   }
 }
 
-async function removeAsset(
+async function fetchClassMaterialPostAssets(
   supabase: ReturnType<typeof createServerSupabase>,
-  assetId: string | null | undefined,
-  storagePath: string | null | undefined
+  postId: string
 ) {
-  if (!assetId && !storagePath) {
+  const { data, error } = await supabase
+    .from('class_material_post_assets')
+    .select('id, kind, order_index, media_asset_id, media_asset:media_assets(id, bucket, path)')
+    .eq('post_id', postId)
+    .order('order_index', { ascending: true })
+
+  if (error) {
+    console.error('[class-materials] failed to fetch post assets', error)
+    throw new Error('첨부 파일 정보를 불러오지 못했습니다.')
+  }
+
+  return (data ?? []).map((row) => normalizePostAssetRow(row))
+}
+
+async function deleteClassMaterialPostAssets(
+  supabase: ReturnType<typeof createServerSupabase>,
+  assetRows: ClassMaterialPostAssetRow[]
+) {
+  if (!assetRows.length) {
     return
   }
 
-  if (storagePath) {
-    const { error: removeError } = await supabase.storage.from(CLASS_MATERIALS_BUCKET).remove([storagePath])
+  const mediaAssetIds = assetRows
+    .map((row) => row.media_asset_id)
+    .filter((value): value is string => Boolean(value))
+
+  const storagePaths = assetRows
+    .map((row) => row.media_asset?.path)
+    .filter((value): value is string => Boolean(value))
+
+  if (storagePaths.length > 0) {
+    const { error: removeError } = await supabase.storage.from(CLASS_MATERIALS_BUCKET).remove(storagePaths)
     if (removeError) {
-      console.error('[class-materials] failed to remove storage object', removeError)
+      console.error('[class-materials] failed to remove attachment objects', removeError)
     }
   }
 
-  if (assetId) {
-    const { error: deleteError } = await supabase.from('media_assets').delete().eq('id', assetId)
-    if (deleteError) {
-      console.error('[class-materials] failed to delete media asset', deleteError)
+  const assetIds = assetRows.map((row) => row.id)
+  const { error: deleteRowsError } = await supabase
+    .from('class_material_post_assets')
+    .delete()
+    .in('id', assetIds)
+
+  if (deleteRowsError) {
+    console.error('[class-materials] failed to delete post assets', deleteRowsError)
+  }
+
+  if (mediaAssetIds.length > 0) {
+    const { error: deleteMediaAssetsError } = await supabase
+      .from('media_assets')
+      .delete()
+      .in('id', mediaAssetIds)
+    if (deleteMediaAssetsError) {
+      console.error('[class-materials] failed to delete media asset rows', deleteMediaAssetsError)
     }
   }
+}
+
+async function syncPrimaryClassMaterialAssets(
+  supabase: ReturnType<typeof createServerSupabase>,
+  postId: string
+) {
+  const assets = await fetchClassMaterialPostAssets(supabase, postId)
+
+  const orderedByKind: Record<ClassMaterialAssetType, ClassMaterialPostAssetRow[]> = {
+    class_material: [],
+    student_handout: [],
+  }
+
+  assets.forEach((asset) => {
+    orderedByKind[asset.kind]?.push(asset)
+  })
+
+  for (const kind of Object.keys(orderedByKind) as ClassMaterialAssetType[]) {
+    const list = orderedByKind[kind]
+    list.sort((a, b) => a.order_index - b.order_index)
+    for (let index = 0; index < list.length; index += 1) {
+      const targetOrder = index
+      if (list[index].order_index !== targetOrder) {
+        const { error } = await supabase
+          .from('class_material_post_assets')
+          .update({ order_index: targetOrder })
+          .eq('id', list[index].id)
+        if (error) {
+          console.error('[class-materials] failed to update attachment order', error, { assetId: list[index].id })
+        } else {
+          list[index].order_index = targetOrder
+        }
+      }
+    }
+  }
+
+  const primaryClassMaterial = orderedByKind.class_material[0]?.media_asset_id ?? null
+  const primaryHandout = orderedByKind.student_handout[0]?.media_asset_id ?? null
+
+  const { error: primaryUpdateError } = await supabase
+    .from('class_material_posts')
+    .update({
+      class_material_asset_id: primaryClassMaterial,
+      student_handout_asset_id: primaryHandout,
+    })
+    .eq('id', postId)
+
+  if (primaryUpdateError) {
+    console.error('[class-materials] failed to sync primary asset columns', primaryUpdateError, { postId })
+  }
+
+  return orderedByKind
+}
+
+async function cleanupPostAssetsByIds(
+  supabase: ReturnType<typeof createServerSupabase>,
+  assetIds: string[]
+) {
+  if (!assetIds.length) {
+    return
+  }
+
+  const { data, error } = await supabase
+    .from('class_material_post_assets')
+    .select('id, kind, order_index, media_asset_id, media_asset:media_assets(id, bucket, path)')
+    .in('id', assetIds)
+
+  if (error) {
+    console.error('[class-materials] failed to load assets for cleanup', error)
+    return
+  }
+
+  const normalized = (data ?? []).map((row) => normalizePostAssetRow(row))
+  await deleteClassMaterialPostAssets(supabase, normalized)
 }
 
 function revalidateMaterialPaths(subject: ClassMaterialSubject, postId?: string) {
@@ -149,46 +378,27 @@ export async function createClassMaterialPost(formData: FormData): Promise<Actio
   const descriptionValue = formData.get('description')
   const weekLabel = typeof weekLabelValue === 'string' ? weekLabelValue.trim() : ''
   const description = typeof descriptionValue === 'string' ? descriptionValue.trim() : ''
-  const classMaterialFile = formData.get('classMaterialFile')
-  const studentHandoutFile = formData.get('studentHandoutFile')
+  const uploadedAttachmentsValue = formData.get('uploadedAttachments')
 
-  if (classMaterialFile instanceof File && classMaterialFile.size > MAX_UPLOAD_SIZE) {
-    return { error: '수업자료 파일 용량이 제한을 초과했습니다.' }
-  }
-
-  if (studentHandoutFile instanceof File && studentHandoutFile.size > MAX_UPLOAD_SIZE) {
-    return { error: '학생 유인물 파일 용량이 제한을 초과했습니다.' }
+  let uploadedAttachments: UploadedClassMaterialAttachment[] = []
+  try {
+    uploadedAttachments = parseUploadedClassMaterialAttachments(uploadedAttachmentsValue)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : '첨부 파일 정보를 확인하지 못했습니다.' }
   }
 
   const supabase = createServerSupabase()
   const postId = randomUUID()
 
-  const uploadedAssets: Array<{ assetId: string; storagePath: string }> = []
-
   try {
-    let classMaterialAssetId: string | null = null
-    let studentHandoutAssetId: string | null = null
-
-    if (classMaterialFile instanceof File && classMaterialFile.size > 0) {
-      const upload = await uploadMaterialFile(classMaterialFile, subject, postId, 'class_material', supabase, profile.id)
-      classMaterialAssetId = upload.assetId
-      uploadedAssets.push(upload)
-    }
-
-    if (studentHandoutFile instanceof File && studentHandoutFile.size > 0) {
-      const upload = await uploadMaterialFile(studentHandoutFile, subject, postId, 'student_handout', supabase, profile.id)
-      studentHandoutAssetId = upload.assetId
-      uploadedAssets.push(upload)
-    }
-
     const { error: insertError } = await supabase.from('class_material_posts').insert({
       id: postId,
       subject,
       week_label: weekLabel || null,
       title,
       description: description || null,
-      class_material_asset_id: classMaterialAssetId,
-      student_handout_asset_id: studentHandoutAssetId,
+      class_material_asset_id: null,
+      student_handout_asset_id: null,
       created_by: profile.id,
     })
 
@@ -197,15 +407,38 @@ export async function createClassMaterialPost(formData: FormData): Promise<Actio
       throw new Error('수업자료를 저장하지 못했습니다.')
     }
 
+    const attachmentCounters: Record<ClassMaterialAssetType, number> = {
+      class_material: 0,
+      student_handout: 0,
+    }
+    const insertedAttachmentIds: string[] = []
+
+    try {
+      for (const attachment of uploadedAttachments) {
+        const orderIndex = attachmentCounters[attachment.kind] ?? 0
+        const created = await finalizeClassMaterialAttachment(supabase, {
+          attachment,
+          postId,
+          subject,
+          ownerId: profile.id,
+          orderIndex,
+        })
+        insertedAttachmentIds.push(created.postAssetId)
+        attachmentCounters[attachment.kind] = orderIndex + 1
+      }
+
+      await syncPrimaryClassMaterialAssets(supabase, postId)
+    } catch (attachmentError) {
+      await cleanupPostAssetsByIds(supabase, insertedAttachmentIds)
+      throw attachmentError
+    }
+
     revalidateMaterialPaths(subject, postId)
 
     return { success: true, postId }
   } catch (error) {
     console.error('[class-materials] create post error', error)
-
-    for (const asset of uploadedAssets) {
-      await removeAsset(supabase, asset.assetId, asset.storagePath)
-    }
+    await supabase.from('class_material_posts').delete().eq('id', postId)
 
     return {
       error: error instanceof Error ? error.message : '자료 등록 중 문제가 발생했습니다.',
@@ -241,23 +474,23 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
   const title = titleValue.trim()
   const weekLabelValue = formData.get('weekLabel')
   const descriptionValue = formData.get('description')
-  const removeClassMaterialValue = formData.get('removeClassMaterial')
-  const removeStudentHandoutValue = formData.get('removeStudentHandout')
   const weekLabel = typeof weekLabelValue === 'string' ? weekLabelValue.trim() : ''
   const description = typeof descriptionValue === 'string' ? descriptionValue.trim() : ''
-  const removeClassMaterial = removeClassMaterialValue === '1'
-  const removeStudentHandout = removeStudentHandoutValue === '1'
+  const uploadedAttachmentsValue = formData.get('uploadedAttachments')
+  const removedAttachmentValues = formData.getAll('removedAttachmentIds')
 
-  const classMaterialFile = formData.get('classMaterialFile')
-  const studentHandoutFile = formData.get('studentHandoutFile')
-
-  if (classMaterialFile instanceof File && classMaterialFile.size > MAX_UPLOAD_SIZE) {
-    return { error: '수업자료 파일 용량이 제한을 초과했습니다.' }
+  let uploadedAttachments: UploadedClassMaterialAttachment[] = []
+  try {
+    uploadedAttachments = parseUploadedClassMaterialAttachments(uploadedAttachmentsValue)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : '첨부 파일 정보를 확인하지 못했습니다.' }
   }
 
-  if (studentHandoutFile instanceof File && studentHandoutFile.size > MAX_UPLOAD_SIZE) {
-    return { error: '학생 유인물 파일 용량이 제한을 초과했습니다.' }
-  }
+  const removedAttachmentIds = new Set(
+    removedAttachmentValues
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter((value): value is string => value.length > 0)
+  )
 
   const supabase = createServerSupabase()
 
@@ -288,51 +521,39 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
     return { error: '과목 정보가 일치하지 않습니다.' }
   }
 
-  const currentClassMaterialAsset = Array.isArray(existing.class_material_asset)
-    ? existing.class_material_asset[0]
-    : existing.class_material_asset
-  const currentStudentHandoutAsset = Array.isArray(existing.student_handout_asset)
-    ? existing.student_handout_asset[0]
-    : existing.student_handout_asset
+  const existingAttachments = await fetchClassMaterialPostAssets(supabase, postId)
+  const attachmentMap = new Map(existingAttachments.map((asset) => [asset.id, asset]))
+  const attachmentsMarkedForRemoval = Array.from(removedAttachmentIds)
+    .map((id) => attachmentMap.get(id))
+    .filter((asset): asset is ClassMaterialPostAssetRow => Boolean(asset))
 
-  const uploadedAssets: Array<{ assetId: string; storagePath: string; kind: 'class_material' | 'student_handout' }> = []
-  const assetsToRemove: Array<{ assetId: string | null | undefined; storagePath: string | null | undefined }> = []
+  const insertedAttachmentIds: string[] = []
 
   try {
-    let classMaterialAssetId: string | null = existing.class_material_asset_id as string | null
-    let studentHandoutAssetId: string | null = existing.student_handout_asset_id as string | null
-
-    if (classMaterialFile instanceof File && classMaterialFile.size > 0) {
-      const upload = await uploadMaterialFile(classMaterialFile, subject, postId, 'class_material', supabase, profile.id)
-      uploadedAssets.push({ ...upload, kind: 'class_material' })
-      assetsToRemove.push({
-        assetId: currentClassMaterialAsset?.id,
-        storagePath: currentClassMaterialAsset?.path,
-      })
-      classMaterialAssetId = upload.assetId
-    } else if (removeClassMaterial) {
-      assetsToRemove.push({
-        assetId: currentClassMaterialAsset?.id,
-        storagePath: currentClassMaterialAsset?.path,
-      })
-      classMaterialAssetId = null
+    if (attachmentsMarkedForRemoval.length > 0) {
+      await deleteClassMaterialPostAssets(supabase, attachmentsMarkedForRemoval)
     }
 
-    if (studentHandoutFile instanceof File && studentHandoutFile.size > 0) {
-      const upload = await uploadMaterialFile(studentHandoutFile, subject, postId, 'student_handout', supabase, profile.id)
-      uploadedAssets.push({ ...upload, kind: 'student_handout' })
-      assetsToRemove.push({
-        assetId: currentStudentHandoutAsset?.id,
-        storagePath: currentStudentHandoutAsset?.path,
-      })
-      studentHandoutAssetId = upload.assetId
-    } else if (removeStudentHandout) {
-      assetsToRemove.push({
-        assetId: currentStudentHandoutAsset?.id,
-        storagePath: currentStudentHandoutAsset?.path,
-      })
-      studentHandoutAssetId = null
+    const remainingAttachments = existingAttachments.filter((asset) => !removedAttachmentIds.has(asset.id))
+    const attachmentCounters: Record<ClassMaterialAssetType, number> = {
+      class_material: remainingAttachments.filter((asset) => asset.kind === 'class_material').length,
+      student_handout: remainingAttachments.filter((asset) => asset.kind === 'student_handout').length,
     }
+
+    for (const attachment of uploadedAttachments) {
+      const orderIndex = attachmentCounters[attachment.kind] ?? 0
+      const created = await finalizeClassMaterialAttachment(supabase, {
+        attachment,
+        postId,
+        subject,
+        ownerId: profile.id,
+        orderIndex,
+      })
+      insertedAttachmentIds.push(created.postAssetId)
+      attachmentCounters[attachment.kind] = orderIndex + 1
+    }
+
+    await syncPrimaryClassMaterialAssets(supabase, postId)
 
     const { error: updateError } = await supabase
       .from('class_material_posts')
@@ -340,8 +561,6 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
         week_label: weekLabel || null,
         title,
         description: description || null,
-        class_material_asset_id: classMaterialAssetId,
-        student_handout_asset_id: studentHandoutAssetId,
       })
       .eq('id', postId)
 
@@ -350,19 +569,12 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
       throw new Error('자료를 수정하지 못했습니다.')
     }
 
-    for (const asset of assetsToRemove) {
-      await removeAsset(supabase, asset.assetId ?? null, asset.storagePath ?? null)
-    }
-
     revalidateMaterialPaths(subject, postId)
 
     return { success: true, postId }
   } catch (error) {
     console.error('[class-materials] update post error', error)
-
-    for (const asset of uploadedAssets) {
-      await removeAsset(supabase, asset.assetId, asset.storagePath)
-    }
+    await cleanupPostAssetsByIds(supabase, insertedAttachmentIds)
 
     return {
       error: error instanceof Error ? error.message : '자료 수정 중 오류가 발생했습니다.',
@@ -386,13 +598,7 @@ export async function deleteClassMaterialPost(postId: string): Promise<DeleteRes
 
   const { data: existing, error: fetchError } = await supabase
     .from('class_material_posts')
-    .select(
-      `id,
-       subject,
-       class_material_asset:media_assets!class_material_posts_class_material_asset_id_fkey(id, path),
-       student_handout_asset:media_assets!class_material_posts_student_handout_asset_id_fkey(id, path)
-      `
-    )
+    .select('id, subject')
     .eq('id', postId)
     .maybeSingle()
 
@@ -406,6 +612,8 @@ export async function deleteClassMaterialPost(postId: string): Promise<DeleteRes
   }
 
   const subject = existing.subject as ClassMaterialSubject
+  const attachments = await fetchClassMaterialPostAssets(supabase, postId)
+  await deleteClassMaterialPostAssets(supabase, attachments)
 
   const { error: deleteError } = await supabase.from('class_material_posts').delete().eq('id', postId)
 
@@ -413,24 +621,6 @@ export async function deleteClassMaterialPost(postId: string): Promise<DeleteRes
     console.error('[class-materials] failed to delete post', deleteError)
     return { error: '자료 삭제에 실패했습니다.' }
   }
-
-  const currentClassMaterialAsset = Array.isArray(existing.class_material_asset)
-    ? existing.class_material_asset[0]
-    : existing.class_material_asset
-  const currentStudentHandoutAsset = Array.isArray(existing.student_handout_asset)
-    ? existing.student_handout_asset[0]
-    : existing.student_handout_asset
-
-  await removeAsset(
-    supabase,
-    currentClassMaterialAsset?.id ?? null,
-    currentClassMaterialAsset?.path ?? null
-  )
-  await removeAsset(
-    supabase,
-    currentStudentHandoutAsset?.id ?? null,
-    currentStudentHandoutAsset?.path ?? null
-  )
 
   revalidateMaterialPaths(subject)
 
@@ -450,21 +640,21 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
   const desiredDateValue = formData.get('desiredDate')
   const desiredPeriodValue = formData.get('desiredPeriod')
   const notesValue = formData.get('notes')
-  const selectedAssetsRaw = formData.getAll('selectedAssets')
+  const selectedAttachmentValues = formData.getAll('selectedAttachmentIds')
 
   if (typeof postIdValue !== 'string' || postIdValue.length === 0) {
     return { error: '자료 정보를 확인할 수 없습니다.' }
   }
 
-  const normalizedSelectedAssets = Array.from(
+  const selectedAttachmentIds = Array.from(
     new Set(
-      selectedAssetsRaw
+      selectedAttachmentValues
         .map((value) => (typeof value === 'string' ? value.trim() : ''))
-        .filter((value): value is ClassMaterialAssetType => value === 'class_material' || value === 'student_handout')
+        .filter((value): value is string => value.length > 0)
     )
   )
 
-  if (normalizedSelectedAssets.length === 0) {
+  if (selectedAttachmentIds.length === 0) {
     return { error: '인쇄할 파일을 선택해주세요.' }
   }
 
@@ -472,16 +662,7 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
 
   const { data: post, error: fetchError } = await supabase
     .from('class_material_posts')
-    .select(
-      `id,
-       subject,
-       title,
-       class_material_asset_id,
-       student_handout_asset_id,
-       class_material_asset:media_assets!class_material_posts_class_material_asset_id_fkey(id, bucket, path, metadata),
-       student_handout_asset:media_assets!class_material_posts_student_handout_asset_id_fkey(id, bucket, path, metadata)
-      `
-    )
+    .select('id, subject, title')
     .eq('id', postIdValue)
     .maybeSingle()
 
@@ -494,32 +675,26 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
     return { error: '자료를 찾을 수 없습니다.' }
   }
 
-  const classMaterialAsset = Array.isArray(post.class_material_asset)
-    ? post.class_material_asset[0]
-    : post.class_material_asset
-  const studentHandoutAsset = Array.isArray(post.student_handout_asset)
-    ? post.student_handout_asset[0]
-    : post.student_handout_asset
+  const { data: attachments, error: attachmentsError } = await supabase
+    .from('class_material_post_assets')
+    .select('id, kind, media_asset_id, media_asset:media_assets(id, metadata)')
+    .eq('post_id', postIdValue)
+    .in('id', selectedAttachmentIds)
 
-  const assetLookup: Record<ClassMaterialAssetType, { assetId: string | null; filename: string | null }> = {
-    class_material: {
-      assetId: (post.class_material_asset_id as string | null) ?? (classMaterialAsset?.id ?? null),
-      filename:
-        ((classMaterialAsset?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
-        (classMaterialAsset?.path ? classMaterialAsset.path.split('/').pop() ?? classMaterialAsset.path : null),
-    },
-    student_handout: {
-      assetId: (post.student_handout_asset_id as string | null) ?? (studentHandoutAsset?.id ?? null),
-      filename:
-        ((studentHandoutAsset?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
-        (studentHandoutAsset?.path ? studentHandoutAsset.path.split('/').pop() ?? studentHandoutAsset.path : null),
-    },
+  if (attachmentsError) {
+    console.error('[class-materials] failed to load attachments for print request', attachmentsError)
+    return { error: '첨부 파일 정보를 불러오지 못했습니다.' }
   }
 
-  for (const assetType of normalizedSelectedAssets) {
-    if (!assetLookup[assetType].assetId) {
-      return { error: assetType === 'class_material' ? '수업자료 파일이 존재하지 않습니다.' : '학생 유인물 파일이 존재하지 않습니다.' }
-    }
+  const normalizedAttachments = (attachments ?? []) as Array<{
+    id: string
+    kind: ClassMaterialAssetType
+    media_asset_id: string | null
+    media_asset?: { metadata?: Record<string, unknown> | null } | null
+  }>
+
+  if (normalizedAttachments.length !== selectedAttachmentIds.length) {
+    return { error: '선택한 첨부 파일을 찾을 수 없습니다. 새로고침 후 다시 시도해주세요.' }
   }
 
   const copies = typeof copiesValue === 'string' ? Number.parseInt(copiesValue, 10) : 1
@@ -557,12 +732,20 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
     return { error: '인쇄 요청을 저장하지 못했습니다.' }
   }
 
-  const itemsPayload = normalizedSelectedAssets.map((assetType) => ({
-    request_id: requestRow.id,
-    asset_type: assetType,
-    media_asset_id: assetLookup[assetType].assetId,
-    asset_filename: assetLookup[assetType].filename,
-  }))
+  const itemsPayload = normalizedAttachments.map((attachment) => {
+    if (!attachment.media_asset_id) {
+      throw new Error('첨부 파일 정보가 손상되었습니다.')
+    }
+
+    const metadata = (attachment.media_asset?.metadata as { originalName?: string } | null) ?? null
+
+    return {
+      request_id: requestRow.id,
+      asset_type: attachment.kind,
+      media_asset_id: attachment.media_asset_id,
+      asset_filename: metadata?.originalName ?? null,
+    }
+  })
 
   const { error: itemsError } = await supabase.from('class_material_print_request_items').insert(itemsPayload)
 

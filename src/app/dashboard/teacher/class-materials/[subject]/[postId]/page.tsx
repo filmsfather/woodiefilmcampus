@@ -21,14 +21,6 @@ import {
   createClassMaterialPrintRequest,
 } from '@/app/dashboard/teacher/class-materials/actions'
 
-interface MediaAssetInfo {
-  id: string
-  bucket: string
-  path: string
-  mime_type: string | null
-  metadata?: Record<string, unknown> | null
-}
-
 interface PrintRequestItemRow {
   id: string
   asset_type: ClassMaterialAssetType
@@ -55,6 +47,14 @@ interface PrintRequestRow {
   items: PrintRequestItemRow[]
 }
 
+interface PostAttachmentSummary {
+  id: string
+  kind: ClassMaterialAssetType
+  name: string
+  order: number
+  downloadUrl: string | null
+}
+
 interface ClassMaterialPostDetail {
   id: string
   subject: ClassMaterialSubject
@@ -68,8 +68,7 @@ interface ClassMaterialPostDetail {
     name: string | null
     email: string | null
   } | null
-  class_material_asset?: MediaAssetInfo | null
-  student_handout_asset?: MediaAssetInfo | null
+  attachments: PostAttachmentSummary[]
   print_requests: PrintRequestRow[]
 }
 
@@ -96,8 +95,12 @@ export default async function ClassMaterialDetailPage({
        created_at,
        updated_at,
        author:profiles!class_material_posts_created_by_fkey(id, name, email),
-       class_material_asset:media_assets!class_material_posts_class_material_asset_id_fkey(id, bucket, path, mime_type, metadata),
-       student_handout_asset:media_assets!class_material_posts_student_handout_asset_id_fkey(id, bucket, path, mime_type, metadata),
+       attachments:class_material_post_assets!class_material_post_assets_post_id_fkey(
+         id,
+         kind,
+         order_index,
+         media_asset:media_assets(id, bucket, path, mime_type, metadata)
+       ),
        print_requests:class_material_print_requests!class_material_print_requests_post_id_fkey(
          id,
          status,
@@ -132,12 +135,27 @@ export default async function ClassMaterialDetailPage({
   }
 
   const authorRelation = Array.isArray(data.author) ? data.author[0] : data.author
-  const classMaterialAssetRelation = Array.isArray(data.class_material_asset)
-    ? data.class_material_asset[0]
-    : data.class_material_asset
-  const studentHandoutAssetRelation = Array.isArray(data.student_handout_asset)
-    ? data.student_handout_asset[0]
-    : data.student_handout_asset
+
+  const attachmentRows = Array.isArray(data.attachments) ? data.attachments : []
+  const normalizedAttachments: PostAttachmentSummary[] = await Promise.all(
+    attachmentRows.map(async (attachment) => {
+      const mediaRelation = Array.isArray(attachment.media_asset)
+        ? attachment.media_asset[0]
+        : attachment.media_asset
+      const metadata = (mediaRelation?.metadata as { originalName?: string } | null) ?? null
+      const fallbackName = mediaRelation?.path ? mediaRelation.path.split('/').pop() ?? mediaRelation.path : '첨부 파일'
+      const downloadUrl = await signUrl(mediaRelation?.bucket ?? CLASS_MATERIALS_BUCKET, mediaRelation?.path ?? null)
+
+      return {
+        id: String(attachment.id),
+        kind: (attachment.kind ?? 'class_material') as ClassMaterialAssetType,
+        name: metadata?.originalName ?? fallbackName,
+        order: Number(attachment.order_index ?? 0),
+        downloadUrl,
+      }
+    })
+  )
+  normalizedAttachments.sort((a, b) => a.order - b.order)
 
   const normalizedPrintRequests: PrintRequestRow[] = Array.isArray(data.print_requests)
     ? await Promise.all(
@@ -213,26 +231,21 @@ export default async function ClassMaterialDetailPage({
           email: (authorRelation.email ?? null) as string | null,
         }
       : null,
-    class_material_asset: classMaterialAssetRelation
-      ? {
-          id: String(classMaterialAssetRelation.id),
-          bucket: String(classMaterialAssetRelation.bucket),
-          path: String(classMaterialAssetRelation.path),
-          mime_type: (classMaterialAssetRelation.mime_type ?? null) as string | null,
-          metadata: (classMaterialAssetRelation.metadata as Record<string, unknown> | null) ?? null,
-        }
-      : null,
-    student_handout_asset: studentHandoutAssetRelation
-      ? {
-          id: String(studentHandoutAssetRelation.id),
-          bucket: String(studentHandoutAssetRelation.bucket),
-          path: String(studentHandoutAssetRelation.path),
-          mime_type: (studentHandoutAssetRelation.mime_type ?? null) as string | null,
-          metadata: (studentHandoutAssetRelation.metadata as Record<string, unknown> | null) ?? null,
-        }
-      : null,
+    attachments: normalizedAttachments,
     print_requests: normalizedPrintRequests,
   }
+
+  const attachmentsByKind: Record<ClassMaterialAssetType, PostAttachmentSummary[]> = {
+    class_material: post.attachments.filter((attachment) => attachment.kind === 'class_material'),
+    student_handout: post.attachments.filter((attachment) => attachment.kind === 'student_handout'),
+  }
+
+  const availableAssets = post.attachments.map((attachment) => ({
+    id: attachment.id,
+    kind: attachment.kind,
+    name: attachment.name,
+    downloadUrl: attachment.downloadUrl,
+  }))
 
   const signUrl = async (bucket: string | null | undefined, path: string | null | undefined) => {
     if (!bucket || !path) {
@@ -250,31 +263,6 @@ export default async function ClassMaterialDetailPage({
       return null
     }
   }
-
-  const classMaterialUrl = await signUrl(classMaterialAssetRelation?.bucket ?? CLASS_MATERIALS_BUCKET, classMaterialAssetRelation?.path ?? null)
-  const studentHandoutUrl = await signUrl(studentHandoutAssetRelation?.bucket ?? CLASS_MATERIALS_BUCKET, studentHandoutAssetRelation?.path ?? null)
-
-  const classMaterialFileName =
-    ((classMaterialAssetRelation?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
-    (classMaterialAssetRelation?.path ? classMaterialAssetRelation.path.split('/').pop() ?? classMaterialAssetRelation.path : null)
-  const studentHandoutFileName =
-    ((studentHandoutAssetRelation?.metadata as { originalName?: string } | null)?.originalName ?? null) ??
-    (studentHandoutAssetRelation?.path ? studentHandoutAssetRelation.path.split('/').pop() ?? studentHandoutAssetRelation.path : null)
-
-  const availableAssets = [
-    {
-      type: 'class_material' as ClassMaterialAssetType,
-      label: '수업자료 파일',
-      fileName: classMaterialFileName,
-      disabled: !classMaterialAssetRelation?.id,
-    },
-    {
-      type: 'student_handout' as ClassMaterialAssetType,
-      label: '학생 유인물 파일',
-      fileName: studentHandoutFileName,
-      disabled: !studentHandoutAssetRelation?.id,
-    },
-  ]
 
   const title = getClassMaterialSubjectLabel(subject)
 
@@ -336,42 +324,51 @@ export default async function ClassMaterialDetailPage({
             )}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <Card className="border-slate-200">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-base text-slate-900">수업자료</CardTitle>
-                <p className="text-xs text-slate-500">교재, 강의안 등 수업 진행에 필요한 자료입니다.</p>
-              </CardHeader>
-              <CardContent className="flex h-full flex-col justify-between gap-3">
-                {classMaterialUrl ? (
-                  <Button asChild variant="outline">
-                    <a href={classMaterialUrl} target="_blank" rel="noreferrer">
-                      다운로드
-                    </a>
-                  </Button>
-                ) : (
-                  <p className="text-sm text-slate-400">첨부된 파일이 없습니다.</p>
-                )}
-              </CardContent>
-            </Card>
+          <div className="space-y-4">
+            {(['class_material', 'student_handout'] as const).map((kind) => {
+              const attachments = attachmentsByKind[kind]
+              const sectionLabel = kind === 'class_material' ? '수업자료' : '학생 유인물'
+              const sectionDescription =
+                kind === 'class_material'
+                  ? '교재, 강의안 등 수업 진행에 필요한 자료입니다.'
+                  : '학생에게 배포할 활동지나 참고 자료입니다.'
 
-            <Card className="border-slate-200">
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-base text-slate-900">학생 유인물</CardTitle>
-                <p className="text-xs text-slate-500">학생에게 배포할 활동지나 참고 자료를 업로드하세요.</p>
-              </CardHeader>
-              <CardContent className="flex h-full flex-col justify-between gap-3">
-                {studentHandoutUrl ? (
-                  <Button asChild variant="outline">
-                    <a href={studentHandoutUrl} target="_blank" rel="noreferrer">
-                      다운로드
-                    </a>
-                  </Button>
-                ) : (
-                  <p className="text-sm text-slate-400">첨부된 파일이 없습니다.</p>
-                )}
-              </CardContent>
-            </Card>
+              return (
+                <Card key={kind} className="border-slate-200">
+                  <CardHeader className="space-y-1">
+                    <CardTitle className="text-base text-slate-900">{sectionLabel}</CardTitle>
+                    <p className="text-xs text-slate-500">{sectionDescription}</p>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {attachments.length === 0 ? (
+                      <p className="text-sm text-slate-400">첨부된 파일이 없습니다.</p>
+                    ) : (
+                      attachments.map((attachment, index) => (
+                        <div
+                          key={attachment.id}
+                          className="flex items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <div className="flex flex-col">
+                            <span>
+                              {index + 1}. {attachment.name}
+                            </span>
+                          </div>
+                          {attachment.downloadUrl ? (
+                            <Button asChild variant="outline" size="sm">
+                              <a href={attachment.downloadUrl} target="_blank" rel="noreferrer">
+                                다운로드
+                              </a>
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-rose-400">URL 생성 실패</span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </div>

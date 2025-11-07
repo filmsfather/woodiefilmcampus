@@ -17,7 +17,7 @@ import {
   PAST_EXAM_YEARS,
 } from '@/lib/admission-materials-constants'
 
-const MAX_UPLOAD_SIZE = 20 * 1024 * 1024 // 20MB
+const MAX_UPLOAD_SIZE = 50 * 1024 * 1024 // 50MB
 const BASE_SELECT_CLASS_NAME =
   'border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm'
 

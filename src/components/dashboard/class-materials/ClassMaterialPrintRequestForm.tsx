@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, type FormEvent } from 'react'
+import { useMemo, useState, useTransition, type FormEvent } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import type { ClassMaterialAssetType } from '@/lib/class-materials'
+import type { ClassMaterialAssetType } from '@/lib/class-materials-shared'
 
 type PrintResult = {
   success?: boolean
@@ -20,10 +20,10 @@ interface ClassMaterialPrintRequestFormProps {
   postId: string
   onSubmit: (formData: FormData) => Promise<PrintResult>
   availableAssets: Array<{
-    type: ClassMaterialAssetType
-    label: string
-    fileName: string | null
-    disabled: boolean
+    id: string
+    kind: ClassMaterialAssetType
+    name: string
+    downloadUrl: string | null
   }>
 }
 
@@ -31,7 +31,18 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAsset
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const hasSelectableAssets = availableAssets.some((asset) => !asset.disabled)
+  const hasSelectableAssets = availableAssets.length > 0
+
+  const groupedAssets = useMemo(() => {
+    const grouped: Record<ClassMaterialAssetType, typeof availableAssets> = {
+      class_material: [],
+      student_handout: [],
+    }
+    for (const asset of availableAssets) {
+      grouped[asset.kind] = [...grouped[asset.kind], asset]
+    }
+    return grouped
+  }, [availableAssets])
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -78,37 +89,53 @@ export function ClassMaterialPrintRequestForm({ postId, onSubmit, availableAsset
         <form className="grid gap-4" onSubmit={handleSubmit}>
           <input type="hidden" name="postId" value={postId} />
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             <span className="text-sm font-medium text-slate-700">인쇄할 파일 선택</span>
-            <div className="flex flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-              {availableAssets.length === 0 ? (
-                <p className="text-sm text-slate-500">선택 가능한 파일이 없습니다. 먼저 자료를 업로드해주세요.</p>
-              ) : (
-                availableAssets.map((asset) => (
-                  <label
-                    key={asset.type}
-                    className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm ${
-                      asset.disabled ? 'border-slate-200 text-slate-400' : 'border-slate-200 bg-white text-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="checkbox"
-                        name="selectedAssets"
-                        value={asset.type}
-                        defaultChecked={!asset.disabled}
-                        disabled={asset.disabled || isPending}
-                        className="h-4 w-4 rounded border-slate-300"
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-medium text-slate-700">{asset.label}</span>
-                        <span className="text-xs text-slate-500">{asset.fileName ?? '파일 없음'}</span>
-                      </div>
-                    </div>
-                    {asset.disabled ? <span className="text-xs text-slate-400">업로드 필요</span> : null}
-                  </label>
-                ))
-              )}
+            <div className="flex flex-col gap-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+              {(['class_material', 'student_handout'] as const).map((kind) => {
+                const assets = groupedAssets[kind]
+                return (
+                  <div key={kind} className="space-y-2">
+                    <p className="text-xs font-semibold text-slate-600">
+                      {kind === 'class_material' ? '수업자료' : '학생 유인물'}
+                    </p>
+                    {assets.length === 0 ? (
+                      <p className="text-xs text-slate-400">첨부된 파일이 없습니다.</p>
+                    ) : (
+                      assets.map((asset, index) => (
+                        <label
+                          key={asset.id}
+                          className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                        >
+                          <div className="flex flex-col">
+                            <span>
+                              {index + 1}. {asset.name}
+                            </span>
+                            <span className="text-xs text-slate-500">인쇄 대상 포함</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {asset.downloadUrl ? (
+                              <Button asChild variant="outline" size="sm">
+                                <a href={asset.downloadUrl} target="_blank" rel="noreferrer">
+                                  미리보기
+                                </a>
+                              </Button>
+                            ) : null}
+                            <input
+                              type="checkbox"
+                              name="selectedAttachmentIds"
+                              value={asset.id}
+                              defaultChecked
+                              disabled={isPending}
+                              className="h-4 w-4 rounded border-slate-300"
+                            />
+                          </div>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                )
+              })}
             </div>
             <p className="text-xs text-slate-500">최소 1개 이상의 파일을 선택해주세요.</p>
           </div>

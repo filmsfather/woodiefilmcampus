@@ -4,8 +4,10 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ClassMaterialPostForm } from '@/components/dashboard/class-materials/ClassMaterialPostForm'
 import { createClassMaterialPost } from '@/app/dashboard/teacher/class-materials/actions'
 import { getClassMaterialSubjectLabel, isClassMaterialSubject } from '@/lib/class-materials'
+import { requireAuthForDashboard } from '@/lib/auth'
 
-export default function NewClassMaterialPage({ params }: { params: { subject: string } }) {
+export default async function NewClassMaterialPage({ params }: { params: { subject: string } }) {
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   if (!isClassMaterialSubject(params.subject)) {
     notFound()
   }
@@ -28,6 +30,7 @@ export default function NewClassMaterialPage({ params }: { params: { subject: st
         subject={subject}
         submitLabel="자료 업로드"
         onSubmit={createClassMaterialPost}
+        currentUserId={profile.id}
       />
     </section>
   )

@@ -51,6 +51,7 @@ export default async function EditNoticePage({ params }: { params: { noticeId: s
         onSubmit={updateNotice}
         onDelete={deleteNotice}
         submitLabel="공지 수정"
+        currentUserId={profile.id}
         defaults={{
           noticeId: notice.id,
           title: notice.title,

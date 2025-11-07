@@ -25,11 +25,74 @@ interface AcknowledgeResult {
   acknowledgedAt?: string | null
 }
 
+type UploadedAttachmentPayload = {
+  bucket: string
+  path: string
+  size: number
+  mimeType: string
+  originalName: string
+}
+
 function sanitizeFileName(name: string) {
   if (!name) {
     return 'attachment'
   }
   return name.replace(/[^a-zA-Z0-9_.-]/g, '_')
+}
+
+function parseUploadedAttachments(value: FormDataEntryValue | null | undefined): UploadedAttachmentPayload[] {
+  if (!value) {
+    return []
+  }
+
+  if (typeof value !== 'string') {
+    throw new Error('첨부 파일 정보가 올바르지 않습니다.')
+  }
+
+  if (value.trim().length === 0) {
+    return []
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (error) {
+    console.error('[notice-board] failed to parse attachment payload', error)
+    throw new Error('첨부 파일 정보를 해석하지 못했습니다.')
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('첨부 파일 정보 형식이 올바르지 않습니다.')
+  }
+
+  return parsed.map((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error(`첨부 파일 정보가 손상되었습니다. (index: ${index})`)
+    }
+
+    const record = item as Record<string, unknown>
+    const bucket = typeof record.bucket === 'string' ? record.bucket : null
+    const path = typeof record.path === 'string' ? record.path : null
+    const size = typeof record.size === 'number' ? record.size : Number(record.size)
+    const mimeType = typeof record.mimeType === 'string' ? record.mimeType : 'application/octet-stream'
+    const originalName = typeof record.originalName === 'string' ? record.originalName : 'attachment'
+
+    if (!bucket || !path || !Number.isFinite(size)) {
+      throw new Error('첨부 파일 정보가 올바르지 않습니다.')
+    }
+
+    if (bucket !== NOTICE_BOARD_BUCKET) {
+      throw new Error('허용되지 않은 저장소로 업로드된 파일이 감지되었습니다.')
+    }
+
+    return {
+      bucket,
+      path,
+      size,
+      mimeType,
+      originalName,
+    }
+  })
 }
 
 async function deleteMediaAssets(
@@ -52,28 +115,23 @@ async function deleteMediaAssets(
   }
 }
 
-async function uploadNoticeAttachment(
+async function persistNoticeAttachment(
   supabase: ReturnType<typeof createServerSupabase>,
-  file: File,
+  payload: UploadedAttachmentPayload,
   noticeId: string,
   ownerId: string,
   position: number
 ) {
-  const sanitizedName = sanitizeFileName(file.name)
-  const storagePath = `${ownerId}/${noticeId}/${randomUUID()}-${sanitizedName}`
-  const buffer = Buffer.from(await file.arrayBuffer())
+  const sanitizedName = sanitizeFileName(payload.originalName)
+  const finalPath = `${ownerId}/${noticeId}/${randomUUID()}-${sanitizedName}`
+  const sourcePath = payload.path
 
-  const { error: uploadError } = await supabase.storage
-    .from(NOTICE_BOARD_BUCKET)
-    .upload(storagePath, buffer, {
-      cacheControl: '3600',
-      contentType: file.type || 'application/octet-stream',
-      upsert: false,
-    })
-
-  if (uploadError) {
-    console.error('[notice-board] failed to upload attachment', uploadError)
-    throw new Error('이미지 업로드에 실패했습니다.')
+  if (sourcePath !== finalPath) {
+    const { error: moveError } = await supabase.storage.from(NOTICE_BOARD_BUCKET).move(sourcePath, finalPath)
+    if (moveError) {
+      console.error('[notice-board] failed to move attachment', moveError, { sourcePath, finalPath })
+      throw new Error('첨부 파일을 처리하지 못했습니다.')
+    }
   }
 
   const { data: asset, error: assetError } = await supabase
@@ -82,11 +140,11 @@ async function uploadNoticeAttachment(
       owner_id: ownerId,
       scope: NOTICE_MEDIA_SCOPE,
       bucket: NOTICE_BOARD_BUCKET,
-      path: storagePath,
-      mime_type: file.type || null,
-      size: file.size,
+      path: finalPath,
+      mime_type: payload.mimeType || null,
+      size: payload.size,
       metadata: {
-        originalName: sanitizedName,
+        originalName: payload.originalName || sanitizedName,
       },
     })
     .select('id')
@@ -94,7 +152,7 @@ async function uploadNoticeAttachment(
 
   if (assetError || !asset?.id) {
     console.error('[notice-board] failed to insert media asset', assetError)
-    await supabase.storage.from(NOTICE_BOARD_BUCKET).remove([storagePath])
+    await supabase.storage.from(NOTICE_BOARD_BUCKET).remove([finalPath])
     throw new Error('첨부 정보를 저장하지 못했습니다.')
   }
 
@@ -106,7 +164,7 @@ async function uploadNoticeAttachment(
 
   if (linkError) {
     console.error('[notice-board] failed to link attachment', linkError)
-    await supabase.storage.from(NOTICE_BOARD_BUCKET).remove([storagePath])
+    await supabase.storage.from(NOTICE_BOARD_BUCKET).remove([finalPath])
     await supabase.from('media_assets').delete().eq('id', asset.id)
     throw new Error('첨부 정보를 연결하지 못했습니다.')
   }
@@ -132,7 +190,7 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
   const titleValue = formData.get('title')
   const bodyValue = formData.get('body')
   const recipientValues = formData.getAll('recipientIds')
-  const attachmentValues = formData.getAll('attachments')
+  const uploadedAttachmentsValue = formData.get('uploadedAttachments')
 
   if (typeof titleValue !== 'string' || titleValue.trim().length === 0) {
     return { error: '제목을 입력해주세요.' }
@@ -160,18 +218,23 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
     return { error: '공유 대상을 한 명 이상 선택해주세요.' }
   }
 
-  const attachments = attachmentValues.filter((value): value is File => value instanceof File && value.size > 0)
+  let uploadedAttachments: UploadedAttachmentPayload[] = []
+  try {
+    uploadedAttachments = parseUploadedAttachments(uploadedAttachmentsValue)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : '첨부 파일 정보를 확인하지 못했습니다.' }
+  }
 
   let totalSize = 0
-  for (const file of attachments) {
-    totalSize += file.size
-    if (!file.type || !file.type.startsWith('image/')) {
+  for (const attachment of uploadedAttachments) {
+    totalSize += attachment.size
+    if (!attachment.mimeType || !attachment.mimeType.startsWith('image/')) {
       return { error: '이미지 파일만 첨부할 수 있습니다.' }
     }
   }
 
   if (totalSize > MAX_NOTICE_ATTACHMENT_SIZE) {
-    return { error: '첨부 파일의 총 용량이 제한(10MB)을 초과했습니다.' }
+    return { error: '첨부 파일의 총 용량이 제한(50MB)을 초과했습니다.' }
   }
 
   const supabase = createServerSupabase()
@@ -208,8 +271,8 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
 
   try {
     let position = 0
-    for (const file of attachments) {
-      await uploadNoticeAttachment(supabase, file, noticeId, profile.id, position)
+    for (const attachment of uploadedAttachments) {
+      await persistNoticeAttachment(supabase, attachment, noticeId, profile.id, position)
       position += 1
     }
   } catch (error) {
@@ -328,7 +391,7 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
   const bodyValue = formData.get('body')
   const recipientValues = formData.getAll('recipientIds')
   const removeAttachmentValues = formData.getAll('removeAttachmentIds')
-  const attachmentValues = formData.getAll('attachments')
+  const uploadedAttachmentsValue = formData.get('uploadedAttachments')
 
   if (typeof noticeIdValue !== 'string' || noticeIdValue.trim().length === 0) {
     return { error: '공지 정보를 확인하지 못했습니다.' }
@@ -386,18 +449,23 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
     return { error: '공유 대상을 한 명 이상 선택해주세요.' }
   }
 
-  const attachments = attachmentValues.filter((value): value is File => value instanceof File && value.size > 0)
+  let uploadedAttachments: UploadedAttachmentPayload[] = []
+  try {
+    uploadedAttachments = parseUploadedAttachments(uploadedAttachmentsValue)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : '첨부 파일 정보를 확인하지 못했습니다.' }
+  }
 
   let totalSize = 0
-  for (const file of attachments) {
-    totalSize += file.size
-    if (!file.type || !file.type.startsWith('image/')) {
+  for (const attachment of uploadedAttachments) {
+    totalSize += attachment.size
+    if (!attachment.mimeType || !attachment.mimeType.startsWith('image/')) {
       return { error: '이미지 파일만 첨부할 수 있습니다.' }
     }
   }
 
   if (totalSize > MAX_NOTICE_ATTACHMENT_SIZE) {
-    return { error: '첨부 파일의 총 용량이 제한(10MB)을 초과했습니다.' }
+    return { error: '첨부 파일의 총 용량이 제한(50MB)을 초과했습니다.' }
   }
 
   const { error: updateError } = await supabase
@@ -486,8 +554,8 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
   }
 
   try {
-    for (const file of attachments) {
-      await uploadNoticeAttachment(supabase, file, noticeId, noticeRow.author_id, nextPosition)
+    for (const attachment of uploadedAttachments) {
+      await persistNoticeAttachment(supabase, attachment, noticeId, noticeRow.author_id, nextPosition)
       nextPosition += 1
     }
   } catch (error) {
