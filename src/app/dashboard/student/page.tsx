@@ -1,10 +1,12 @@
 import Link from 'next/link'
 
 import { DashboardCard } from '@/components/dashboard/DashboardCard'
+import { StudentTimetableViewer } from '@/components/dashboard/student/StudentTimetableViewer'
 import { Button } from '@/components/ui/button'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { TimetableSummary } from '@/types/timetable'
 
 type ActionVariant = 'default' | 'secondary' | 'outline'
 
@@ -252,6 +254,137 @@ export default async function StudentDashboardPage() {
     }
   })
 
+  const classNameMap = new Map(classInfos.map((classInfo) => [classInfo.id, classInfo.name]))
+
+  let studentTimetables: TimetableSummary[] = []
+
+  if (classIds.length > 0) {
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from('timetable_assignments')
+      .select('id, timetable_id, teacher_column_id, period_id, class_id')
+      .in('class_id', classIds)
+
+    if (assignmentError) {
+      console.error('[student-dashboard] failed to fetch timetable assignments for student classes', assignmentError)
+    }
+
+    const assignments = assignmentRows ?? []
+    const timetableIdSet = new Set(assignments.map((assignment) => assignment.timetable_id))
+    const timetableIds = Array.from(timetableIdSet)
+
+    if (timetableIds.length > 0) {
+      const [timetableResult, teacherColumnsResult, periodResult] = await Promise.all([
+        supabase
+          .from('timetables')
+          .select('id, name, created_at, updated_at')
+          .in('id', timetableIds)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('timetable_teachers')
+          .select('id, timetable_id, teacher_id, position')
+          .in('timetable_id', timetableIds)
+          .order('position', { ascending: true }),
+        supabase
+          .from('timetable_periods')
+          .select('id, timetable_id, name, position')
+          .in('timetable_id', timetableIds)
+          .order('position', { ascending: true }),
+      ])
+
+      if (timetableResult.error) {
+        console.error('[student-dashboard] failed to load timetables for student view', timetableResult.error)
+      }
+
+      if (teacherColumnsResult.error) {
+        console.error('[student-dashboard] failed to load timetable columns for student view', teacherColumnsResult.error)
+      }
+
+      if (periodResult.error) {
+        console.error('[student-dashboard] failed to load timetable periods for student view', periodResult.error)
+      }
+
+      const timetableRows = timetableResult.data ?? []
+      const teacherColumnRows = teacherColumnsResult.data ?? []
+      const periodRows = periodResult.data ?? []
+
+      const teacherProfileIds = new Set<string>()
+      for (const row of teacherColumnRows) {
+        if (row.teacher_id) {
+          teacherProfileIds.add(row.teacher_id)
+        }
+      }
+
+      let teacherProfileMap = new Map<string, { name: string | null; email: string | null }>()
+      if (teacherProfileIds.size > 0) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, name, email')
+          .in('id', Array.from(teacherProfileIds))
+
+        if (error) {
+          console.error('[student-dashboard] failed to load teacher profiles for timetables', error)
+        } else {
+          teacherProfileMap = new Map((data ?? []).map((profile) => [profile.id, { name: profile.name ?? null, email: profile.email ?? null }]))
+        }
+      }
+
+      const teacherColumnsByTimetable = new Map<string, TimetableSummary['teacherColumns']>()
+      for (const row of teacherColumnRows) {
+        const profile = row.teacher_id ? teacherProfileMap.get(row.teacher_id) ?? null : null
+        const normalized = {
+          id: row.id,
+          timetableId: row.timetable_id,
+          position: row.position,
+          teacherId: row.teacher_id,
+          teacherName: profile?.name ?? null,
+          teacherEmail: profile?.email ?? null,
+        }
+
+        const current = teacherColumnsByTimetable.get(row.timetable_id) ?? []
+        current.push(normalized)
+        teacherColumnsByTimetable.set(row.timetable_id, current)
+      }
+
+      const periodsByTimetable = new Map<string, TimetableSummary['periods']>()
+      for (const row of periodRows) {
+        const current = periodsByTimetable.get(row.timetable_id) ?? []
+        current.push({
+          id: row.id,
+          timetableId: row.timetable_id,
+          position: row.position,
+          name: row.name,
+        })
+        periodsByTimetable.set(row.timetable_id, current)
+      }
+
+      const assignmentsByTimetable = new Map<string, TimetableSummary['assignments']>()
+      for (const assignment of assignments) {
+        const current = assignmentsByTimetable.get(assignment.timetable_id) ?? []
+        current.push({
+          id: assignment.id,
+          timetableId: assignment.timetable_id,
+          teacherColumnId: assignment.teacher_column_id,
+          periodId: assignment.period_id,
+          classId: assignment.class_id,
+          className: (assignment.class_id ? classNameMap.get(assignment.class_id) : null) ?? '이름 없는 반',
+        })
+        assignmentsByTimetable.set(assignment.timetable_id, current)
+      }
+
+      studentTimetables = timetableRows
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+          teacherColumns: (teacherColumnsByTimetable.get(row.id) ?? []).sort((a, b) => a.position - b.position),
+          periods: (periodsByTimetable.get(row.id) ?? []).sort((a, b) => a.position - b.position),
+          assignments: (assignmentsByTimetable.get(row.id) ?? []).sort((a, b) => a.className.localeCompare(b.className, 'ko')),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    }
+  }
+
   return (
     <section className="space-y-6">
       <div className="space-y-1">
@@ -304,6 +437,13 @@ export default async function StudentDashboardPage() {
             ))}
           </div>
         )}
+      </DashboardCard>
+
+      <DashboardCard
+        title="내 시간표"
+        description="소속된 반의 시간표를 확인할 수 있습니다."
+      >
+        <StudentTimetableViewer timetables={studentTimetables} />
       </DashboardCard>
 
       <div className="grid gap-4 md:grid-cols-2">
