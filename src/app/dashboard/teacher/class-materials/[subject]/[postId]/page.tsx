@@ -84,6 +84,23 @@ export default async function ClassMaterialDetailPage({
   const subject = params.subject
   const supabase = createServerSupabase()
 
+  const signUrl = async (bucket: string | null | undefined, path: string | null | undefined) => {
+    if (!bucket || !path) {
+      return null
+    }
+    try {
+      const { data: signed, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60)
+      if (signedError) {
+        console.error('[class-materials] failed to sign asset url', { bucket, path, signedError })
+        return null
+      }
+      return signed?.signedUrl ?? null
+    } catch (error) {
+      console.error('[class-materials] unexpected error signing asset url', { bucket, path, error })
+      return null
+    }
+  }
+
   const { data, error } = await supabase
     .from('class_material_posts')
     .select(
@@ -247,22 +264,6 @@ export default async function ClassMaterialDetailPage({
     downloadUrl: attachment.downloadUrl,
   }))
 
-  const signUrl = async (bucket: string | null | undefined, path: string | null | undefined) => {
-    if (!bucket || !path) {
-      return null
-    }
-    try {
-      const { data: signed, error: signedError } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60)
-      if (signedError) {
-        console.error('[class-materials] failed to sign asset url', { bucket, path, signedError })
-        return null
-      }
-      return signed?.signedUrl ?? null
-    } catch (error) {
-      console.error('[class-materials] unexpected error signing asset url', { bucket, path, error })
-      return null
-    }
-  }
 
   const title = getClassMaterialSubjectLabel(subject)
 
