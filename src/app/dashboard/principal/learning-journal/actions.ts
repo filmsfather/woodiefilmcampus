@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { ensurePrincipalProfile } from '@/lib/authz'
+import { ensureManagerProfile, ensurePrincipalProfile } from '@/lib/authz'
 import { notifyParentOfLearningJournalPublish } from '@/lib/learning-journal-notifications'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
@@ -240,7 +240,7 @@ export async function upsertLearningJournalAnnualScheduleAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const profile = await ensurePrincipalProfile()
+  const profile = await ensureManagerProfile()
 
   if (!profile) {
     return makeErrorState('연간 일정을 관리할 권한이 없습니다.')
@@ -304,7 +304,7 @@ export async function deleteLearningJournalAnnualScheduleAction(
   _prevState: ActionState,
   formData: FormData
 ): Promise<ActionState> {
-  const profile = await ensurePrincipalProfile()
+  const profile = await ensureManagerProfile()
 
   if (!profile) {
     return makeErrorState('연간 일정을 삭제할 권한이 없습니다.')

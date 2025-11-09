@@ -66,7 +66,7 @@ export default async function ManagerDashboardPage() {
           />
           <div className="flex justify-end">
             <Button asChild variant="outline">
-              <Link href="/dashboard/learning-journal/annual-schedule">연간 일정 전체 보기</Link>
+              <Link href="/dashboard/principal/learning-journal/annual-schedule">연간 일정 전체 보기</Link>
             </Button>
           </div>
         </CardContent>
