@@ -37,7 +37,6 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
     actions: [
       { label: '반관리 열기', href: '/dashboard/manager/classes' },
       { label: '결석확인', href: '/dashboard/manager/absences', variant: 'outline' },
-      { label: '학습일지 관리', href: '/dashboard/manager/learning-journal', variant: 'outline' },
     ],
   },
   {
@@ -47,6 +46,11 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
       { label: '인쇄요청 관리', href: '/dashboard/manager/print-requests' },
       { label: '교사 대시보드 열기', href: '/dashboard/teacher', variant: 'secondary' },
     ],
+  },
+  {
+    title: '학습일지 관리',
+    description: '주기를 만들고 주요 일정까지 한 곳에서 관리하세요.',
+    actions: [{ label: '학습일지 생성', href: '/dashboard/manager/learning-journal' }],
   },
 ]
 
