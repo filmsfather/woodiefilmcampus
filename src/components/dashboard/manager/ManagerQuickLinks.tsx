@@ -50,7 +50,10 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
   {
     title: '학습일지 관리',
     description: '주기를 만들고 주요 일정까지 한 곳에서 관리하세요.',
-    actions: [{ label: '학습일지 생성', href: '/dashboard/manager/learning-journal' }],
+    actions: [
+      { label: '학습일지 생성', href: '/dashboard/manager/learning-journal' },
+      { label: '학습일지 열람', href: '/dashboard/principal/learning-journal/review', variant: 'outline' },
+    ],
   },
 ]
 

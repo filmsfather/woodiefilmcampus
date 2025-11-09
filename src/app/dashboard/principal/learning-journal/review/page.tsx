@@ -1,6 +1,5 @@
 import Link from 'next/link'
 
-import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
@@ -33,7 +32,8 @@ export default async function PrincipalLearningJournalReviewPage({
 }: {
   searchParams?: Record<string, string | string[] | undefined>
 }) {
-  await requireAuthForDashboard('principal')
+  const { profile } = await requireAuthForDashboard(['principal', 'manager'])
+  const canApprove = profile?.role === 'principal'
 
   const supabase = createServerSupabase()
 
@@ -144,15 +144,12 @@ export default async function PrincipalLearningJournalReviewPage({
 
   return (
     <section className="space-y-8">
-      <div className="space-y-3">
-        <DashboardBackLink fallbackHref="/dashboard/principal" label="원장 대시보드로 돌아가기" />
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold text-slate-900">학습일지 승인</h1>
-          <p className="text-sm text-slate-600">
-            상단에서 승인 대기 학습일지를 훑어보고, 아래에서 반·주기를 선택해 전체 상태를 검토하세요.
-          </p>
-        </header>
-      </div>
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold text-slate-900">학습일지 승인</h1>
+        <p className="text-sm text-slate-600">
+          상단에서 승인 대기 학습일지를 훑어보고, 아래에서 반·주기를 선택해 전체 상태를 검토하세요.
+        </p>
+      </header>
 
       <Card className={isSmsReady ? 'border-emerald-200' : 'border-amber-300'}>
         <CardHeader>
@@ -444,19 +441,32 @@ export default async function PrincipalLearningJournalReviewPage({
                     <form action={publishAction}>
                       <input type="hidden" name="entryId" value={targetEntry.id} />
                       <input type="hidden" name="status" value="published" />
-                      <Button type="submit" disabled={targetEntry.status === 'published'}>
+                      <Button
+                        type="submit"
+                        disabled={!canApprove || targetEntry.status === 'published'}
+                      >
                         공개 승인
                       </Button>
                     </form>
                     <form action={revertAction}>
                       <input type="hidden" name="entryId" value={targetEntry.id} />
                       <input type="hidden" name="status" value="draft" />
-                      <Button type="submit" variant="outline" disabled={targetEntry.status === 'draft'}>
+                      <Button
+                        type="submit"
+                        variant="outline"
+                        disabled={!canApprove || targetEntry.status === 'draft'}
+                      >
                         작성 중으로 되돌리기
                       </Button>
                     </form>
                     <RegenerateWeeklyButton entryId={targetEntry.id} />
                   </div>
+
+                  {!canApprove ? (
+                    <p className="text-xs text-slate-500">
+                      학습일지 상태 변경은 원장만 할 수 있습니다. 열람용으로 확인해 주세요.
+                    </p>
+                  ) : null}
 
                   {shareUrl ? (
                     <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
