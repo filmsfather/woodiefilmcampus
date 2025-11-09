@@ -72,6 +72,14 @@ const managerSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'manager-learning-journal',
+    title: '학습일지 관리',
+    items: [
+      { label: '학습일지 생성', href: '/dashboard/manager/learning-journal' },
+      { label: '학습일지 열람', href: '/dashboard/principal/learning-journal/review' },
+    ],
+  },
+  {
     id: 'manager-operations',
     title: '업무관리',
     items: [
