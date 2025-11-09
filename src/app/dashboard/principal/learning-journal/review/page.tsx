@@ -7,11 +7,17 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
 import { updateEntryStatusByPrincipalAction } from '@/app/dashboard/principal/learning-journal/actions'
-import type { LearningJournalAcademicEvent, LearningJournalGreeting } from '@/types/learning-journal'
+import type {
+  LearningJournalAcademicEvent,
+  LearningJournalAnnualSchedule,
+  LearningJournalGreeting,
+} from '@/types/learning-journal'
 import {
   deriveMonthTokensForRange,
   fetchLearningJournalAcademicEvents,
+  fetchLearningJournalAnnualSchedules,
   fetchLearningJournalEntriesForReview,
   fetchLearningJournalEntryDetail,
   fetchLearningJournalGreeting,
@@ -92,6 +98,7 @@ export default async function PrincipalLearningJournalReviewPage({
 
   let greeting: LearningJournalGreeting | null = null
   let academicEvents: LearningJournalAcademicEvent[] = []
+  let annualSchedules: LearningJournalAnnualSchedule[] = []
 
   if (targetEntry && targetSummary) {
     const monthTokens = deriveMonthTokensForRange(
@@ -108,6 +115,8 @@ export default async function PrincipalLearningJournalReviewPage({
       greeting = fetchedGreeting
       academicEvents = fetchedEvents
     }
+
+    annualSchedules = await fetchLearningJournalAnnualSchedules()
   }
 
   let shareUrl: string | null = null
@@ -141,6 +150,40 @@ export default async function PrincipalLearningJournalReviewPage({
   ] as const
 
   const isSmsReady = smsEnvStatus.every((item) => item.ok)
+
+  const formatAnnualDateRange = (start: string, end: string) =>
+    `${DateUtil.formatForDisplay(start, {
+      locale: 'ko-KR',
+      timeZone: 'Asia/Seoul',
+      month: 'numeric',
+      day: 'numeric',
+    })} ~ ${DateUtil.formatForDisplay(end, {
+      locale: 'ko-KR',
+      timeZone: 'Asia/Seoul',
+      month: 'numeric',
+      day: 'numeric',
+    })}`
+
+  const formatAnnualTuition = (dueDate: string | null, amount: number | null) => {
+    const dueLabel = dueDate
+      ? `납부일 ${DateUtil.formatForDisplay(dueDate, {
+          locale: 'ko-KR',
+          timeZone: 'Asia/Seoul',
+          month: 'numeric',
+          day: 'numeric',
+        })}`
+      : null
+
+    const amountLabel = typeof amount === 'number' && Number.isFinite(amount)
+      ? `${amount.toLocaleString('ko-KR')}원`
+      : null
+
+    if (dueLabel && amountLabel) {
+      return `${dueLabel} / ${amountLabel}`
+    }
+
+    return dueLabel ?? amountLabel ?? '-'
+  }
 
   return (
     <section className="space-y-8">
@@ -393,106 +436,215 @@ export default async function PrincipalLearningJournalReviewPage({
               위 목록에서 학습일지를 선택하세요.
             </div>
           ) : (
-            <LearningJournalEntryContent
-              header={{
-                title: targetSummary.studentName ?? targetSummary.studentEmail ?? '학생 정보 없음',
-                subtitle: `${targetSummary.className ?? '-'} · ${
-                  targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
-                }`,
-                meta: [
-                  {
-                    label: '제출 상태',
-                    value: renderStatusBadge(targetEntry.status),
-                  },
-                  {
-                    label: '공개일',
-                    value: targetEntry.publishedAt
-                      ? DateUtil.formatForDisplay(targetEntry.publishedAt, {
+            <div className="space-y-6">
+              <div className="rounded-lg border border-slate-200 bg-slate-50">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-700">가정 안내</p>
+                </div>
+                <div className="space-y-4 px-4 py-4 text-sm text-slate-600">
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <dt className="font-medium text-slate-500">학생</dt>
+                      <dd className="text-slate-900">
+                        {targetSummary.studentName ?? targetSummary.studentEmail ?? '학생 정보 없음'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-slate-500">반 / 기간</dt>
+                      <dd className="text-slate-900">
+                        {`${targetSummary.className ?? '-'} · ${
+                          targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
+                        }`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-slate-500">공개일</dt>
+                      <dd className="text-slate-900">
+                        {targetEntry.publishedAt
+                          ? DateUtil.formatForDisplay(targetEntry.publishedAt, {
+                              locale: 'ko-KR',
+                              timeZone: 'Asia/Seoul',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : '미기록'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="font-medium text-slate-500">최근 업데이트</dt>
+                      <dd className="text-slate-900">
+                        {DateUtil.formatForDisplay(targetEntry.updatedAt, {
                           locale: 'ko-KR',
                           timeZone: 'Asia/Seoul',
                           month: 'short',
                           day: 'numeric',
                           hour: '2-digit',
                           minute: '2-digit',
-                        })
-                      : '미기록',
-                  },
-                  {
-                    label: '최근 업데이트',
-                    value: DateUtil.formatForDisplay(targetEntry.updatedAt, {
-                      locale: 'ko-KR',
-                      timeZone: 'Asia/Seoul',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    }),
-                  },
-                ],
-              }}
-              greeting={greeting}
-              academicEvents={academicEvents}
-              summary={targetEntry.summary}
-              weekly={targetEntry.weekly}
-              comments={comments}
-              actionPanel={
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <form action={publishAction}>
-                      <input type="hidden" name="entryId" value={targetEntry.id} />
-                      <input type="hidden" name="status" value="published" />
-                      <Button
-                        type="submit"
-                        disabled={!canApprove || targetEntry.status === 'published'}
-                      >
-                        공개 승인
-                      </Button>
-                    </form>
-                    <form action={revertAction}>
-                      <input type="hidden" name="entryId" value={targetEntry.id} />
-                      <input type="hidden" name="status" value="draft" />
-                      <Button
-                        type="submit"
-                        variant="outline"
-                        disabled={!canApprove || targetEntry.status === 'draft'}
-                      >
-                        작성 중으로 되돌리기
-                      </Button>
-                    </form>
-                    <RegenerateWeeklyButton entryId={targetEntry.id} />
-                  </div>
+                        })}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="text-xs text-slate-500">
+                    학습일지는 가정과 학교가 함께 학생의 성장을 돕기 위한 자료입니다. 학생과 함께 학습 내용을 확인하고,
+                    필요한 경우 학부모께 안내할 내용을 메모로 남겨주세요.
+                  </p>
 
-                  {!canApprove ? (
-                    <p className="text-xs text-slate-500">
-                      학습일지 상태 변경은 원장만 할 수 있습니다. 열람용으로 확인해 주세요.
-                    </p>
-                  ) : null}
-
-                  {shareUrl ? (
-                    <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                      <p className="font-medium text-slate-500">학부모 공유 링크</p>
-                      <p className="break-all rounded-md bg-white px-3 py-2 text-slate-900 shadow-sm">
-                        {shareUrl}
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button asChild size="sm" variant="outline">
-                          <a href={shareUrl} target="_blank" rel="noopener noreferrer">
-                            새 창에서 열기
-                          </a>
-                        </Button>
+                  {annualSchedules.length > 0 ? (
+                    <details className="overflow-hidden rounded-md border border-slate-200">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+                        연간 일정 펼쳐보기
+                      </summary>
+                      <div className="space-y-2 px-3 pb-3 pt-2 text-sm text-slate-600">
+                        <div className="hidden grid-cols-4 gap-2 text-xs font-semibold text-slate-500 sm:grid">
+                          <span>기간명</span>
+                          <span>기간(날짜)</span>
+                          <span>수업료</span>
+                          <span>비고</span>
+                        </div>
+                        <div className="divide-y divide-slate-200">
+                          {annualSchedules.map((schedule) => (
+                            <div
+                              key={schedule.id}
+                              className={cn(
+                                'grid gap-3 rounded-md px-2 py-3 sm:grid-cols-4 sm:items-start',
+                                schedule.category === 'annual' ? 'bg-primary/10' : undefined
+                              )}
+                            >
+                              <div>
+                                <p className="text-xs font-medium text-slate-500 sm:hidden">기간명</p>
+                                <p
+                                  className={cn(
+                                    'text-slate-900',
+                                    schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
+                                  )}
+                                >
+                                  {schedule.periodLabel}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-slate-500 sm:hidden">기간(날짜)</p>
+                                <p>{formatAnnualDateRange(schedule.startDate, schedule.endDate)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-slate-500 sm:hidden">수업료</p>
+                                <p>{formatAnnualTuition(schedule.tuitionDueDate, schedule.tuitionAmount)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-slate-500 sm:hidden">비고</p>
+                                <p className="text-slate-500">{schedule.memo ?? '-'}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-500">
-                        링크를 받은 학부모는 별도 로그인 없이 학습일지를 확인할 수 있습니다. 안전하게 전달해주세요.
-                      </p>
-                    </div>
-                  ) : targetEntry.status === 'published' ? (
-                    <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-700">
-                      공유 링크를 불러오지 못했습니다. 페이지를 새로고침하거나 다시 시도해주세요.
-                    </div>
+                    </details>
                   ) : null}
                 </div>
-              }
-            />
+              </div>
+
+              <LearningJournalEntryContent
+                header={{
+                  title: targetSummary.studentName ?? targetSummary.studentEmail ?? '학생 정보 없음',
+                  subtitle: `${targetSummary.className ?? '-'} · ${
+                    targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
+                  }`,
+                  meta: [
+                    {
+                      label: '제출 상태',
+                      value: renderStatusBadge(targetEntry.status),
+                    },
+                    {
+                      label: '공개일',
+                      value: targetEntry.publishedAt
+                        ? DateUtil.formatForDisplay(targetEntry.publishedAt, {
+                            locale: 'ko-KR',
+                            timeZone: 'Asia/Seoul',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '미기록',
+                    },
+                    {
+                      label: '최근 업데이트',
+                      value: DateUtil.formatForDisplay(targetEntry.updatedAt, {
+                        locale: 'ko-KR',
+                        timeZone: 'Asia/Seoul',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      }),
+                    },
+                  ],
+                }}
+                greeting={greeting}
+                academicEvents={academicEvents}
+                summary={targetEntry.summary}
+                weekly={targetEntry.weekly}
+                comments={comments}
+                actionPanel={
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <form action={publishAction}>
+                        <input type="hidden" name="entryId" value={targetEntry.id} />
+                        <input type="hidden" name="status" value="published" />
+                        <Button
+                          type="submit"
+                          disabled={!canApprove || targetEntry.status === 'published'}
+                        >
+                          공개 승인
+                        </Button>
+                      </form>
+                      <form action={revertAction}>
+                        <input type="hidden" name="entryId" value={targetEntry.id} />
+                        <input type="hidden" name="status" value="draft" />
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          disabled={!canApprove || targetEntry.status === 'draft'}
+                        >
+                          작성 중으로 되돌리기
+                        </Button>
+                      </form>
+                      <RegenerateWeeklyButton entryId={targetEntry.id} />
+                    </div>
+
+                    {!canApprove ? (
+                      <p className="text-xs text-slate-500">
+                        학습일지 상태 변경은 원장만 할 수 있습니다. 열람용으로 확인해 주세요.
+                      </p>
+                    ) : null}
+
+                    {shareUrl ? (
+                      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                        <p className="font-medium text-slate-500">학부모 공유 링크</p>
+                        <p className="break-all rounded-md bg-white px-3 py-2 text-slate-900 shadow-sm">
+                          {shareUrl}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button asChild size="sm" variant="outline">
+                            <a href={shareUrl} target="_blank" rel="noopener noreferrer">
+                              새 창에서 열기
+                            </a>
+                          </Button>
+                        </div>
+                        <p className="text-[10px] text-slate-500">
+                          링크를 받은 학부모는 별도 로그인 없이 학습일지를 확인할 수 있습니다. 안전하게 전달해주세요.
+                        </p>
+                      </div>
+                    ) : targetEntry.status === 'published' ? (
+                      <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-700">
+                        공유 링크를 불러오지 못했습니다. 페이지를 새로고침하거나 다시 시도해주세요.
+                      </div>
+                    ) : null}
+                  </div>
+                }
+              />
+            </div>
           )}
         </CardContent>
       </Card>
