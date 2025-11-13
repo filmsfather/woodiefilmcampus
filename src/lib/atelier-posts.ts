@@ -333,7 +333,6 @@ export interface AtelierPostListItem {
     id: string
     mediaAssetId: string
     filename: string
-    url: string | null
   }>
 }
 
@@ -499,12 +498,12 @@ export async function fetchAtelierPosts({
 
   const mediaAssetIds = Array.from(mediaAssetIdSet)
 
-  const assetLookup = new Map<string, { bucket: string | null; path: string | null; metadata: JsonRecord | null }>()
+  const assetFilenameLookup = new Map<string, string>()
 
   if (mediaAssetIds.length > 0) {
     const { data: assetRows, error: assetError } = await admin
       .from('media_assets')
-      .select('id, bucket, path, metadata')
+      .select('id, path, metadata')
       .in('id', mediaAssetIds)
 
     if (assetError) {
@@ -514,45 +513,16 @@ export async function fetchAtelierPosts({
         if (!asset?.id) {
           continue
         }
-        assetLookup.set(asset.id, {
-          bucket: (asset.bucket as string | null) ?? null,
-          path: (asset.path as string | null) ?? null,
-          metadata: (asset.metadata as JsonRecord | null) ?? null,
-        })
+        const metadata = (asset.metadata as JsonRecord | null) ?? null
+        const possibleName = metadata?.originalName || metadata?.original_name || metadata?.filename || metadata?.name
+        const fallbackName = typeof asset.path === 'string' ? asset.path.split('/').pop() : null
+        const filename = typeof possibleName === 'string' && possibleName.length > 0
+          ? possibleName
+          : fallbackName ?? '제출 파일'
+        assetFilenameLookup.set(asset.id, filename)
       }
     }
   }
-
-  const downloadLookup = new Map<string, { url: string; filename: string }>()
-
-  await Promise.all(
-    Array.from(assetLookup.entries()).map(async ([assetId, asset]) => {
-      if (!asset.path) {
-        return
-      }
-
-      const bucketId = asset.bucket ?? 'submissions'
-      try {
-        const { data: signed, error: signedError } = await admin.storage.from(bucketId).createSignedUrl(asset.path, 60 * 30)
-
-        if (signedError) {
-          console.error('[atelier] failed to create signed url', signedError)
-          return
-        }
-
-        if (signed?.signedUrl) {
-          const metadata = asset.metadata ?? {}
-          const possibleName = metadata.originalName || metadata.original_name || metadata.filename || metadata.name
-          const filename = typeof possibleName === 'string' && possibleName.length > 0
-            ? possibleName
-            : asset.path.split('/').pop() ?? 'submission.pdf'
-          downloadLookup.set(assetId, { url: signed.signedUrl, filename })
-        }
-      } catch (signedError) {
-        console.error('[atelier] unexpected signed url error', signedError)
-      }
-    })
-  )
 
   const items: AtelierPostListItem[] = rows
     .map((row) => {
@@ -609,27 +579,22 @@ export async function fetchAtelierPosts({
             return null
           }
 
-          const download = downloadLookup.get(attachmentMediaId) ?? null
-
           return {
             id: attachmentId,
             mediaAssetId: attachmentMediaId,
-            filename: download?.filename ?? '제출 파일',
-            url: download?.url ?? null,
+            filename: assetFilenameLookup.get(attachmentMediaId) ?? '제출 파일',
             order: orderIndex,
           }
         })
-        .filter((attachment): attachment is { id: string; mediaAssetId: string; filename: string; url: string | null; order: number } => Boolean(attachment))
+        .filter((attachment): attachment is { id: string; mediaAssetId: string; filename: string; order: number } => Boolean(attachment))
         .sort((a, b) => a.order - b.order)
 
       if (attachments.length === 0 && mediaAssetId) {
-        const fallbackDownload = downloadLookup.get(mediaAssetId) ?? null
         attachments = [
           {
             id: `${id ?? mediaAssetId}-primary`,
             mediaAssetId,
-            filename: fallbackDownload?.filename ?? '제출 파일',
-            url: fallbackDownload?.url ?? null,
+            filename: assetFilenameLookup.get(mediaAssetId) ?? '제출 파일',
             order: 0,
           },
         ]
@@ -639,7 +604,6 @@ export async function fetchAtelierPosts({
         id: attachment.id,
         mediaAssetId: attachment.mediaAssetId,
         filename: attachment.filename,
-        url: attachment.url,
       }))
 
       return {

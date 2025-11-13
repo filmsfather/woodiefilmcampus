@@ -7,7 +7,7 @@ import { Download, Eye, EyeOff, Loader2, Sparkles, Star, Trash2 } from 'lucide-r
 
 import type { AtelierPostListItem } from '@/lib/atelier-posts'
 import type { UserRole } from '@/types/user'
-import { toggleAtelierFeatured, toggleAtelierHidden, removeAtelierPost } from '@/app/dashboard/atelier/actions'
+import { toggleAtelierFeatured, toggleAtelierHidden, removeAtelierPost, getAtelierAttachmentDownload } from '@/app/dashboard/atelier/actions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -62,6 +62,7 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
   } | null>(null)
   const [featureComment, setFeatureComment] = useState('')
   const [viewCommentItem, setViewCommentItem] = useState<AtelierPostListItem | null>(null)
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const isTeacherView = viewerRole !== 'student'
@@ -82,6 +83,30 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
       setPendingAction(null)
       router.refresh()
     })
+  }
+
+  const handleAttachmentDownload = async (postId: string, mediaAssetId: string) => {
+    const downloadKey = `${postId}:${mediaAssetId}`
+    setDownloadingAttachmentId(downloadKey)
+    setErrorMessage(null)
+
+    try {
+      const result = await getAtelierAttachmentDownload({ postId, mediaAssetId })
+      if (!result.success || !result.url) {
+        setErrorMessage(result.error ?? '파일을 다운로드하지 못했습니다.')
+        return
+      }
+
+      const newWindow = window.open(result.url, '_blank', 'noopener,noreferrer')
+      if (!newWindow) {
+        window.location.href = result.url
+      }
+    } catch (error) {
+      console.error('[AtelierPostList] failed to download attachment', error)
+      setErrorMessage('파일을 다운로드하지 못했습니다.')
+    } finally {
+      setDownloadingAttachmentId(null)
+    }
   }
 
   const openFeatureDialog = (item: AtelierPostListItem, mode: 'add' | 'edit') => {
@@ -178,21 +203,22 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
 
     if (item.attachments.length > 0) {
       item.attachments.forEach((attachment, index) => {
+        const downloadKey = `${item.id}:${attachment.mediaAssetId}`
+        const isDownloading = downloadingAttachmentId === downloadKey
         actions.push(
           <Button
             key={`download-${attachment.id}`}
-            asChild
             size="sm"
             variant="outline"
-            disabled={!attachment.url}
+            disabled={isDownloading}
             title={attachment.filename}
+            onClick={() => handleAttachmentDownload(item.id, attachment.mediaAssetId)}
+            className="flex items-center gap-1"
           >
-            <a href={attachment.url ?? '#'} target="_blank" rel="noreferrer" className="flex items-center gap-1">
-              <Download className="h-4 w-4" />
-              <span className="max-w-[120px] truncate text-xs sm:text-sm">
-                {attachment.filename || `파일 ${index + 1}`}
-              </span>
-            </a>
+            {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            <span className="max-w-[120px] truncate text-xs sm:text-sm">
+              {attachment.filename || `파일 ${index + 1}`}
+            </span>
           </Button>
         )
       })
