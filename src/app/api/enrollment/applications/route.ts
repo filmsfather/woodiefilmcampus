@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendEnrollmentApplicationConfirmationSMS } from '@/lib/solapi'
 
-const classEnum = z.enum(['weekday', 'saturday', 'sunday', 'regular'])
+const classEnum = z.enum(['weekday', 'saturday', 'sunday', 'regular', 'online'])
 
 const applicationSchema = z
   .object({
@@ -82,6 +82,7 @@ export async function POST(request: Request) {
       saturday: '토요반',
       sunday: '일요반',
       regular: '정시반',
+      online: '온라인반',
     }
 
     const desiredClassLabel = classLabelMap[desiredClass] ?? desiredClass

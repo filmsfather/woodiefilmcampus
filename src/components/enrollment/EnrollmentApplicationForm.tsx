@@ -15,12 +15,13 @@ import { Label } from '@/components/ui/label'
 import DateUtil from '@/lib/date-util'
 import type { LearningJournalAnnualSchedule } from '@/types/learning-journal'
 
-type DesiredClass = 'weekday' | 'saturday' | 'sunday' | 'regular'
+type DesiredClass = 'weekday' | 'saturday' | 'sunday' | 'regular' | 'online'
 
 type ClassSchedule = {
   label: string
   tagline: string
   sections: Array<{ title: string; lines: string[] }>
+  selectionNote?: string
 }
 
 const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
@@ -68,6 +69,17 @@ const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
         lines: ['1교시: 오후 6시 ~ 8시', '2교시: 오후 8시 ~ 10시'],
       },
     ],
+  },
+  online: {
+    label: '온라인반',
+    tagline: '실시간 온라인 집중 수업',
+    sections: [
+      {
+        title: '수업 일정',
+        lines: ['월요일 저녁 9시 - 11시', '수요일 저녁 9시 - 11시', '금요일 저녁 9시 - 11시'],
+      },
+    ],
+    selectionNote: '정확한 시간은 등록후 조율합니다.',
   },
 }
 
@@ -314,11 +326,16 @@ export function EnrollmentApplicationForm({ annualSchedules }: EnrollmentApplica
 
           {selectedClassInfo ? (
             <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/10 p-4 text-foreground">
-              <div className="flex flex-wrap items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-primary" />
-                <span className="text-sm font-medium">
-                  {selectedClassInfo.label}을 선택하셨습니다. 가장 빠른 개강일에 배정됩니다.
-                </span>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">
+                    {selectedClassInfo.label}을 선택하셨습니다. 가장 빠른 개강일에 배정됩니다.
+                  </span>
+                </div>
+                {selectedClassInfo.selectionNote ? (
+                  <p className="text-sm text-muted-foreground">{selectedClassInfo.selectionNote}</p>
+                ) : null}
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {selectedClassInfo.sections.map((section) => (

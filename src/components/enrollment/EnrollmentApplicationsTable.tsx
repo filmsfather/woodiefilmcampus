@@ -15,7 +15,7 @@ export interface EnrollmentApplicationItem {
   student_name: string
   parent_phone: string
   student_phone: string | null
-  desired_class: 'weekday' | 'saturday' | 'sunday' | 'regular'
+  desired_class: 'weekday' | 'saturday' | 'sunday' | 'regular' | 'online'
   saturday_briefing_received: boolean | null
   schedule_fee_confirmed: boolean | null
   created_at: string
@@ -32,6 +32,7 @@ const classLabelMap: Record<EnrollmentApplicationItem['desired_class'], string> 
   saturday: '토요반',
   sunday: '일요반',
   regular: '정시반',
+  online: '온라인반',
 }
 
 function formatPhone(value: string) {
