@@ -67,7 +67,9 @@ async function replaceAtelierPostAssets(
     created_by: studentId,
   }))
 
-  const { error } = await admin.from('atelier_post_assets').insert(payload)
+  const { error } = await admin
+    .from('atelier_post_assets')
+    .upsert(payload, { onConflict: 'post_id,media_asset_id', ignoreDuplicates: true })
 
   if (error) {
     console.error('[atelier] failed to sync post assets', error)
@@ -145,54 +147,24 @@ export async function syncAtelierPostForPdfSubmission({
     deleted_by: null,
   }
 
-  const { data: existingRow, error: existingError } = await admin
+  const upsertPayload = {
+    student_task_id: studentTaskId,
+    student_id: studentId,
+    ...updatePayload,
+  }
+
+  const { data: postRow, error: upsertError } = await admin
     .from('atelier_posts')
+    .upsert(upsertPayload, { onConflict: 'student_task_id', ignoreDuplicates: false })
     .select('id')
-    .eq('student_task_id', studentTaskId)
-    .maybeSingle()
+    .single()
 
-  if (existingError) {
-    console.error('[atelier] failed to lookup existing post', existingError)
+  if (upsertError || !postRow?.id) {
+    console.error('[atelier] failed to upsert post', upsertError)
     return
   }
 
-  let postId = existingRow?.id ?? null
-
-  if (postId) {
-    const { error: updateError } = await admin
-      .from('atelier_posts')
-      .update(updatePayload)
-      .eq('id', postId)
-
-    if (updateError) {
-      console.error('[atelier] failed to update existing post', updateError)
-      return
-    }
-  } else {
-    const { data: insertedRow, error: insertError } = await admin
-      .from('atelier_posts')
-      .insert({
-        student_task_id: studentTaskId,
-        student_id: studentId,
-        ...updatePayload,
-      })
-      .select('id')
-      .single()
-
-    if (insertError || !insertedRow?.id) {
-      console.error('[atelier] failed to insert post', insertError)
-      return
-    }
-
-    postId = insertedRow.id
-  }
-
-  if (!postId) {
-    console.error('[atelier] missing post id after sync', { studentTaskId, taskSubmissionId })
-    return
-  }
-
-  await replaceAtelierPostAssets(admin, { postId, studentId, attachments })
+  await replaceAtelierPostAssets(admin, { postId: postRow.id, studentId, attachments })
 }
 
 export async function setAtelierPostHidden({
