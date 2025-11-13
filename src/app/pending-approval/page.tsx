@@ -26,7 +26,7 @@ export default async function PendingApprovalPage() {
   const status = (profile?.status as 'pending' | 'withdrawn' | 'graduated' | 'rejected' | 'approved' | undefined) ?? 'pending'
   const isPending = status === 'pending'
   const isInactive = status === 'withdrawn' || status === 'graduated'
-  const isRejected = status === 'rejected'
+  // const isRejected = status === 'rejected' // 거절 상태 전용 안내가 필요하면 다시 활성화하세요.
 
   const badgeLabel = isPending ? statusLabelMap.pending : isInactive ? statusLabelMap[status] : statusLabelMap.rejected
 

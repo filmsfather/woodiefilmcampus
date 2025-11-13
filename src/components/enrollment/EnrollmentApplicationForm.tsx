@@ -72,7 +72,7 @@ const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
   },
   online: {
     label: '온라인반',
-    tagline: '실시간 온라인 집중 수업',
+    tagline: '예비고3 2026년도 수시 대비',
     sections: [
       {
         title: '수업 일정',
