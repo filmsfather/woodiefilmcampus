@@ -243,24 +243,27 @@ export async function updateMemberClassAssignments(input: UpdateClassAssignments
   }
 }
 
-const deleteMemberSchema = z.object({
+const inactiveStatusSchema = z.enum(['withdrawn', 'graduated'])
+
+const transitionMemberStatusSchema = z.object({
   memberId: z.string().uuid('사용자 ID가 올바르지 않습니다.'),
+  nextStatus: inactiveStatusSchema,
 })
 
-type DeleteMemberInput = z.infer<typeof deleteMemberSchema>
+type TransitionMemberStatusInput = z.infer<typeof transitionMemberStatusSchema>
 
-export async function deleteApprovedUser(input: DeleteMemberInput) {
-  const parsed = deleteMemberSchema.safeParse(input)
+export async function transitionMemberToInactive(input: TransitionMemberStatusInput) {
+  const parsed = transitionMemberStatusSchema.safeParse(input)
 
   if (!parsed.success) {
     const firstIssue = parsed.error.issues[0]
-    return { error: firstIssue?.message ?? '삭제할 사용자를 확인해주세요.' }
+    return { error: firstIssue?.message ?? '처리할 사용자를 확인해주세요.' }
   }
 
   const managerProfile = await ensureManagerProfile()
 
   if (!managerProfile) {
-    return { error: '사용자를 삭제할 권한이 없습니다.' }
+    return { error: '사용자를 처리할 권한이 없습니다.' }
   }
 
   try {
@@ -272,16 +275,16 @@ export async function deleteApprovedUser(input: DeleteMemberInput) {
       .maybeSingle()
 
     if (profileError) {
-      console.error('[manager] deleteApprovedUser profile error', profileError)
+      console.error('[manager] transitionMemberToInactive profile error', profileError)
       return { error: '사용자 정보를 불러오지 못했습니다.' }
     }
 
     if (!profile || profile.status !== 'approved') {
-      return { error: '이미 삭제되었거나 승인 상태가 아닌 사용자입니다.' }
+      return { error: '이미 처리되었거나 승인 상태가 아닌 사용자입니다.' }
     }
 
     if (profile.role === 'principal') {
-      return { error: '원장 계정은 삭제할 수 없습니다.' }
+      return { error: '원장 계정은 처리할 수 없습니다.' }
     }
 
     const { error: deleteStudentsError } = await supabase
@@ -290,7 +293,7 @@ export async function deleteApprovedUser(input: DeleteMemberInput) {
       .eq('student_id', profile.id)
 
     if (deleteStudentsError) {
-      console.error('[manager] delete class_students before account removal', deleteStudentsError)
+      console.error('[manager] transitionMemberToInactive class_students error', deleteStudentsError)
     }
 
     const { error: deleteTeachersError } = await supabase
@@ -299,21 +302,25 @@ export async function deleteApprovedUser(input: DeleteMemberInput) {
       .eq('teacher_id', profile.id)
 
     if (deleteTeachersError) {
-      console.error('[manager] delete class_teachers before account removal', deleteTeachersError)
+      console.error('[manager] transitionMemberToInactive class_teachers error', deleteTeachersError)
     }
 
-    const { error: deleteError } = await supabase.auth.admin.deleteUser(profile.id)
+    const { error: updateStatusError } = await supabase
+      .from('profiles')
+      .update({ status: parsed.data.nextStatus, updated_at: new Date().toISOString() })
+      .eq('id', profile.id)
 
-    if (deleteError) {
-      console.error('[manager] deleteApprovedUser auth delete error', deleteError)
-      return { error: '사용자 삭제 중 오류가 발생했습니다.' }
+    if (updateStatusError) {
+      console.error('[manager] transitionMemberToInactive update error', updateStatusError)
+      return { error: '사용자 상태를 변경하지 못했습니다.' }
     }
 
     revalidatePath('/dashboard/manager/members')
     revalidatePath('/dashboard/manager')
+    revalidatePath('/dashboard/principal/withdrawn-students')
     return { success: true as const }
   } catch (error) {
-    console.error('[manager] deleteApprovedUser unexpected', error)
-    return { error: '사용자를 삭제하는 중 예상치 못한 문제가 발생했습니다.' }
+    console.error('[manager] transitionMemberToInactive unexpected', error)
+    return { error: '사용자 상태 변경 중 예상치 못한 문제가 발생했습니다.' }
   }
 }

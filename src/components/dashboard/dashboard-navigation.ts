@@ -28,6 +28,11 @@ const principalCoreSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'principal-students',
+    title: '학생 관리',
+    items: [{ label: '퇴원생 관리', href: '/dashboard/principal/withdrawn-students' }],
+  },
+  {
     id: 'principal-work',
     title: '근무일지 승인',
     items: [

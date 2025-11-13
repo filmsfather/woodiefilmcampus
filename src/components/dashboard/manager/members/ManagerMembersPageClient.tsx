@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { updateMemberProfile, updateMemberClassAssignments, deleteApprovedUser } from '@/app/dashboard/manager/members/actions'
+import { updateMemberProfile, updateMemberClassAssignments, transitionMemberToInactive } from '@/app/dashboard/manager/members/actions'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -81,6 +81,13 @@ type EditState = {
 
 type MembersFilter = 'all' | MemberRole | 'unassigned'
 
+type InactiveStatus = 'withdrawn' | 'graduated'
+
+type InactiveDialogState = {
+  member: ManagerMemberSummary
+  nextStatus: InactiveStatus
+}
+
 const roleFilterOptions: Array<{ label: string; value: MembersFilter }> = [
   { label: '전체', value: 'all' },
   { label: '학생', value: 'student' },
@@ -94,6 +101,24 @@ const roleLabelMap: Record<MemberRole, string> = {
   teacher: '교사',
   manager: '매니저',
   principal: '원장',
+}
+
+const inactiveStatusOptions: Array<{ value: InactiveStatus; label: string; description: string }> = [
+  {
+    value: 'withdrawn',
+    label: '퇴원',
+    description: '중도 퇴원 처리합니다. 학원 시스템 접근이 즉시 차단됩니다.',
+  },
+  {
+    value: 'graduated',
+    label: '졸업',
+    description: '과정을 수료해 졸업 처리합니다. 데이터는 보존되지만 접근은 차단됩니다.',
+  },
+]
+
+const inactiveStatusLabelMap: Record<InactiveStatus, string> = {
+  withdrawn: '퇴원',
+  graduated: '졸업',
 }
 
 function formatAssignments(assignments: ClassAssignmentSummary[], role: MemberRole) {
@@ -132,8 +157,9 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
   const [saving, startSavingTransition] = useTransition()
   const [assignmentState, setAssignmentState] = useState<ActiveAssignmentState | null>(null)
   const [assignmentPending, startAssignmentTransition] = useTransition()
-  const [deletePendingId, setDeletePendingId] = useState<string | null>(null)
-  const [deletePending, startDeleteTransition] = useTransition()
+  const [inactiveState, setInactiveState] = useState<InactiveDialogState | null>(null)
+  const [inactiveError, setInactiveError] = useState<string | null>(null)
+  const [inactivePending, startInactiveTransition] = useTransition()
 
   const classes = initialData.classes
   const members = initialData.members
@@ -322,29 +348,53 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
     })
   }
 
-  const handleDeleteMember = (member: ManagerMemberSummary) => {
-    if (!window.confirm(`${member.name ?? member.email} 계정을 삭제하시겠습니까?`)) {
+  const handleOpenInactive = (member: ManagerMemberSummary) => {
+    if (member.role === 'principal') {
+      return
+    }
+    setInactiveError(null)
+    setInactiveState({ member, nextStatus: 'withdrawn' })
+  }
+
+  const handleCloseInactive = () => {
+    if (inactivePending) {
+      return
+    }
+    setInactiveError(null)
+    setInactiveState(null)
+  }
+
+  const handleChangeInactiveStatus = (value: InactiveStatus) => {
+    setInactiveState((prev) => (prev ? { ...prev, nextStatus: value } : prev))
+  }
+
+  const handleConfirmInactive = () => {
+    if (!inactiveState) {
       return
     }
 
     setStatusMessage(null)
-    setDeletePendingId(member.id)
+    setInactiveError(null)
 
-    startDeleteTransition(async () => {
-      try {
-        const result = await deleteApprovedUser({ memberId: member.id })
+    startInactiveTransition(async () => {
+      const result = await transitionMemberToInactive({
+        memberId: inactiveState.member.id,
+        nextStatus: inactiveState.nextStatus,
+      })
 
-        if (result?.error) {
-          setStatusMessage({ type: 'error', text: result.error })
-          return
-        }
-
-        setStatusMessage({ type: 'success', text: '구성원을 삭제했습니다.' })
-        setEditState((prev) => (prev?.memberId === member.id ? null : prev))
-        router.refresh()
-      } finally {
-        setDeletePendingId(null)
+      if (result?.error) {
+        setInactiveError(result.error)
+        return
       }
+
+      const label = inactiveStatusLabelMap[inactiveState.nextStatus]
+      setStatusMessage({
+        type: 'success',
+        text: `${inactiveState.member.name ?? inactiveState.member.email} 님을 ${label} 처리했습니다.`,
+      })
+      setEditState((prev) => (prev?.memberId === inactiveState.member.id ? null : prev))
+      setInactiveState(null)
+      router.refresh()
     })
   }
 
@@ -518,20 +568,22 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                             반 배정
                           </Button>
                         )}
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDeleteMember(member)}
-                          disabled={deletePending && deletePendingId === member.id}
-                        >
-                          {deletePending && deletePendingId === member.id ? (
-                            <span className="flex items-center gap-2">
-                              <LoadingSpinner className="size-4" /> 삭제 중
-                            </span>
-                          ) : (
-                            '삭제'
-                          )}
-                        </Button>
+                        {member.role !== 'principal' && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleOpenInactive(member)}
+                            disabled={inactivePending && inactiveState?.member.id === member.id}
+                          >
+                            {inactivePending && inactiveState?.member.id === member.id ? (
+                              <span className="flex items-center gap-2">
+                                <LoadingSpinner className="size-4" /> 처리 중
+                              </span>
+                            ) : (
+                              '퇴원/졸업'
+                            )}
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -618,6 +670,73 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                     </span>
                   ) : (
                     '저장'
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={!!inactiveState} onOpenChange={(open) => (!open ? handleCloseInactive() : undefined)}>
+        <SheetContent className="sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>퇴원 · 졸업 처리</SheetTitle>
+            {inactiveState && (
+              <SheetDescription>
+                {inactiveState.member.name ?? inactiveState.member.email} · {roleLabelMap[inactiveState.member.role]}
+              </SheetDescription>
+            )}
+          </SheetHeader>
+
+          {inactiveState && (
+            <div className="flex flex-1 flex-col gap-4 p-4">
+              <p className="text-sm text-slate-600">
+                처리 유형을 선택하세요. 반 배정이 모두 해제되고 로그인할 수 없으며, 필요 시 원장 퇴원생 관리에서 복구할 수 있습니다.
+              </p>
+
+              <div className="space-y-3">
+                {inactiveStatusOptions.map((option) => (
+                  <label
+                    key={option.value}
+                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 shadow-sm transition hover:border-slate-400"
+                  >
+                    <input
+                      type="radio"
+                      name="inactive-status"
+                      className="mt-1 h-4 w-4"
+                      checked={inactiveState.nextStatus === option.value}
+                      onChange={() => handleChangeInactiveStatus(option.value)}
+                    />
+                    <span className="space-y-1">
+                      <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
+                      <span className="block text-sm text-slate-600">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <p className="text-xs text-slate-500">
+                처리된 계정은 원장 대시보드 &gt; 퇴원생 관리에서만 조회할 수 있습니다.
+              </p>
+
+              {inactiveError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{inactiveError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <Button variant="outline" onClick={handleCloseInactive} disabled={inactivePending}>
+                  취소
+                </Button>
+                <Button variant="destructive" onClick={handleConfirmInactive} disabled={inactivePending}>
+                  {inactivePending ? (
+                    <span className="flex items-center gap-2">
+                      <LoadingSpinner className="size-4" /> 처리 중
+                    </span>
+                  ) : (
+                    `${inactiveStatusLabelMap[inactiveState.nextStatus]} 처리`
                   )}
                 </Button>
               </div>
