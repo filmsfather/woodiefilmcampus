@@ -23,11 +23,21 @@ function sanitizeSubmissionFileName(name: string) {
   if (!name) {
     return fallback
   }
+
   const trimmed = name.trim()
   if (!trimmed) {
     return fallback
   }
-  return trimmed.replace(/[^a-zA-Z0-9_.-]/g, '_') || fallback
+
+  // Remove only control characters so display names can retain the user's original text (including Korean).
+  const withoutControlChars = trimmed.replace(/[\u0000-\u001f\u007f]/g, '')
+
+  if (!withoutControlChars) {
+    return fallback
+  }
+
+  // Cap overly long names to protect downstream UI while preserving most of the original string.
+  return withoutControlChars.slice(0, 255)
 }
 
 function normalizeUploadedFileRecord(value: unknown, index = 0): UploadedFilePayload {
