@@ -110,12 +110,19 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="font-medium text-slate-800">{assignment.title}</span>
-                                  <Badge
-                                    variant={assignment.status === 'completed' ? 'default' : 'outline'}
-                                    className="text-[10px]"
-                                  >
-                                    {STATUS_LABEL[assignment.status] ?? assignment.status}
-                                  </Badge>
+                                  <div className="flex items-center gap-1">
+                                    <Badge
+                                      variant={assignment.status === 'completed' ? 'default' : 'outline'}
+                                      className="text-[10px]"
+                                    >
+                                      {STATUS_LABEL[assignment.status] ?? assignment.status}
+                                    </Badge>
+                                    {assignment.submittedLate ? (
+                                      <Badge variant="destructive" className="text-[10px]">
+                                        지각
+                                      </Badge>
+                                    ) : null}
+                                  </div>
                                 </div>
                               </li>
                             ))}

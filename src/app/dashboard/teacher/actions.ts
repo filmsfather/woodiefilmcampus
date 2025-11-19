@@ -200,6 +200,18 @@ const toggleSchema = z.object({
 
 type ToggleInput = z.infer<typeof toggleSchema>
 
+const reviewStateSchema = z.object({
+  assignmentId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  studentTaskId: z.string().uuid('유효한 학생 과제 ID가 아닙니다.'),
+  statusOverride: z
+    .enum(['pending', 'not_started', 'in_progress', 'completed', 'canceled'])
+    .nullable()
+    .optional(),
+  submittedLate: z.boolean(),
+})
+
+type UpdateReviewStateInput = z.infer<typeof reviewStateSchema>
+
 export async function toggleStudentTaskStatus(input: ToggleInput) {
   const { profile } = await getAuthContext()
 
@@ -249,7 +261,7 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
     if (payload.cancel) {
       const { error: cancelError } = await supabase
         .from('student_tasks')
-        .update({ status: 'canceled', completion_at: null, updated_at: now })
+        .update({ status: 'canceled', completion_at: null, status_override: null, updated_at: now })
         .eq('id', payload.studentTaskId)
 
       if (cancelError) {
@@ -278,7 +290,7 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
 
       const { error: reopenError } = await supabase
         .from('student_tasks')
-        .update({ status: nextStatus, completion_at: completionAt, updated_at: now })
+        .update({ status: nextStatus, completion_at: completionAt, status_override: null, updated_at: now })
         .eq('id', payload.studentTaskId)
 
       if (reopenError) {
@@ -297,6 +309,86 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
   } catch (error) {
     console.error('[teacher] toggleStudentTaskStatus unexpected error', error)
     return { error: '상태 변경 중 예상치 못한 문제가 발생했습니다.' }
+  }
+}
+
+export async function updateStudentTaskReviewState(input: UpdateReviewStateInput) {
+  const { profile } = await getAuthContext()
+
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 변경할 수 있습니다.' }
+  }
+
+  const parsed = reviewStateSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '요청 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  const desiredOverride =
+    typeof payload.statusOverride === 'undefined' ? null : payload.statusOverride
+  const supabase = createServerSupabase()
+
+  try {
+    const { data: studentTask, error: fetchError } = await supabase
+      .from('student_tasks')
+      .select(
+        'id, assignment_id, class_id, assignments:assignments!student_tasks_assignment_id_fkey(id, assigned_by), profiles:profiles!student_tasks_student_id_fkey(class_id)'
+      )
+      .eq('id', payload.studentTaskId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[teacher] updateStudentTaskReviewState fetch error', fetchError)
+      return { error: '과제 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!studentTask || studentTask.assignment_id !== payload.assignmentId) {
+      return { error: '학생 과제 정보를 확인할 수 없습니다.' }
+    }
+
+    const assignment = Array.isArray(studentTask.assignments)
+      ? studentTask.assignments[0]
+      : studentTask.assignments
+
+    if (!assignment || !canManageAssignment(profile, assignment.assigned_by)) {
+      return { error: '해당 과제에 대한 권한이 없습니다.' }
+    }
+
+    const profileRecord = Array.isArray(studentTask.profiles) ? studentTask.profiles[0] : studentTask.profiles
+    const classId = studentTask.class_id ?? profileRecord?.class_id ?? null
+
+    const now = new Date().toISOString()
+    const { error: updateError } = await supabase
+      .from('student_tasks')
+      .update({
+        status_override: desiredOverride,
+        submitted_late: payload.submittedLate,
+        updated_at: now,
+      })
+      .eq('id', payload.studentTaskId)
+
+    if (updateError) {
+      console.error('[teacher] updateStudentTaskReviewState update error', updateError)
+      return { error: '과제 상태를 저장하지 못했습니다.' }
+    }
+
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath(`/dashboard/teacher/assignments/${payload.assignmentId}`)
+    if (classId) {
+      revalidatePath(`/dashboard/teacher/review/${classId}`)
+    }
+    revalidatePath('/dashboard/student', 'layout')
+    revalidatePath('/dashboard/student/tasks')
+    revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
+
+    return { success: true as const }
+  } catch (error) {
+    console.error('[teacher] updateStudentTaskReviewState unexpected error', error)
+    return { error: '상태 변경 중 문제가 발생했습니다.' }
   }
 }
 

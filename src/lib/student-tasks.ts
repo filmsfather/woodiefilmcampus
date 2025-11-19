@@ -132,6 +132,8 @@ type AssignmentRow = {
 type StudentTaskRow = {
   id: string
   status: StudentTaskStatus
+  status_override?: StudentTaskStatus | null
+  submitted_late?: boolean | null
   completion_at: string | null
   created_at: string
   updated_at: string
@@ -239,6 +241,10 @@ function mapSummary(
   const items = row.student_task_items ?? []
   let totalItems = items.length
   let completedItems = items.filter((item) => Boolean(item.completed_at)).length
+  const statusOverride = row.status_override ?? null
+  const resolvedStatus = statusOverride ?? row.status
+  const statusSource: 'system' | 'override' = statusOverride ? 'override' : 'system'
+  const submittedLate = Boolean(row.submitted_late)
 
   if (assignment?.workbook?.type === 'film') {
     const filmProgress = (() => {
@@ -269,7 +275,10 @@ function mapSummary(
 
   return {
     id: row.id,
-    status: row.status,
+    status: resolvedStatus,
+    statusSource,
+    statusOverride,
+    submittedLate,
     completionAt: row.completion_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -280,7 +289,7 @@ function mapSummary(
       completedItems,
       remainingItems: Math.max(totalItems - completedItems, 0),
     },
-    due: deriveDueState(assignment?.dueAt ?? null, row.status),
+    due: deriveDueState(assignment?.dueAt ?? null, resolvedStatus),
   }
 }
 
@@ -512,7 +521,7 @@ export async function fetchStudentTaskSummaries(
   const { data, error } = await supabase
     .from('student_tasks')
     .select(
-      `id, assignment_id, status, completion_at, created_at, updated_at, progress_meta,
+      `id, assignment_id, status, status_override, submitted_late, completion_at, created_at, updated_at, progress_meta,
        student_task_items(id, completed_at, next_review_at)`
     )
     .eq('student_id', studentId)
@@ -569,7 +578,7 @@ export async function fetchStudentTaskDetail(
   const { data, error } = await supabase
     .from('student_tasks')
     .select(
-      `id, assignment_id, status, completion_at, created_at, updated_at, progress_meta,
+      `id, assignment_id, status, status_override, submitted_late, completion_at, created_at, updated_at, progress_meta,
        student_task_items(
          id, item_id, completed_at, next_review_at, streak, last_result,
          item:workbook_items(

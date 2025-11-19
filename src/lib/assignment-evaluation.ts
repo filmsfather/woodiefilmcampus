@@ -1,4 +1,5 @@
 import DateUtil from '@/lib/date-util'
+import type { StudentTaskStatus } from '@/types/student-task'
 
 type MaybeArray<T> = T | T[]
 
@@ -116,6 +117,8 @@ interface RawPrintRequest {
 interface RawStudentTask {
   id: string
   status: string
+  status_override?: StudentTaskStatus | null
+  submitted_late?: boolean | null
   completion_at: string | null
   updated_at: string
   student_id: string
@@ -174,6 +177,9 @@ export interface SubmissionSummary {
 export interface StudentTaskSummary {
   id: string
   status: string
+  statusSource: 'system' | 'override'
+  statusOverride: StudentTaskStatus | null
+  submittedLate: boolean
   completionAt: string | null
   updatedAt: string
   studentId: string
@@ -300,6 +306,8 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
 
   const studentTasks: StudentTaskSummary[] = (row.student_tasks ?? []).map((task) => {
     const profile = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
+    const resolvedStatus = task.status_override ?? task.status
+    const statusSource: 'system' | 'override' = task.status_override ? 'override' : 'system'
     const items: StudentTaskItemSummary[] = (task.student_task_items ?? []).map((item) => {
       const workbookItem = Array.isArray(item.workbook_items) ? item.workbook_items[0] : item.workbook_items
       return {
@@ -360,7 +368,10 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
 
     return {
       id: task.id,
-      status: task.status,
+      status: resolvedStatus,
+      statusSource,
+      statusOverride: task.status_override ?? null,
+      submittedLate: Boolean(task.submitted_late),
       completionAt: task.completion_at,
       updatedAt: task.updated_at,
       studentId: task.student_id,
@@ -511,9 +522,15 @@ export function filterAssignmentForClass(assignment: AssignmentDetail, classId: 
 
 export function computeAssignmentSummary(assignment: AssignmentDetail) {
   const totalStudents = assignment.studentTasks.length
-  const completedStudents = assignment.studentTasks.filter((task) => task.status === 'completed').length
+  const rawCompleted = assignment.studentTasks.filter((task) => task.status === 'completed').length
   const canceledStudents = assignment.studentTasks.filter((task) => task.status === 'canceled').length
-  const outstandingStudents = assignment.studentTasks.filter((task) => task.status !== 'completed' && task.status !== 'canceled').length
+  const rawOutstanding = assignment.studentTasks.filter((task) => task.status !== 'completed' && task.status !== 'canceled').length
+  const lateCompleted = assignment.studentTasks.filter(
+    (task) => task.status === 'completed' && task.submittedLate
+  ).length
+  const penalty = Math.min(rawCompleted, Math.floor(lateCompleted / 2))
+  const completedStudents = rawCompleted - penalty
+  const outstandingStudents = rawOutstanding + penalty
   const completionRate = totalStudents === 0 ? 0 : Math.round((completedStudents / totalStudents) * 100)
 
   const dueLabel = assignment.dueAt

@@ -212,6 +212,7 @@ export interface LearningJournalWeekAssignmentItem {
   status: 'completed' | 'in_progress' | 'not_started' | 'pending'
   dueDate: string | null
   submittedAt: string | null
+  submittedLate: boolean
   score: number | null
   note: string | null
 }

@@ -25,11 +25,13 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
        workbooks(id, title, subject, type, week_label, config),
        assignment_targets(class_id, classes(id, name)),
        student_tasks(
-         id,
-         status,
-         completion_at,
-         updated_at,
-         student_id,
+       id,
+       status,
+        status_override,
+        submitted_late,
+        completion_at,
+        updated_at,
+        student_id,
           class_id,
          profiles!student_tasks_student_id_fkey(id, name, email, class_id),
          student_task_items(

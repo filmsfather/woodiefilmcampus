@@ -132,7 +132,14 @@ function deriveWeeklyCompletionStats(weeks: LearningJournalWeeklyData[]): Weekly
       const completedAssignments = assignments.filter(
         (assignment) => assignment.status === 'completed'
       ).length
-      const percent = totalAssignments === 0 ? 0 : Math.min(100, Math.round((completedAssignments / totalAssignments) * 100))
+      const lateCompleted = assignments.filter(
+        (assignment) => assignment.status === 'completed' && assignment.submittedLate
+      ).length
+      const penalty = Math.min(completedAssignments, Math.floor(lateCompleted / 2))
+      const adjustedCompleted = completedAssignments - penalty
+      const percent = totalAssignments === 0
+        ? 0
+        : Math.min(100, Math.round((adjustedCompleted / totalAssignments) * 100))
       const evaluation = totalAssignments === 0 ? null : calculateCompletionEvaluation(percent)
 
       return {

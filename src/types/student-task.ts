@@ -28,6 +28,9 @@ export interface StudentTaskItemSummary {
 export interface StudentTaskSummary {
   id: string
   status: StudentTaskStatus
+  statusSource: 'system' | 'override'
+  statusOverride: StudentTaskStatus | null
+  submittedLate: boolean
   completionAt: string | null
   createdAt: string
   updatedAt: string

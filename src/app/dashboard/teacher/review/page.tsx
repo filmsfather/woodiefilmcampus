@@ -58,6 +58,8 @@ interface RawAssignmentRow {
   student_tasks?: Array<{
     id: string
     status: string
+    status_override?: string | null
+    submitted_late?: boolean | null
     student_id: string
     class_id: string | null
     profiles?:
@@ -95,6 +97,7 @@ interface AssignmentSummary {
     status: string
     studentId: string
     classId: string | null
+    submittedLate: boolean
   }>
   printRequests: Array<{
     id: string
@@ -138,8 +141,10 @@ export default async function TeacherReviewOverviewPage({
       `id, due_at, created_at, target_scope,
        assignment_targets(class_id, classes(id, name)),
       student_tasks(
-        id,
-        status,
+       id,
+       status,
+        status_override,
+        submitted_late,
         student_id,
         class_id,
         profiles!student_tasks_student_id_fkey(id, name, email, class_id)
@@ -230,11 +235,13 @@ export default async function TeacherReviewOverviewPage({
 
     const studentTasks = (row.student_tasks ?? []).map((task) => {
       const profileRecord = Array.isArray(task.profiles) ? task.profiles[0] : task.profiles
+      const resolvedStatus = task.status_override ?? task.status
       return {
         id: task.id,
-        status: task.status,
+        status: resolvedStatus,
         studentId: task.student_id,
         classId: task.class_id ?? profileRecord?.class_id ?? null,
+        submittedLate: Boolean(task.submitted_late),
       }
     })
 
@@ -292,14 +299,21 @@ export default async function TeacherReviewOverviewPage({
         }
         return targetIds.has(managedClass.id)
       })
-      const outstandingTasks = classTasks.filter((task) => task.status !== 'completed' && task.status !== 'canceled')
+      const outstandingTasks = classTasks.filter(
+        (task) => task.status !== 'completed' && task.status !== 'canceled'
+      )
+      const completedTasks = classTasks.filter((task) => task.status === 'completed')
+      const lateCompletedCount = completedTasks.filter((task) => task.submittedLate).length
+      const penalty = Math.min(completedTasks.length, Math.floor(lateCompletedCount / 2))
+      const effectiveOutstandingCount = outstandingTasks.length + penalty
 
-      incompleteStudents += outstandingTasks.length
+      incompleteStudents += effectiveOutstandingCount
 
       if (assignment.dueAt) {
         const dueTime = new Date(assignment.dueAt).getTime()
-        const isOverdue = dueTime < now.getTime() && outstandingTasks.length > 0
-        const isUpcoming = dueTime >= now.getTime() && dueTime <= upcomingThreshold && outstandingTasks.length > 0
+        const hasOutstanding = effectiveOutstandingCount > 0
+        const isOverdue = dueTime < now.getTime() && hasOutstanding
+        const isUpcoming = dueTime >= now.getTime() && dueTime <= upcomingThreshold && hasOutstanding
 
         if (isOverdue) {
           overdueAssignments += 1
@@ -309,7 +323,7 @@ export default async function TeacherReviewOverviewPage({
           upcomingAssignments += 1
         }
 
-        if (outstandingTasks.length > 0) {
+        if (hasOutstanding) {
           if (!nextDueAt || dueTime < new Date(nextDueAt).getTime()) {
             nextDueAt = assignment.dueAt
           }

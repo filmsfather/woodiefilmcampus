@@ -24,6 +24,7 @@ import {
   createPrintRequest,
   deleteStudentTask,
   cancelPrintRequest,
+  updateStudentTaskReviewState,
 } from '@/app/dashboard/teacher/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -57,6 +58,7 @@ import {
   sanitizeFilmEntry,
   type FilmNoteEntry,
 } from '@/lib/film-notes'
+import type { StudentTaskStatus } from '@/types/student-task'
 
 interface WorkbookItemSummary {
   id: string
@@ -94,6 +96,9 @@ interface SubmissionSummary {
 interface StudentTaskSummary {
   id: string
   status: string
+  statusSource: 'system' | 'override'
+  statusOverride: StudentTaskStatus | null
+  submittedLate: boolean
   completionAt: string | null
   updatedAt: string
   studentId: string
@@ -199,6 +204,17 @@ const STATUS_LABELS: Record<string, string> = {
   completed: '완료',
   canceled: '취소',
 }
+
+type StatusOverrideOption = StudentTaskStatus | 'system'
+
+const STATUS_OVERRIDE_OPTIONS: Array<{ value: StatusOverrideOption; label: string }> = [
+  { value: 'system', label: '자동 판정' },
+  { value: 'completed', label: '완료' },
+  { value: 'in_progress', label: '진행 중' },
+  { value: 'pending', label: '대기' },
+  { value: 'not_started', label: '미시작' },
+  { value: 'canceled', label: '취소' },
+]
 
 export function AssignmentEvaluationPanel({
   teacherName,
@@ -482,6 +498,105 @@ function SummaryTile({ label, value }: { label: string; value: string }) {
   )
 }
 
+interface StudentTaskStatusControlProps {
+  assignmentId: string
+  task: StudentTaskSummary
+  size?: 'sm' | 'md'
+}
+
+function StudentTaskStatusControl({ assignmentId, task, size = 'md' }: StudentTaskStatusControlProps) {
+  const router = useRouter()
+  const [message, setMessage] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+  const [overrideValue, setOverrideValue] = useState<StudentTaskStatus | null>(
+    task.statusOverride ?? null
+  )
+  const [lateValue, setLateValue] = useState<boolean>(task.submittedLate)
+
+  useEffect(() => {
+    setOverrideValue(task.statusOverride ?? null)
+  }, [task.statusOverride])
+
+  useEffect(() => {
+    setLateValue(task.submittedLate)
+  }, [task.submittedLate])
+
+  const handleUpdate = (nextOverride: StudentTaskStatus | null, submittedLate: boolean) => {
+    setMessage(null)
+    startTransition(async () => {
+      const result = await updateStudentTaskReviewState({
+        assignmentId,
+        studentTaskId: task.id,
+        statusOverride: nextOverride,
+        submittedLate,
+      })
+      if (result?.error) {
+        setMessage(result.error)
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  const handleStatusChange = (value: StatusOverrideOption) => {
+    const nextOverride = value === 'system' ? null : value
+    setOverrideValue(nextOverride)
+    handleUpdate(nextOverride, lateValue)
+  }
+
+  const handleLateToggle = (checked: boolean) => {
+    const nextLate = checked
+    setLateValue(nextLate)
+    handleUpdate(overrideValue, nextLate)
+  }
+
+  const containerTextClass = size === 'sm' ? 'text-[11px]' : 'text-xs'
+  const triggerClass = size === 'sm' ? 'h-8 text-[11px]' : 'h-9 text-xs'
+
+  const selectValue: StatusOverrideOption = (overrideValue ?? 'system') as StatusOverrideOption
+
+  return (
+    <div className={`space-y-1 ${containerTextClass}`}>
+      <div className="flex flex-wrap items-center gap-1">
+        <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
+          {STATUS_LABELS[task.status] ?? task.status}
+        </Badge>
+        {task.submittedLate ? (
+          <Badge variant="destructive" className="text-[10px]">
+            지각
+          </Badge>
+        ) : null}
+        {task.statusSource === 'override' ? (
+          <Badge variant="outline" className="text-[10px]">
+            교사 지정
+          </Badge>
+        ) : null}
+      </div>
+      <Select value={selectValue} onValueChange={(value) => handleStatusChange(value as StatusOverrideOption)}>
+        <SelectTrigger disabled={isPending} className={`w-full max-w-[200px] ${triggerClass}`}>
+          <SelectValue placeholder="상태 조정" />
+        </SelectTrigger>
+        <SelectContent>
+          {STATUS_OVERRIDE_OPTIONS.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <label className="flex items-center gap-2 text-[11px] text-slate-600">
+        <Checkbox
+          checked={lateValue}
+          onChange={(event) => handleLateToggle(event.target.checked)}
+          disabled={isPending}
+        />
+        지각 제출
+      </label>
+      {message && <p className="text-[11px] text-destructive">{message}</p>}
+    </div>
+  )
+}
+
 function PrintRequestList({
   requests,
   studentLookup,
@@ -689,9 +804,7 @@ function SrsReviewPanel({
                   </TableCell>
                   <TableCell>{className}</TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-                      {STATUS_LABELS[task.status] ?? task.status}
-                    </Badge>
+                    <StudentTaskStatusControl assignmentId={assignment.id} task={task} size="sm" />
                   </TableCell>
                   <TableCell>
                     {item?.lastResult ? (
@@ -1098,9 +1211,7 @@ function PdfEvaluationRow({
         </Select>
       </TableCell>
       <TableCell>
-        <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-          {STATUS_LABELS[task.status] ?? task.status}
-        </Badge>
+        <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
       </TableCell>
       <TableCell className="text-right">
         <div className="flex flex-col items-end gap-2">
@@ -1223,16 +1334,12 @@ function WritingEvaluationCard({
           <p className="text-xs text-slate-500">{className}</p>
         </div>
         <div className="flex flex-col items-end gap-2 md:flex-row md:items-center">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-              {STATUS_LABELS[task.status] ?? task.status}
-            </Badge>
-            {submission?.updatedAt && (
-              <span>
-                최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
-              </span>
-            )}
-          </div>
+          <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
+          {submission?.updatedAt && (
+            <span className="text-xs text-slate-500">
+              최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
+            </span>
+          )}
           <Button
             size="sm"
             variant="destructive"
@@ -1394,16 +1501,12 @@ function FilmEvaluationCard({
           <p className="text-xs text-slate-500">{className}</p>
         </div>
         <div className="flex flex-col items-end gap-2 md:flex-row md:items-center">
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-              {STATUS_LABELS[task.status] ?? task.status}
-            </Badge>
-            {submission?.updatedAt && (
-              <span>
-                최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
-              </span>
-            )}
-          </div>
+          <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
+          {submission?.updatedAt && (
+            <span className="text-xs text-slate-500">
+              최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
+            </span>
+          )}
           <Button
             size="sm"
             variant="destructive"
@@ -1657,9 +1760,7 @@ function LectureReviewPanel({
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-                      {STATUS_LABELS[task.status] ?? task.status}
-                    </Badge>
+                    <StudentTaskStatusControl assignmentId={assignment.id} task={task} size="sm" />
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

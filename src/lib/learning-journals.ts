@@ -1195,6 +1195,8 @@ interface EntryWeeklyGenerationRow {
 interface StudentTaskWeeklyRow {
   id: string
   status: string
+  status_override?: string | null
+  submitted_late?: boolean | null
   completion_at: string | null
   progress_meta: Record<string, unknown> | null
   assignments?:
@@ -1366,6 +1368,8 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
     .select(
       `id,
        status,
+       status_override,
+       submitted_late,
        completion_at,
        progress_meta,
        assignments:assignments!student_tasks_assignment_id_fkey(
@@ -1407,6 +1411,8 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
       continue
     }
 
+    const resolvedStatus = row.status_override ?? row.status
+
     const targets = toArray(assignmentRelation.assignment_targets)
     const hasMatchingTarget =
       targets.length === 0 ||
@@ -1444,9 +1450,10 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
     subjectAssignments.push({
       id: row.id,
       title: workbook?.title ?? '과제',
-      status: normalizeAssignmentStatus(row.status),
+      status: normalizeAssignmentStatus(resolvedStatus),
       dueDate: assignmentRelation.due_at,
       submittedAt: row.completion_at,
+      submittedLate: Boolean(row.submitted_late),
       score: extractScore(progressMeta),
       note: null,
     })
