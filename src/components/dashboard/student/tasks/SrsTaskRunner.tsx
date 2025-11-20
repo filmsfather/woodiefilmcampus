@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Eye, EyeOff, RotateCcw } from 'lucide-react'
 
@@ -145,8 +146,34 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
       return aTime - bTime
     })
   }, [task.items])
+  const sortedAllItems = useMemo(() => {
+    return [...task.items].sort((a, b) => a.workbookItem.position - b.workbookItem.position)
+  }, [task.items])
   const hasDueItems = dueItems.length > 0
-  const displayItems = hasDueItems ? dueItems : []
+  const isFullyCompleted = task.summary.remainingItems === 0
+  const canPracticeOrReview = !hasDueItems && isFullyCompleted && task.items.length > 0
+
+  const [isReviewListOpen, setIsReviewListOpen] = useState(false)
+  const [isPracticeMode, setIsPracticeMode] = useState(false)
+
+  useEffect(() => {
+    if (!canPracticeOrReview) {
+      setIsPracticeMode(false)
+      setIsReviewListOpen(false)
+    }
+  }, [canPracticeOrReview])
+
+  const displayItems = useMemo(() => {
+    if (hasDueItems) {
+      return dueItems
+    }
+
+    if (isPracticeMode && canPracticeOrReview) {
+      return sortedAllItems
+    }
+
+    return []
+  }, [canPracticeOrReview, dueItems, hasDueItems, isPracticeMode, sortedAllItems])
   const nextScheduledItem = useMemo(() => getNextScheduledItem(task.items), [task.items])
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -156,6 +183,12 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     }
   }, [displayItems.length, currentIndex])
   const currentItem = displayItems[currentIndex] ?? null
+
+  useEffect(() => {
+    if (isPracticeMode) {
+      setCurrentIndex(0)
+    }
+  }, [isPracticeMode])
 
   const [selectedChoiceIds, setSelectedChoiceIds] = useState<string[]>([])
   const [shortInputs, setShortInputs] = useState<string[]>([])
@@ -287,6 +320,22 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
       isCorrect = isShortAnswerCorrect(currentItem, shortInputs)
     }
 
+    if (isPracticeMode) {
+      setResult(isCorrect ? 'correct' : 'incorrect')
+      if (!isCorrect) {
+        setShowAnswer(true)
+      }
+
+      if (isCorrect) {
+        autoAdvanceTimerRef.current = setTimeout(() => {
+          autoAdvanceTimerRef.current = null
+          moveToNextItem()
+        }, 1000)
+      }
+
+      return
+    }
+
     try {
       setIsSubmitting(true)
       const response = await onSubmitAnswer({ studentTaskItemId: currentItem.id, isCorrect })
@@ -318,59 +367,130 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     }
   }
 
+  let fallbackContent: ReactNode | null = null
+
   if (!currentItem) {
     if (task.items.length === 0) {
-      return (
+      fallbackContent = (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
           문항을 불러오지 못했습니다. 잠시 후 다시 시도하거나 담당 선생님께 문의해주세요.
         </div>
       )
-    }
-
-    if (!hasDueItems && task.summary.remainingItems === 0) {
-      return (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-6 text-sm text-slate-600">
-          모든 문항을 완료했습니다. 필요하면 과제를 다시 열람하여 복습할 수 있습니다.
+    } else if (!hasDueItems && !canPracticeOrReview) {
+      fallbackContent = (
+        <div className="space-y-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+          <p>현재 복습할 문항이 없습니다. 다음 복습 시간에 다시 돌아와주세요.</p>
+          {nextScheduledItem?.nextReviewAt && (
+            <p>
+              다음 복습 예정 시각:{' '}
+              <strong>
+                {DateUtil.formatForDisplay(nextScheduledItem.nextReviewAt, {
+                  locale: 'ko-KR',
+                  timeZone: 'Asia/Seoul',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </strong>
+            </p>
+          )}
+          {remainingTimeLabel && <p>다음 문항까지: {remainingTimeLabel}</p>}
+          <Button variant="outline" size="sm" onClick={() => router.refresh()} className="mt-2 w-full sm:w-auto">
+            <RotateCcw className="mr-2 h-4 w-4" /> 새로고침
+          </Button>
         </div>
       )
     }
-
-    return (
-      <div className="space-y-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
-        <p>현재 복습할 문항이 없습니다. 다음 복습 시간에 다시 돌아와주세요.</p>
-        {nextScheduledItem?.nextReviewAt && (
-          <p>
-            다음 복습 예정 시각:{' '}
-            <strong>
-              {DateUtil.formatForDisplay(nextScheduledItem.nextReviewAt, {
-                locale: 'ko-KR',
-                timeZone: 'Asia/Seoul',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </strong>
-          </p>
-        )}
-        {remainingTimeLabel && <p>다음 문항까지: {remainingTimeLabel}</p>}
-        <Button variant="outline" size="sm" onClick={() => router.refresh()} className="mt-2 w-full sm:w-auto">
-          <RotateCcw className="mr-2 h-4 w-4" /> 새로고침
-        </Button>
-      </div>
-    )
   }
 
-  const correctChoices = computeCorrectChoiceIds(currentItem)
+  const correctChoices = currentItem ? computeCorrectChoiceIds(currentItem) : []
 
   return (
     <div className="space-y-6">
-      <Card className="border-slate-200">
-        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="text-lg font-semibold text-slate-900">문항 #{currentItem.workbookItem.position}</CardTitle>
-            <p className="text-sm text-slate-500">카드별로 정답을 입력하고 확인해보세요.</p>
+      {canPracticeOrReview && (
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+          <p className="font-medium text-slate-900">모든 문항을 완료했습니다. 필요하면 아래 옵션으로 복습할 수 있습니다.</p>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant={isReviewListOpen ? 'default' : 'outline'}
+              onClick={() => setIsReviewListOpen((prev) => !prev)}
+            >
+              {isReviewListOpen ? '전체 문항 접기' : '전체 문항 복습'}
+            </Button>
+            <Button
+              type="button"
+              variant={isPracticeMode ? 'secondary' : 'default'}
+              onClick={() => setIsPracticeMode((prev) => !prev)}
+            >
+              {isPracticeMode ? '연습 모드 종료' : '다시 풀어보기'}
+            </Button>
           </div>
+          <p className="text-xs text-slate-500">연습 모드에서는 정답 기록이나 streak에 영향을 주지 않습니다.</p>
+        </div>
+      )}
+
+      {isReviewListOpen && (
+        <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+          <p className="text-sm font-semibold text-slate-900">전체 문항 복습</p>
+          <div className="space-y-4">
+            {sortedAllItems.map((item) => (
+              <div key={item.id} className="space-y-3 rounded-md border border-slate-200 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-medium text-slate-900">문항 #{item.workbookItem.position}</p>
+                  <Badge variant={item.streak >= 3 ? 'secondary' : 'outline'}>연속 정답 {item.streak}회</Badge>
+                </div>
+                <p className="text-sm text-slate-700 whitespace-pre-line">{item.workbookItem.prompt}</p>
+                {item.workbookItem.choices.length > 0 && (
+                  <ul className="space-y-1 text-sm">
+                    {item.workbookItem.choices.map((choice, index) => (
+                      <li
+                        key={choice.id}
+                        className={cn(
+                          'rounded-md border px-3 py-2',
+                          choice.isCorrect ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-600'
+                        )}
+                      >
+                        <span className="font-medium text-slate-900">보기 {index + 1}:</span> {choice.content}
+                        {choice.isCorrect && <span className="ml-2 text-emerald-700">(정답)</span>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {item.workbookItem.shortFields.length > 0 && (
+                  <ul className="space-y-1 text-sm text-slate-700">
+                    {item.workbookItem.shortFields.map((field, index) => (
+                      <li key={field.id}>
+                        <span className="font-medium text-slate-900">{field.label ?? `정답 ${index + 1}`}:</span> {field.answer}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {item.workbookItem.explanation && (
+                  <p className="text-xs text-slate-500">해설: {item.workbookItem.explanation}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isPracticeMode && (
+        <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4 text-sm text-slate-700">
+          <p className="font-medium text-slate-900">연습 모드 진행 중</p>
+          <p>정답을 다시 입력해볼 수 있지만 과제 기록에는 영향이 없습니다.</p>
+        </div>
+      )}
+
+      {currentItem ? (
+        <>
+          <Card className="border-slate-200">
+            <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="text-lg font-semibold text-slate-900">문항 #{currentItem.workbookItem.position}</CardTitle>
+                <p className="text-sm text-slate-500">카드별로 정답을 입력하고 확인해보세요.</p>
+              </div>
           <Badge variant={currentItem.streak >= 3 ? 'secondary' : 'outline'}>
             연속 정답 {currentItem.streak}회
           </Badge>
@@ -499,31 +619,35 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
         </CardContent>
       </Card>
 
-      {showAnswer && (
-        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-          <p className="font-medium text-slate-800">정답 확인</p>
-          {answerType === 'multiple_choice' ? (
-            <ul className="list-disc space-y-1 pl-5 text-slate-700">
-              {currentItem.workbookItem.choices
-                .filter((choice) => correctChoices.includes(choice.id))
-                .map((choice) => (
-                  <li key={choice.id}>{choice.content}</li>
-                ))}
-            </ul>
-          ) : (
-            <ul className="space-y-1 text-slate-700">
-              {currentItem.workbookItem.shortFields.map((field) => (
-                <li key={field.id}>
-                  <span className="font-medium text-slate-800">{field.label ?? '정답'}:</span>{' '}
-                  <span>{field.answer}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          {showAnswer && (
+            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+              <p className="font-medium text-slate-800">정답 확인</p>
+              {answerType === 'multiple_choice' ? (
+                <ul className="list-disc space-y-1 pl-5 text-slate-700">
+                  {currentItem.workbookItem.choices
+                    .filter((choice) => correctChoices.includes(choice.id))
+                    .map((choice) => (
+                      <li key={choice.id}>{choice.content}</li>
+                    ))}
+                </ul>
+              ) : (
+                <ul className="space-y-1 text-slate-700">
+                  {currentItem.workbookItem.shortFields.map((field) => (
+                    <li key={field.id}>
+                      <span className="font-medium text-slate-800">{field.label ?? '정답'}:</span>{' '}
+                      <span>{field.answer}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {currentItem.workbookItem.explanation && (
                 <p className="pt-2 text-slate-600">{currentItem.workbookItem.explanation}</p>
               )}
-        </div>
+            </div>
+          )}
+        </>
+      ) : (
+        fallbackContent
       )}
     </div>
   )
