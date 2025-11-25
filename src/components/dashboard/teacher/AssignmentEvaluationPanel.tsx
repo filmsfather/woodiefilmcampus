@@ -90,7 +90,7 @@ interface SubmissionSummary {
   feedback: string | null
   createdAt: string
   updatedAt: string
-  asset: { url: string; filename: string; mimeType: string | null } | null
+  assets: Array<{ id: string; url: string; filename: string; mimeType: string | null }>
 }
 
 interface StudentTaskSummary {
@@ -333,11 +333,10 @@ export function AssignmentEvaluationPanel({
 
   const deleteAlertElement = deleteAlert ? (
     <div
-      className={`rounded-md border px-3 py-2 text-xs ${
-        deleteAlert.type === 'error'
-          ? 'border-destructive/40 bg-destructive/10 text-destructive'
-          : 'border-emerald-300 bg-emerald-50 text-emerald-700'
-      }`}
+      className={`rounded-md border px-3 py-2 text-xs ${deleteAlert.type === 'error'
+        ? 'border-destructive/40 bg-destructive/10 text-destructive'
+        : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+        }`}
     >
       {deleteAlert.text}
     </div>
@@ -442,11 +441,11 @@ export function AssignmentEvaluationPanel({
                   <Calendar className="h-3 w-3" />
                   {assignment.dueAt
                     ? DateUtil.formatForDisplay(assignment.dueAt, {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
                     : '마감 없음'}
                 </div>
                 <div className="flex items-center gap-1">
@@ -639,11 +638,10 @@ function PrintRequestList({
       </CardHeader>
       <CardContent className="space-y-2 text-sm text-slate-600">
         {cancelMessage && (
-          <div className={`rounded-md border px-3 py-2 text-xs ${
-            cancelMessage.includes('실패') || cancelMessage.includes('없') || cancelMessage.includes('오류')
-              ? 'border-destructive/40 bg-destructive/10 text-destructive'
-              : 'border-emerald-300 bg-emerald-50 text-emerald-700'
-          }`}
+          <div className={`rounded-md border px-3 py-2 text-xs ${cancelMessage.includes('실패') || cancelMessage.includes('없') || cancelMessage.includes('오류')
+            ? 'border-destructive/40 bg-destructive/10 text-destructive'
+            : 'border-emerald-300 bg-emerald-50 text-emerald-700'
+            }`}
           >
             {cancelMessage}
           </div>
@@ -818,11 +816,11 @@ function SrsReviewPanel({
                   <TableCell>
                     {item?.nextReviewAt
                       ? DateUtil.formatForDisplay(item.nextReviewAt, {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })
                       : '복습 없음'}
                   </TableCell>
                   <TableCell className="text-right">
@@ -871,7 +869,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
     () =>
       assignment.studentTasks.map((task) => ({
         task,
-        hasSubmission: task.submissions.some((submission) => Boolean(submission.mediaAssetId)),
+        hasSubmission: task.submissions.some((submission) => submission.assets.length > 0 || submission.mediaAssetId),
       })),
     [assignment.studentTasks]
   )
@@ -910,7 +908,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
 
   const handleSelectAll = useCallback(() => {
     const allIds = assignment.studentTasks
-      .filter((task) => task.submissions.some((submission) => submission.mediaAssetId))
+      .filter((task) => task.submissions.some((submission) => submission.assets.length > 0 || submission.mediaAssetId))
       .map((task) => task.id)
     setSelectedTaskIds(allIds)
     setHasCustomSelection(false)
@@ -926,7 +924,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
       return
     }
     const autoSelectedIds = assignment.studentTasks
-      .filter((task) => task.submissions.some((submission) => submission.mediaAssetId))
+      .filter((task) => task.submissions.some((submission) => submission.assets.length > 0 || submission.mediaAssetId))
       .map((task) => task.id)
     setSelectedTaskIds((prev) => {
       const isSame = prev.length === autoSelectedIds.length && prev.every((id) => autoSelectedIds.includes(id))
@@ -1110,16 +1108,16 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
           </TableHeader>
           <TableBody>
             {assignment.studentTasks.map((task) => (
-          <PdfEvaluationRow
-            key={task.id}
-            assignmentId={assignment.id}
-            task={task}
-            className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
-              isFocused={task.id === focusStudentTaskId}
-            onDeleteStudentTask={onDeleteStudentTask}
-            deleteState={deleteState}
-          />
-        ))}
+              <PdfEvaluationRow
+                key={task.id}
+                assignmentId={assignment.id}
+                task={task}
+                className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
+                isFocused={task.id === focusStudentTaskId}
+                onDeleteStudentTask={onDeleteStudentTask}
+                deleteState={deleteState}
+              />
+            ))}
           </TableBody>
         </Table>
       </CardContent>
@@ -1142,7 +1140,7 @@ function PdfEvaluationRow({
   onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
   deleteState: { pendingId: string | null; isPending: boolean }
 }) {
-  const submission = task.submissions.find((sub) => sub.mediaAssetId) ?? null
+  const submission = task.submissions.find((sub) => sub.assets.length > 0 || sub.mediaAssetId) ?? null
   const taskItem = submission && submission.itemId
     ? task.items.find((item) => item.itemId === submission.itemId) ?? task.items[0] ?? null
     : task.items[0] ?? null
@@ -1186,15 +1184,19 @@ function PdfEvaluationRow({
       <TableCell>{className}</TableCell>
       <TableCell>
         {submission ? (
-          submission.asset ? (
-            <Button asChild variant="outline" size="sm">
-              <a href={submission.asset.url} target="_blank" rel="noreferrer">
-                <Download className="mr-1 h-3 w-3" /> {submission.asset.filename}
-              </a>
-            </Button>
-          ) : (
-            <Badge variant="secondary">제출됨</Badge>
-          )
+          <div className="flex flex-col gap-1">
+            {submission.assets.length > 0 ? (
+              submission.assets.map((asset) => (
+                <Button key={asset.id} asChild variant="outline" size="sm" className="h-7 justify-start px-2 text-xs">
+                  <a href={asset.url} target="_blank" rel="noreferrer" className="max-w-[180px] truncate">
+                    <Download className="mr-1 h-3 w-3 flex-shrink-0" /> {asset.filename}
+                  </a>
+                </Button>
+              ))
+            ) : (
+              <Badge variant="secondary">제출됨 (파일 없음)</Badge>
+            )}
+          </div>
         ) : (
           <Badge variant="outline">미제출</Badge>
         )}

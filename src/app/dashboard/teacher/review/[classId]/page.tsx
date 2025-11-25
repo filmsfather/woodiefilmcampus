@@ -180,18 +180,20 @@ export default async function TeacherClassReviewPage({
              workbook_item_choices(id, label, content, is_correct)
            )
          ),
-         task_submissions(
-           id,
-           item_id,
-           submission_type,
-           content,
-           media_asset_id,
-           score,
-           feedback,
-           created_at,
-           updated_at,
-           media_assets(id, bucket, path, mime_type, metadata)
-         )
+           task_submissions(
+            id,
+            item_id,
+            submission_type,
+            content,
+            media_asset_id,
+            score,
+            feedback,
+            created_at,
+            updated_at,
+            task_submission_assets(
+              media_asset:media_assets(id, bucket, path, mime_type, metadata)
+            )
+          )
        ),
        print_requests(
          id,

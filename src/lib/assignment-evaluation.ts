@@ -84,6 +84,9 @@ interface RawTaskSubmission {
   created_at: string
   updated_at: string
   media_assets?: MaybeArray<RawMediaAsset>
+  task_submission_assets?: Array<{
+    media_asset: MaybeArray<RawMediaAsset>
+  }>
 }
 
 interface RawPrintRequestItem {
@@ -171,7 +174,8 @@ export interface SubmissionSummary {
   feedback: string | null
   createdAt: string
   updatedAt: string
-  asset: { url: string; filename: string; mimeType: string | null } | null
+  assets: Array<{ id: string; url: string; filename: string; mimeType: string | null }>
+  _tempAssetIds?: string[]
 }
 
 export interface StudentTaskSummary {
@@ -319,38 +323,88 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         lastResult: item.last_result ?? null,
         workbookItem: workbookItem
           ? {
-              id: workbookItem.id,
-              position: workbookItem.position,
-              prompt: workbookItem.prompt,
-              answerType: workbookItem.answer_type,
-              explanation: workbookItem.explanation,
-              shortFields: (workbookItem.workbook_item_short_fields ?? []).map((field) => ({
-                id: field.id,
-                label: field.label,
-                answer: field.answer,
-                position: field.position ?? 0,
-              })),
-              choices: (workbookItem.workbook_item_choices ?? []).map((choice) => ({
-                id: choice.id,
-                label: choice.label,
-                content: choice.content,
-                isCorrect: Boolean(choice.is_correct),
-              })),
-            }
+            id: workbookItem.id,
+            position: workbookItem.position,
+            prompt: workbookItem.prompt,
+            answerType: workbookItem.answer_type,
+            explanation: workbookItem.explanation,
+            shortFields: (workbookItem.workbook_item_short_fields ?? []).map((field) => ({
+              id: field.id,
+              label: field.label,
+              answer: field.answer,
+              position: field.position ?? 0,
+            })),
+            choices: (workbookItem.workbook_item_choices ?? []).map((choice) => ({
+              id: choice.id,
+              label: choice.label,
+              content: choice.content,
+              isCorrect: Boolean(choice.is_correct),
+            })),
+          }
           : null,
       }
     })
 
     const submissions: SubmissionSummary[] = (task.task_submissions ?? []).map((submission) => {
-      const asset = Array.isArray(submission.media_assets) ? submission.media_assets[0] : submission.media_assets
-      if (asset?.id && asset.path) {
-        mediaAssets.set(asset.id, {
-          bucket: asset.bucket ?? 'submissions',
-          path: asset.path,
-          mimeType: asset.mime_type ?? null,
-          metadata: (asset.metadata as Record<string, unknown> | null) ?? null,
+
+      // Handle legacy direct join if exists (fallback)
+      const legacyAsset = Array.isArray(submission.media_assets)
+        ? submission.media_assets[0]
+        : submission.media_assets
+
+      if (legacyAsset?.id && legacyAsset.path) {
+        mediaAssets.set(legacyAsset.id, {
+          bucket: legacyAsset.bucket ?? 'submissions',
+          path: legacyAsset.path,
+          mimeType: legacyAsset.mime_type ?? null,
+          metadata: (legacyAsset.metadata as Record<string, unknown> | null) ?? null,
         })
+        // We don't add to assets list here because we expect the new query to provide task_submission_assets
+        // But if we want backward compatibility for display, we could. 
+        // For now, let's prioritize the new structure.
       }
+
+      const submissionAssets = submission.task_submission_assets ?? []
+      submissionAssets.forEach((item) => {
+        const asset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
+        if (asset?.id && asset.path) {
+          mediaAssets.set(asset.id, {
+            bucket: asset.bucket ?? 'submissions',
+            path: asset.path,
+            mimeType: asset.mime_type ?? null,
+            metadata: (asset.metadata as Record<string, unknown> | null) ?? null,
+          })
+          // We'll populate the URL later in applySignedAssetUrls
+          // For now, we push a placeholder that will be filled/matched by ID? 
+          // Actually SubmissionSummary needs to hold the asset IDs so we can map them later.
+          // But SubmissionSummary structure defines `assets` as objects with URL.
+          // We need a way to link them.
+          // Let's store the ID temporarily in the object or change the structure?
+          // The `applySignedAssetUrls` function iterates over tasks/submissions and matches IDs.
+          // But `SubmissionSummary` doesn't have a list of asset IDs, only `mediaAssetId` (singular).
+          // We should probably rely on `mediaAssets` map being populated here, 
+          // and `applySignedAssetUrls` will iterate over the `mediaAssets` map keys?
+          // No, `applySignedAssetUrls` iterates over the assignment structure.
+        }
+      })
+
+      // We need to store asset IDs in the submission summary so applySignedAssetUrls can find them.
+      // But SubmissionSummary interface defines `assets` as { url, filename ... }.
+      // Let's initialize them with empty URLs and the ID as a hidden property or just rely on the fact 
+      // that we will reconstruct this list in applySignedAssetUrls.
+      // Actually, let's just store the IDs in a temporary way or change the interface to include IDs.
+      // Since I can't easily change the interface across the whole app if it's used elsewhere (it is exported),
+      // I'll stick to the plan.
+
+      // Wait, `applySignedAssetUrls` needs to know WHICH assets belong to this submission.
+      // So I should populate `assets` with the metadata we have (filename etc) and a placeholder URL,
+      // AND also store the asset ID so we can look up the signed URL later.
+      // But `SubmissionSummary` doesn't have `assetIds`.
+      // I will add `assetIds` to `SubmissionSummary` or just put the ID in the `assets` object temporarily?
+      // The `assets` object in `SubmissionSummary` is `{ url: string; filename: string; mimeType: string | null }`.
+      // I can't put ID there without changing the type.
+      // I'll change the type in the interface definition above (I already did in the previous chunk).
+      // I'll add `id` to the asset object in `SubmissionSummary`.
 
       return {
         id: submission.id,
@@ -362,7 +416,15 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
         feedback: submission.feedback,
         createdAt: submission.created_at,
         updatedAt: submission.updated_at,
-        asset: null,
+        assets: [], // Will be populated in applySignedAssetUrls, or we populate metadata here?
+        // Let's populate metadata here and use a special property for ID if needed, 
+        // or just rely on `task_submission_assets` being available? 
+        // No, `transformAssignmentRow` returns `AssignmentDetail` which is the "clean" structure.
+        // It should contain the list of assets with their metadata.
+        _tempAssetIds: submissionAssets.map(sa => {
+          const a = Array.isArray(sa.media_asset) ? sa.media_asset[0] : sa.media_asset
+          return a?.id
+        }).filter(Boolean) as string[]
       }
     })
 
@@ -446,13 +508,26 @@ export function applySignedAssetUrls(
 ): AssignmentDetail {
   assignment.studentTasks.forEach((task) => {
     task.submissions.forEach((submission) => {
-      if (!submission.mediaAssetId) {
-        return
+      // Re-construct assets list from _tempAssetIds or just use the map if we had IDs.
+      // Wait, I added `_tempAssetIds` in the transform but I need to declare it in the interface or cast it.
+      // Let's cast it for now to avoid breaking the interface for other consumers if any.
+      const tempIds = submission._tempAssetIds
+
+      if (tempIds && tempIds.length > 0) {
+        submission.assets = tempIds.map(id => {
+          const info = signedMap.get(id)
+          return info ? { ...info, id } : null
+        }).filter((a): a is { url: string; filename: string; mimeType: string | null; id: string } => Boolean(a))
+      } else if (submission.mediaAssetId) {
+        // Fallback for legacy single asset
+        const info = signedMap.get(submission.mediaAssetId)
+        if (info) {
+          submission.assets = [{ ...info, id: submission.mediaAssetId }]
+        }
       }
-      const info = signedMap.get(submission.mediaAssetId)
-      if (info) {
-        submission.asset = info
-      }
+
+      // Clean up temp property
+      delete submission._tempAssetIds
     })
   })
   return assignment
@@ -469,15 +544,15 @@ export function cloneAssignmentDetail(assignment: AssignmentDetail): AssignmentD
         ...item,
         workbookItem: item.workbookItem
           ? {
-              ...item.workbookItem,
-              shortFields: item.workbookItem.shortFields.map((field) => ({ ...field })),
-              choices: item.workbookItem.choices.map((choice) => ({ ...choice })),
-            }
+            ...item.workbookItem,
+            shortFields: item.workbookItem.shortFields.map((field) => ({ ...field })),
+            choices: item.workbookItem.choices.map((choice) => ({ ...choice })),
+          }
           : null,
       })),
       submissions: task.submissions.map((submission) => ({
         ...submission,
-        asset: submission.asset ? { ...submission.asset } : null,
+        assets: submission.assets.map((a) => ({ ...a })),
       })),
     })),
     printRequests: assignment.printRequests.map((request) => ({
@@ -535,11 +610,11 @@ export function computeAssignmentSummary(assignment: AssignmentDetail) {
 
   const dueLabel = assignment.dueAt
     ? DateUtil.formatForDisplay(assignment.dueAt, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : '마감 없음'
 
   return {
