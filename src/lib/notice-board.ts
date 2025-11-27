@@ -424,3 +424,35 @@ export async function fetchUnreadNotices(
     .map((row) => mapNoticeSummary(row as unknown as NoticePostRow, viewerId))
     .filter((item): item is NoticeSummaryItem => Boolean(item))
 }
+
+export interface ClassWithStudents {
+  id: string
+  name: string
+  studentIds: string[]
+}
+
+export async function fetchClassesWithStudents(
+  supabase: SupabaseClientLike
+): Promise<ClassWithStudents[]> {
+  const { data, error } = await supabase
+    .from('classes')
+    .select(
+      `id,
+       name,
+       class_students(student_id)
+      `
+    )
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('[notice-board] failed to fetch classes with students', error)
+    return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    name: row.name,
+    studentIds: (row.class_students ?? []).map((cs: { student_id: string }) => cs.student_id),
+  }))
+}

@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import RichTextEditor from '@/components/ui/rich-text-editor'
-import type { StaffProfile } from '@/lib/notice-board'
+import type { StaffProfile, ClassWithStudents } from '@/lib/notice-board'
 import { MAX_NOTICE_ATTACHMENT_SIZE, NOTICE_BOARD_BUCKET } from '@/lib/notice-board'
 import {
   buildPendingStoragePath,
@@ -34,6 +34,7 @@ interface NoticeComposerDefaults {
 
 interface NoticeComposerProps {
   recipients: StaffProfile[]
+  classes?: ClassWithStudents[]
   onSubmit: (formData: FormData) => Promise<{ success?: boolean; error?: string; noticeId?: string }>
   defaults?: NoticeComposerDefaults
   submitLabel?: string
@@ -59,6 +60,7 @@ function formatFileSize(bytes: number) {
 
 export function NoticeComposer({
   recipients,
+  classes = [],
   onSubmit,
   defaults,
   submitLabel = '공지 저장',
@@ -132,6 +134,26 @@ export function NoticeComposer({
           next.delete(entry.id)
         } else {
           next.add(entry.id)
+        }
+      })
+      return next
+    })
+  }
+
+  const toggleClass = (classId: string) => {
+    const targetClass = classes.find((c) => c.id === classId)
+    if (!targetClass) return
+
+    setSelectedRecipients((prev) => {
+      const next = new Set(prev)
+      const studentIds = targetClass.studentIds
+      const allSelected = studentIds.every((id) => next.has(id))
+
+      studentIds.forEach((id) => {
+        if (allSelected) {
+          next.delete(id)
+        } else {
+          next.add(id)
         }
       })
       return next
@@ -425,6 +447,24 @@ export function NoticeComposer({
                         {allSelected ? '모두 해제' : '모두 선택'}
                       </button>
                     </div>
+
+                    {role === 'student' && classes.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pb-2">
+                        {classes.map((cls) => {
+                          const allClassSelected = cls.studentIds.length > 0 && cls.studentIds.every((id) => selectedRecipients.has(id))
+                          return (
+                            <Badge
+                              key={cls.id}
+                              variant={allClassSelected ? 'default' : 'outline'}
+                              className="cursor-pointer hover:bg-slate-100"
+                              onClick={() => toggleClass(cls.id)}
+                            >
+                              {cls.name}
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )}
                     <div className="space-y-2">
                       {entries.map((entry) => {
                         const isChecked = selectedRecipients.has(entry.id)

@@ -1,7 +1,7 @@
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { NoticeComposer } from '@/components/dashboard/teacher/notices/NoticeComposer'
 import { createNotice } from '@/app/dashboard/teacher/notices/actions'
-import { fetchNoticeRecipientDirectory } from '@/lib/notice-board'
+import { fetchNoticeRecipientDirectory, fetchClassesWithStudents } from '@/lib/notice-board'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
@@ -14,6 +14,7 @@ export default async function CreateNoticePage() {
 
   const supabase = createServerSupabase()
   const recipients = await fetchNoticeRecipientDirectory(supabase, { excludeIds: [profile.id] })
+  const classes = await fetchClassesWithStudents(supabase)
 
   return (
     <section className="space-y-6">
@@ -27,7 +28,12 @@ export default async function CreateNoticePage() {
         </div>
       </div>
 
-      <NoticeComposer recipients={recipients} onSubmit={createNotice} currentUserId={profile.id} />
+      <NoticeComposer
+        recipients={recipients}
+        classes={classes}
+        onSubmit={createNotice}
+        currentUserId={profile.id}
+      />
     </section>
   )
 }

@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { NoticeComposer } from '@/components/dashboard/teacher/notices/NoticeComposer'
-import { fetchNoticeDetail, fetchNoticeRecipientDirectory } from '@/lib/notice-board'
+import { fetchNoticeDetail, fetchNoticeRecipientDirectory, fetchClassesWithStudents } from '@/lib/notice-board'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { updateNotice, deleteNotice } from '@/app/dashboard/teacher/notices/actions'
@@ -30,6 +30,7 @@ export default async function EditNoticePage({ params }: { params: { noticeId: s
   const recipients = await fetchNoticeRecipientDirectory(supabase, {
     excludeIds: [notice.author.id],
   })
+  const classes = await fetchClassesWithStudents(supabase)
 
   return (
     <section className="space-y-6">
@@ -48,6 +49,7 @@ export default async function EditNoticePage({ params }: { params: { noticeId: s
 
       <NoticeComposer
         recipients={recipients}
+        classes={classes}
         onSubmit={updateNotice}
         onDelete={deleteNotice}
         submitLabel="공지 수정"
