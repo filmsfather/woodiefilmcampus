@@ -44,6 +44,7 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
     description: '운영 업무를 효율적으로 처리하세요.',
     actions: [
       { label: '인쇄요청 관리', href: '/dashboard/manager/print-requests' },
+      { label: '공지사항', href: '/dashboard/teacher/notices', variant: 'outline' },
       { label: '교사 대시보드 열기', href: '/dashboard/teacher', variant: 'secondary' },
     ],
   },
