@@ -477,48 +477,47 @@ export function NoticeComposer({
                       </button>
                     </div>
 
+                    {role === 'student' && classes.length > 0 && (
+                      <div className="flex flex-wrap gap-2 py-2">
+                        {classes.map((cls) => {
+                          const allClassSelected =
+                            cls.studentIds.length > 0 &&
+                            cls.studentIds.every((id) => selectedRecipients.has(id))
+                          return (
+                            <Badge
+                              key={cls.id}
+                              variant={allClassSelected ? 'default' : 'outline'}
+                              className="cursor-pointer hover:bg-slate-100"
+                              onClick={() => toggleClass(cls.id)}
+                            >
+                              {cls.name}
+                            </Badge>
+                          )
+                        })}
+                      </div>
+                    )}
+
                     {isExpanded && (
-                      <>
-                        {role === 'student' && classes.length > 0 && (
-                          <div className="flex flex-wrap gap-2 pb-2">
-                            {classes.map((cls) => {
-                              const allClassSelected =
-                                cls.studentIds.length > 0 &&
-                                cls.studentIds.every((id) => selectedRecipients.has(id))
-                              return (
-                                <Badge
-                                  key={cls.id}
-                                  variant={allClassSelected ? 'default' : 'outline'}
-                                  className="cursor-pointer hover:bg-slate-100"
-                                  onClick={() => toggleClass(cls.id)}
-                                >
-                                  {cls.name}
-                                </Badge>
-                              )
-                            })}
-                          </div>
-                        )}
-                        <div className="space-y-2">
-                          {entries.map((entry) => {
-                            const isChecked = selectedRecipients.has(entry.id)
-                            return (
-                              <label key={entry.id} className="flex items-start gap-2 text-sm text-slate-700">
-                                <Checkbox
-                                  name="recipientIds"
-                                  value={entry.id}
-                                  checked={isChecked}
-                                  onChange={() => toggleRecipient(entry.id)}
-                                  disabled={isPending}
-                                />
-                                <span>
-                                  <span className="font-medium">{entry.name}</span>
-                                  <span className="ml-2 text-xs text-slate-500">{ROLE_LABEL[entry.role]}</span>
-                                </span>
-                              </label>
-                            )
-                          })}
-                        </div>
-                      </>
+                      <div className="space-y-2 pt-2">
+                        {entries.map((entry) => {
+                          const isChecked = selectedRecipients.has(entry.id)
+                          return (
+                            <label key={entry.id} className="flex items-start gap-2 text-sm text-slate-700">
+                              <Checkbox
+                                name="recipientIds"
+                                value={entry.id}
+                                checked={isChecked}
+                                onChange={() => toggleRecipient(entry.id)}
+                                disabled={isPending}
+                              />
+                              <span>
+                                <span className="font-medium">{entry.name}</span>
+                                <span className="ml-2 text-xs text-slate-500">{ROLE_LABEL[entry.role]}</span>
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
                     )}
                   </div>
                 )
