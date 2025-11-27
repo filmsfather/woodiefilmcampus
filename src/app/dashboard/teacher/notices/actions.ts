@@ -264,7 +264,7 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
       body: normalizedBody,
       author_id: profile.id,
       is_application_required: isApplicationRequired,
-      application_config: applicationConfig ? JSON.stringify(applicationConfig) : null,
+      application_config: applicationConfig ?? null,
       target_scope: targetScope,
     })
     .select('id')
@@ -512,7 +512,7 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
       title: titleValue.trim(),
       body: normalizedBody,
       is_application_required: isApplicationRequired,
-      application_config: applicationConfig ? JSON.stringify(applicationConfig) : null,
+      application_config: applicationConfig ?? null,
       target_scope: targetScope,
     })
     .eq('id', noticeId)
