@@ -8,6 +8,7 @@ import {
   deriveMonthTokensForRange,
   fetchLearningJournalAcademicEvents,
   fetchLearningJournalComments,
+  fetchLearningJournalEntriesForPeriod,
   fetchLearningJournalEntryDetail,
   fetchLearningJournalGreeting,
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
@@ -15,6 +16,7 @@ import {
 import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CommentEditor } from '@/components/dashboard/teacher/learning-journal/CommentEditor'
+import { EntryNavigation } from '@/components/dashboard/teacher/learning-journal/EntryNavigation'
 import { EntryStatusPanel } from '@/components/dashboard/teacher/learning-journal/EntryStatusPanel'
 import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 
@@ -96,13 +98,17 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
       ? '/dashboard/manager/learning-journal'
       : `/dashboard/teacher/learning-journal?period=${periodRow.id}`
 
+  const periodEntries = await fetchLearningJournalEntriesForPeriod(entry.periodId)
+
   return (
     <section className="space-y-6">
-      <DashboardBackLink
-        fallbackHref={fallbackHref}
-        label="학습일지 개요로 돌아가기"
-        className="self-start"
-      />
+      <div className="flex items-center justify-between">
+        <DashboardBackLink
+          fallbackHref={fallbackHref}
+          label="학습일지 개요로 돌아가기"
+        />
+        <EntryNavigation currentEntryId={entry.id} entries={periodEntries} />
+      </div>
       <div className="space-y-2">
         <h1 className="text-3xl font-semibold text-slate-900">학습일지 작성</h1>
         <p className="text-sm text-slate-600">
@@ -115,9 +121,8 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
           <LearningJournalEntryContent
             header={{
               title: studentName,
-              subtitle: `${classInfo?.name ?? '반 미지정'} · ${
-                periodRow.label ?? `${periodRow.start_date} ~ ${periodRow.end_date}`
-              }`,
+              subtitle: `${classInfo?.name ?? '반 미지정'} · ${periodRow.label ?? `${periodRow.start_date} ~ ${periodRow.end_date}`
+                }`,
               meta: [
                 {
                   label: '제출 상태',
@@ -127,13 +132,13 @@ export default async function TeacherLearningJournalEntryPage({ params }: { para
                   label: '공개일',
                   value: entry.publishedAt
                     ? DateUtil.formatForDisplay(entry.publishedAt, {
-                        locale: 'ko-KR',
-                        timeZone: 'Asia/Seoul',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })
+                      locale: 'ko-KR',
+                      timeZone: 'Asia/Seoul',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })
                     : '미기록',
                 },
                 {

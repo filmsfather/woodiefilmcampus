@@ -117,32 +117,32 @@ interface LearningJournalPeriodRow {
   created_at: string
   updated_at: string
   classes?:
-    | {
-        id: string
-        name: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+  }>
+  | null
 }
 
 interface ClassStudentRow {
   class_id: string
   student_id: string
   profiles?:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
+  | null
 }
 
 interface LearningJournalEntryRow {
@@ -160,58 +160,86 @@ interface LearningJournalEntryRow {
   summary_json: unknown
   weekly_json: unknown
   student?:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
+  | null
+  period?:
+  | {
+    id: string
+    class_id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    status: string
+    created_by?: string
+    locked_at?: string | null
+    created_at?: string
+    updated_at?: string
+    classes?: { id: string; name: string | null } | { id: string; name: string | null }[] | null
+  }
+  | Array<{
+    id: string
+    class_id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    status: string
+    created_by?: string
+    locked_at?: string | null
+    created_at?: string
+    updated_at?: string
+    classes?: { id: string; name: string | null } | { id: string; name: string | null }[] | null
+  }>
+  | null
 }
 
 interface StudentEntryRow extends LearningJournalEntryRow {
   period?:
+  | {
+    id: string
+    class_id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    status: string
+    classes?:
     | {
-        id: string
-        class_id: string
-        start_date: string
-        end_date: string
-        label: string | null
-        status: string
-        classes?:
-          | {
-              id: string
-              name: string | null
-            }
-          | Array<{
-              id: string
-              name: string | null
-            }>
-          | null
-      }
+      id: string
+      name: string | null
+    }
     | Array<{
-        id: string
-        class_id: string
-        start_date: string
-        end_date: string
-        label: string | null
-        status: string
-        classes?:
-          | {
-              id: string
-              name: string | null
-            }
-          | Array<{
-              id: string
-              name: string | null
-            }>
-          | null
-      }>
+      id: string
+      name: string | null
+    }>
     | null
+  }
+  | Array<{
+    id: string
+    class_id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    status: string
+    classes?:
+    | {
+      id: string
+      name: string | null
+    }
+    | Array<{
+      id: string
+      name: string | null
+    }>
+    | null
+  }>
+  | null
 }
 
 interface ReviewEntryRow {
@@ -223,53 +251,53 @@ interface ReviewEntryRow {
   created_at: string
   updated_at: string
   student:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
+  | null
   period:
+  | {
+    id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    class_id: string | null
+    classes:
     | {
-        id: string
-        start_date: string
-        end_date: string
-        label: string | null
-        class_id: string | null
-        classes:
-          | {
-              id: string
-              name: string | null
-            }
-          | Array<{
-              id: string
-              name: string | null
-            }>
-          | null
-      }
+      id: string
+      name: string | null
+    }
     | Array<{
-        id: string
-        start_date: string
-        end_date: string
-        label: string | null
-        class_id: string | null
-        classes:
-          | {
-              id: string
-              name: string | null
-            }
-          | Array<{
-              id: string
-              name: string | null
-            }>
-          | null
-      }>
+      id: string
+      name: string | null
+    }>
     | null
+  }
+  | Array<{
+    id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    class_id: string | null
+    classes:
+    | {
+      id: string
+      name: string | null
+    }
+    | Array<{
+      id: string
+      name: string | null
+    }>
+    | null
+  }>
+  | null
 }
 
 export interface ReviewEntrySummary {
@@ -1165,31 +1193,31 @@ interface EntryWeeklyGenerationRow {
   period_id: string
   status: string
   period?:
-    | {
-        id: string
-        class_id: string
-        start_date: string
-        end_date: string
-        label: string | null
-        status: string
-        created_by: string
-        locked_at: string | null
-        created_at: string
-        updated_at: string
-      }
-    | Array<{
-        id: string
-        class_id: string
-        start_date: string
-        end_date: string
-        label: string | null
-        status: string
-        created_by: string
-        locked_at: string | null
-        created_at: string
-        updated_at: string
-      }>
-    | null
+  | {
+    id: string
+    class_id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    status: string
+    created_by: string
+    locked_at: string | null
+    created_at: string
+    updated_at: string
+  }
+  | Array<{
+    id: string
+    class_id: string
+    start_date: string
+    end_date: string
+    label: string | null
+    status: string
+    created_by: string
+    locked_at: string | null
+    created_at: string
+    updated_at: string
+  }>
+  | null
 }
 
 interface StudentTaskWeeklyRow {
@@ -1200,67 +1228,67 @@ interface StudentTaskWeeklyRow {
   completion_at: string | null
   progress_meta: Record<string, unknown> | null
   assignments?:
+  | {
+    id: string
+    due_at: string | null
+    created_at: string
+    target_scope: string | null
+    workbook?:
     | {
-        id: string
-        due_at: string | null
-        created_at: string
-        target_scope: string | null
-        workbook?:
-          | {
-              id: string
-              title: string | null
-              subject: string | null
-              week_label: string | null
-            }
-          | Array<{
-              id: string
-              title: string | null
-              subject: string | null
-              week_label: string | null
-            }>
-          | null
-        assignment_targets?:
-          | Array<{
-              class_id: string | null
-              student_id: string | null
-            }>
-          | {
-              class_id: string | null
-              student_id: string | null
-            }
-          | null
-      }
+      id: string
+      title: string | null
+      subject: string | null
+      week_label: string | null
+    }
     | Array<{
-        id: string
-        due_at: string | null
-        created_at: string
-        target_scope: string | null
-        workbook?:
-          | {
-              id: string
-              title: string | null
-              subject: string | null
-              week_label: string | null
-            }
-          | Array<{
-              id: string
-              title: string | null
-              subject: string | null
-              week_label: string | null
-            }>
-          | null
-        assignment_targets?:
-          | Array<{
-              class_id: string | null
-              student_id: string | null
-            }>
-          | {
-              class_id: string | null
-              student_id: string | null
-            }
-          | null
-      }>
+      id: string
+      title: string | null
+      subject: string | null
+      week_label: string | null
+    }>
     | null
+    assignment_targets?:
+    | Array<{
+      class_id: string | null
+      student_id: string | null
+    }>
+    | {
+      class_id: string | null
+      student_id: string | null
+    }
+    | null
+  }
+  | Array<{
+    id: string
+    due_at: string | null
+    created_at: string
+    target_scope: string | null
+    workbook?:
+    | {
+      id: string
+      title: string | null
+      subject: string | null
+      week_label: string | null
+    }
+    | Array<{
+      id: string
+      title: string | null
+      subject: string | null
+      week_label: string | null
+    }>
+    | null
+    assignment_targets?:
+    | Array<{
+      class_id: string | null
+      student_id: string | null
+    }>
+    | {
+      class_id: string | null
+      student_id: string | null
+    }
+    | null
+  }>
+  | null
 }
 
 function pickSingleRelation<T>(value: T | T[] | null | undefined): T | null {
@@ -1603,18 +1631,21 @@ export async function fetchLatestPublishedLearningJournalEntry(
          end_date,
          label,
          status,
-         classes:classes!learning_journal_periods_class_id_fkey(id, name)
+         created_by,
+         locked_at,
+         created_at,
+         updated_at
        )
       `
     )
     .eq('student_id', studentId)
     .eq('status', 'published')
-    .order('published_at', { ascending: false, nullsFirst: false })
+    .order('published_at', { ascending: false })
     .limit(1)
     .maybeSingle()
 
   if (error) {
-    console.error('[learning-journal] student latest entry error', error)
+    console.error('[learning-journal] latest published entry fetch error', error)
     return null
   }
 
@@ -1622,44 +1653,77 @@ export async function fetchLatestPublishedLearningJournalEntry(
     return null
   }
 
-  const row = data as StudentEntryRow
-  const pickedPeriod = pickPeriod(row.period)
+  const row = data as LearningJournalEntryRow
+  const periodRelation = pickSingleRelation(row.period)
 
-  if (!pickedPeriod) {
+  if (!periodRelation) {
     return null
   }
 
-  const classInfo = pickClassFromPeriod(pickedPeriod)
-
-  const entryDetail: LearningJournalEntryDetail = {
-    id: row.id,
-    periodId: row.period_id,
-    studentId: row.student_id,
-    status: row.status,
-    completionRate: row.completion_rate,
-    lastGeneratedAt: row.last_generated_at,
-    submittedAt: row.submitted_at,
-    publishedAt: row.published_at,
-    archivedAt: row.archived_at,
-    summary: row.summary_json,
-    weekly: row.weekly_json,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }
+  const period = toPeriod(periodRelation as LearningJournalPeriodRow)
+  const classInfo = pickClassFromPeriod(periodRelation)
 
   return {
-    entry: entryDetail,
+    entry: {
+      id: row.id,
+      periodId: row.period_id,
+      studentId: row.student_id,
+      status: row.status,
+      completionRate: row.completion_rate,
+      lastGeneratedAt: row.last_generated_at,
+      submittedAt: row.submitted_at,
+      publishedAt: row.published_at,
+      archivedAt: row.archived_at,
+      summary: row.summary_json,
+      weekly: row.weekly_json,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    },
     period: {
-      id: pickedPeriod.id,
-      classId: pickedPeriod.class_id,
+      id: period.id,
+      classId: period.classId,
       className: classInfo?.name ?? '반 미지정',
-      startDate: pickedPeriod.start_date,
-      endDate: pickedPeriod.end_date,
-      label: pickedPeriod.label ?? null,
-      status: pickedPeriod.status as LearningJournalPeriod['status'],
+      startDate: period.startDate,
+      endDate: period.endDate,
+      label: period.label,
+      status: period.status,
     },
   }
 }
+
+export async function fetchLearningJournalEntriesForPeriod(
+  periodId: string
+): Promise<Array<{ id: string; studentId: string; studentName: string }>> {
+  const supabase = createServerSupabase()
+
+  const { data: entries, error } = await supabase
+    .from('learning_journal_entries')
+    .select(
+      `id,
+       student_id,
+       student:profiles!learning_journal_entries_student_id_fkey(name, email)
+      `
+    )
+    .eq('period_id', periodId)
+
+  if (error) {
+    console.error('[learning-journal] period entries fetch error', error)
+    return []
+  }
+
+  const result = (entries ?? []).map((entry) => {
+    const student = Array.isArray(entry.student) ? entry.student[0] : entry.student
+    return {
+      id: entry.id,
+      studentId: entry.student_id,
+      studentName: student?.name ?? student?.email ?? '이름 없음',
+    }
+  })
+
+  return result.sort((a, b) => a.studentName.localeCompare(b.studentName))
+}
+
+
 
 export async function fetchLearningJournalEntriesForReview(params: {
   status?: 'submitted' | 'published' | 'draft' | 'all'
@@ -1678,14 +1742,14 @@ export async function fetchLearningJournalEntriesForReview(params: {
        published_at,
        created_at,
        updated_at,
-       student:profiles!learning_journal_entries_student_id_fkey(id, name, email),
-       period:learning_journal_periods!learning_journal_entries_period_id_fkey(
+       student: profiles!learning_journal_entries_student_id_fkey(id, name, email),
+       period: learning_journal_periods!learning_journal_entries_period_id_fkey(
          id,
          start_date,
          end_date,
          label,
          class_id,
-         classes:classes!learning_journal_periods_class_id_fkey(id, name)
+         classes: classes!learning_journal_periods_class_id_fkey(id, name)
        )`
     )
 
@@ -2075,7 +2139,7 @@ export async function fetchLearningJournalEntryByShareToken(
       expires_at,
       last_accessed_at,
       revoked_at,
-      entry:learning_journal_entries (
+      entry: learning_journal_entries(
         id,
         period_id,
         student_id,
@@ -2089,20 +2153,20 @@ export async function fetchLearningJournalEntryByShareToken(
         updated_at,
         summary_json,
         weekly_json,
-        student:profiles!learning_journal_entries_student_id_fkey (
+        student: profiles!learning_journal_entries_student_id_fkey(
           id,
           name,
           email,
           parent_phone
         ),
-        period:learning_journal_periods!learning_journal_entries_period_id_fkey (
+        period: learning_journal_periods!learning_journal_entries_period_id_fkey(
           id,
           class_id,
           start_date,
           end_date,
           label,
           status,
-          classes:classes!learning_journal_periods_class_id_fkey (
+          classes: classes!learning_journal_periods_class_id_fkey(
             id,
             name
           )
