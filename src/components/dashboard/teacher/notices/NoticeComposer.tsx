@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -81,6 +82,11 @@ export function NoticeComposer({
   const [applicationConfig, setApplicationConfig] = useState<ApplicationConfig | null>(
     defaults?.applicationConfig ?? null
   )
+  const [expandedRoles, setExpandedRoles] = useState<Record<StaffProfile['role'], boolean>>({
+    manager: true,
+    teacher: true,
+    student: false,
+  })
 
   const existingAttachments = useMemo(
     () => defaults?.attachments ?? [],
@@ -158,6 +164,13 @@ export function NoticeComposer({
       })
       return next
     })
+  }
+
+  const toggleRoleExpansion = (role: StaffProfile['role']) => {
+    setExpandedRoles((prev) => ({
+      ...prev,
+      [role]: !prev[role],
+    }))
   }
 
   const handleFileChange = (event: FormEvent<HTMLInputElement>) => {
@@ -434,11 +447,27 @@ export function NoticeComposer({
                 }
 
                 const allSelected = entries.every((entry) => selectedRecipients.has(entry.id))
+                const isExpanded = expandedRoles[role]
+                const selectedCount = entries.filter((e) => selectedRecipients.has(e.id)).length
 
                 return (
                   <div key={role} className="space-y-3 rounded-lg border border-slate-200 p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-slate-800">{ROLE_LABEL[role]} ({entries.length}명)</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleRoleExpansion(role)}
+                        className="flex items-center gap-2 text-sm font-medium text-slate-800 hover:text-slate-600"
+                      >
+                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        <span>
+                          {ROLE_LABEL[role]} ({entries.length}명)
+                        </span>
+                        {selectedCount > 0 && (
+                          <span className="ml-1 text-xs font-normal text-slate-500">
+                            - {selectedCount}명 선택됨
+                          </span>
+                        )}
+                      </button>
                       <button
                         type="button"
                         className="text-xs text-primary hover:underline"
@@ -448,43 +477,49 @@ export function NoticeComposer({
                       </button>
                     </div>
 
-                    {role === 'student' && classes.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pb-2">
-                        {classes.map((cls) => {
-                          const allClassSelected = cls.studentIds.length > 0 && cls.studentIds.every((id) => selectedRecipients.has(id))
-                          return (
-                            <Badge
-                              key={cls.id}
-                              variant={allClassSelected ? 'default' : 'outline'}
-                              className="cursor-pointer hover:bg-slate-100"
-                              onClick={() => toggleClass(cls.id)}
-                            >
-                              {cls.name}
-                            </Badge>
-                          )
-                        })}
-                      </div>
+                    {isExpanded && (
+                      <>
+                        {role === 'student' && classes.length > 0 && (
+                          <div className="flex flex-wrap gap-2 pb-2">
+                            {classes.map((cls) => {
+                              const allClassSelected =
+                                cls.studentIds.length > 0 &&
+                                cls.studentIds.every((id) => selectedRecipients.has(id))
+                              return (
+                                <Badge
+                                  key={cls.id}
+                                  variant={allClassSelected ? 'default' : 'outline'}
+                                  className="cursor-pointer hover:bg-slate-100"
+                                  onClick={() => toggleClass(cls.id)}
+                                >
+                                  {cls.name}
+                                </Badge>
+                              )
+                            })}
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          {entries.map((entry) => {
+                            const isChecked = selectedRecipients.has(entry.id)
+                            return (
+                              <label key={entry.id} className="flex items-start gap-2 text-sm text-slate-700">
+                                <Checkbox
+                                  name="recipientIds"
+                                  value={entry.id}
+                                  checked={isChecked}
+                                  onChange={() => toggleRecipient(entry.id)}
+                                  disabled={isPending}
+                                />
+                                <span>
+                                  <span className="font-medium">{entry.name}</span>
+                                  <span className="ml-2 text-xs text-slate-500">{ROLE_LABEL[entry.role]}</span>
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </>
                     )}
-                    <div className="space-y-2">
-                      {entries.map((entry) => {
-                        const isChecked = selectedRecipients.has(entry.id)
-                        return (
-                          <label key={entry.id} className="flex items-start gap-2 text-sm text-slate-700">
-                            <Checkbox
-                              name="recipientIds"
-                              value={entry.id}
-                              checked={isChecked}
-                              onChange={() => toggleRecipient(entry.id)}
-                              disabled={isPending}
-                            />
-                            <span>
-                              <span className="font-medium">{entry.name}</span>
-                              <span className="ml-2 text-xs text-slate-500">{ROLE_LABEL[entry.role]}</span>
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
                   </div>
                 )
               })}
