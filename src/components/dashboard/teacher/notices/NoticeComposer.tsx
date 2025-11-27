@@ -190,8 +190,8 @@ export function NoticeComposer({
     let totalSize = 0
     for (const file of attachments) {
       totalSize += file.size
-      if (!file.type || !file.type.startsWith('image/')) {
-        setError('이미지 파일만 첨부할 수 있습니다.')
+      if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+        setError('이미지 또는 PDF 파일만 첨부할 수 있습니다.')
         return
       }
     }
@@ -316,7 +316,7 @@ export function NoticeComposer({
           <div className="space-y-1">
             <CardTitle className="text-xl text-slate-900">공지 정보</CardTitle>
             <CardDescription className="text-sm text-slate-600">
-              공지 제목과 본문을 작성하고 공유 대상을 선택하세요. 첨부 이미지는 총 {maxSizeLabel}까지 업로드할 수 있습니다.
+              공지 제목과 본문을 작성하고 공유 대상을 선택하세요. 첨부 파일은 총 {maxSizeLabel}까지 업로드할 수 있습니다.
             </CardDescription>
           </div>
           {onDelete && defaults?.noticeId ? (
@@ -373,7 +373,7 @@ export function NoticeComposer({
 
           {existingAttachments.length > 0 ? (
             <div className="space-y-2">
-              <Label>기존 첨부 이미지</Label>
+              <Label>기존 첨부 파일</Label>
               <div className="space-y-2 rounded-md border border-slate-200 p-3 text-sm text-slate-700">
                 {existingAttachments.map((attachment) => {
                   const isRemoved = removedAttachmentIds.has(attachment.id)
@@ -384,7 +384,7 @@ export function NoticeComposer({
                     >
                       <div>
                         <p className={`text-sm ${isRemoved ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                          {attachment.name ?? '첨부 이미지'}
+                          {attachment.name ?? '첨부 파일'}
                         </p>
                         {isRemoved ? (
                           <p className="text-xs text-rose-500">삭제 예정</p>
@@ -492,17 +492,17 @@ export function NoticeComposer({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="notice-attachments">첨부 이미지 (선택)</Label>
+            <Label htmlFor="notice-attachments">첨부 파일 (선택)</Label>
             <Input
               id="notice-attachments"
               type="file"
-              accept="image/*"
+              accept="image/*,.pdf"
               multiple
               onChange={handleFileChange}
               disabled={isPending}
             />
             <p className="text-xs text-slate-500">
-              이미지 파일만 업로드할 수 있으며 전체 용량은 {maxSizeLabel} 이하여야 합니다.
+              이미지 또는 PDF 파일만 업로드할 수 있으며 전체 용량은 {maxSizeLabel} 이하여야 합니다.
             </p>
             {selectedFiles.length > 0 ? (
               <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
