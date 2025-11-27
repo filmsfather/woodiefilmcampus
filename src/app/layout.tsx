@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import ClientClockInitializer from "@/components/ClientClockInitializer"
 import DateUtil from "@/lib/date-util"
 import { SpeedInsights } from "@vercel/speed-insights/next"
+import { Toaster } from "sonner"
 
 import "./globals.css"
 
@@ -37,6 +38,7 @@ export default function RootLayout({
         <ClientClockInitializer serverNow={serverNow} />
         {children}
         <SpeedInsights />
+        <Toaster />
       </body>
     </html>
   )

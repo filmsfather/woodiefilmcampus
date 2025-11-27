@@ -281,3 +281,62 @@ export async function regenerateLearningJournalWeeklyAction(
     return makeErrorState('주차별 데이터를 생성하는 중 문제가 발생했습니다.')
   }
 }
+
+export async function regeneratePeriodLearningJournalWeeklyAction(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const { profile } = await getAuthContext()
+
+  if (!profile || !canManageLearningJournal(profile.role)) {
+    return makeErrorState('주차별 데이터를 재생성할 권한이 없습니다.')
+  }
+
+  const periodId = formData.get('periodId')?.toString() ?? ''
+
+  if (!periodId) {
+    return makeErrorState('학습일지 주기 정보를 확인하지 못했습니다.')
+  }
+
+  const supabase = createServerSupabase()
+
+  try {
+    // 1. Fetch all entries for the period
+    const { data: entries, error: fetchError } = await supabase
+      .from('learning_journal_entries')
+      .select('id')
+      .eq('period_id', periodId)
+
+    if (fetchError) {
+      console.error('[learning-journal] period entries fetch error', fetchError)
+      return makeErrorState('학습일지 목록을 불러오지 못했습니다.')
+    }
+
+    if (!entries || entries.length === 0) {
+      return makeErrorState('갱신할 학습일지가 없습니다.')
+    }
+
+    // 2. Refresh each entry
+    // We run this in parallel but limit concurrency if needed.
+    // For now, simple Promise.all is likely fine for typical class sizes (20-30).
+    const results = await Promise.allSettled(
+      entries.map((entry) => refreshLearningJournalWeeklyData(entry.id))
+    )
+
+    const failedCount = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value)).length
+    const successCount = entries.length - failedCount
+
+    revalidatePath(TEACHER_LEARNING_JOURNAL_PATH)
+
+    if (failedCount > 0) {
+      return makeSuccessState(
+        `총 ${entries.length}명 중 ${successCount}명의 데이터를 갱신했습니다. (${failedCount}명 실패)`
+      )
+    }
+
+    return makeSuccessState(`총 ${entries.length}명의 주차별 데이터를 모두 갱신했습니다.`)
+  } catch (error) {
+    console.error('[learning-journal] period regenerate error', error)
+    return makeErrorState('일괄 갱신 중 문제가 발생했습니다.')
+  }
+}

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { LearningJournalStudentSnapshot } from '@/types/learning-journal'
+import { RegeneratePeriodButton } from '@/components/dashboard/teacher/learning-journal/RegeneratePeriodButton'
 
 function toProgressLabel(submitted: number, total: number) {
   if (total === 0) {
@@ -164,6 +165,7 @@ export default async function TeacherLearningJournalPage({
                     <Badge variant="outline">총 {selectedStats.totalEntries}명</Badge>
                     <Badge variant="outline">제출 {selectedStats.submittedCount}</Badge>
                     <Badge variant="outline">공개 {selectedStats.publishedCount}</Badge>
+                    <RegeneratePeriodButton periodId={selectedPeriod.id} />
                   </div>
                 ) : null}
               </div>
@@ -205,25 +207,25 @@ export default async function TeacherLearningJournalPage({
                             <TableCell className="hidden lg:table-cell text-xs text-slate-500">
                               {snapshot.submittedAt
                                 ? DateUtil.formatForDisplay(snapshot.submittedAt, {
-                                    locale: 'ko-KR',
-                                    timeZone: 'Asia/Seoul',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
+                                  locale: 'ko-KR',
+                                  timeZone: 'Asia/Seoul',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
                                 : '-'}
                             </TableCell>
                             <TableCell className="hidden lg:table-cell text-xs text-slate-500">
                               {snapshot.publishedAt
                                 ? DateUtil.formatForDisplay(snapshot.publishedAt, {
-                                    locale: 'ko-KR',
-                                    timeZone: 'Asia/Seoul',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
+                                  locale: 'ko-KR',
+                                  timeZone: 'Asia/Seoul',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
                                 : '-'}
                             </TableCell>
                             <TableCell className="text-right">
@@ -241,7 +243,7 @@ export default async function TeacherLearningJournalPage({
                 </div>
               )}
             </div>
-         ) : null}
+          ) : null}
         </div>
       )}
       {debugMessages.length > 0 ? (
