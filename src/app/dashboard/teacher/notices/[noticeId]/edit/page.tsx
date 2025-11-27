@@ -61,6 +61,8 @@ export default async function EditNoticePage({ params }: { params: { noticeId: s
             id: attachment.id,
             name: attachment.originalName ?? '첨부 이미지',
           })),
+          isApplicationRequired: notice.isApplicationRequired,
+          applicationConfig: notice.applicationConfig,
         }}
       />
     </section>
