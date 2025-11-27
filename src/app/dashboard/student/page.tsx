@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import { DashboardCard } from '@/components/dashboard/DashboardCard'
 import { StudentTimetableViewer } from '@/components/dashboard/student/StudentTimetableViewer'
+import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBanner'
 import { Button } from '@/components/ui/button'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -101,17 +102,17 @@ export default async function StudentDashboardPage() {
       teacher_id: string | null
       is_homeroom: boolean | null
       profiles:
-        | {
-            id: string | null
-            name: string | null
-            email: string | null
-          }
-        | Array<{
-            id: string | null
-            name: string | null
-            email: string | null
-          }>
-          | null
+      | {
+        id: string | null
+        name: string | null
+        email: string | null
+      }
+      | Array<{
+        id: string | null
+        name: string | null
+        email: string | null
+      }>
+      | null
     }> | null
   }
 
@@ -389,6 +390,7 @@ export default async function StudentDashboardPage() {
 
   return (
     <section className="space-y-6">
+      <UnreadNoticeBanner />
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-slate-900">학생 대시보드</h1>
         <p className="text-sm text-slate-600">{displayName}님, 필요한 학습 메뉴를 선택해 다음 단계를 준비해 보세요.</p>

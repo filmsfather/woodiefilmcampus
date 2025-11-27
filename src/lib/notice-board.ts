@@ -8,7 +8,7 @@ export const MAX_NOTICE_ATTACHMENT_SIZE = 50 * 1024 * 1024 // 50MB total budget 
 
 export interface StaffProfile {
   id: string
-  role: 'manager' | 'teacher'
+  role: 'manager' | 'teacher' | 'student'
   name: string
   email: string
 }
@@ -17,7 +17,7 @@ export interface NoticeRecipientSummary {
   id: string
   name: string
   email: string
-  role: 'manager' | 'teacher'
+  role: 'manager' | 'teacher' | 'student'
   acknowledgedAt: string | null
   isViewer: boolean
 }
@@ -37,6 +37,7 @@ export interface NoticeSummaryItem {
   acknowledgedCount: number
   viewerAcknowledgedAt: string | null
   viewerIsAuthor: boolean
+  isApplicationRequired: boolean
 }
 
 export interface NoticeAttachment {
@@ -54,7 +55,10 @@ export interface NoticeDetail extends NoticeSummaryItem {
   bodyHtml: string
   recipients: NoticeRecipientSummary[]
   attachments: NoticeAttachment[]
+  applicationConfig: ApplicationConfig | null
 }
+
+import { ApplicationConfig, ApplicationFormData } from './notice-application'
 
 type SupabaseClientLike = SupabaseClient
 
@@ -65,7 +69,7 @@ type NoticeRecipientRow = {
     id: string
     name: string | null
     email: string | null
-    role: 'manager' | 'teacher'
+    role: 'manager' | 'teacher' | 'student'
   } | null
 }
 
@@ -95,6 +99,8 @@ type NoticePostRow = {
   } | null
   notice_post_recipients?: NoticeRecipientRow[] | null
   notice_post_attachments?: NoticeAttachmentRow[] | null
+  is_application_required?: boolean
+  application_config?: unknown | null
 }
 
 export function normalizeRichText(value: string): string {
@@ -140,7 +146,7 @@ export async function fetchNoticeRecipientDirectory(
     return []
   }
 
-  const entries = (data ?? []) as Array<{ id: string; name: string; email: string; role: 'manager' | 'teacher' }>
+  const entries = (data ?? []) as Array<{ id: string; name: string; email: string; role: 'manager' | 'teacher' | 'student' }>
 
   return sortStaffProfiles(
     entries
@@ -192,6 +198,7 @@ function mapNoticeSummary(row: NoticePostRow, viewerId: string): NoticeSummaryIt
     acknowledgedCount,
     viewerAcknowledgedAt: viewerRecipient?.acknowledgedAt ?? null,
     viewerIsAuthor: author?.id === viewerId,
+    isApplicationRequired: row.is_application_required ?? false,
   }
 }
 
@@ -265,6 +272,7 @@ export async function fetchNoticeDetail(
       `id,
        title,
        body,
+       application_config,
        created_at,
        updated_at,
        author:profiles!notice_posts_author_id_fkey(id, name, email, role),
@@ -315,5 +323,101 @@ export async function fetchNoticeDetail(
     attachments: attachments
       .filter((item): item is NoticeAttachment => Boolean(item))
       .sort((a, b) => a.position - b.position),
+    applicationConfig: (typedRow.application_config as ApplicationConfig) ?? null,
   }
+}
+
+export async function fetchNoticeApplication(
+  supabase: SupabaseClientLike,
+  noticeId: string,
+  applicantId: string
+) {
+  const { data } = await supabase
+    .from('notice_applications')
+    .select('id, status, form_data')
+    .eq('notice_id', noticeId)
+    .eq('applicant_id', applicantId)
+    .maybeSingle()
+
+  return data
+    ? {
+      id: data.id,
+      status: data.status,
+      formData: data.form_data as ApplicationFormData,
+    }
+    : null
+}
+
+export async function fetchNoticeApplications(
+  supabase: SupabaseClientLike,
+  noticeId: string
+) {
+  const { data, error } = await supabase
+    .from('notice_applications')
+    .select(
+      `id,
+       status,
+       form_data,
+       created_at,
+       applicant:profiles!notice_applications_applicant_id_fkey(id, name, email, role)
+      `
+    )
+    .eq('notice_id', noticeId)
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error('[notice-board] failed to fetch applications', error)
+    return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    status: row.status,
+    formData: row.form_data as ApplicationFormData,
+    createdAt: row.created_at,
+    applicant: {
+      id: Array.isArray(row.applicant) ? row.applicant[0]?.id : row.applicant?.id,
+      name: getProfileDisplayName(
+        Array.isArray(row.applicant) ? row.applicant[0]?.name : row.applicant?.name,
+        Array.isArray(row.applicant) ? row.applicant[0]?.email : row.applicant?.email
+      ),
+      email: Array.isArray(row.applicant) ? row.applicant[0]?.email : row.applicant?.email,
+      role: Array.isArray(row.applicant) ? row.applicant[0]?.role : row.applicant?.role,
+    },
+  }))
+}
+
+export async function fetchUnreadNotices(
+  supabase: SupabaseClientLike,
+  viewerId: string,
+  limit = 5
+): Promise<NoticeSummaryItem[]> {
+  // We need to use !inner join to filter by recipient status
+  const { data, error } = await supabase
+    .from('notice_posts')
+    .select(
+      `id,
+       title,
+       created_at,
+       updated_at,
+       author:profiles!notice_posts_author_id_fkey(id, name, email, role),
+       notice_post_recipients!inner(recipient_id, acknowledged_at,
+         recipient:profiles!notice_post_recipients_recipient_id_fkey(id, name, email, role)
+       )
+      `
+    )
+    .eq('notice_post_recipients.recipient_id', viewerId)
+    .is('notice_post_recipients.acknowledged_at', null)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    console.error('[notice-board] failed to fetch unread notices', error)
+    return []
+  }
+
+  return (data ?? [])
+    .map((row) => mapNoticeSummary(row as unknown as NoticePostRow, viewerId))
+    .filter((item): item is NoticeSummaryItem => Boolean(item))
 }

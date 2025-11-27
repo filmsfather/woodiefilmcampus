@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBanner'
 
 type TeacherDashboardAction = {
   label: string
@@ -144,6 +145,8 @@ export default async function TeacherDashboardPage() {
         </p>
       </header>
 
+      <UnreadNoticeBanner />
+
       <div className="grid gap-4 md:grid-cols-2">
         {TEACHER_SECTIONS.map((section) => (
           <Card key={section.title} className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
@@ -172,6 +175,6 @@ export default async function TeacherDashboardPage() {
           </Card>
         ))}
       </div>
-    </section>
+    </section >
   )
 }

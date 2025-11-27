@@ -11,6 +11,7 @@ import {
   isNoticeBodyEmpty,
   normalizeRichText,
 } from '@/lib/notice-board'
+import { ApplicationConfig, ApplicationConfigSchema, ApplicationFormData, validateApplicationForm } from '@/lib/notice-application'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 interface ActionResult {
@@ -191,6 +192,9 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
   const bodyValue = formData.get('body')
   const recipientValues = formData.getAll('recipientIds')
   const uploadedAttachmentsValue = formData.get('uploadedAttachments')
+  const isApplicationRequired = formData.get('isApplicationRequired') === 'true'
+  const applicationConfigValue = formData.get('applicationConfig')
+  const targetScope = formData.get('targetScope') as string || 'teachers'
 
   if (typeof titleValue !== 'string' || titleValue.trim().length === 0) {
     return { error: '제목을 입력해주세요.' }
@@ -237,6 +241,20 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
     return { error: '첨부 파일의 총 용량이 제한(50MB)을 초과했습니다.' }
   }
 
+  let applicationConfig: ApplicationConfig | null = null
+  if (isApplicationRequired && typeof applicationConfigValue === 'string') {
+    try {
+      const parsed = JSON.parse(applicationConfigValue)
+      const result = ApplicationConfigSchema.safeParse(parsed)
+      if (!result.success) {
+        return { error: '신청 폼 설정이 올바르지 않습니다.' }
+      }
+      applicationConfig = result.data
+    } catch (_) {
+      return { error: '신청 폼 설정을 처리할 수 없습니다.' }
+    }
+  }
+
   const supabase = createServerSupabase()
 
   const { data: inserted, error: insertError } = await supabase
@@ -245,6 +263,9 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
       title: titleValue.trim(),
       body: normalizedBody,
       author_id: profile.id,
+      is_application_required: isApplicationRequired,
+      application_config: applicationConfig ? JSON.stringify(applicationConfig) : null,
+      target_scope: targetScope,
     })
     .select('id')
     .single()
@@ -392,6 +413,9 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
   const recipientValues = formData.getAll('recipientIds')
   const removeAttachmentValues = formData.getAll('removeAttachmentIds')
   const uploadedAttachmentsValue = formData.get('uploadedAttachments')
+  const isApplicationRequired = formData.get('isApplicationRequired') === 'true'
+  const applicationConfigValue = formData.get('applicationConfig')
+  const targetScope = formData.get('targetScope') as string || 'teachers'
 
   if (typeof noticeIdValue !== 'string' || noticeIdValue.trim().length === 0) {
     return { error: '공지 정보를 확인하지 못했습니다.' }
@@ -468,11 +492,28 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
     return { error: '첨부 파일의 총 용량이 제한(50MB)을 초과했습니다.' }
   }
 
+  let applicationConfig: ApplicationConfig | null = null
+  if (isApplicationRequired && typeof applicationConfigValue === 'string') {
+    try {
+      const parsed = JSON.parse(applicationConfigValue)
+      const result = ApplicationConfigSchema.safeParse(parsed)
+      if (!result.success) {
+        return { error: '신청 폼 설정이 올바르지 않습니다.' }
+      }
+      applicationConfig = result.data
+    } catch (_) {
+      return { error: '신청 폼 설정을 처리할 수 없습니다.' }
+    }
+  }
+
   const { error: updateError } = await supabase
     .from('notice_posts')
     .update({
       title: titleValue.trim(),
       body: normalizedBody,
+      is_application_required: isApplicationRequired,
+      application_config: applicationConfig ? JSON.stringify(applicationConfig) : null,
+      target_scope: targetScope,
     })
     .eq('id', noticeId)
 
@@ -639,5 +680,91 @@ export async function deleteNotice(formData: FormData): Promise<ActionResult> {
 
   revalidateNoticePaths()
 
+  return { success: true }
+}
+
+export async function applyNotice(noticeId: string, formData: ApplicationFormData): Promise<ActionResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.id) {
+    return { error: '로그인이 필요합니다.' }
+  }
+
+  const supabase = createServerSupabase()
+
+  // Fetch notice to check config
+  const { data: notice, error: noticeError } = await supabase
+    .from('notice_posts')
+    .select('is_application_required, application_config')
+    .eq('id', noticeId)
+    .single()
+
+  if (noticeError || !notice) {
+    return { error: '공지 정보를 찾을 수 없습니다.' }
+  }
+
+  if (!notice.is_application_required) {
+    return { error: '신청이 필요한 공지가 아닙니다.' }
+  }
+
+  const config = notice.application_config as unknown as ApplicationConfig
+  if (config) {
+    const validation = validateApplicationForm(config, formData)
+    if (!validation.success) {
+      return { error: validation.error }
+    }
+  }
+
+  // Check if already applied
+  const { data: existing } = await supabase
+    .from('notice_applications')
+    .select('id')
+    .eq('notice_id', noticeId)
+    .eq('applicant_id', profile.id)
+    .maybeSingle()
+
+  if (existing) {
+    return { error: '이미 신청했습니다.' }
+  }
+
+  const { error: insertError } = await supabase
+    .from('notice_applications')
+    .insert({
+      notice_id: noticeId,
+      applicant_id: profile.id,
+      form_data: formData,
+      status: 'applied',
+    })
+
+  if (insertError) {
+    console.error('[notice-board] failed to apply', insertError)
+    return { error: '신청을 처리하지 못했습니다.' }
+  }
+
+  revalidateNoticePaths(noticeId)
+  return { success: true }
+}
+
+export async function cancelApplication(noticeId: string): Promise<ActionResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.id) {
+    return { error: '로그인이 필요합니다.' }
+  }
+
+  const supabase = createServerSupabase()
+
+  const { error } = await supabase
+    .from('notice_applications')
+    .delete()
+    .eq('notice_id', noticeId)
+    .eq('applicant_id', profile.id)
+
+  if (error) {
+    console.error('[notice-board] failed to cancel application', error)
+    return { error: '신청 취소에 실패했습니다.' }
+  }
+
+  revalidateNoticePaths(noticeId)
   return { success: true }
 }

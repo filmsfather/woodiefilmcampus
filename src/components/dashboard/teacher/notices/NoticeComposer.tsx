@@ -19,6 +19,8 @@ import {
   type UploadedObjectMeta,
   uploadFileToStorageViaClient,
 } from '@/lib/storage-upload'
+import { ApplicationConfig } from '@/lib/notice-application'
+import { ApplicationFormBuilder } from './ApplicationFormBuilder'
 
 interface NoticeComposerDefaults {
   noticeId?: string
@@ -26,6 +28,8 @@ interface NoticeComposerDefaults {
   body?: string
   recipientIds?: string[]
   attachments?: { id: string; name?: string | null }[]
+  isApplicationRequired?: boolean
+  applicationConfig?: ApplicationConfig | null
 }
 
 interface NoticeComposerProps {
@@ -40,6 +44,7 @@ interface NoticeComposerProps {
 const ROLE_LABEL: Record<StaffProfile['role'], string> = {
   manager: '실장',
   teacher: '선생님',
+  student: '학생',
 }
 
 function formatFileSize(bytes: number) {
@@ -71,6 +76,9 @@ export function NoticeComposer({
   const [isPending, startTransition] = useTransition()
   const [isDeleting, startDeleteTransition] = useTransition()
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<Set<string>>(new Set())
+  const [applicationConfig, setApplicationConfig] = useState<ApplicationConfig | null>(
+    defaults?.applicationConfig ?? null
+  )
 
   const existingAttachments = useMemo(
     () => defaults?.attachments ?? [],
@@ -83,7 +91,7 @@ export function NoticeComposer({
         acc[recipient.role] = acc[recipient.role] ? [...acc[recipient.role], recipient] : [recipient]
         return acc
       },
-      { manager: [], teacher: [] }
+      { manager: [], teacher: [], student: [] }
     )
   }, [recipients])
 
@@ -188,6 +196,13 @@ export function NoticeComposer({
     removedAttachmentIds.forEach((id) => {
       formData.append('removeAttachmentIds', id)
     })
+
+    if (applicationConfig) {
+      formData.set('isApplicationRequired', 'true')
+      formData.set('applicationConfig', JSON.stringify(applicationConfig))
+    } else {
+      formData.set('isApplicationRequired', 'false')
+    }
 
     startTransition(async () => {
       try {
@@ -371,13 +386,19 @@ export function NoticeComposer({
             </div>
           ) : null}
 
+          <ApplicationFormBuilder
+            config={applicationConfig}
+            onChange={setApplicationConfig}
+            disabled={isPending}
+          />
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>공유 대상</Label>
               <span className="text-xs text-slate-500">원장은 자동으로 모든 공지를 열람할 수 있습니다.</span>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              {(['manager', 'teacher'] as const).map((role) => {
+              {(['manager', 'teacher', 'student'] as const).map((role) => {
                 const entries = groupedRecipients[role]
                 if (!entries || entries.length === 0) {
                   return (
