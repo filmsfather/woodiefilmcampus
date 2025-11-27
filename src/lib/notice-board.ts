@@ -211,6 +211,7 @@ export async function fetchNoticeSummaries(
     .select(
       `id,
        title,
+       is_application_required,
        created_at,
        updated_at,
        author:profiles!notice_posts_author_id_fkey(id, name, email, role),
@@ -272,6 +273,7 @@ export async function fetchNoticeDetail(
       `id,
        title,
        body,
+       is_application_required,
        application_config,
        created_at,
        updated_at,
@@ -399,6 +401,7 @@ export async function fetchUnreadNotices(
     .select(
       `id,
        title,
+       is_application_required,
        created_at,
        updated_at,
        author:profiles!notice_posts_author_id_fkey(id, name, email, role),
