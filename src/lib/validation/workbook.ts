@@ -445,9 +445,9 @@ export function buildNormalizedWorkbookPayload(
 
     if (item.gradingCriteria) {
       base.gradingCriteria = {
-        high: item.gradingCriteria.high.trim(),
-        mid: item.gradingCriteria.mid.trim(),
-        low: item.gradingCriteria.low.trim(),
+        high: item.gradingCriteria.high?.trim() ?? '',
+        mid: item.gradingCriteria.mid?.trim() ?? '',
+        low: item.gradingCriteria.low?.trim() ?? '',
       }
     }
 
