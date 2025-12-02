@@ -289,6 +289,8 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       continue
     }
 
+    console.log('[submitTextResponses] Querying workbook item with ID:', answer.workbookItemId)
+
     const { data: workbookItem } = await supabase
       .from('workbook_items')
       .select('prompt, explanation, grading_criteria')
