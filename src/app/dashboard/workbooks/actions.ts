@@ -149,6 +149,8 @@ export async function createWorkbook(input: CreateWorkbookInput) {
   const payload = parseResult.data
   const assets = payload.assets ?? []
 
+  console.log('[createWorkbook] Payload items:', JSON.stringify(payload.items, null, 2))
+
   const supabase = createServerSupabase()
   const { profile } = await getAuthContext()
 
