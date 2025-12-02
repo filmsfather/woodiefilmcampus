@@ -23,6 +23,13 @@ const workbookShortFieldSchema = z.object({
 const workbookItemSchema = z.object({
   prompt: z.string().min(1),
   explanation: z.string().optional(),
+  gradingCriteria: z
+    .object({
+      high: z.string(),
+      mid: z.string(),
+      low: z.string(),
+    })
+    .optional(),
   answerType: srsAnswerTypeSchema.optional(),
   choices: z.array(workbookChoiceSchema).optional(),
   shortFields: z.array(workbookShortFieldSchema).optional(),
@@ -110,6 +117,13 @@ const workbookItemUpdateSchema = z.object({
   id: z.string().uuid('유효한 문항 ID가 아닙니다.'),
   prompt: z.string().min(1),
   explanation: z.string().optional(),
+  gradingCriteria: z
+    .object({
+      high: z.string(),
+      mid: z.string(),
+      low: z.string(),
+    })
+    .optional(),
   answerType: srsAnswerTypeSchema.optional(),
   choices: z.array(srsChoiceUpdateSchema).optional(),
   shortFields: z.array(shortFieldUpdateSchema).optional(),
@@ -290,11 +304,12 @@ export async function createWorkbook(input: CreateWorkbookInput) {
         prompt: item.prompt,
         answer_type: answerType,
         explanation: item.explanation ?? null,
+        grading_criteria: item.gradingCriteria ?? null,
         srs_settings:
           payload.type === 'srs'
             ? {
-                allowMultipleCorrect: payload.config.srs?.allowMultipleCorrect ?? false,
-              }
+              allowMultipleCorrect: payload.config.srs?.allowMultipleCorrect ?? false,
+            }
             : null,
       }
     })
@@ -674,6 +689,7 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
       const updatePayload: Record<string, unknown> = {
         prompt: item.prompt,
         explanation: item.explanation ?? null,
+        grading_criteria: item.gradingCriteria ?? null,
       }
 
       if (isSrsWorkbook) {
@@ -921,10 +937,10 @@ export async function deleteWorkbook(workbookId: string) {
         .map((row) => {
           const asset = row.media_assets as
             | {
-                id: string
-                bucket: string | null
-                path: string | null
-              }
+              id: string
+              bucket: string | null
+              path: string | null
+            }
             | Array<{ id: string; bucket: string | null; path: string | null }>
             | null
 
@@ -1152,21 +1168,21 @@ export async function duplicateWorkbook(workbookId: string) {
       for (const attachment of originalItem.workbook_item_media ?? []) {
         const rawAsset = attachment.media_assets as
           | {
-              id: string
-              bucket: string | null
-              path: string | null
-              mime_type: string | null
-              size: number | null
-              metadata: Record<string, unknown> | null
-            }
+            id: string
+            bucket: string | null
+            path: string | null
+            mime_type: string | null
+            size: number | null
+            metadata: Record<string, unknown> | null
+          }
           | Array<{
-              id: string
-              bucket: string | null
-              path: string | null
-              mime_type: string | null
-              size: number | null
-              metadata: Record<string, unknown> | null
-            }>
+            id: string
+            bucket: string | null
+            path: string | null
+            mime_type: string | null
+            size: number | null
+            metadata: Record<string, unknown> | null
+          }>
           | null
 
         const asset = Array.isArray(rawAsset) ? rawAsset[0] : rawAsset

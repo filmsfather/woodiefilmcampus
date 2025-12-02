@@ -125,10 +125,10 @@ const createEmptyItem = (withChoices: boolean) => ({
   explanation: '',
   ...(withChoices
     ? {
-        answerType: 'multiple_choice' as SrsAnswerType,
-        choices: [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()],
-        shortFields: [],
-      }
+      answerType: 'multiple_choice' as SrsAnswerType,
+      choices: [createEmptyChoice(), createEmptyChoice(), createEmptyChoice(), createEmptyChoice()],
+      shortFields: [],
+    }
     : {}),
 })
 
@@ -789,13 +789,12 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
           return (
             <div key={step.id} className="flex items-center gap-2">
               <div
-                className={`flex size-8 items-center justify-center rounded-full border text-sm ${
-                  isActive
+                className={`flex size-8 items-center justify-center rounded-full border text-sm ${isActive
                     ? 'border-primary text-primary'
                     : isCompleted
                       ? 'border-green-600 bg-green-50 text-green-700'
                       : 'border-slate-200 text-slate-500'
-                }`}
+                  }`}
               >
                 {isCompleted ? <Check className="size-4" /> : index + 1}
               </div>
@@ -1000,6 +999,76 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                             </FormItem>
                           )}
                         />
+
+                        {selectedType === 'writing' && (
+                          <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-semibold text-slate-900">채점 기준 (AI 자동 평가)</h4>
+                              <p className="text-xs text-slate-500">
+                                AI가 학생의 답안을 평가할 때 사용할 기준을 상세히 입력해주세요.
+                              </p>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-3">
+                              <FormField
+                                control={form.control}
+                                name={`items.${index}.gradingCriteria.high`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">상 (High)</FormLabel>
+                                    <FormControl>
+                                      <Textarea
+                                        rows={4}
+                                        placeholder="예: 핵심 키워드가 모두 포함되고 논리적임"
+                                        className="resize-none text-xs"
+                                        {...field}
+                                        value={field.value ?? ''}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`items.${index}.gradingCriteria.mid`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">중 (Mid)</FormLabel>
+                                    <FormControl>
+                                      <Textarea
+                                        rows={4}
+                                        placeholder="예: 핵심 키워드 일부 포함, 논리 부족"
+                                        className="resize-none text-xs"
+                                        {...field}
+                                        value={field.value ?? ''}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name={`items.${index}.gradingCriteria.low`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-xs">하 (Low)</FormLabel>
+                                    <FormControl>
+                                      <Textarea
+                                        rows={4}
+                                        placeholder="예: 핵심 키워드 누락, 관련 없는 내용"
+                                        className="resize-none text-xs"
+                                        {...field}
+                                        value={field.value ?? ''}
+                                      />
+                                    </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {selectedType === 'srs' && (
                           <div className="space-y-4">
@@ -1217,9 +1286,8 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                             {item.choices.map((choice, choiceIndex) => (
                               <li
                                 key={choiceIndex}
-                                className={`flex items-center gap-2 text-sm ${
-                                  choice.isCorrect ? 'text-green-700' : 'text-slate-600'
-                                }`}
+                                className={`flex items-center gap-2 text-sm ${choice.isCorrect ? 'text-green-700' : 'text-slate-600'
+                                  }`}
                               >
                                 {choice.isCorrect ? (
                                   <Check className="size-4 text-green-600" />

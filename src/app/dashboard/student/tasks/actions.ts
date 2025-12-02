@@ -9,6 +9,7 @@ import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
 import { MAX_PDF_FILE_SIZE } from '@/lib/storage/limits'
+import { evaluateWritingSubmission, GradingCriteria } from '@/lib/gemini'
 
 type UploadedFilePayload = {
   bucket: string
@@ -282,15 +283,48 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       continue
     }
 
+    const { data: workbookItem } = await supabase
+      .from('workbook_items')
+      .select('prompt, explanation, grading_criteria')
+      .eq('id', answer.workbookItemId)
+      .single()
+
+    let aiScore: 'pass' | 'nonpass' | null = null
+    let aiFeedback: string | null = null
+
+    if (workbookItem?.grading_criteria && !submissionIsEmpty) {
+      const criteria = workbookItem.grading_criteria as unknown as GradingCriteria
+      // Only evaluate if all criteria are present
+      if (criteria.high && criteria.mid && criteria.low) {
+        const aiResult = await evaluateWritingSubmission(
+          workbookItem.prompt,
+          normalizedContent,
+          criteria
+        )
+
+        if (!('error' in aiResult)) {
+          aiScore = aiResult.grade === 'High' ? 'pass' : 'nonpass'
+          aiFeedback = `[AI 평가: ${aiResult.grade}]\n${aiResult.explanation}`
+        }
+      }
+    }
+
     if (existing) {
+      const updatePayload: Record<string, unknown> = {
+        submission_type: parsed.submissionType,
+        content: normalizedContent,
+        media_asset_id: null,
+        updated_at: now,
+      }
+
+      if (aiScore) {
+        updatePayload.score = aiScore
+        updatePayload.feedback = aiFeedback
+      }
+
       const { error: updateError } = await supabase
         .from('task_submissions')
-        .update({
-          submission_type: parsed.submissionType,
-          content: normalizedContent,
-          media_asset_id: null,
-          updated_at: now,
-        })
+        .update(updatePayload)
         .eq('id', existing.id)
 
       if (updateError) {
@@ -298,12 +332,19 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         return { success: false as const, error: '답안을 저장하지 못했습니다.' }
       }
     } else {
-      const { error: insertError } = await supabase.from('task_submissions').insert({
+      const insertPayload: Record<string, unknown> = {
         student_task_id: parsed.studentTaskId,
         item_id: answer.workbookItemId,
         submission_type: parsed.submissionType,
         content: normalizedContent,
-      })
+      }
+
+      if (aiScore) {
+        insertPayload.score = aiScore
+        insertPayload.feedback = aiFeedback
+      }
+
+      const { error: insertError } = await supabase.from('task_submissions').insert(insertPayload)
 
       if (insertError) {
         console.error('[submitTextResponses] failed to insert submission', insertError)
@@ -311,13 +352,19 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       }
     }
 
+    const itemUpdatePayload: Record<string, unknown> = {
+      completed_at: now,
+      last_result: 'submitted',
+      updated_at: now,
+    }
+
+    if (aiScore === 'pass') {
+      itemUpdatePayload.last_result = 'pass'
+    }
+
     const { error: itemUpdateError } = await supabase
       .from('student_task_items')
-      .update({
-        completed_at: now,
-        last_result: 'submitted',
-        updated_at: now,
-      })
+      .update(itemUpdatePayload)
       .eq('id', answer.studentTaskItemId)
 
     if (itemUpdateError) {

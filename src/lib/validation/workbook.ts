@@ -83,9 +83,16 @@ const workbookShortFieldSchema = z.object({
   answer: requiredTrimmedString.min(1, { message: '정답을 입력해주세요.' }),
 })
 
+const gradingCriteriaSchema = z.object({
+  high: requiredTrimmedString,
+  mid: requiredTrimmedString,
+  low: requiredTrimmedString,
+})
+
 export const workbookItemSchema = z.object({
   prompt: requiredTrimmedString.min(1, { message: '문항 내용을 입력해주세요.' }),
   explanation: optionalTrimmedString,
+  gradingCriteria: gradingCriteriaSchema.optional(),
   answerType: srsAnswerTypeSchema.optional(),
   choices: z.array(workbookChoiceSchema).optional(),
   shortFields: z.array(workbookShortFieldSchema).optional(),
@@ -313,6 +320,11 @@ export interface NormalizedWorkbookPayload {
   items: Array<{
     prompt: string
     explanation?: string
+    gradingCriteria?: {
+      high: string
+      mid: string
+      low: string
+    }
     answerType?: SrsAnswerType
     choices?: Array<{
       content: string
@@ -414,6 +426,7 @@ export function buildNormalizedWorkbookPayload(
     const base: {
       prompt: string
       explanation?: string
+      gradingCriteria?: { high: string; mid: string; low: string }
       answerType?: SrsAnswerType
       choices?: Array<{ content: string; isCorrect: boolean }>
       shortFields?: Array<{
@@ -428,6 +441,14 @@ export function buildNormalizedWorkbookPayload(
     const explanation = normalizeString(item.explanation)
     if (explanation) {
       base.explanation = explanation
+    }
+
+    if (item.gradingCriteria) {
+      base.gradingCriteria = {
+        high: item.gradingCriteria.high.trim(),
+        mid: item.gradingCriteria.mid.trim(),
+        low: item.gradingCriteria.low.trim(),
+      }
     }
 
     if (values.type === 'srs') {

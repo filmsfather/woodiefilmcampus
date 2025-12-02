@@ -1377,12 +1377,19 @@ function WritingEvaluationCard({
               <SelectItem value="nonpass">Non-pass</SelectItem>
             </SelectContent>
           </Select>
-          <Textarea
-            placeholder="피드백 (선택)"
-            value={feedback}
-            onChange={(event) => setFeedback(event.target.value)}
-            rows={3}
-          />
+          <div className="flex flex-col gap-2">
+            {feedback.includes('[AI 평가:') && (
+              <div className="rounded-md bg-blue-50 p-2 text-xs text-blue-700">
+                <span className="font-semibold">AI 평가 결과가 포함되어 있습니다.</span> 내용을 검토하고 필요시 수정하세요.
+              </div>
+            )}
+            <Textarea
+              placeholder="피드백 (선택)"
+              value={feedback}
+              onChange={(event) => setFeedback(event.target.value)}
+              rows={3}
+            />
+          </div>
           <div className="flex flex-col items-end gap-2">
             <Button size="sm" disabled={isPending || !submission} onClick={handleSave} className="w-full">
               {isPending ? (
