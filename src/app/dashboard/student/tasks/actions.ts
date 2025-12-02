@@ -294,19 +294,30 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
 
     if (workbookItem?.grading_criteria && !submissionIsEmpty) {
       const criteria = workbookItem.grading_criteria as unknown as GradingCriteria
+      console.log('[submitTextResponses] Found criteria:', criteria)
+
       // Only evaluate if all criteria are present
       if (criteria.high && criteria.mid && criteria.low) {
+        console.log('[submitTextResponses] Triggering AI evaluation...')
         const aiResult = await evaluateWritingSubmission(
           workbookItem.prompt,
           normalizedContent,
           criteria
         )
+        console.log('[submitTextResponses] AI Result:', aiResult)
 
         if (!('error' in aiResult)) {
           aiScore = aiResult.grade === 'High' ? 'pass' : 'nonpass'
           aiFeedback = `[AI 평가: ${aiResult.grade}]\n${aiResult.explanation}`
+          console.log('[submitTextResponses] AI Score determined:', aiScore)
+        } else {
+          console.error('[submitTextResponses] AI evaluation returned error:', aiResult.error)
         }
+      } else {
+        console.log('[submitTextResponses] Criteria incomplete, skipping AI evaluation')
       }
+    } else {
+      console.log('[submitTextResponses] No criteria or empty submission, skipping AI evaluation')
     }
 
     if (existing) {

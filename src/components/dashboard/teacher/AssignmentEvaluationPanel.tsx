@@ -806,8 +806,20 @@ function SrsReviewPanel({
                   </TableCell>
                   <TableCell>
                     {item?.lastResult ? (
-                      <Badge variant={item.lastResult === 'pass' ? 'secondary' : 'destructive'}>
-                        {item.lastResult === 'pass' ? 'Pass' : 'Fail'}
+                      <Badge
+                        variant={
+                          item.lastResult === 'pass'
+                            ? 'secondary'
+                            : item.lastResult === 'submitted'
+                              ? 'outline'
+                              : 'destructive'
+                        }
+                      >
+                        {item.lastResult === 'pass'
+                          ? 'Pass'
+                          : item.lastResult === 'submitted'
+                            ? '제출됨'
+                            : 'Fail'}
                       </Badge>
                     ) : (
                       <span className="text-xs text-slate-400">기록 없음</span>
