@@ -291,11 +291,19 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
 
     console.log('[submitTextResponses] Querying workbook item with ID:', answer.workbookItemId)
 
-    const { data: workbookItem } = await supabase
-      .from('workbook_items')
-      .select('prompt, explanation, grading_criteria')
-      .eq('id', answer.workbookItemId)
-      .single()
+    const { data: workbookItem, error: fetchError } = await supabase
+      .rpc('get_workbook_item_for_grading', {
+        p_workbook_item_id: answer.workbookItemId,
+      })
+      .maybeSingle<{
+        prompt: string
+        explanation: string | null
+        grading_criteria: GradingCriteria | null
+      }>()
+
+    if (fetchError) {
+      console.error('[submitTextResponses] RPC fetch error:', fetchError)
+    }
 
     console.log('[submitTextResponses] Fetched workbook item:', workbookItem)
 
