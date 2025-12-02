@@ -295,6 +295,8 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       .eq('id', answer.workbookItemId)
       .single()
 
+    console.log('[submitTextResponses] Fetched workbook item:', workbookItem)
+
     let aiScore: 'pass' | 'nonpass' | null = null
     let aiFeedback: string | null = null
     let aiGrade: string | undefined
