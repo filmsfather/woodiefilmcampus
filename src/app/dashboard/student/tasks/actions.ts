@@ -235,6 +235,12 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
   }
 
   const now = new Date().toISOString()
+  const results: Array<{
+    itemId: string
+    passed: boolean
+    grade?: string
+    feedback?: string
+  }> = []
 
   for (const answer of parsed.answers) {
     const rawContent = (answer.content ?? '').replace(/\r/g, '')
@@ -291,6 +297,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
 
     let aiScore: 'pass' | 'nonpass' | null = null
     let aiFeedback: string | null = null
+    let aiGrade: string | undefined
 
     if (workbookItem?.grading_criteria && !submissionIsEmpty) {
       const criteria = workbookItem.grading_criteria as unknown as GradingCriteria
@@ -307,6 +314,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         console.log('[submitTextResponses] AI Result:', aiResult)
 
         if (!('error' in aiResult)) {
+          aiGrade = aiResult.grade
           aiScore = aiResult.grade === 'High' ? 'pass' : 'nonpass'
           aiFeedback = `[AI 평가: ${aiResult.grade}]\n${aiResult.explanation}`
           console.log('[submitTextResponses] AI Score determined:', aiScore)
@@ -320,6 +328,33 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       console.log('[submitTextResponses] No criteria or empty submission, skipping AI evaluation')
     }
 
+    // Interactive Grading Logic:
+    // If AI evaluation was performed and the score is NOT pass (i.e., not High),
+    // we do NOT save the submission as completed. We return the feedback to the client
+    // so the student can retry.
+    if (aiScore === 'nonpass') {
+      results.push({
+        itemId: answer.workbookItemId,
+        passed: false,
+        grade: aiGrade,
+        feedback: aiFeedback ?? undefined,
+      })
+      // Do not save to DB, or maybe save as draft?
+      // For now, per requirement "중, 하 등급일 경우에는 완료 및 제출 되지 않고 다시 풀도록 해줘",
+      // we will NOT save the submission to task_submissions if it fails the AI check.
+      // However, to persist the draft, we might want to save it but NOT mark the item as completed.
+      // Let's save the submission content so they don't lose it, but keep the item status as incomplete.
+    } else {
+      // Pass or no AI evaluation (manual grading needed later)
+      results.push({
+        itemId: answer.workbookItemId,
+        passed: true,
+        grade: aiGrade,
+        feedback: aiFeedback ?? undefined,
+      })
+    }
+
+    // Always save the submission content (draft or final)
     if (existing) {
       const updatePayload: Record<string, unknown> = {
         submission_type: parsed.submissionType,
@@ -363,14 +398,26 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
       }
     }
 
+    // Update item status
+    // Only mark as completed/pass if it's a pass or if there was no AI evaluation (manual grading flow)
+    // If AI evaluated and it was nonpass, we keep it incomplete (or just submitted but not 'pass')
+    // Requirement: "중, 하 등급일 경우에는 완료 및 제출 되지 않고 다시 풀도록 해줘" -> implies strictly NOT completed.
+
+    const shouldMarkCompleted = aiScore === 'pass' || !aiScore // Pass or Manual Grading
+
     const itemUpdatePayload: Record<string, unknown> = {
-      completed_at: now,
-      last_result: 'submitted',
       updated_at: now,
     }
 
-    if (aiScore === 'pass') {
-      itemUpdatePayload.last_result = 'pass'
+    if (shouldMarkCompleted) {
+      itemUpdatePayload.completed_at = now
+      itemUpdatePayload.last_result = aiScore === 'pass' ? 'pass' : 'submitted'
+    } else {
+      // Failed AI check
+      // We can reset completed_at to null to ensure it's treated as incomplete
+      itemUpdatePayload.completed_at = null
+      itemUpdatePayload.last_result = 'submitted' // Or maybe null? 'submitted' implies waiting for review, but here we want retry.
+      // Let's keep it as 'submitted' so it shows they tried, but completed_at is null so it's not "done".
     }
 
     const { error: itemUpdateError } = await supabase
@@ -389,7 +436,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
   revalidatePath('/dashboard/student/tasks')
   revalidatePath(`/dashboard/student/tasks/${parsed.studentTaskId}`)
 
-  return { success: true as const }
+  return { success: true as const, results }
 }
 
 const filmEntrySchema = z.object({

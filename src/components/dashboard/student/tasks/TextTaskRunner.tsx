@@ -45,6 +45,7 @@ export function TextTaskRunner({
   const [isPending, startTransition] = useTransition()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [aiResults, setAiResults] = useState<Record<string, { passed: boolean; grade?: string; feedback?: string }>>({})
 
   const prompts = useMemo<PromptEntry[]>(() => {
     return task.items.map((item, index) => ({
@@ -69,6 +70,7 @@ export function TextTaskRunner({
   const handleSubmit = () => {
     setErrorMessage(null)
     setSuccessMessage(null)
+    setAiResults({})
 
     startTransition(async () => {
       try {
@@ -95,8 +97,33 @@ export function TextTaskRunner({
           return
         }
 
-        setSuccessMessage('답안을 저장했어요.')
-        router.refresh()
+        if (response.results) {
+          const nextAiResults: Record<string, { passed: boolean; grade?: string; feedback?: string }> = {}
+          let allPassed = true
+
+          response.results.forEach((result) => {
+            nextAiResults[result.itemId] = {
+              passed: result.passed,
+              grade: result.grade,
+              feedback: result.feedback,
+            }
+            if (!result.passed) {
+              allPassed = false
+            }
+          })
+
+          setAiResults(nextAiResults)
+
+          if (allPassed) {
+            setSuccessMessage('모든 문항을 통과했습니다! 수고하셨습니다.')
+            router.refresh()
+          } else {
+            setErrorMessage('일부 문항이 기준에 미달하여 제출되지 않았습니다. 피드백을 확인하고 다시 풀어보세요.')
+          }
+        } else {
+          setSuccessMessage('답안을 저장했어요.')
+          router.refresh()
+        }
       } catch (error) {
         console.error('[TextTaskRunner] submit failed', error)
         setErrorMessage('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
@@ -188,6 +215,9 @@ export function TextTaskRunner({
                 placeholder="답안을 입력하세요"
                 disabled={isPending}
                 rows={6}
+                className={cn(
+                  aiResults[prompt.workbookItemId]?.passed === false && 'border-red-300 focus-visible:ring-red-300'
+                )}
               />
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span>작성한 글자 수: {characterCount.toLocaleString()}자</span>
@@ -197,6 +227,34 @@ export function TextTaskRunner({
                   </span>
                 )}
               </div>
+
+              {aiResults[prompt.workbookItemId] && (
+                <div
+                  className={cn(
+                    'rounded-md border p-4 text-sm',
+                    aiResults[prompt.workbookItemId].passed
+                      ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                      : 'border-red-200 bg-red-50 text-red-800'
+                  )}
+                >
+                  <div className="mb-2 flex items-center gap-2 font-semibold">
+                    {aiResults[prompt.workbookItemId].passed ? (
+                      <>
+                        <CheckCircle2 className="h-4 w-4" />
+                        <span>통과했습니다! ({aiResults[prompt.workbookItemId].grade})</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4" />
+                        <span>완료되지 않았습니다 ({aiResults[prompt.workbookItemId].grade})</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="whitespace-pre-line text-sm leading-relaxed opacity-90">
+                    {aiResults[prompt.workbookItemId].feedback?.replace(/\[AI 평가: .*\]\n/, '')}
+                  </div>
+                </div>
+              )}
             </div>
           )
         })}
