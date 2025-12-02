@@ -14,6 +14,7 @@ export interface EvaluationResult {
 
 export async function evaluateWritingSubmission(
     question: string,
+    explanation: string,
     answer: string,
     criteria: GradingCriteria
 ): Promise<EvaluationResult | { error: string }> {
@@ -24,10 +25,13 @@ export async function evaluateWritingSubmission(
 
     const prompt = `
 You are a strict and fair teacher grading a student's answer.
-Please evaluate the following answer based on the provided criteria.
+Please evaluate the following answer based on the provided criteria and reference explanation.
 
 **Question:**
 ${question}
+
+**Reference Explanation (Model Answer/Context):**
+${explanation}
 
 **Student Answer:**
 ${answer}
@@ -38,7 +42,7 @@ ${answer}
 - Low (하): ${criteria.low}
 
 **Instructions:**
-1. Analyze the student's answer carefully.
+1. Analyze the student's answer carefully, comparing it with the Reference Explanation and Grading Criteria.
 2. Determine the grade from the following options: 'High', 'Mid-High', 'Mid', 'Mid-Low', 'Low'.
    - 'High': Meets all 'High' criteria perfectly.
    - 'Mid-High': Between High and Mid.

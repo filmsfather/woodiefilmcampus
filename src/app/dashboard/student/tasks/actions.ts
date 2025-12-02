@@ -308,6 +308,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
         console.log('[submitTextResponses] Triggering AI evaluation...')
         const aiResult = await evaluateWritingSubmission(
           workbookItem.prompt,
+          workbookItem.explanation ?? '',
           normalizedContent,
           criteria
         )
