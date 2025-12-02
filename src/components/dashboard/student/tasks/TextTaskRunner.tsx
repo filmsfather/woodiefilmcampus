@@ -241,12 +241,18 @@ export function TextTaskRunner({
                     {aiResults[prompt.workbookItemId].passed ? (
                       <>
                         <CheckCircle2 className="h-4 w-4" />
-                        <span>통과했습니다! ({aiResults[prompt.workbookItemId].grade})</span>
+                        <span>
+                          통과했습니다!
+                          {aiResults[prompt.workbookItemId].grade ? ` (${aiResults[prompt.workbookItemId].grade})` : ''}
+                        </span>
                       </>
                     ) : (
                       <>
                         <AlertCircle className="h-4 w-4" />
-                        <span>완료되지 않았습니다 ({aiResults[prompt.workbookItemId].grade})</span>
+                        <span>
+                          완료되지 않았습니다
+                          {aiResults[prompt.workbookItemId].grade ? ` (${aiResults[prompt.workbookItemId].grade})` : ''}
+                        </span>
                       </>
                     )}
                   </div>

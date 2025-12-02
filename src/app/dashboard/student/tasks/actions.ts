@@ -321,6 +321,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
           console.log('[submitTextResponses] AI Score determined:', aiScore)
         } else {
           console.error('[submitTextResponses] AI evaluation returned error:', aiResult.error)
+          return { success: false as const, error: aiResult.error }
         }
       } else {
         console.log('[submitTextResponses] Criteria incomplete, skipping AI evaluation')
