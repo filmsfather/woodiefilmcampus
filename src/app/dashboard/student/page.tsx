@@ -39,6 +39,12 @@ const TODO_ACTIONS: DashboardActionItem[] = [
     description: '이번 주 배정된 문제집으로 바로 이동해 과제를 마무리합니다.',
     variant: 'secondary',
   },
+  {
+    label: '공지사항 게시판',
+    href: '/dashboard/student/notices',
+    description: '학원 소식과 알림을 확인하고 지난 공지사항을 찾아봅니다.',
+    variant: 'outline',
+  },
 ]
 
 const DONE_ACTIONS: DashboardActionItem[] = [
