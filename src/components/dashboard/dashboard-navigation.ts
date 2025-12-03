@@ -163,6 +163,7 @@ const studentSections: NavigationSection[] = [
       { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
       { label: '이번달 학습 계획', href: '/dashboard/student/monthly-plan' },
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
+      { label: '공지사항 게시판', href: '/dashboard/student/notices' },
     ],
   },
   {
