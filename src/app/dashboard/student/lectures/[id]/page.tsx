@@ -22,7 +22,7 @@ export default async function StudentLectureDetailPage({ params }: PageProps) {
     const videoId = getYoutubeVideoId(lecture.youtube_url)
 
     return (
-        <section className="mx-auto max-w-4xl space-y-6">
+        <section className="space-y-6">
             <div className="space-y-3">
                 <DashboardBackLink fallbackHref="/dashboard/student/lectures" label="강의 목록으로 돌아가기" />
                 <div className="space-y-1">
