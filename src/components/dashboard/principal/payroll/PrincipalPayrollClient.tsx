@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
+import { completePayrollPayment, requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExternalSubstituteModal } from '@/components/dashboard/principal/payroll/ExternalSubstituteModal'
@@ -174,11 +174,14 @@ function statusBadge(run: TeacherPayrollRun | null, acknowledgement: TeacherPayr
   if (!run) {
     return { label: '전송 전', variant: 'secondary' as const }
   }
+  if (run.status === 'paid') {
+    return { label: '지급 완료', variant: 'default' as const }
+  }
   if (run.status === 'confirmed' || acknowledgement?.status === 'confirmed') {
-    return { label: '확인 완료', variant: 'default' as const }
+    return { label: '확인 완료', variant: 'outline' as const }
   }
   if (run.status === 'pending_ack') {
-    return { label: '확인 대기', variant: 'outline' as const }
+    return { label: '확인 대기', variant: 'secondary' as const }
   }
   return { label: '임시 저장', variant: 'secondary' as const }
 }
@@ -575,6 +578,22 @@ function TeacherPayrollCard({
     })
   }
 
+  const handleCompletePayment = () => {
+    if (!run) return
+    if (!confirm('정말로 지급 완료 처리하시겠습니까?')) return
+
+    startTransition(async () => {
+      setFeedback(null)
+      const result = await completePayrollPayment(run.id)
+      if (result?.success) {
+        setFeedback({ type: 'success', message: '지급 완료 상태로 변경했습니다.' })
+        router.refresh()
+      } else {
+        setFeedback({ type: 'error', message: result?.error ?? '처리하지 못했습니다.' })
+      }
+    })
+  }
+
   const handleSubmit = (formData: FormData) => {
     startTransition(async () => {
       setFeedback(null)
@@ -793,7 +812,13 @@ function TeacherPayrollCard({
                 {feedback.message}
               </p>
             )}
+
             <div className="flex items-center justify-end gap-2">
+              {status.label === '확인 완료' && run?.status === 'confirmed' && (
+                <Button type="button" variant="outline" onClick={handleCompletePayment} disabled={isPending || isPreviewing}>
+                  지급 완료 처리
+                </Button>
+              )}
               <Button type="submit" disabled={isPending || isPreviewing}>
                 {isPending ? '요청 전송 중…' : '확인 요청'}
               </Button>
@@ -804,7 +829,7 @@ function TeacherPayrollCard({
       <CardFooter className="justify-end text-xs text-slate-500">
         {monthLabel} 정산 기준 · 데이터는 승인된 근무일지에 기반합니다.
       </CardFooter>
-    </Card>
+    </Card >
   )
 }
 
@@ -889,85 +914,85 @@ export function PrincipalPayrollClient({
   return (
     <>
       <section className="mx-auto flex max-w-6xl flex-col gap-6">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold text-slate-900">임금관리</h1>
-          <p className="text-sm text-slate-600">{monthLabel} 근무일지 기반 급여를 계산하고 확인 요청을 보냅니다.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            asChild
-            size="sm"
-            variant="secondary"
-            className="mr-2"
-          >
-            <Link href="/dashboard/principal/payroll/profiles">급여 프로필 관리</Link>
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="mr-2"
-            onClick={() => setExternalModalOpen(true)}
-          >
-            외부 대타 현황
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isRouting}
-            onClick={() => navigateToMonth(shiftMonth(monthToken, -1))}
-          >
-            이전 달
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={isRouting}
-            onClick={() => navigateToMonth(shiftMonth(monthToken, 1))}
-          >
-            다음 달
-          </Button>
-          <Select
-            value={selectedTeacherId ?? 'all'}
-            onValueChange={(value) => updateTeacherFilter(value === 'all' ? null : value)}
-            disabled={isRouting}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue>{currentTeacherLabel}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 교직원</SelectItem>
-              {teacherOptions.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </header>
+        <header className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-semibold text-slate-900">임금관리</h1>
+            <p className="text-sm text-slate-600">{monthLabel} 근무일지 기반 급여를 계산하고 확인 요청을 보냅니다.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              asChild
+              size="sm"
+              variant="secondary"
+              className="mr-2"
+            >
+              <Link href="/dashboard/principal/payroll/profiles">급여 프로필 관리</Link>
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mr-2"
+              onClick={() => setExternalModalOpen(true)}
+            >
+              외부 대타 현황
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isRouting}
+              onClick={() => navigateToMonth(shiftMonth(monthToken, -1))}
+            >
+              이전 달
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isRouting}
+              onClick={() => navigateToMonth(shiftMonth(monthToken, 1))}
+            >
+              다음 달
+            </Button>
+            <Select
+              value={selectedTeacherId ?? 'all'}
+              onValueChange={(value) => updateTeacherFilter(value === 'all' ? null : value)}
+              disabled={isRouting}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue>{currentTeacherLabel}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">전체 교직원</SelectItem>
+                {teacherOptions.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </header>
 
-      {summaryRows.length > 0 && (
-        <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-medium text-slate-900">정산 요약</h2>
-          <PayrollSummaryTable rows={summaryRows} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-        </section>
-      )}
+        {summaryRows.length > 0 && (
+          <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="mb-3 text-sm font-medium text-slate-900">정산 요약</h2>
+            <PayrollSummaryTable rows={summaryRows} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+          </section>
+        )}
 
-      {teachers.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-          표시할 급여 정보가 없습니다. 급여 프로필이 등록된 교직원인지 또는 승인된 근무일지가 있는지 확인해주세요.
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {teachers.map((entry) => (
-            <TeacherPayrollCard key={entry.teacher.id} monthToken={monthToken} monthLabel={monthLabel} entry={entry} />
-          ))}
-        </div>
-      )}
+        {teachers.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+            표시할 급여 정보가 없습니다. 급여 프로필이 등록된 교직원인지 또는 승인된 근무일지가 있는지 확인해주세요.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {teachers.map((entry) => (
+              <TeacherPayrollCard key={entry.teacher.id} monthToken={monthToken} monthLabel={monthLabel} entry={entry} />
+            ))}
+          </div>
+        )}
       </section>
       <ExternalSubstituteModal
         open={isExternalModalOpen}

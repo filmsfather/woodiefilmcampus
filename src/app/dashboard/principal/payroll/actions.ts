@@ -612,3 +612,44 @@ export async function requestPayrollConfirmation(formData: FormData) {
     netPay: computation.breakdown.netPay,
   }
 }
+
+export async function completePayrollPayment(runId: string) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'principal') {
+    return { error: '급여 지급 완료 처리를 할 권한이 없습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  // 1. Check current status
+  const { data: run, error: fetchError } = await admin
+    .from('teacher_payroll_runs')
+    .select('status')
+    .eq('id', runId)
+    .single()
+
+  if (fetchError || !run) {
+    return { error: '급여 정산 정보를 찾을 수 없습니다.' }
+  }
+
+  if (run.status !== 'confirmed') {
+    return { error: '확인 완료된 정산만 지급 완료 처리할 수 있습니다.' }
+  }
+
+  // 2. Update status to paid
+  const { error: updateError } = await admin
+    .from('teacher_payroll_runs')
+    .update({ status: 'paid' })
+    .eq('id', runId)
+
+  if (updateError) {
+    console.error('[payroll] failed to complete payment', updateError)
+    return { error: '지급 완료 처리에 실패했습니다.' }
+  }
+
+  revalidatePath('/dashboard/principal/payroll')
+  revalidatePath('/dashboard/teacher/work-journal')
+
+  return { success: true }
+}

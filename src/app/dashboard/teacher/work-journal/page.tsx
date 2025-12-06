@@ -19,7 +19,7 @@ import { WorkJournalClient } from '@/components/dashboard/teacher/work-journal/W
 
 interface TeacherPayrollCardData {
   runId: string
-  status: 'draft' | 'pending_ack' | 'confirmed'
+  status: 'draft' | 'pending_ack' | 'confirmed' | 'paid'
   grossPay: number
   netPay: number
   messagePreview: string | null
@@ -37,7 +37,7 @@ interface TeacherPayrollRunRow {
   id: string
   gross_pay: string | number | null
   net_pay: string | number | null
-  status: 'draft' | 'pending_ack' | 'confirmed'
+  status: 'draft' | 'pending_ack' | 'confirmed' | 'paid'
   contract_type: TeacherContractType
   weekly_holiday_allowance: string | number | null
   message_preview: string | null
@@ -192,7 +192,7 @@ export default async function TeacherWorkJournalPage(props: {
 
       payrollCard = {
         runId: runRow.id,
-        status: runRow.status as 'draft' | 'pending_ack' | 'confirmed',
+        status: runRow.status as 'draft' | 'pending_ack' | 'confirmed' | 'paid',
         grossPay,
         netPay,
         messagePreview,

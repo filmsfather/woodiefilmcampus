@@ -1,7 +1,7 @@
 import type { WorkLogEntry } from '@/lib/work-logs'
 
 export type TeacherContractType = 'employee' | 'freelancer' | 'none'
-export type TeacherPayrollRunStatus = 'draft' | 'pending_ack' | 'confirmed'
+export type TeacherPayrollRunStatus = 'draft' | 'pending_ack' | 'confirmed' | 'paid'
 export type TeacherPayrollItemKind = 'earning' | 'deduction' | 'info'
 export type TeacherPayrollAckStatus = 'pending' | 'confirmed'
 

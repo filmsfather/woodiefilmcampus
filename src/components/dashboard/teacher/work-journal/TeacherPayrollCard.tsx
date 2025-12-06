@@ -13,7 +13,7 @@ import type { WeeklyWorkSummary } from '@/lib/payroll/types'
 
 interface TeacherPayrollCardData {
   runId: string
-  status: 'draft' | 'pending_ack' | 'confirmed'
+  status: 'draft' | 'pending_ack' | 'confirmed' | 'paid'
   grossPay: number
   netPay: number
   messagePreview: string | null
@@ -86,8 +86,8 @@ export function TeacherPayrollCard({ monthLabel, data }: TeacherPayrollCardProps
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <CardTitle className="text-xl text-slate-900">{monthLabel} 급여 정산 안내</CardTitle>
-              <Badge variant={status === 'confirmed' ? 'default' : status === 'pending' ? 'outline' : 'secondary'}>
-                {status === 'confirmed' ? '확인 완료' : '확인 대기'}
+              <Badge variant={status === 'confirmed' || data.status === 'paid' ? 'default' : status === 'pending' ? 'outline' : 'secondary'}>
+                {data.status === 'paid' ? '지급 완료' : status === 'confirmed' ? '확인 완료' : '확인 대기'}
               </Badge>
             </div>
             <CardDescription>
