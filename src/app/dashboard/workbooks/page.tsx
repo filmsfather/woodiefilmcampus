@@ -21,17 +21,17 @@ interface WorkbookListItem {
   updated_at: string
   workbook_items?: Array<{ count: number }>
   teacher?:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
+  | null
 }
 
 export default async function WorkbookListPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
@@ -191,9 +191,16 @@ export default async function WorkbookListPage({ searchParams }: { searchParams:
                           {formatDate(workbook.updated_at)}
                         </td>
                         <td className="px-4 py-3 align-top text-right">
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
-                          </Button>
+                          <div className="flex justify-end gap-2">
+                            {['srs', 'writing'].includes(workbook.type) && (
+                              <Button asChild size="sm" variant="secondary">
+                                <Link href={`/dashboard/workbooks/${workbook.id}/preview`}>풀어보기</Link>
+                              </Button>
+                            )}
+                            <Button asChild size="sm" variant="outline">
+                              <Link href={`/dashboard/workbooks/${workbook.id}`}>상세 보기</Link>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     )
