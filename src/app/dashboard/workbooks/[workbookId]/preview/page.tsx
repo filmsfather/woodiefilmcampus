@@ -4,7 +4,6 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { SrsTaskRunner } from '@/components/dashboard/student/tasks/SrsTaskRunner'
 import { Card, CardContent } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
-import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import type { StudentTaskDetail, StudentTaskItemDetail } from '@/types/student-task'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -16,7 +15,7 @@ interface WorkbookPreviewPageProps {
 }
 
 export default async function WorkbookPreviewPage({ params }: WorkbookPreviewPageProps) {
-    const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+    await requireAuthForDashboard(['teacher', 'manager'])
     const supabase = createServerSupabase()
 
     const { data: workbook, error } = await supabase
@@ -124,7 +123,6 @@ export default async function WorkbookPreviewPage({ params }: WorkbookPreviewPag
             const asset = (Array.isArray(assetData) ? assetData[0] : assetData) as { id?: string } | null
             const assetId = m.asset_id ?? asset?.id
             const assetInfo = assetId ? mediaAssetInfoMap.get(assetId) : null
-            const signedUrl = assetId ? mediaSignedUrlMap.get(assetId) : null
 
             // We need to construct the asset structure expected by StudentTaskItemDetail
             // But wait, StudentTaskItemDetail expects `asset` object, not signed URL directly in `media` array.

@@ -250,7 +250,7 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
         return { error: '신청 폼 설정이 올바르지 않습니다.' }
       }
       applicationConfig = result.data
-    } catch (_) {
+    } catch {
       return { error: '신청 폼 설정을 처리할 수 없습니다.' }
     }
   }
@@ -501,7 +501,7 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
         return { error: '신청 폼 설정이 올바르지 않습니다.' }
       }
       applicationConfig = result.data
-    } catch (_) {
+    } catch {
       return { error: '신청 폼 설정을 처리할 수 없습니다.' }
     }
   }
