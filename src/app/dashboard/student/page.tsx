@@ -45,6 +45,12 @@ const TODO_ACTIONS: DashboardActionItem[] = [
     description: '학원 소식과 알림을 확인하고 지난 공지사항을 찾아봅니다.',
     variant: 'outline',
   },
+  {
+    label: '우디쌤 인터넷강의 시청',
+    href: '/dashboard/student/lectures',
+    description: '선생님이 올려주신 인터넷 강의를 시청하며 학습합니다.',
+    variant: 'default',
+  },
 ]
 
 const DONE_ACTIONS: DashboardActionItem[] = [

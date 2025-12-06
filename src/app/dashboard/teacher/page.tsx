@@ -104,6 +104,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '강의에 사용하는 수업자료를 준비하고 관리하세요.',
       },
       {
+        label: '온라인 강의 관리',
+        href: '/dashboard/teacher/lectures',
+        description: '학생들에게 제공할 온라인 강의(유튜브)를 관리합니다.',
+        variant: 'outline',
+      },
+      {
         label: '입시자료 아카이브',
         href: '/dashboard/teacher/admission-materials',
         description: '입시 대비 자료와 일정을 관리하고 학생과 공유하세요.',
