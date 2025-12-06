@@ -35,6 +35,12 @@ const shortFieldSchema = z.object({
   answer: z.string().min(1, { message: '단답 정답을 입력해주세요.' }),
 })
 
+const gradingCriteriaSchema = z.object({
+  high: z.string().min(1, { message: '상(High) 기준을 입력해주세요.' }),
+  mid: z.string().min(1, { message: '중(Mid) 기준을 입력해주세요.' }),
+  low: z.string().min(1, { message: '하(Low) 기준을 입력해주세요.' }),
+})
+
 const itemSchema = z.object({
   id: z.string().uuid(),
   prompt: z.string().min(1, { message: '문항 내용을 입력해주세요.' }),
@@ -42,6 +48,7 @@ const itemSchema = z.object({
   answerType: answerTypeSchema.optional(),
   choices: z.array(choiceSchema).optional(),
   shortFields: z.array(shortFieldSchema).optional(),
+  gradingCriteria: gradingCriteriaSchema.optional(),
 })
 
 const baseFormSchema = z.object({
@@ -64,6 +71,11 @@ export interface WorkbookItemsEditorItem {
     label?: string | null
     answer: string
   }>
+  gradingCriteria?: {
+    high: string
+    mid: string
+    low: string
+  } | null
 }
 
 interface WorkbookItemsEditorProps {
@@ -84,6 +96,42 @@ export default function WorkbookItemsEditor({
   const [isPending, startTransition] = useTransition()
 
   const schema = useMemo(() => {
+    if (workbookType === 'writing') {
+      return baseFormSchema.superRefine((values, ctx) => {
+        values.items.forEach((item, index) => {
+          if (!item.gradingCriteria) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '채점 기준을 입력해주세요.',
+              path: ['items', index, 'gradingCriteria'],
+            })
+            return
+          }
+          if (!item.gradingCriteria.high) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '상(High) 기준을 입력해주세요.',
+              path: ['items', index, 'gradingCriteria', 'high'],
+            })
+          }
+          if (!item.gradingCriteria.mid) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '중(Mid) 기준을 입력해주세요.',
+              path: ['items', index, 'gradingCriteria', 'mid'],
+            })
+          }
+          if (!item.gradingCriteria.low) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: '하(Low) 기준을 입력해주세요.',
+              path: ['items', index, 'gradingCriteria', 'low'],
+            })
+          }
+        })
+      })
+    }
+
     if (workbookType !== 'srs') {
       return baseFormSchema
     }
@@ -150,30 +198,37 @@ export default function WorkbookItemsEditor({
       items: [...items]
         .sort((a, b) => a.position - b.position)
         .map((item) => {
-          if (workbookType !== 'srs') {
+          const baseItem = {
+            id: item.id,
+            prompt: item.prompt,
+            explanation: item.explanation ?? '',
+          }
+
+          if (workbookType === 'writing') {
             return {
-              id: item.id,
-              prompt: item.prompt,
-              explanation: item.explanation ?? '',
+              ...baseItem,
+              gradingCriteria: item.gradingCriteria ?? { high: '', mid: '', low: '' },
             }
+          }
+
+          if (workbookType !== 'srs') {
+            return baseItem
           }
 
           const answerType = (item.answerType ?? 'multiple_choice') as 'multiple_choice' | 'short_answer'
 
           return {
-            id: item.id,
-            prompt: item.prompt,
-            explanation: item.explanation ?? '',
+            ...baseItem,
             answerType,
             choices: answerType === 'multiple_choice' ? item.choices ?? [] : undefined,
             shortFields:
               answerType === 'short_answer'
                 ? (item.shortFields && item.shortFields.length > 0
-                    ? item.shortFields.map((field) => ({
-                        label: field.label ?? '',
-                        answer: field.answer,
-                      }))
-                    : [{ label: '', answer: '' }])
+                  ? item.shortFields.map((field) => ({
+                    label: field.label ?? '',
+                    answer: field.answer,
+                  }))
+                  : [{ label: '', answer: '' }])
                 : undefined,
           }
         }),
@@ -189,24 +244,25 @@ export default function WorkbookItemsEditor({
     setSubmitState('idle')
     setServerError(null)
 
-      startTransition(async () => {
-        const result = await updateWorkbookItems({
-          workbookId,
-          items: values.items.map((item) => ({
-            id: item.id,
-            prompt: item.prompt,
-            explanation: item.explanation ?? '',
-            answerType: workbookType === 'srs' ? (item.answerType ?? 'multiple_choice') : undefined,
-            choices:
-              workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'multiple_choice'
-                ? item.choices ?? []
-                : undefined,
-            shortFields:
-              workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'short_answer'
-                ? item.shortFields ?? []
-                : undefined,
-          })),
-        })
+    startTransition(async () => {
+      const result = await updateWorkbookItems({
+        workbookId,
+        items: values.items.map((item) => ({
+          id: item.id,
+          prompt: item.prompt,
+          explanation: item.explanation ?? '',
+          answerType: workbookType === 'srs' ? (item.answerType ?? 'multiple_choice') : undefined,
+          choices:
+            workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'multiple_choice'
+              ? item.choices ?? []
+              : undefined,
+          shortFields:
+            workbookType === 'srs' && (item.answerType ?? 'multiple_choice') === 'short_answer'
+              ? item.shortFields ?? []
+              : undefined,
+          gradingCriteria: workbookType === 'writing' ? item.gradingCriteria : undefined,
+        })),
+      })
 
       if (result?.error) {
         setServerError(result.error)
@@ -266,6 +322,15 @@ export default function WorkbookItemsEditor({
                         </FormItem>
                       )}
                     />
+
+                    {workbookType === 'writing' && (
+                      <GradingCriteriaEditor
+                        control={control}
+                        itemIndex={index}
+                        isPending={isPending}
+                        error={itemErrors?.gradingCriteria as FieldErrorsImpl<{ high: string; mid: string; low: string }> | undefined}
+                      />
+                    )}
 
                     {workbookType === 'srs' && (
                       <div className="space-y-4">
@@ -371,6 +436,89 @@ export default function WorkbookItemsEditor({
         </div>
       </form>
     </Form>
+  )
+}
+
+interface GradingCriteriaEditorProps {
+  control: Control<FormValues>
+  itemIndex: number
+  isPending: boolean
+  error?: FieldErrorsImpl<{ high: string; mid: string; low: string }>
+}
+
+function GradingCriteriaEditor({ control, itemIndex, isPending, error }: GradingCriteriaEditorProps) {
+  return (
+    <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="space-y-1">
+        <h4 className="text-sm font-semibold text-slate-900">AI 채점 기준</h4>
+        <p className="text-xs text-slate-500">
+          AI가 학생의 답안을 평가할 때 사용할 기준을 입력해주세요. 각 등급별로 구체적인 기준을 제시할수록 채점 정확도가 높아집니다.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <FormField
+          control={control}
+          name={`items.${itemIndex}.gradingCriteria.high`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-emerald-700">상 (High) - 통과</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={4}
+                  placeholder="예: 핵심 키워드 A, B가 모두 포함되고 논리적으로 설명함"
+                  className="bg-white"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${itemIndex}.gradingCriteria.mid`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-amber-700">중 (Mid) - 재시도</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={4}
+                  placeholder="예: 핵심 키워드 중 하나만 포함되거나 설명이 다소 부족함"
+                  className="bg-white"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={control}
+          name={`items.${itemIndex}.gradingCriteria.low`}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-rose-700">하 (Low) - 재시도</FormLabel>
+              <FormControl>
+                <Textarea
+                  rows={4}
+                  placeholder="예: 핵심 키워드가 없거나 주제와 무관한 내용임"
+                  className="bg-white"
+                  {...field}
+                  disabled={isPending}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
+      {error && <p className="text-sm text-destructive">채점 기준을 모두 입력해주세요.</p>}
+    </div>
   )
 }
 
