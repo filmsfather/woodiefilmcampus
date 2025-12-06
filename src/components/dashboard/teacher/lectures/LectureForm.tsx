@@ -22,6 +22,9 @@ export function LectureForm({ lecture, action }: LectureFormProps) {
         try {
             await action(formData)
         } catch (error) {
+            if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+                throw error
+            }
             console.error(error)
             alert('오류가 발생했습니다.')
         } finally {
