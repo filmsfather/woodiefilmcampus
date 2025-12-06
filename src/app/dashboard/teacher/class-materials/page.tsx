@@ -27,6 +27,7 @@ export default function ClassMaterialsLandingPage() {
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
+                {/* Subject Archive Link */}
                 <Link href={`/dashboard/teacher/class-materials/${subject}`}>아카이브 열기</Link>
               </Button>
             </CardContent>

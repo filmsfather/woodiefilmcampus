@@ -75,13 +75,13 @@ interface ClassMaterialPostDetail {
 export default async function ClassMaterialDetailPage({
   params,
 }: {
-  params: { subject: string; postId: string }
+  params: Promise<{ subject: string; postId: string }>
 }) {
-  if (!isClassMaterialSubject(params.subject)) {
+  const { subject, postId } = await params
+  if (!isClassMaterialSubject(subject)) {
     notFound()
   }
 
-  const subject = params.subject
   const supabase = createServerSupabase()
 
   const signUrl = async (bucket: string | null | undefined, path: string | null | undefined) => {
@@ -139,7 +139,7 @@ export default async function ClassMaterialDetailPage({
        )
       `
     )
-    .eq('id', params.postId)
+    .eq('id', postId)
     .maybeSingle()
 
   if (error) {
@@ -176,61 +176,61 @@ export default async function ClassMaterialDetailPage({
 
   const normalizedPrintRequests: PrintRequestRow[] = Array.isArray(data.print_requests)
     ? await Promise.all(
-        data.print_requests.map(async (request) => {
-          const requesterRelation = Array.isArray(request.requester) ? request.requester[0] : request.requester
-          const rawItems = Array.isArray(request.request_items) ? request.request_items : []
+      data.print_requests.map(async (request) => {
+        const requesterRelation = Array.isArray(request.requester) ? request.requester[0] : request.requester
+        const rawItems = Array.isArray(request.request_items) ? request.request_items : []
 
-          const items: PrintRequestItemRow[] = await Promise.all(
-            rawItems.map(async (item) => {
-              const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
-              let downloadUrl: string | null = null
+        const items: PrintRequestItemRow[] = await Promise.all(
+          rawItems.map(async (item) => {
+            const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
+            let downloadUrl: string | null = null
 
-              if (mediaAsset?.bucket && mediaAsset.path) {
-                try {
-                  const { data: signed, error: signedError } = await supabase.storage
-                    .from(mediaAsset.bucket)
-                    .createSignedUrl(mediaAsset.path, 60 * 60)
-                  if (signedError) {
-                    console.error('[class-materials] failed to sign request item url', signedError)
-                  } else {
-                    downloadUrl = signed?.signedUrl ?? null
-                  }
-                } catch (error) {
-                  console.error('[class-materials] unexpected error signing request item url', error)
+            if (mediaAsset?.bucket && mediaAsset.path) {
+              try {
+                const { data: signed, error: signedError } = await supabase.storage
+                  .from(mediaAsset.bucket)
+                  .createSignedUrl(mediaAsset.path, 60 * 60)
+                if (signedError) {
+                  console.error('[class-materials] failed to sign request item url', signedError)
+                } else {
+                  downloadUrl = signed?.signedUrl ?? null
                 }
+              } catch (error) {
+                console.error('[class-materials] unexpected error signing request item url', error)
               }
+            }
 
-              return {
-                id: String(item.id),
-                asset_type: (item.asset_type ?? 'class_material') as ClassMaterialAssetType,
-                asset_filename: (item.asset_filename ?? null) as string | null,
-                downloadUrl,
-              }
-            })
-          )
+            return {
+              id: String(item.id),
+              asset_type: (item.asset_type ?? 'class_material') as ClassMaterialAssetType,
+              asset_filename: (item.asset_filename ?? null) as string | null,
+              downloadUrl,
+            }
+          })
+        )
 
-          return {
-            id: String(request.id),
-            status: (request.status ?? 'requested') as 'requested' | 'done' | 'canceled',
-            copies: Number(request.copies ?? 1),
-            color_mode: (request.color_mode ?? 'bw') as 'bw' | 'color',
-            desired_date: request.desired_date ?? null,
-            desired_period: request.desired_period ?? null,
-            notes: request.notes ?? null,
-            requested_by: String(request.requested_by),
-            created_at: String(request.created_at),
-            updated_at: String(request.updated_at),
-            requester: requesterRelation
-              ? {
-                  id: String(requesterRelation.id),
-                  name: (requesterRelation.name ?? null) as string | null,
-                  email: (requesterRelation.email ?? null) as string | null,
-                }
-              : null,
-            items,
-          }
-        })
-      )
+        return {
+          id: String(request.id),
+          status: (request.status ?? 'requested') as 'requested' | 'done' | 'canceled',
+          copies: Number(request.copies ?? 1),
+          color_mode: (request.color_mode ?? 'bw') as 'bw' | 'color',
+          desired_date: request.desired_date ?? null,
+          desired_period: request.desired_period ?? null,
+          notes: request.notes ?? null,
+          requested_by: String(request.requested_by),
+          created_at: String(request.created_at),
+          updated_at: String(request.updated_at),
+          requester: requesterRelation
+            ? {
+              id: String(requesterRelation.id),
+              name: (requesterRelation.name ?? null) as string | null,
+              email: (requesterRelation.email ?? null) as string | null,
+            }
+            : null,
+          items,
+        }
+      })
+    )
     : []
 
   const post: ClassMaterialPostDetail = {
@@ -243,10 +243,10 @@ export default async function ClassMaterialDetailPage({
     updated_at: String(data.updated_at),
     author: authorRelation
       ? {
-          id: String(authorRelation.id),
-          name: (authorRelation.name ?? null) as string | null,
-          email: (authorRelation.email ?? null) as string | null,
-        }
+        id: String(authorRelation.id),
+        name: (authorRelation.name ?? null) as string | null,
+        email: (authorRelation.email ?? null) as string | null,
+      }
       : null,
     attachments: normalizedAttachments,
     print_requests: normalizedPrintRequests,

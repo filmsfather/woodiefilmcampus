@@ -6,13 +6,12 @@ import { createClassMaterialPost } from '@/app/dashboard/teacher/class-materials
 import { getClassMaterialSubjectLabel, isClassMaterialSubject } from '@/lib/class-materials'
 import { requireAuthForDashboard } from '@/lib/auth'
 
-export default async function NewClassMaterialPage({ params }: { params: { subject: string } }) {
+export default async function NewClassMaterialPage({ params }: { params: Promise<{ subject: string }> }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
-  if (!isClassMaterialSubject(params.subject)) {
+  const { subject } = await params
+  if (!isClassMaterialSubject(subject)) {
     notFound()
   }
-
-  const subject = params.subject
   const title = getClassMaterialSubjectLabel(subject)
 
   return (

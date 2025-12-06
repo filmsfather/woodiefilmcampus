@@ -48,15 +48,16 @@ export default async function ClassMaterialSubjectPage({
   params,
   searchParams,
 }: {
-  params: { subject: string }
-  searchParams?: Record<string, string | string[] | undefined>
+  params: Promise<{ subject: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
-  if (!isClassMaterialSubject(params.subject)) {
+  const { subject } = await params
+  if (!isClassMaterialSubject(subject)) {
     notFound()
   }
 
-  const subject = params.subject
-  const query = typeof searchParams?.q === 'string' ? searchParams?.q.trim() : ''
+  const resolvedSearchParams = await searchParams
+  const query = typeof resolvedSearchParams?.q === 'string' ? resolvedSearchParams?.q.trim() : ''
 
   const supabase = createServerSupabase()
   let postQuery = supabase
@@ -112,19 +113,19 @@ export default async function ClassMaterialSubjectPage({
       author_name: authorRelation?.name ?? null,
       class_material_asset: classMaterialRelation
         ? {
-            id: String(classMaterialRelation.id),
-            bucket: String(classMaterialRelation.bucket),
-            path: String(classMaterialRelation.path),
-            mime_type: (classMaterialRelation.mime_type ?? null) as string | null,
-          }
+          id: String(classMaterialRelation.id),
+          bucket: String(classMaterialRelation.bucket),
+          path: String(classMaterialRelation.path),
+          mime_type: (classMaterialRelation.mime_type ?? null) as string | null,
+        }
         : null,
       student_handout_asset: studentHandoutRelation
         ? {
-            id: String(studentHandoutRelation.id),
-            bucket: String(studentHandoutRelation.bucket),
-            path: String(studentHandoutRelation.path),
-            mime_type: (studentHandoutRelation.mime_type ?? null) as string | null,
-          }
+          id: String(studentHandoutRelation.id),
+          bucket: String(studentHandoutRelation.bucket),
+          path: String(studentHandoutRelation.path),
+          mime_type: (studentHandoutRelation.mime_type ?? null) as string | null,
+        }
         : null,
     }
   })

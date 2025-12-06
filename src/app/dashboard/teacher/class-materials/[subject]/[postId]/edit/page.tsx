@@ -17,14 +17,13 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 export default async function EditClassMaterialPage({
   params,
 }: {
-  params: { subject: string; postId: string }
+  params: Promise<{ subject: string; postId: string }>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
-  if (!isClassMaterialSubject(params.subject)) {
+  const { subject, postId } = await params
+  if (!isClassMaterialSubject(subject)) {
     notFound()
   }
-
-  const subject = params.subject
   const supabase = createServerSupabase()
 
   const { data, error } = await supabase
@@ -43,7 +42,7 @@ export default async function EditClassMaterialPage({
        )
       `
     )
-    .eq('id', params.postId)
+    .eq('id', postId)
     .maybeSingle()
 
   if (error) {
@@ -83,7 +82,7 @@ export default async function EditClassMaterialPage({
   return (
     <section className="space-y-6">
       <DashboardBackLink
-        fallbackHref={`/dashboard/teacher/class-materials/${subject}/${params.postId}`}
+        fallbackHref={`/dashboard/teacher/class-materials/${subject}/${postId}`}
         label="자료 상세로 돌아가기"
       />
       <div className="space-y-1">
@@ -96,7 +95,7 @@ export default async function EditClassMaterialPage({
         defaults={defaults}
         submitLabel="자료 수정"
         onSubmit={updateClassMaterialPost}
-        onDelete={deleteClassMaterialPost.bind(null, params.postId)}
+        onDelete={deleteClassMaterialPost.bind(null, postId)}
         currentUserId={profile.id}
       />
     </section>
