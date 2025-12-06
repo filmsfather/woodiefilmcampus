@@ -45,6 +45,8 @@ export function TextTaskRunner({
 }: TextTaskRunnerProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
+  const [pendingItems, setPendingItems] = useState<Set<string>>(new Set())
+  const [globalError, setGlobalError] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [aiResults, setAiResults] = useState<Record<string, { passed: boolean; grade?: string; feedback?: string }>>({})
@@ -61,6 +63,28 @@ export function TextTaskRunner({
 
   const [answers, setAnswers] = useState<string[]>(() => prompts.map((entry) => entry.existingAnswer))
 
+  // Initialize aiResults from existing submissions if available
+  useEffect(() => {
+    const initialResults: Record<string, { passed: boolean; grade?: string; feedback?: string }> = {}
+    task.items.forEach((item) => {
+      if (item.submission?.score) {
+        initialResults[item.workbookItem.id] = {
+          passed: item.submission.score === 'pass',
+          grade: item.submission.score === 'pass' ? 'High' : undefined, // We might not have exact grade stored if it's just score enum
+          feedback: item.submission.feedback ?? undefined,
+        }
+      } else if (item.lastResult === 'submitted' && !item.completedAt) {
+        // Submitted but not passed (Mid/Low)
+        initialResults[item.workbookItem.id] = {
+          passed: false,
+          feedback: item.submission?.feedback ?? undefined,
+        }
+      }
+    })
+    setAiResults(prev => ({ ...prev, ...initialResults }))
+  }, [task.items])
+
+
   useEffect(() => {
     setAnswers(prompts.map((entry) => entry.existingAnswer))
   }, [prompts])
@@ -69,61 +93,46 @@ export function TextTaskRunner({
     setAnswers((prev) => prev.map((answer, index) => (index === targetIndex ? value : answer)))
   }
 
-  const handleSubmit = () => {
-    setErrorMessage(null)
-    setSuccessMessage(null)
-    setAiResults({})
+  const handleSubmitItem = (index: number) => {
+    const prompt = prompts[index]
+    const answerContent = answers[index] ?? ''
+    const itemId = prompt.workbookItemId
+
+    setGlobalError(null)
+    setPendingItems((prev) => new Set(prev).add(itemId))
 
     startTransition(async () => {
       try {
-        const normalizedAnswers = prompts.map((prompt, index) => {
-          const raw = answers[index] ?? ''
-          const normalized = raw.replace(/\r/g, '')
-          return {
-            studentTaskItemId: prompt.studentTaskItemId,
-            workbookItemId: prompt.workbookItemId,
-            content: normalized,
-          }
-        })
+        const normalizedAnswer = {
+          studentTaskItemId: prompt.studentTaskItemId,
+          workbookItemId: prompt.workbookItemId,
+          content: answerContent.replace(/\r/g, ''),
+        }
 
         const payload = {
           studentTaskId: task.id,
           submissionType,
-          answers: normalizedAnswers,
+          answers: [normalizedAnswer],
         }
 
         if (mode === 'preview') {
           const response = await previewTextResponse(payload)
 
           if (!response.success) {
-            setErrorMessage(response.error ?? '미리보기 채점 중 오류가 발생했습니다.')
+            setGlobalError(response.error ?? '미리보기 채점 중 오류가 발생했습니다.')
             return
           }
 
-          if (response.results) {
-            const nextAiResults: Record<string, { passed: boolean; grade?: string; feedback?: string }> = {}
-            let allPassed = true
-
-            response.results.forEach((result) => {
-              nextAiResults[result.itemId] = {
+          if (response.results && response.results.length > 0) {
+            const result = response.results[0]
+            setAiResults((prev) => ({
+              ...prev,
+              [result.itemId]: {
                 passed: result.passed,
                 grade: result.grade,
                 feedback: result.feedback,
-              }
-              if (!result.passed) {
-                allPassed = false
-              }
-            })
-
-            setAiResults(nextAiResults)
-
-            if (allPassed) {
-              setSuccessMessage('모든 문항을 통과했습니다! (미리보기 모드)')
-            } else {
-              setErrorMessage('일부 문항이 기준에 미달했습니다. (미리보기 모드)')
-            }
-          } else {
-            setSuccessMessage('답안이 제출되었습니다. (미리보기 모드 - 저장되지 않음)')
+              },
+            }))
           }
           return
         }
@@ -131,40 +140,38 @@ export function TextTaskRunner({
         const response = await submitTextResponses(payload)
 
         if (!response.success) {
-          setErrorMessage(response.error ?? '제출 중 오류가 발생했습니다.')
+          setGlobalError(response.error ?? '제출 중 오류가 발생했습니다.')
           return
         }
 
-        if (response.results) {
-          const nextAiResults: Record<string, { passed: boolean; grade?: string; feedback?: string }> = {}
-          let allPassed = true
-
-          response.results.forEach((result) => {
-            nextAiResults[result.itemId] = {
+        if (response.results && response.results.length > 0) {
+          const result = response.results[0]
+          setAiResults((prev) => ({
+            ...prev,
+            [result.itemId]: {
               passed: result.passed,
               grade: result.grade,
               feedback: result.feedback,
-            }
-            if (!result.passed) {
-              allPassed = false
-            }
-          })
+            },
+          }))
 
-          setAiResults(nextAiResults)
-
-          if (allPassed) {
-            setSuccessMessage('모든 문항을 통과했습니다! 수고하셨습니다.')
+          if (result.passed) {
             router.refresh()
-          } else {
-            setErrorMessage('일부 문항이 기준에 미달하여 제출되지 않았습니다. 피드백을 확인하고 다시 풀어보세요.')
           }
         } else {
-          setSuccessMessage('답안을 저장했어요.')
+          // Fallback if no results returned (shouldn't happen with current logic)
           router.refresh()
         }
+
       } catch (error) {
         console.error('[TextTaskRunner] submit failed', error)
-        setErrorMessage('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+        setGlobalError('제출 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+      } finally {
+        setPendingItems((prev) => {
+          const next = new Set(prev)
+          next.delete(itemId)
+          return next
+        })
       }
     })
   }
@@ -179,6 +186,8 @@ export function TextTaskRunner({
 
   const limit = typeof maxCharacters === 'number' && maxCharacters > 0 ? maxCharacters : undefined
   const attachmentMap = attachments ?? {}
+
+  const allPassed = prompts.every(p => aiResults[p.workbookItemId]?.passed)
 
   return (
     <div className="space-y-6">
@@ -208,6 +217,8 @@ export function TextTaskRunner({
           const characterCount = value.length
           const overLimit = limit ? characterCount > limit : false
           const itemAttachments = attachmentMap[prompt.studentTaskItemId] ?? []
+          const isItemPending = pendingItems.has(prompt.workbookItemId)
+          const result = aiResults[prompt.workbookItemId]
 
           return (
             <div key={prompt.studentTaskItemId} className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
@@ -258,10 +269,10 @@ export function TextTaskRunner({
                 value={value}
                 onChange={(event) => handleChange(event.target.value, index)}
                 placeholder="답안을 입력하세요"
-                disabled={isPending}
+                disabled={isItemPending}
                 rows={6}
                 className={cn(
-                  aiResults[prompt.workbookItemId]?.passed === false && 'border-red-300 focus-visible:ring-red-300'
+                  result?.passed === false && 'border-red-300 focus-visible:ring-red-300'
                 )}
               />
               <div className="flex items-center justify-between text-xs text-slate-500">
@@ -273,22 +284,22 @@ export function TextTaskRunner({
                 )}
               </div>
 
-              {aiResults[prompt.workbookItemId] && (
+              {result && (
                 <div
                   className={cn(
                     'rounded-md border p-4 text-sm',
-                    aiResults[prompt.workbookItemId].passed
+                    result.passed
                       ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
                       : 'border-red-200 bg-red-50 text-red-800'
                   )}
                 >
                   <div className="mb-2 flex items-center gap-2 font-semibold">
-                    {aiResults[prompt.workbookItemId].passed ? (
+                    {result.passed ? (
                       <>
                         <CheckCircle2 className="h-4 w-4" />
                         <span>
                           통과했습니다!
-                          {aiResults[prompt.workbookItemId].grade ? ` (${aiResults[prompt.workbookItemId].grade})` : ''}
+                          {result.grade ? ` (${result.grade})` : ''}
                         </span>
                       </>
                     ) : (
@@ -296,46 +307,53 @@ export function TextTaskRunner({
                         <AlertCircle className="h-4 w-4" />
                         <span>
                           완료되지 않았습니다
-                          {aiResults[prompt.workbookItemId].grade ? ` (${aiResults[prompt.workbookItemId].grade})` : ''}
+                          {result.grade ? ` (${result.grade})` : ''}
                         </span>
                       </>
                     )}
                   </div>
                   <div className="whitespace-pre-line text-sm leading-relaxed opacity-90">
-                    {aiResults[prompt.workbookItemId].feedback?.replace(/\[AI 평가: .*\]\n/, '')}
+                    {result.feedback?.replace(/\[AI 평가: .*\]\n/, '')}
                   </div>
                 </div>
               )}
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  onClick={() => handleSubmitItem(index)}
+                  disabled={isItemPending || (result?.passed && value === prompt.existingAnswer)}
+                  size="sm"
+                  className={cn("min-w-[100px]", result?.passed ? "bg-emerald-600 hover:bg-emerald-700" : "")}
+                >
+                  {isItemPending ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" /> 채점중
+                    </span>
+                  ) : result?.passed ? (
+                    '다시 채점하기'
+                  ) : (
+                    '채점하기'
+                  )}
+                </Button>
+              </div>
             </div>
           )
         })}
       </div>
 
-      {errorMessage && (
+      {globalError && (
         <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <AlertCircle className="mt-0.5 h-4 w-4" />
-          <p>{errorMessage}</p>
+          <p>{globalError}</p>
         </div>
       )}
 
-      {successMessage && (
-        <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-          <CheckCircle2 className="h-4 w-4" />
-          <p>{successMessage}</p>
+      {allPassed && (
+        <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 font-medium justify-center">
+          <CheckCircle2 className="h-5 w-5" />
+          <p>모든 문항을 통과했습니다! 수고하셨습니다.</p>
         </div>
       )}
-
-      <div className="flex justify-end">
-        <Button onClick={handleSubmit} disabled={isPending} className="min-w-[120px]">
-          {isPending ? (
-            <span className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> 채점중
-            </span>
-          ) : (
-            '답안 저장'
-          )}
-        </Button>
-      </div>
     </div>
   )
 }
