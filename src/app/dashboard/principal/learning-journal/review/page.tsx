@@ -36,11 +36,12 @@ const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', str
 export default async function PrincipalLearningJournalReviewPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard(['principal', 'manager'])
   const canApprove = profile?.role === 'principal'
 
+  const resolvedSearchParams = await searchParams
   const supabase = createServerSupabase()
 
   const [{ data: classRows }, { data: periodRows }] = await Promise.all([
@@ -53,10 +54,10 @@ export default async function PrincipalLearningJournalReviewPage({
 
   const classes = (classRows ?? []).map((row) => ({ id: row.id, name: row.name ?? '반 미지정' }))
 
-  const classParam = typeof searchParams?.class === 'string' ? searchParams.class : classes[0]?.id ?? null
+  const classParam = typeof resolvedSearchParams?.class === 'string' ? resolvedSearchParams.class : classes[0]?.id ?? null
 
   const periodsForClass = (periodRows ?? []).filter((period) => period.class_id === classParam)
-  const periodParamRaw = typeof searchParams?.period === 'string' ? searchParams.period : null
+  const periodParamRaw = typeof resolvedSearchParams?.period === 'string' ? resolvedSearchParams.period : null
   let periodParam: 'all' | string = 'all'
   if (periodParamRaw) {
     if (periodParamRaw === 'all') {
@@ -66,16 +67,16 @@ export default async function PrincipalLearningJournalReviewPage({
     }
   }
 
-  const entryIdParam = typeof searchParams?.entry === 'string' ? searchParams.entry : null
+  const entryIdParam = typeof resolvedSearchParams?.entry === 'string' ? resolvedSearchParams.entry : null
 
   const pendingEntries = await fetchLearningJournalEntriesForReview({ status: 'submitted' })
 
   const filteredEntries = classParam
     ? await fetchLearningJournalEntriesForReview({
-        status: 'all',
-        classId: classParam,
-        periodId: periodParam === 'all' ? null : periodParam,
-      })
+      status: 'all',
+      classId: classParam,
+      periodId: periodParam === 'all' ? null : periodParam,
+    })
     : []
 
   const filteredEntryIds = new Set(filteredEntries.map((entry) => entry.id))
@@ -167,11 +168,11 @@ export default async function PrincipalLearningJournalReviewPage({
   const formatAnnualTuition = (dueDate: string | null, amount: number | null) => {
     const dueLabel = dueDate
       ? `납부일 ${DateUtil.formatForDisplay(dueDate, {
-          locale: 'ko-KR',
-          timeZone: 'Asia/Seoul',
-          month: 'numeric',
-          day: 'numeric',
-        })}`
+        locale: 'ko-KR',
+        timeZone: 'Asia/Seoul',
+        month: 'numeric',
+        day: 'numeric',
+      })}`
       : null
 
     const amountLabel = typeof amount === 'number' && Number.isFinite(amount)
@@ -265,13 +266,13 @@ export default async function PrincipalLearningJournalReviewPage({
                         <TableCell className="text-right text-xs text-slate-500">
                           {entry.submittedAt
                             ? DateUtil.formatForDisplay(entry.submittedAt, {
-                                locale: 'ko-KR',
-                                timeZone: 'Asia/Seoul',
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
+                              locale: 'ko-KR',
+                              timeZone: 'Asia/Seoul',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
                             : '미기록'}
                         </TableCell>
                       </TableRow>
@@ -452,9 +453,8 @@ export default async function PrincipalLearningJournalReviewPage({
                     <div>
                       <dt className="font-medium text-slate-500">반 / 기간</dt>
                       <dd className="text-slate-900">
-                        {`${targetSummary.className ?? '-'} · ${
-                          targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
-                        }`}
+                        {`${targetSummary.className ?? '-'} · ${targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
+                          }`}
                       </dd>
                     </div>
                     <div>
@@ -462,13 +462,13 @@ export default async function PrincipalLearningJournalReviewPage({
                       <dd className="text-slate-900">
                         {targetEntry.publishedAt
                           ? DateUtil.formatForDisplay(targetEntry.publishedAt, {
-                              locale: 'ko-KR',
-                              timeZone: 'Asia/Seoul',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
+                            locale: 'ko-KR',
+                            timeZone: 'Asia/Seoul',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
                           : '미기록'}
                       </dd>
                     </div>
@@ -547,9 +547,8 @@ export default async function PrincipalLearningJournalReviewPage({
               <LearningJournalEntryContent
                 header={{
                   title: targetSummary.studentName ?? targetSummary.studentEmail ?? '학생 정보 없음',
-                  subtitle: `${targetSummary.className ?? '-'} · ${
-                    targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
-                  }`,
+                  subtitle: `${targetSummary.className ?? '-'} · ${targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
+                    }`,
                   meta: [
                     {
                       label: '제출 상태',
@@ -559,13 +558,13 @@ export default async function PrincipalLearningJournalReviewPage({
                       label: '공개일',
                       value: targetEntry.publishedAt
                         ? DateUtil.formatForDisplay(targetEntry.publishedAt, {
-                            locale: 'ko-KR',
-                            timeZone: 'Asia/Seoul',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
+                          locale: 'ko-KR',
+                          timeZone: 'Asia/Seoul',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
                         : '미기록',
                     },
                     {

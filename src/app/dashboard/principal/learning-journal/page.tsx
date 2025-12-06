@@ -24,16 +24,17 @@ function formatMonthLabel(monthToken: string) {
 export default async function PrincipalLearningJournalPage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
   await requireAuthForDashboard('principal')
 
+  const resolvedSearchParams = await searchParams
   const periods = await fetchLearningJournalPeriodsForManager()
   const periodIds = periods.map((period) => period.id)
   const stats = await fetchLearningJournalPeriodStats(periodIds)
 
   const nowIso = DateUtil.formatISODate(DateUtil.nowUTC())
-  const monthParam = typeof searchParams?.month === 'string' ? searchParams.month : null
+  const monthParam = typeof resolvedSearchParams?.month === 'string' ? resolvedSearchParams.month : null
   const activeMonth = monthParam ?? resolveMonthToken(nowIso)
   const greeting = await fetchLearningJournalGreeting(activeMonth)
   const monthTokensFromPeriods = periods.flatMap((period) =>
