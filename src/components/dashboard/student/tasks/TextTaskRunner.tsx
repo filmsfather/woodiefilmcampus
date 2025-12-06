@@ -329,7 +329,7 @@ export function TextTaskRunner({
         <Button onClick={handleSubmit} disabled={isPending} className="min-w-[120px]">
           {isPending ? (
             <span className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" /> 저장 중
+              <Loader2 className="h-4 w-4 animate-spin" /> 채점중
             </span>
           ) : (
             '답안 저장'
