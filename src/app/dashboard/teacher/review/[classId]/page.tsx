@@ -21,14 +21,14 @@ import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 interface RawClassRow {
   class_id: string
   classes?:
-    | {
-        id: string | null
-        name: string | null
-      }
-    | Array<{
-        id: string | null
-        name: string | null
-      }>
+  | {
+    id: string | null
+    name: string | null
+  }
+  | Array<{
+    id: string | null
+    name: string | null
+  }>
 }
 
 interface ClassAssignmentSummary {
@@ -75,13 +75,15 @@ export default async function TeacherClassReviewPage({
   params,
   searchParams,
 }: {
-  params: { classId: string }
-  searchParams: Record<string, string | string[] | undefined>
+  params: Promise<{ classId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const { classId } = await params
+  const resolvedSearchParams = await searchParams
   const supabase = createServerSupabase()
   const isPrincipal = profile.role === 'principal'
-  const weekRange = resolveWeekRange(searchParams.week ?? null)
+  const weekRange = resolveWeekRange(resolvedSearchParams.week ?? null)
 
   let classRows: RawPrincipalClassRow[] | RawClassRow[] | null = null
 
@@ -125,21 +127,21 @@ export default async function TeacherClassReviewPage({
     }
 
     const unique = new Map<string, ManagedClass>()
-    ;(classRows as RawClassRow[]).forEach((row) => {
-      const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
-      const id = cls?.id ?? row.class_id
-      if (!id) {
-        return
-      }
-      const name = cls?.name ?? '이름 미정'
-      if (!unique.has(id)) {
-        unique.set(id, { id, name })
-      }
-    })
+      ; (classRows as RawClassRow[]).forEach((row) => {
+        const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
+        const id = cls?.id ?? row.class_id
+        if (!id) {
+          return
+        }
+        const name = cls?.name ?? '이름 미정'
+        if (!unique.has(id)) {
+          unique.set(id, { id, name })
+        }
+      })
     return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name))
   })()
 
-  const classInfo = managedClasses.find((cls) => cls.id === params.classId)
+  const classInfo = managedClasses.find((cls) => cls.id === classId)
 
   if (!classInfo) {
     notFound()
@@ -287,22 +289,22 @@ export default async function TeacherClassReviewPage({
 
   summary.nextDueAtLabel = summary.nextDueAtLabel
     ? DateUtil.formatForDisplay(summary.nextDueAtLabel, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : null
 
-  const initialAssignmentId = typeof searchParams.assignment === 'string' ? searchParams.assignment : null
+  const initialAssignmentId = typeof resolvedSearchParams.assignment === 'string' ? resolvedSearchParams.assignment : null
   const previousWeekHref = buildWeekHref(
     `/dashboard/teacher/review/${classInfo.id}`,
-    searchParams,
+    resolvedSearchParams,
     weekRange.previousStart
   )
   const nextWeekHref = buildWeekHref(
     `/dashboard/teacher/review/${classInfo.id}`,
-    searchParams,
+    resolvedSearchParams,
     weekRange.nextStart
   )
 

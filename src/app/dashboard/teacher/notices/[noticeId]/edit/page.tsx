@@ -7,15 +7,16 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { updateNotice, deleteNotice } from '@/app/dashboard/teacher/notices/actions'
 
-export default async function EditNoticePage({ params }: { params: { noticeId: string } }) {
+export default async function EditNoticePage({ params }: { params: Promise<{ noticeId: string }> }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
   if (!profile) {
     return null
   }
 
+  const { noticeId } = await params
   const supabase = createServerSupabase()
-  const notice = await fetchNoticeDetail(supabase, params.noticeId, profile.id)
+  const notice = await fetchNoticeDetail(supabase, noticeId, profile.id)
 
   if (!notice) {
     notFound()

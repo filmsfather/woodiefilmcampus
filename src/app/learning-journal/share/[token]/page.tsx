@@ -21,8 +21,9 @@ interface SharedLearningJournalPageProps {
   }
 }
 
-export default async function SharedLearningJournalPage({ params }: SharedLearningJournalPageProps) {
-  const snapshot = await fetchLearningJournalEntryByShareToken(params.token)
+export default async function SharedLearningJournalPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
+  const snapshot = await fetchLearningJournalEntryByShareToken(token)
 
   if (!snapshot) {
     notFound()
@@ -32,13 +33,13 @@ export default async function SharedLearningJournalPage({ params }: SharedLearni
 
   const publishedLabel = entry.publishedAt
     ? DateUtil.formatForDisplay(entry.publishedAt, {
-        locale: 'ko-KR',
-        timeZone: 'Asia/Seoul',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      locale: 'ko-KR',
+      timeZone: 'Asia/Seoul',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : '미기록'
 
   const updatedLabel = DateUtil.formatForDisplay(entry.updatedAt, {
@@ -50,9 +51,8 @@ export default async function SharedLearningJournalPage({ params }: SharedLearni
     minute: '2-digit',
   })
 
-  const headerSubtitle = `${period.className ?? '반 미지정'} · ${
-    period.label ?? `${period.startDate} ~ ${period.endDate}`
-  }`
+  const headerSubtitle = `${period.className ?? '반 미지정'} · ${period.label ?? `${period.startDate} ~ ${period.endDate}`
+    }`
 
   const headerMeta = [
     {
@@ -85,11 +85,11 @@ export default async function SharedLearningJournalPage({ params }: SharedLearni
   const formatTuition = (dueDate: string | null, amount: number | null) => {
     const dueLabel = dueDate
       ? `납부일 ${DateUtil.formatForDisplay(dueDate, {
-          locale: 'ko-KR',
-          timeZone: 'Asia/Seoul',
-          month: 'numeric',
-          day: 'numeric',
-        })}`
+        locale: 'ko-KR',
+        timeZone: 'Asia/Seoul',
+        month: 'numeric',
+        day: 'numeric',
+      })}`
       : null
 
     const amountLabel = typeof amount === 'number' && Number.isFinite(amount)

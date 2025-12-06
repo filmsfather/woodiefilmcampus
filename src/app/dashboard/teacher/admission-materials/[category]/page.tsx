@@ -71,19 +71,20 @@ export default async function AdmissionMaterialCategoryPage({
   params,
   searchParams,
 }: {
-  params: { category: string }
-  searchParams?: Record<string, string | string[] | undefined>
+  params: Promise<{ category: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
 }) {
-  if (!isAdmissionMaterialCategory(params.category)) {
+  const { category } = await params
+  if (!isAdmissionMaterialCategory(category)) {
     notFound()
   }
 
-  const category = params.category
+  const resolvedSearchParams = await searchParams
   const isPastExamLikeCategoryView = category === 'past_exam' || category === 'success_review'
-  const query = typeof searchParams?.q === 'string' ? searchParams.q.trim() : ''
-  const yearParam = typeof searchParams?.year === 'string' ? searchParams.year.trim() : ''
-  const universityParam = typeof searchParams?.university === 'string' ? searchParams.university.trim() : ''
-  const typesParam = searchParams?.types
+  const query = typeof resolvedSearchParams?.q === 'string' ? resolvedSearchParams.q.trim() : ''
+  const yearParam = typeof resolvedSearchParams?.year === 'string' ? resolvedSearchParams.year.trim() : ''
+  const universityParam = typeof resolvedSearchParams?.university === 'string' ? resolvedSearchParams.university.trim() : ''
+  const typesParam = resolvedSearchParams?.types
   const selectedAdmissionTypes = Array.isArray(typesParam)
     ? typesParam
     : typeof typesParam === 'string' && typesParam.length > 0
@@ -176,21 +177,21 @@ export default async function AdmissionMaterialCategoryPage({
         : null,
       guide_asset: guideRelation
         ? {
-            id: String(guideRelation.id),
-            bucket: String(guideRelation.bucket),
-            path: String(guideRelation.path),
-            mime_type: (guideRelation.mime_type ?? null) as string | null,
-            metadata: (guideRelation.metadata ?? null) as Record<string, unknown> | null,
-          }
+          id: String(guideRelation.id),
+          bucket: String(guideRelation.bucket),
+          path: String(guideRelation.path),
+          mime_type: (guideRelation.mime_type ?? null) as string | null,
+          metadata: (guideRelation.metadata ?? null) as Record<string, unknown> | null,
+        }
         : null,
       resource_asset: resourceRelation
         ? {
-            id: String(resourceRelation.id),
-            bucket: String(resourceRelation.bucket),
-            path: String(resourceRelation.path),
-            mime_type: (resourceRelation.mime_type ?? null) as string | null,
-            metadata: (resourceRelation.metadata ?? null) as Record<string, unknown> | null,
-          }
+          id: String(resourceRelation.id),
+          bucket: String(resourceRelation.bucket),
+          path: String(resourceRelation.path),
+          mime_type: (resourceRelation.mime_type ?? null) as string | null,
+          metadata: (resourceRelation.metadata ?? null) as Record<string, unknown> | null,
+        }
         : null,
       schedules: schedules
         .map((schedule) => ({
@@ -253,9 +254,9 @@ export default async function AdmissionMaterialCategoryPage({
         resourceName: pickAssetName(post.resource_asset ?? undefined),
         nextSchedule: nextSchedule
           ? {
-              title: nextSchedule.title,
-              start_at: nextSchedule.start_at,
-            }
+            title: nextSchedule.title,
+            start_at: nextSchedule.start_at,
+          }
           : null,
       }
     })
@@ -381,7 +382,7 @@ export default async function AdmissionMaterialCategoryPage({
           </CardContent>
         </Card>
       ) : (
-      <Card className="border-slate-200">
+        <Card className="border-slate-200">
           <CardContent className="overflow-x-auto p-0">
             <Table className="min-w-[960px]">
               <TableHeader>

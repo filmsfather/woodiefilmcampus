@@ -15,13 +15,12 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 export default async function EditAdmissionMaterialPage({
   params,
 }: {
-  params: { category: string; postId: string }
+  params: Promise<{ category: string; postId: string }>
 }) {
-  if (!isAdmissionMaterialCategory(params.category)) {
+  const { category, postId } = await params
+  if (!isAdmissionMaterialCategory(category)) {
     notFound()
   }
-
-  const category = params.category
   const supabase = createServerSupabase()
 
   const { data, error } = await supabase
@@ -40,7 +39,7 @@ export default async function EditAdmissionMaterialPage({
        schedules:admission_material_schedules(id, title, start_at, end_at, location, memo)
       `
     )
-    .eq('id', params.postId)
+    .eq('id', postId)
     .maybeSingle()
 
   if (error) {
@@ -68,7 +67,7 @@ export default async function EditAdmissionMaterialPage({
   return (
     <section className="space-y-6">
       <DashboardBackLink
-        fallbackHref={`/dashboard/teacher/admission-materials/${category}/${params.postId}`}
+        fallbackHref={`/dashboard/teacher/admission-materials/${category}/${postId}`}
         label="입시 자료 상세로 돌아가기"
       />
       <div className="space-y-1">
@@ -99,7 +98,7 @@ export default async function EditAdmissionMaterialPage({
         }}
         submitLabel="변경 사항 저장"
         onSubmit={updateAdmissionMaterialPost}
-        onDelete={deleteAdmissionMaterialPost.bind(null, params.postId)}
+        onDelete={deleteAdmissionMaterialPost.bind(null, postId)}
       />
     </section>
   )

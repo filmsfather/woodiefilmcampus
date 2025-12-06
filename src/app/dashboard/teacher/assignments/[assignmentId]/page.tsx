@@ -8,14 +8,15 @@ import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
 import { applySignedAssetUrls, transformAssignmentRow, type RawAssignmentRow } from '@/lib/assignment-evaluation'
 
 interface PageProps {
-  params: {
+  params: Promise<{
     assignmentId: string
-  }
-  searchParams: Record<string, string | string[] | undefined>
+  }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 export default async function TeacherAssignmentReviewPage({ params, searchParams }: PageProps) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const { assignmentId } = await params
   const supabase = createServerSupabase()
 
   const { data: assignmentRow, error } = await supabase
@@ -84,7 +85,7 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
        )
       `
     )
-    .eq('id', params.assignmentId)
+    .eq('id', assignmentId)
     .eq('assigned_by', profile.id)
     .maybeSingle<RawAssignmentRow>()
 
@@ -102,8 +103,9 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
 
 
 
-  const focusStudentTaskId = typeof searchParams.studentTask === 'string' ? searchParams.studentTask : null
-  const classIdParam = typeof searchParams.classId === 'string' ? searchParams.classId : null
+  const resolvedSearchParams = await searchParams
+  const focusStudentTaskId = typeof resolvedSearchParams.studentTask === 'string' ? resolvedSearchParams.studentTask : null
+  const classIdParam = typeof resolvedSearchParams.classId === 'string' ? resolvedSearchParams.classId : null
   const classContext = classIdParam
     ? assignment.classes.find((cls) => cls.id === classIdParam) ?? null
     : null

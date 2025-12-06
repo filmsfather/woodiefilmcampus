@@ -47,13 +47,14 @@ export const metadata: Metadata = {
 }
 
 interface WorkbookEditPageProps {
-  params: {
+  params: Promise<{
     workbookId: string
-  }
+  }>
 }
 
 export default async function WorkbookEditPage({ params }: WorkbookEditPageProps) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const { workbookId } = await params
   const supabase = createServerSupabase()
 
   const { data: workbook, error } = await supabase
@@ -65,7 +66,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
         workbook_item_short_fields(label, answer, position)
       )`
     )
-    .eq('id', params.workbookId)
+    .eq('id', workbookId)
     .maybeSingle()
 
   if (error) {
@@ -90,19 +91,19 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
       choices:
         workbook.type === 'srs' && item.answer_type === 'multiple_choice'
           ? (item.workbook_item_choices ?? []).map((choice) => ({
-              content: choice.content,
-              isCorrect: choice.is_correct,
-            }))
+            content: choice.content,
+            isCorrect: choice.is_correct,
+          }))
           : undefined,
       answerType: workbook.type === 'srs' ? (item.answer_type ?? 'multiple_choice') : undefined,
       shortFields:
         workbook.type === 'srs' && item.answer_type === 'short_answer'
           ? (item.workbook_item_short_fields ?? [])
-              .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
-              .map((field) => ({
-                label: field?.label ?? '',
-                answer: field?.answer ?? '',
-              }))
+            .sort((a, b) => (a?.position ?? 0) - (b?.position ?? 0))
+            .map((field) => ({
+              label: field?.label ?? '',
+              answer: field?.answer ?? '',
+            }))
           : undefined,
     }))
 

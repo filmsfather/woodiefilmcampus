@@ -8,15 +8,16 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchNoticeApplications, fetchNoticeDetail } from '@/lib/notice-board'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
-export default async function NoticeApplicationsPage({ params }: { params: { noticeId: string } }) {
+export default async function NoticeApplicationsPage({ params }: { params: Promise<{ noticeId: string }> }) {
     const { profile } = await requireAuthForDashboard(['manager', 'principal', 'teacher'])
 
     if (!profile) {
         return null
     }
 
+    const { noticeId } = await params
     const supabase = createServerSupabase()
-    const notice = await fetchNoticeDetail(supabase, params.noticeId, profile.id)
+    const notice = await fetchNoticeDetail(supabase, noticeId, profile.id)
 
     if (!notice) {
         notFound()
@@ -27,7 +28,7 @@ export default async function NoticeApplicationsPage({ params }: { params: { not
         return <div className="p-8 text-center text-slate-600">접근 권한이 없습니다.</div>
     }
 
-    const applications = await fetchNoticeApplications(supabase, params.noticeId)
+    const applications = await fetchNoticeApplications(supabase, noticeId)
     const config = notice.applicationConfig
 
     return (

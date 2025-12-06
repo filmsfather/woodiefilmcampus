@@ -39,7 +39,7 @@ function formatDate(value: string | null) {
   })
 }
 
-export default async function StudentTaskDetailPage({ params }: StudentTaskDetailPageProps) {
+export default async function StudentTaskDetailPage({ params }: { params: Promise<{ taskId: string }> }) {
   const { profile } = await requireAuthForDashboard('student')
 
   if (!profile) {
@@ -49,9 +49,10 @@ export default async function StudentTaskDetailPage({ params }: StudentTaskDetai
   DateUtil.clearServerClock()
   DateUtil.initServerClock()
 
+  const { taskId } = await params
   const supabase = createServerSupabase()
   const adminSupabase = createAdminClient()
-  const task = await fetchStudentTaskDetail(params.taskId, profile.id)
+  const task = await fetchStudentTaskDetail(taskId, profile.id)
 
   if (!task) {
     notFound()

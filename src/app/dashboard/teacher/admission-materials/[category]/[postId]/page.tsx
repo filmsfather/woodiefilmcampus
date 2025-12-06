@@ -57,13 +57,12 @@ interface AdmissionMaterialDetailRow {
 export default async function AdmissionMaterialDetailPage({
   params,
 }: {
-  params: { category: string; postId: string }
+  params: Promise<{ category: string; postId: string }>
 }) {
-  if (!isAdmissionMaterialCategory(params.category)) {
+  const { category, postId } = await params
+  if (!isAdmissionMaterialCategory(category)) {
     notFound()
   }
-
-  const category = params.category
   const supabase = createServerSupabase()
 
   const { data, error } = await supabase
@@ -85,7 +84,7 @@ export default async function AdmissionMaterialDetailPage({
        schedules:admission_material_schedules(id, title, start_at, end_at, location, memo)
       `
     )
-    .eq('id', params.postId)
+    .eq('id', postId)
     .maybeSingle()
 
   if (error) {
@@ -177,21 +176,21 @@ export default async function AdmissionMaterialDetailPage({
       : null,
     guide_asset: guideRelation
       ? {
-          id: String(guideRelation.id),
-          bucket: String(guideRelation.bucket),
-          path: String(guideRelation.path),
-          mime_type: typeof guideRelation.mime_type === 'string' ? guideRelation.mime_type : null,
-          metadata: (guideRelation.metadata ?? null) as Record<string, unknown> | null,
-        }
+        id: String(guideRelation.id),
+        bucket: String(guideRelation.bucket),
+        path: String(guideRelation.path),
+        mime_type: typeof guideRelation.mime_type === 'string' ? guideRelation.mime_type : null,
+        metadata: (guideRelation.metadata ?? null) as Record<string, unknown> | null,
+      }
       : null,
     resource_asset: resourceRelation
       ? {
-          id: String(resourceRelation.id),
-          bucket: String(resourceRelation.bucket),
-          path: String(resourceRelation.path),
-          mime_type: typeof resourceRelation.mime_type === 'string' ? resourceRelation.mime_type : null,
-          metadata: (resourceRelation.metadata ?? null) as Record<string, unknown> | null,
-        }
+        id: String(resourceRelation.id),
+        bucket: String(resourceRelation.bucket),
+        path: String(resourceRelation.path),
+        mime_type: typeof resourceRelation.mime_type === 'string' ? resourceRelation.mime_type : null,
+        metadata: (resourceRelation.metadata ?? null) as Record<string, unknown> | null,
+      }
       : null,
     schedules,
   }

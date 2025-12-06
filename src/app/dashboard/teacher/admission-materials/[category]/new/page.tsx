@@ -5,12 +5,11 @@ import { AdmissionMaterialPostForm } from '@/components/dashboard/admission-mate
 import { createAdmissionMaterialPost } from '@/app/dashboard/teacher/admission-materials/actions'
 import { getAdmissionCategoryLabel, isAdmissionMaterialCategory } from '@/lib/admission-materials'
 
-export default function NewAdmissionMaterialPage({ params }: { params: { category: string } }) {
-  if (!isAdmissionMaterialCategory(params.category)) {
+export default async function NewAdmissionMaterialPage({ params }: { params: Promise<{ category: string }> }) {
+  const { category } = await params
+  if (!isAdmissionMaterialCategory(category)) {
     notFound()
   }
-
-  const category = params.category
   const title = getAdmissionCategoryLabel(category)
 
   return (
