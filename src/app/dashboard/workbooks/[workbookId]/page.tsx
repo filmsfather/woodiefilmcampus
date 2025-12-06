@@ -14,12 +14,13 @@ import { duplicateWorkbook, deleteWorkbook } from '@/app/dashboard/workbooks/act
 import { createAdminClient } from '@/lib/supabase/admin'
 
 interface WorkbookDetailPageProps {
-  params: {
+  params: Promise<{
     workbookId: string
-  }
+  }>
 }
 
-export default async function WorkbookDetailPage({ params }: WorkbookDetailPageProps) {
+export default async function WorkbookDetailPage(props: WorkbookDetailPageProps) {
+  const params = await props.params
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = createServerSupabase()
 

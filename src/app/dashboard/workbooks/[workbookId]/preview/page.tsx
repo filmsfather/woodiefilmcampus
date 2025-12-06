@@ -9,12 +9,13 @@ import type { StudentTaskDetail, StudentTaskItemDetail } from '@/types/student-t
 import { createAdminClient } from '@/lib/supabase/admin'
 
 interface WorkbookPreviewPageProps {
-    params: {
+    params: Promise<{
         workbookId: string
-    }
+    }>
 }
 
-export default async function WorkbookPreviewPage({ params }: WorkbookPreviewPageProps) {
+export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProps) {
+    const params = await props.params
     await requireAuthForDashboard(['teacher', 'manager'])
     const supabase = createServerSupabase()
 
