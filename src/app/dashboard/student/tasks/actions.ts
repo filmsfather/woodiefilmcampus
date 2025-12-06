@@ -453,6 +453,81 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
   return { success: true as const, results }
 }
 
+export async function previewTextResponse(input: z.infer<typeof textResponsesSchema>) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || !['teacher', 'manager', 'principal'].includes(profile.role)) {
+    return { success: false as const, error: '권한이 없습니다.' }
+  }
+
+  let parsed: z.infer<typeof textResponsesSchema>
+
+  try {
+    parsed = textResponsesSchema.parse(input)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const firstIssue = error.issues[0]
+      return { success: false as const, error: firstIssue?.message ?? '입력 값을 확인해주세요.' }
+    }
+    return { success: false as const, error: '입력 값을 확인해주세요.' }
+  }
+
+  const supabase = createServerSupabase()
+
+  const results: Array<{
+    itemId: string
+    passed: boolean
+    grade?: string
+    feedback?: string
+  }> = []
+
+  for (const answer of parsed.answers) {
+    const rawContent = (answer.content ?? '').replace(/\r/g, '')
+    const normalizedContent = rawContent.trim()
+
+    if (normalizedContent.length === 0) {
+      continue
+    }
+
+    const { data: workbookItem, error: fetchError } = await supabase
+      .from('workbook_items')
+      .select('prompt, explanation, grading_criteria')
+      .eq('id', answer.workbookItemId)
+      .single()
+
+    if (fetchError || !workbookItem) {
+      console.error('[previewTextResponse] failed to fetch item', fetchError)
+      return { success: false as const, error: '문항 정보를 불러오지 못했습니다.' }
+    }
+
+    if (workbookItem.grading_criteria) {
+      const criteria = workbookItem.grading_criteria as unknown as GradingCriteria
+
+      if (criteria.high && criteria.mid && criteria.low) {
+        const aiResult = await evaluateWritingSubmission(
+          workbookItem.prompt,
+          workbookItem.explanation ?? '',
+          normalizedContent,
+          criteria
+        )
+
+        if (!('error' in aiResult)) {
+          results.push({
+            itemId: answer.workbookItemId,
+            passed: aiResult.grade === 'High',
+            grade: aiResult.grade,
+            feedback: `[AI 평가: ${aiResult.grade}]\n${aiResult.explanation}`,
+          })
+        } else {
+          return { success: false as const, error: aiResult.error }
+        }
+      }
+    }
+  }
+
+  return { success: true as const, results }
+}
+
 const filmEntrySchema = z.object({
   title: z.string().optional().default(''),
   director: z.string().optional().default(''),

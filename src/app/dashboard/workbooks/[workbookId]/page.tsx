@@ -218,8 +218,8 @@ export default async function WorkbookDetailPage(props: WorkbookDetailPageProps)
                     삭제
                   </Button>
                 </form>
-                {workbook.type === 'srs' && (
-                  <Button asChild variant="secondary">
+                {['srs', 'writing'].includes(workbook.type) && (
+                  <Button asChild variant="outline">
                     <Link href={`/dashboard/workbooks/${workbook.id}/preview`}>미리보기</Link>
                   </Button>
                 )}

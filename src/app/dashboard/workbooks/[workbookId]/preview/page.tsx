@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { SrsTaskRunner } from '@/components/dashboard/student/tasks/SrsTaskRunner'
+import { TextTaskRunner } from '@/components/dashboard/student/tasks/TextTaskRunner'
 import { Card, CardContent } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -235,6 +236,9 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
         submissions: [],
     }
 
+    const isSrs = workbook.type === 'srs'
+    const isWriting = workbook.type === 'writing'
+
     return (
         <section className="space-y-6">
             <DashboardBackLink
@@ -244,21 +248,43 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
 
             <div className="flex flex-col gap-1">
                 <h1 className="text-2xl font-semibold text-slate-900">{workbook.title} - 미리보기</h1>
-                <p className="whitespace-pre-line text-sm text-slate-600">
-                    학생들이 보게 될 화면을 미리 체험해볼 수 있습니다. 정답을 맞춰도 기록되지 않습니다.
-                    {'\n'}
-                    실제 학생 학습 시에는 정답을 맞출 때마다 복습 간격이 늘어나며(10분 → 1일 → 완료), 오답 시에는 1분 뒤 다시 복습하게 됩니다. 3번 연속 정답을 맞추면 해당 문항은 완료 처리됩니다.
-                </p>
+                {isSrs && (
+                    <p className="whitespace-pre-line text-sm text-slate-600">
+                        학생들이 보게 될 화면을 미리 체험해볼 수 있습니다. 정답을 맞춰도 기록되지 않습니다.
+                        {'\n'}
+                        실제 학생 학습 시에는 정답을 맞출 때마다 복습 간격이 늘어나며(10분 → 1일 → 완료), 오답 시에는 1분 뒤 다시 복습하게 됩니다. 3번 연속 정답을 맞추면 해당 문항은 완료 처리됩니다.
+                    </p>
+                )}
+                {isWriting && (
+                    <p className="whitespace-pre-line text-sm text-slate-600">
+                        학생들이 보게 될 화면을 미리 체험해볼 수 있습니다. 제출 기록은 저장되지 않습니다.
+                        {'\n'}
+                        답안을 작성하고 제출하면 AI가 설정된 채점 기준에 따라 자동으로 평가하고 피드백을 제공합니다. (실제 AI 토큰이 사용됩니다)
+                    </p>
+                )}
+                {!isSrs && !isWriting && (
+                    <p className="text-sm text-slate-600">
+                        학생들이 보게 될 화면을 미리 체험해볼 수 있습니다.
+                    </p>
+                )}
             </div>
 
-            {workbook.type !== 'srs' ? (
+            {isSrs ? (
+                <SrsTaskRunner task={mockTask} mode="preview" />
+            ) : isWriting ? (
+                <TextTaskRunner
+                    task={mockTask}
+                    submissionType="writing"
+                    instructions={(workbook.config as { writing?: { instructions?: string } })?.writing?.instructions}
+                    maxCharacters={(workbook.config as { writing?: { maxCharacters?: number } })?.writing?.maxCharacters}
+                    mode="preview"
+                />
+            ) : (
                 <Card>
                     <CardContent className="py-10 text-center text-slate-500">
-                        SRS 유형의 문제집만 미리보기를 지원합니다.
+                        SRS 및 글쓰기(Writing) 유형의 문제집만 미리보기를 지원합니다.
                     </CardContent>
                 </Card>
-            ) : (
-                <SrsTaskRunner task={mockTask} mode="preview" />
             )}
         </section>
     )

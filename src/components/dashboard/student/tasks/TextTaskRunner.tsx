@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
-import { submitTextResponses } from '@/app/dashboard/student/tasks/actions'
+import { submitTextResponses, previewTextResponse } from '@/app/dashboard/student/tasks/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,6 +24,7 @@ interface TextTaskRunnerProps {
     url: string
     mimeType: string | null
   }>>
+  mode?: 'student' | 'preview'
 }
 
 interface PromptEntry {
@@ -40,6 +41,7 @@ export function TextTaskRunner({
   instructions,
   maxCharacters,
   attachments,
+  mode = 'student',
 }: TextTaskRunnerProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -88,6 +90,42 @@ export function TextTaskRunner({
           studentTaskId: task.id,
           submissionType,
           answers: normalizedAnswers,
+        }
+
+        if (mode === 'preview') {
+          const response = await previewTextResponse(payload)
+
+          if (!response.success) {
+            setErrorMessage(response.error ?? '미리보기 채점 중 오류가 발생했습니다.')
+            return
+          }
+
+          if (response.results) {
+            const nextAiResults: Record<string, { passed: boolean; grade?: string; feedback?: string }> = {}
+            let allPassed = true
+
+            response.results.forEach((result) => {
+              nextAiResults[result.itemId] = {
+                passed: result.passed,
+                grade: result.grade,
+                feedback: result.feedback,
+              }
+              if (!result.passed) {
+                allPassed = false
+              }
+            })
+
+            setAiResults(nextAiResults)
+
+            if (allPassed) {
+              setSuccessMessage('모든 문항을 통과했습니다! (미리보기 모드)')
+            } else {
+              setErrorMessage('일부 문항이 기준에 미달했습니다. (미리보기 모드)')
+            }
+          } else {
+            setSuccessMessage('답안이 제출되었습니다. (미리보기 모드 - 저장되지 않음)')
+          }
+          return
         }
 
         const response = await submitTextResponses(payload)
@@ -156,6 +194,13 @@ export function TextTaskRunner({
           )}
         </div>
       </div>
+
+      {mode === 'preview' && (
+        <div className="rounded-lg border border-dashed border-indigo-300 bg-indigo-50 p-4 text-sm text-indigo-800">
+          <p className="font-medium">미리보기 모드</p>
+          <p>학생이 보는 화면과 동일하지만, 제출 기록은 저장되지 않습니다. AI 채점 결과를 바로 확인해볼 수 있습니다.</p>
+        </div>
+      )}
 
       <div className="space-y-5">
         {prompts.map((prompt, index) => {
