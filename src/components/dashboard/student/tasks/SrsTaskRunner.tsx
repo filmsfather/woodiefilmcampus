@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils'
 
 interface SrsTaskRunnerProps {
   task: StudentTaskDetail
-  onSubmitAnswer: (payload: { studentTaskItemId: string; isCorrect: boolean }) => Promise<{
+  mode?: 'student' | 'preview'
+  onSubmitAnswer?: (payload: { studentTaskItemId: string; isCorrect: boolean }) => Promise<{
     success: boolean
     error?: string
   }>
@@ -122,7 +123,7 @@ function isMultipleChoiceCorrect(
   return correctChoiceIds.every((choiceId) => selectedSet.has(choiceId))
 }
 
-export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
+export function SrsTaskRunner({ task, mode = 'student', onSubmitAnswer }: SrsTaskRunnerProps) {
   const router = useRouter()
 
   const allowMultipleCorrect = useMemo(() => {
@@ -151,7 +152,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   }, [task.items])
   const hasDueItems = dueItems.length > 0
   const isFullyCompleted = task.summary.remainingItems === 0
-  const canPracticeOrReview = !hasDueItems && isFullyCompleted && task.items.length > 0
+  const canPracticeOrReview = mode === 'student' && !hasDueItems && isFullyCompleted && task.items.length > 0
 
   const [isReviewListOpen, setIsReviewListOpen] = useState(false)
   const [isPracticeMode, setIsPracticeMode] = useState(false)
@@ -164,6 +165,10 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   }, [canPracticeOrReview])
 
   const displayItems = useMemo(() => {
+    if (mode === 'preview') {
+      return sortedAllItems
+    }
+
     if (hasDueItems) {
       return dueItems
     }
@@ -173,7 +178,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
     }
 
     return []
-  }, [canPracticeOrReview, dueItems, hasDueItems, isPracticeMode, sortedAllItems])
+  }, [canPracticeOrReview, dueItems, hasDueItems, isPracticeMode, sortedAllItems, mode])
   const nextScheduledItem = useMemo(() => getNextScheduledItem(task.items), [task.items])
 
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -227,7 +232,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
   useEffect(() => {
     const targetIso = nextScheduledItem?.nextReviewAt ?? null
 
-    if (!hasDueItems && targetIso) {
+    if (mode === 'student' && !hasDueItems && targetIso) {
       const targetMs = new Date(targetIso).getTime()
 
       if (!Number.isFinite(targetMs)) {
@@ -247,7 +252,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
 
     setRemainingTimeLabel(null)
     return undefined
-  }, [hasDueItems, nextScheduledItem?.nextReviewAt])
+  }, [hasDueItems, nextScheduledItem?.nextReviewAt, mode])
 
   const answerType = currentItem?.workbookItem.answerType ?? 'multiple_choice'
 
@@ -320,7 +325,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
       isCorrect = isShortAnswerCorrect(currentItem, shortInputs)
     }
 
-    if (isPracticeMode) {
+    if (mode === 'preview' || isPracticeMode) {
       setResult(isCorrect ? 'correct' : 'incorrect')
       if (!isCorrect) {
         setShowAnswer(true)
@@ -333,6 +338,11 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
         }, 1000)
       }
 
+      return
+    }
+
+    if (!onSubmitAnswer) {
+      console.error('[SrsTaskRunner] onSubmitAnswer is missing')
       return
     }
 
@@ -376,7 +386,7 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
           문항을 불러오지 못했습니다. 잠시 후 다시 시도하거나 담당 선생님께 문의해주세요.
         </div>
       )
-    } else if (!hasDueItems && !canPracticeOrReview) {
+    } else if (!hasDueItems && !canPracticeOrReview && mode === 'student') {
       fallbackContent = (
         <div className="space-y-3 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
           <p>현재 복습할 문항이 없습니다. 다음 복습 시간에 다시 돌아와주세요.</p>
@@ -483,6 +493,13 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
         </div>
       )}
 
+      {mode === 'preview' && (
+        <div className="rounded-lg border border-dashed border-indigo-300 bg-indigo-50 p-4 text-sm text-indigo-800">
+          <p className="font-medium">미리보기 모드</p>
+          <p>학생이 보는 화면과 동일하지만, 정답 기록은 저장되지 않습니다. 모든 문항을 순서대로 확인할 수 있습니다.</p>
+        </div>
+      )}
+
       {currentItem ? (
         <>
           <Card className="border-slate-200">
@@ -491,133 +508,133 @@ export function SrsTaskRunner({ task, onSubmitAnswer }: SrsTaskRunnerProps) {
                 <CardTitle className="text-lg font-semibold text-slate-900">문항 #{currentItem.workbookItem.position}</CardTitle>
                 <p className="text-sm text-slate-500">카드별로 정답을 입력하고 확인해보세요.</p>
               </div>
-          <Badge variant={currentItem.streak >= 3 ? 'secondary' : 'outline'}>
-            연속 정답 {currentItem.streak}회
-          </Badge>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="space-y-2">
-            <p className="text-base font-medium text-slate-900 whitespace-pre-line">
-              {currentItem.workbookItem.prompt}
-            </p>
-            {currentItem.workbookItem.explanation && (
-              <p className="text-sm text-slate-500">{currentItem.workbookItem.explanation}</p>
-            )}
-          </div>
-
-          {!hasDueItems && nextScheduledItem?.nextReviewAt && (
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-              <p className="font-medium text-slate-700">다음 복습 예정 시각</p>
-              <p>
-                {DateUtil.formatForDisplay(nextScheduledItem.nextReviewAt, {
-                  locale: 'ko-KR',
-                  timeZone: 'Asia/Seoul',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
-            </div>
-          )}
-
-          {answerType === 'multiple_choice' ? (
-            <div className="space-y-3">
-              {currentItem.workbookItem.choices.length === 0 ? (
-                <p className="text-sm text-slate-500">등록된 보기가 없습니다.</p>
-              ) : (
-                currentItem.workbookItem.choices.map((choice, index) => {
-                  const isSelected = selectedChoiceIds.includes(choice.id)
-                  return (
-                    <button
-                      key={choice.id}
-                      type="button"
-                      onClick={() => handleToggleChoice(choice.id)}
-                      disabled={hasSubmitted}
-                      className={cn(
-                        'flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition',
-                        isSelected
-                          ? 'border-primary bg-primary/10 text-primary-foreground'
-                          : 'border-slate-200 hover:border-primary/60 hover:bg-slate-50'
-                      )}
-                    >
-                      <Checkbox checked={isSelected} className="mt-1" readOnly />
-                      <div className="space-y-1">
-                        <p className="font-medium text-slate-900">보기 {index + 1}</p>
-                        <p className="text-sm text-slate-700 whitespace-pre-line">{choice.content}</p>
-                      </div>
-                    </button>
-                  )
-                })
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {currentItem.workbookItem.shortFields.length === 0 ? (
-                <p className="text-sm text-slate-500">등록된 정답 필드가 없습니다.</p>
-              ) : (
-                currentItem.workbookItem.shortFields.map((field, index) => (
-                  <div key={field.id} className="space-y-2">
-                    {field.label && <p className="text-sm font-medium text-slate-700">{field.label}</p>}
-                    <Input
-                      value={shortInputs[index] ?? ''}
-                      onChange={(event) => handleShortInputChange(event.target.value, index)}
-                      placeholder={`정답을 입력하세요 (${index + 1})`}
-                      disabled={isSubmitting || hasSubmitted}
-                    />
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {errorMessage && (
-            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              <AlertCircle className="mt-0.5 h-4 w-4" />
-              <p>{errorMessage}</p>
-            </div>
-          )}
-
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="default" disabled={!canSubmit || isSubmitting} onClick={handleSubmit}>
-                {isSubmitting ? '제출 중...' : '정답 확인'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowAnswer((prev) => !prev)}
-                disabled={result === 'incorrect'}
-                className="flex items-center gap-1"
-              >
-                {showAnswer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                정답 보기
-              </Button>
-              {displayItems.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={moveToNextItem}
-                  disabled={!hasSubmitted || isSubmitting}
-                >
-                  다음 문항
-                </Button>
-              )}
-            </div>
-            {result && (
-              <div
-                className={cn(
-                  'flex items-center gap-2 text-sm',
-                  result === 'correct' ? 'text-emerald-600' : 'text-rose-600'
+              <Badge variant={currentItem.streak >= 3 ? 'secondary' : 'outline'}>
+                연속 정답 {currentItem.streak}회
+              </Badge>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <p className="text-base font-medium text-slate-900 whitespace-pre-line">
+                  {currentItem.workbookItem.prompt}
+                </p>
+                {currentItem.workbookItem.explanation && (
+                  <p className="text-sm text-slate-500">{currentItem.workbookItem.explanation}</p>
                 )}
-              >
-                {result === 'correct' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                <span>{result === 'correct' ? '정답입니다!' : '오답입니다. 다시 복습해보세요.'}</span>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+
+              {!hasDueItems && nextScheduledItem?.nextReviewAt && mode === 'student' && (
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                  <p className="font-medium text-slate-700">다음 복습 예정 시각</p>
+                  <p>
+                    {DateUtil.formatForDisplay(nextScheduledItem.nextReviewAt, {
+                      locale: 'ko-KR',
+                      timeZone: 'Asia/Seoul',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+              )}
+
+              {answerType === 'multiple_choice' ? (
+                <div className="space-y-3">
+                  {currentItem.workbookItem.choices.length === 0 ? (
+                    <p className="text-sm text-slate-500">등록된 보기가 없습니다.</p>
+                  ) : (
+                    currentItem.workbookItem.choices.map((choice, index) => {
+                      const isSelected = selectedChoiceIds.includes(choice.id)
+                      return (
+                        <button
+                          key={choice.id}
+                          type="button"
+                          onClick={() => handleToggleChoice(choice.id)}
+                          disabled={hasSubmitted}
+                          className={cn(
+                            'flex w-full items-start gap-3 rounded-md border px-4 py-3 text-left transition',
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary-foreground'
+                              : 'border-slate-200 hover:border-primary/60 hover:bg-slate-50'
+                          )}
+                        >
+                          <Checkbox checked={isSelected} className="mt-1" readOnly />
+                          <div className="space-y-1">
+                            <p className="font-medium text-slate-900">보기 {index + 1}</p>
+                            <p className="text-sm text-slate-700 whitespace-pre-line">{choice.content}</p>
+                          </div>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {currentItem.workbookItem.shortFields.length === 0 ? (
+                    <p className="text-sm text-slate-500">등록된 정답 필드가 없습니다.</p>
+                  ) : (
+                    currentItem.workbookItem.shortFields.map((field, index) => (
+                      <div key={field.id} className="space-y-2">
+                        {field.label && <p className="text-sm font-medium text-slate-700">{field.label}</p>}
+                        <Input
+                          value={shortInputs[index] ?? ''}
+                          onChange={(event) => handleShortInputChange(event.target.value, index)}
+                          placeholder={`정답을 입력하세요 (${index + 1})`}
+                          disabled={isSubmitting || hasSubmitted}
+                        />
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {errorMessage && (
+                <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <AlertCircle className="mt-0.5 h-4 w-4" />
+                  <p>{errorMessage}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="default" disabled={!canSubmit || isSubmitting} onClick={handleSubmit}>
+                    {isSubmitting ? '제출 중...' : '정답 확인'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowAnswer((prev) => !prev)}
+                    disabled={result === 'incorrect'}
+                    className="flex items-center gap-1"
+                  >
+                    {showAnswer ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    정답 보기
+                  </Button>
+                  {displayItems.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={moveToNextItem}
+                      disabled={!hasSubmitted || isSubmitting}
+                    >
+                      다음 문항
+                    </Button>
+                  )}
+                </div>
+                {result && (
+                  <div
+                    className={cn(
+                      'flex items-center gap-2 text-sm',
+                      result === 'correct' ? 'text-emerald-600' : 'text-rose-600'
+                    )}
+                  >
+                    {result === 'correct' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                    <span>{result === 'correct' ? '정답입니다!' : '오답입니다. 다시 복습해보세요.'}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
 
           {showAnswer && (
             <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">

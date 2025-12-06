@@ -82,11 +82,11 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
   for (const media of mediaRecords) {
     const asset = media.media_assets as
       | {
-          id?: string
-          bucket?: string | null
-          path?: string | null
-          mime_type?: string | null
-        }
+        id?: string
+        bucket?: string | null
+        path?: string | null
+        mime_type?: string | null
+      }
       | null
       | undefined
 
@@ -217,6 +217,11 @@ export default async function WorkbookDetailPage({ params }: WorkbookDetailPageP
                     삭제
                   </Button>
                 </form>
+                {workbook.type === 'srs' && (
+                  <Button asChild variant="secondary">
+                    <Link href={`/dashboard/workbooks/${workbook.id}/preview`}>미리보기</Link>
+                  </Button>
+                )}
                 <Button asChild variant="outline">
                   <Link href={`/dashboard/workbooks/${workbook.id}/edit`}>편집</Link>
                 </Button>
