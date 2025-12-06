@@ -166,7 +166,7 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
         })
 
         return {
-            id: `mock-item-${item.id}`,
+            id: crypto.randomUUID(),
             completedAt: null,
             nextReviewAt: new Date().toISOString(), // Always due
             streak: 0,
@@ -197,7 +197,7 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
     })
 
     const mockTask: StudentTaskDetail = {
-        id: 'mock-task-id',
+        id: crypto.randomUUID(),
         status: 'in_progress',
         statusSource: 'system',
         statusOverride: null,
