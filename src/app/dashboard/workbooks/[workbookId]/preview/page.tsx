@@ -244,8 +244,10 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
 
             <div className="flex flex-col gap-1">
                 <h1 className="text-2xl font-semibold text-slate-900">{workbook.title} - 미리보기</h1>
-                <p className="text-sm text-slate-600">
+                <p className="whitespace-pre-line text-sm text-slate-600">
                     학생들이 보게 될 화면을 미리 체험해볼 수 있습니다. 정답을 맞춰도 기록되지 않습니다.
+                    {'\n'}
+                    실제 학생 학습 시에는 정답을 맞출 때마다 복습 간격이 늘어나며(10분 → 1일 → 완료), 오답 시에는 1분 뒤 다시 복습하게 됩니다. 3번 연속 정답을 맞추면 해당 문항은 완료 처리됩니다.
                 </p>
             </div>
 
