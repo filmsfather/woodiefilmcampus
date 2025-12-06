@@ -173,6 +173,7 @@ const studentSections: NavigationSection[] = [
       { label: '지난달 학습 일지', href: '/dashboard/student/learning-journal' },
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
+      { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
     ],
   },
 ]
