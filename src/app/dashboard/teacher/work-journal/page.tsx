@@ -16,9 +16,6 @@ import { FREELANCER_WITHHOLDING_RATE } from '@/lib/payroll/constants'
 import { TeacherPayrollCard } from '@/components/dashboard/teacher/work-journal/TeacherPayrollCard'
 import { WorkJournalClient } from '@/components/dashboard/teacher/work-journal/WorkJournalClient'
 
-interface TeacherWorkJournalPageProps {
-  searchParams?: Record<string, string | string[] | undefined>
-}
 
 interface TeacherPayrollCardData {
   runId: string
@@ -87,9 +84,12 @@ function adjustFreelancerTotals(
   }
 }
 
-export default async function TeacherWorkJournalPage({ searchParams }: TeacherWorkJournalPageProps) {
+export default async function TeacherWorkJournalPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
+  const searchParams = await props.searchParams
   const monthTokenParam = typeof searchParams?.month === 'string' ? searchParams.month : null
   const monthRange = resolveMonthRange(monthTokenParam)
   const monthToken = monthRange.startDate.slice(0, 7)

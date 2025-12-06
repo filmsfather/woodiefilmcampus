@@ -19,9 +19,6 @@ import type {
 import type { TeacherProfileSummary } from '@/lib/work-logs'
 import { PrincipalPayrollClient } from '@/components/dashboard/principal/payroll/PrincipalPayrollClient'
 
-interface PrincipalPayrollPageProps {
-  searchParams?: Record<string, string | string[] | undefined>
-}
 
 interface PrincipalPayrollTeacherEntry {
   teacher: TeacherProfileSummary
@@ -63,9 +60,12 @@ function normalizeAdjustments(value: unknown): PayrollAdjustmentInput[] {
   return results
 }
 
-export default async function PrincipalPayrollPage({ searchParams }: PrincipalPayrollPageProps) {
+export default async function PrincipalPayrollPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   await requireAuthForDashboard('principal')
 
+  const searchParams = await props.searchParams
   const monthTokenParam = typeof searchParams?.month === 'string' ? searchParams.month : null
   const teacherFilter = typeof searchParams?.teacher === 'string' ? searchParams.teacher : null
 
