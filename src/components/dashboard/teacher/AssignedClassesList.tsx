@@ -87,8 +87,8 @@ export async function AssignedClassesList() {
                                         {c.students.map((student) => (
                                             <Badge
                                                 key={student.id}
-                                                variant="secondary"
-                                                className="font-normal text-slate-700"
+                                                variant="outline"
+                                                className="font-normal text-slate-600"
                                             >
                                                 {student.name}
                                             </Badge>
