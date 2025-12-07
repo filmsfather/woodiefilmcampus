@@ -26,17 +26,6 @@ type TeacherDashboardSection = {
 const TEACHER_SECTIONS: TeacherDashboardSection[] = [
 
   {
-    title: '근무관리',
-    description: '근무일지를 작성하고 승인 현황을 확인하세요.',
-    actions: [
-      {
-        label: '결석확인',
-        href: '/dashboard/teacher/absences',
-        description: '결석계를 작성하고 주간 결석 현황을 확인하세요.',
-      },
-    ],
-  },
-  {
     title: '과제관리',
     description: '반과 학생에게 과제를 배정하고 평가 흐름을 관리하세요.',
     actions: [
