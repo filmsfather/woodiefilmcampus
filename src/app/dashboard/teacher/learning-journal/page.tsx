@@ -13,6 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { LearningJournalStudentSnapshot } from '@/types/learning-journal'
 import { RegeneratePeriodButton } from '@/components/dashboard/teacher/learning-journal/RegeneratePeriodButton'
+import { PeriodSelector } from '@/components/dashboard/teacher/learning-journal/PeriodSelector'
 
 function toProgressLabel(submitted: number, total: number) {
   if (total === 0) {
@@ -104,49 +105,9 @@ export default async function TeacherLearningJournalPage(props: {
         </div>
       ) : (
         <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {periods.map((period) => {
-              const stat = stats.get(period.id)
-              const submitted = stat?.submittedCount ?? 0
-              const total = stat?.totalEntries ?? period.studentCount
-              const published = stat?.publishedCount ?? 0
-              return (
-                <Card
-                  key={period.id}
-                  className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md"
-                >
-                  <CardHeader className="space-y-2">
-                    <CardTitle className="text-lg text-slate-900">{period.className}</CardTitle>
-                    <CardDescription className="text-sm text-slate-500">
-                      {period.startDate} ~ {period.endDate}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span>학생 수</span>
-                      <span>{period.studentCount}명</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span>제출 완료</span>
-                      <span>
-                        {submitted} / {total} ({toProgressLabel(submitted, total)})
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm text-slate-600">
-                      <span>공개 완료</span>
-                      <span>
-                        {published} / {total}
-                      </span>
-                    </div>
-                    <Button asChild variant={selectedPeriod?.id === period.id ? 'default' : 'outline'}>
-                      <Link href={buildPeriodHref(period.id)}>
-                        {selectedPeriod?.id === period.id ? '현재 선택됨' : '학생 목록 열기'}
-                      </Link>
-                    </Button>
-                  </CardContent>
-                </Card>
-              )
-            })}
+          <div className="flex flex-col gap-4">
+            <label className="text-sm font-medium text-slate-700">주기 선택</label>
+            <PeriodSelector periods={periods} selectedPeriodId={selectedPeriod?.id ?? ''} />
           </div>
 
           {selectedPeriod ? (
