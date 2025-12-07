@@ -118,21 +118,21 @@ export async function AssignedClassesList() {
                         <CardFooter className="grid grid-cols-2 gap-2">
                             <Button asChild variant="outline" size="sm" className="w-full">
                                 <Link href="/dashboard/assignments/new">
-                                    과제 출제하기
+                                    과제출제
                                 </Link>
                             </Button>
                             <Button asChild variant="outline" size="sm" className="w-full">
                                 <Link href={`/dashboard/teacher/review/${c.id}`}>
-                                    과제 검사하기
+                                    과제검사
                                 </Link>
                             </Button>
                             <Button asChild variant="outline" size="sm" className="w-full">
                                 <Link href="/dashboard/teacher/learning-journal">
-                                    학습일지 작성
+                                    학습일지
                                 </Link>
                             </Button>
                             <Button variant="outline" size="sm" className="w-full" disabled>
-                                표준교육과정 확인하기
+                                표준교육과정
                             </Button>
                         </CardFooter>
                     </Card>
