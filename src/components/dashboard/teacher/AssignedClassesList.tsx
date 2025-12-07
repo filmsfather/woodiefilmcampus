@@ -45,21 +45,32 @@ export async function AssignedClassesList() {
     }
 
     // 3. Fetch students for each class
-    const classesWithStudents = await Promise.all(
-        classes.map(async (c) => {
-            const { data: students } = await supabase
-                .from('profiles')
-                .select('id, name')
-                .eq('class_id', c.id)
-                .eq('role', 'student')
-                .order('name')
+    // 3. Fetch students for each class using class_students table
+    const classIds = classes.map((c) => c.id)
+    const { data: classStudentsData } = await supabase
+        .from('class_students')
+        .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name)')
+        .in('class_id', classIds)
 
-            return {
-                ...c,
-                students: students || [],
-            }
-        })
-    )
+    const studentsByClass = new Map<string, Array<{ id: string; name: string }>>()
+
+    classStudentsData?.forEach((row) => {
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
+        if (profile && profile.name) {
+            const list = studentsByClass.get(row.class_id) || []
+            list.push({ id: profile.id, name: profile.name })
+            studentsByClass.set(row.class_id, list)
+        }
+    })
+
+    const classesWithStudents = classes.map((c) => {
+        const students = studentsByClass.get(c.id) || []
+        students.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+        return {
+            ...c,
+            students,
+        }
+    })
 
     return (
         <section className="space-y-4">
