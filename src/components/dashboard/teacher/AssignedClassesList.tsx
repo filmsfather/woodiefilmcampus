@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { getAuthContext } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { StudentInfoDialog } from '@/components/dashboard/teacher/StudentInfoDialog'
 
 export async function AssignedClassesList() {
     const { profile } = await getAuthContext()
@@ -52,16 +53,30 @@ export async function AssignedClassesList() {
     const classIds = classes.map((c) => c.id)
     const { data: classStudentsData } = await supabase
         .from('class_students')
-        .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name)')
+        .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name, email, student_phone, parent_phone, academic_record)')
         .in('class_id', classIds)
 
-    const studentsByClass = new Map<string, Array<{ id: string; name: string }>>()
+    const studentsByClass = new Map<string, Array<{
+        id: string
+        name: string
+        email: string
+        student_phone?: string | null
+        parent_phone?: string | null
+        academic_record?: string | null
+    }>>()
 
     classStudentsData?.forEach((row) => {
         const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
         if (profile && profile.name) {
             const list = studentsByClass.get(row.class_id) || []
-            list.push({ id: profile.id, name: profile.name })
+            list.push({
+                id: profile.id,
+                name: profile.name,
+                email: profile.email,
+                student_phone: profile.student_phone,
+                parent_phone: profile.parent_phone,
+                academic_record: profile.academic_record,
+            })
             studentsByClass.set(row.class_id, list)
         }
     })
@@ -101,13 +116,14 @@ export async function AssignedClassesList() {
                                 {c.students.length > 0 ? (
                                     <div className="flex flex-wrap gap-1.5">
                                         {c.students.map((student) => (
-                                            <Badge
-                                                key={student.id}
-                                                variant="outline"
-                                                className="font-normal text-slate-600"
-                                            >
-                                                {student.name}
-                                            </Badge>
+                                            <StudentInfoDialog key={student.id} student={student}>
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="cursor-pointer hover:bg-slate-200 transition-colors"
+                                                >
+                                                    {student.name}
+                                                </Badge>
+                                            </StudentInfoDialog>
                                         ))}
                                     </div>
                                 ) : (
