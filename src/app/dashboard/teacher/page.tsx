@@ -34,6 +34,18 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         href: '/dashboard/teacher/atelier',
         description: '학생 제출물을 추천하거나 목록에서 정리하세요.',
       },
+      {
+        label: '문제집 만들기',
+        href: '/dashboard/workbooks/new',
+        description: '새 문제집을 작성하는 마법사로 이동합니다.',
+        variant: 'outline',
+      },
+      {
+        label: '출판된 문제집 확인',
+        href: '/dashboard/workbooks',
+        description: '출판된 문제집과 보관 중인 자료를 살펴보세요.',
+        variant: 'outline',
+      },
     ],
   },
   {
@@ -55,23 +67,6 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         label: '입시자료 아카이브',
         href: '/dashboard/teacher/admission-materials',
         description: '입시 대비 자료와 일정을 관리하고 학생과 공유하세요.',
-        variant: 'outline',
-      },
-    ],
-  },
-  {
-    title: '문제집 관리',
-    description: '문제집을 생성·편집하고 저장된 워크북을 관리하세요.',
-    actions: [
-      {
-        label: '문제집 만들기',
-        href: '/dashboard/workbooks/new',
-        description: '새 문제집을 작성하는 마법사로 이동합니다.',
-      },
-      {
-        label: '출판된 문제집 확인',
-        href: '/dashboard/workbooks',
-        description: '출판된 문제집과 보관 중인 자료를 살펴보세요.',
         variant: 'outline',
       },
     ],
