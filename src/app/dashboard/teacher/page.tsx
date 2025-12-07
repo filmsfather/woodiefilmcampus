@@ -4,6 +4,7 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBanner'
+import { AssignedClassesList } from '@/components/dashboard/teacher/AssignedClassesList'
 
 type TeacherDashboardAction = {
   label: string
@@ -152,6 +153,8 @@ export default async function TeacherDashboardPage() {
       </header>
 
       <UnreadNoticeBanner />
+
+      <AssignedClassesList />
 
       <div className="grid gap-4 md:grid-cols-2">
         {TEACHER_SECTIONS.map((section) => (
