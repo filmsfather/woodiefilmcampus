@@ -29,21 +29,9 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     description: '연간 및 월간 학습 일정과 수업 시간표를 확인하세요.',
     actions: [
       {
-        label: '연간 일정',
-        href: '/dashboard/learning-journal/annual-schedule',
-        description: '연간 학습 계획을 확인해 수업 준비에 활용하세요.',
-      },
-      {
         label: '월간 학습 계획',
         href: '/dashboard/teacher/learning-journal/templates',
         description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
-        variant: 'outline',
-      },
-      {
-        label: '수업 시간표',
-        href: '/dashboard/teacher/timetable',
-        description: '담당 시간표와 소속 반 정보를 확인하세요.',
-        variant: 'outline',
       },
     ],
   },
@@ -55,18 +43,6 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         label: '결석확인',
         href: '/dashboard/teacher/absences',
         description: '결석계를 작성하고 주간 결석 현황을 확인하세요.',
-      },
-      {
-        label: '근무일지 작성',
-        href: '/dashboard/teacher/work-journal',
-        description: '월별 근무 기록을 작성하고 원장 승인 상태를 확인합니다.',
-        variant: 'outline',
-      },
-      {
-        label: '공지사항',
-        href: '/dashboard/teacher/notices',
-        description: '원장·실장·선생님과 공지를 공유하고 확인 현황을 추적하세요.',
-        variant: 'outline',
       },
     ],
   },
