@@ -8,12 +8,11 @@ interface SearchParams {
   period?: string
 }
 
-export default async function EnsureLearningJournalEntryPage({
-  searchParams,
-}: {
-  searchParams?: SearchParams
+export default async function EnsureLearningJournalEntryPage(props: {
+  searchParams: Promise<SearchParams>
 }) {
   await requireAuthForDashboard(['teacher', 'manager'])
+  const searchParams = await props.searchParams
 
   const studentId = typeof searchParams?.student === 'string' ? searchParams.student : null
   const periodId = typeof searchParams?.period === 'string' ? searchParams.period : null

@@ -43,16 +43,16 @@ function resolveStatusLabel(status: string) {
   }
 }
 
-export default async function TeacherLearningJournalPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
+export default async function TeacherLearningJournalPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
   if (!profile) {
     return null
   }
+
+  const searchParams = await props.searchParams
 
   const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
   const fallbackHref =

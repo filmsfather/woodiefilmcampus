@@ -31,8 +31,9 @@ const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', str
   archived: '보관',
 }
 
-export default async function TeacherLearningJournalEntryPage({ params }: { params: PageParams }) {
+export default async function TeacherLearningJournalEntryPage(props: { params: Promise<PageParams> }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const params = await props.params
 
   const entry = await fetchLearningJournalEntryDetail(params.entryId)
 
