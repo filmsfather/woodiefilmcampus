@@ -62,7 +62,7 @@ export default async function TeacherLearningJournalPage(props: {
         ? '/dashboard/manager'
         : '/dashboard/teacher'
   const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })
-  const periods = overview.periods
+  const periods = overview.periods.filter((period) => period.status !== 'completed')
   const periodIds = periods.map((period) => period.id)
   const stats = await fetchLearningJournalPeriodStats(periodIds)
   const selectedParam = typeof searchParams?.period === 'string' ? searchParams.period : null
