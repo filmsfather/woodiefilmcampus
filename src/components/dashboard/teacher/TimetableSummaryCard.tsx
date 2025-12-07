@@ -80,12 +80,25 @@ export async function TimetableSummaryCard() {
 
     // 3. Map assignments to periods
     const schedule = periods.map((period) => {
-        const assignment = assignments.find((a) => a.period_id === period.id)
-        // @ts-ignore - Supabase type inference for joined 'classes' can be array or object
-        const className = assignment?.classes?.name
+        const periodAssignments = assignments.filter((a) => a.period_id === period.id)
+
+        if (periodAssignments.length === 0) {
+            return {
+                periodName: period.name,
+                className: null,
+            }
+        }
+
+        const classNames = periodAssignments
+            // @ts-ignore
+            .map((a) => a.classes?.name)
+            .filter((name): name is string => !!name)
+            .sort((a, b) => a.localeCompare(b, 'ko'))
+            .join(', ')
+
         return {
             periodName: period.name,
-            className: className ?? null,
+            className: classNames,
         }
     }).filter(item => item.className !== null) // Only show periods with classes
 
