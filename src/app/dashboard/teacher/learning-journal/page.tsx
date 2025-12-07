@@ -70,7 +70,6 @@ export default async function TeacherLearningJournalPage(props: {
 
   const selectedParam = typeof searchParams?.period === 'string' ? searchParams.period : null
   const classIdParam = typeof searchParams?.classId === 'string' ? searchParams.classId : null
-  const viewParam = typeof searchParams?.view === 'string' ? searchParams.view : 'overview'
 
   let selectedPeriod = null
 
@@ -113,7 +112,7 @@ export default async function TeacherLearningJournalPage(props: {
     return acc
   }, {} as any)
 
-  if (viewParam === 'template' && selectedPeriod) {
+  if (selectedPeriod) {
     template = await fetchClassLearningJournalTemplate(selectedPeriod.classId, selectedPeriod.id)
 
     const supabase = createServerSupabase()
@@ -150,14 +149,6 @@ export default async function TeacherLearningJournalPage(props: {
     }
   }
 
-  const buildTabHref = (view: string) => {
-    const params = new URLSearchParams()
-    if (selectedPeriod) params.set('period', selectedPeriod.id)
-    if (classIdParam) params.set('classId', classIdParam) // Preserve classId if present
-    params.set('view', view)
-    return `/dashboard/teacher/learning-journal?${params.toString()}`
-  }
-
   return (
     <section className="space-y-8">
       <div className="space-y-3">
@@ -184,159 +175,138 @@ export default async function TeacherLearningJournalPage(props: {
           </div>
 
           {selectedPeriod ? (
-            <div className="space-y-6">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-slate-900">
-                    {selectedPeriod.className} · {selectedPeriod.startDate} ~ {selectedPeriod.endDate}
-                  </h2>
-                  <p className="text-sm text-slate-500">
-                    {viewParam === 'template'
-                      ? '반별 주차 템플릿을 구성하여 학생 일지에 반영하세요.'
-                      : '학생별 학습일지를 작성하고 제출 상태를 업데이트하세요.'}
-                  </p>
+            <div className="space-y-12">
+              {/* Section 1: Student Status */}
+              <div className="space-y-4">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-slate-900">
+                      학습 현황
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      학생별 학습일지를 작성하고 제출 상태를 업데이트하세요.
+                    </p>
+                  </div>
+                  {selectedStats ? (
+                    <div className="flex gap-2 text-sm text-slate-600">
+                      <Badge variant="outline">총 {selectedStats.totalEntries}명</Badge>
+                      <Badge variant="outline">제출 {selectedStats.submittedCount}</Badge>
+                      <Badge variant="outline">공개 {selectedStats.publishedCount}</Badge>
+                      <RegeneratePeriodButton periodId={selectedPeriod.id} />
+                    </div>
+                  ) : null}
                 </div>
-                {selectedStats && viewParam === 'overview' ? (
-                  <div className="flex gap-2 text-sm text-slate-600">
-                    <Badge variant="outline">총 {selectedStats.totalEntries}명</Badge>
-                    <Badge variant="outline">제출 {selectedStats.submittedCount}</Badge>
-                    <Badge variant="outline">공개 {selectedStats.publishedCount}</Badge>
-                    <RegeneratePeriodButton periodId={selectedPeriod.id} />
+
+                {selectedSnapshots.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+                    아직 학생이 배정되지 않았습니다.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>학생</TableHead>
+                          <TableHead className="hidden md:table-cell">상태</TableHead>
+                          <TableHead className="hidden md:table-cell">완료율</TableHead>
+                          <TableHead className="hidden lg:table-cell">제출일</TableHead>
+                          <TableHead className="hidden lg:table-cell">공개일</TableHead>
+                          <TableHead className="text-right">작업</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedSnapshots.map((snapshot) => {
+                          const completionRate = snapshot.completionRate ?? 0
+                          const entryHref = snapshot.entryId
+                            ? `/dashboard/teacher/learning-journal/entries/${snapshot.entryId}`
+                            : `/dashboard/teacher/learning-journal/entries/new?student=${snapshot.studentId}&period=${selectedPeriod.id}`
+                          return (
+                            <TableRow key={snapshot.studentId}>
+                              <TableCell className="font-medium text-slate-900">
+                                {snapshot.name ?? snapshot.email ?? '학생 정보 없음'}
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell text-sm text-slate-600">
+                                {resolveStatusLabel(snapshot.status)}
+                              </TableCell>
+                              <TableCell className="hidden md:table-cell text-sm text-slate-600">
+                                {Math.round(completionRate)}%
+                              </TableCell>
+                              <TableCell className="hidden lg:table-cell text-xs text-slate-500">
+                                {snapshot.submittedAt
+                                  ? DateUtil.formatForDisplay(snapshot.submittedAt, {
+                                    locale: 'ko-KR',
+                                    timeZone: 'Asia/Seoul',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className="hidden lg:table-cell text-xs text-slate-500">
+                                {snapshot.publishedAt
+                                  ? DateUtil.formatForDisplay(snapshot.publishedAt, {
+                                    locale: 'ko-KR',
+                                    timeZone: 'Asia/Seoul',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                  : '-'}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button asChild size="sm">
+                                  <Link href={entryHref}>
+                                    {snapshot.entryId ? '학습일지 열기' : '학습일지 생성'}
+                                  </Link>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+                {debugMessages.length > 0 ? (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-700">
+                    <p className="font-semibold">이름이 비어 있는 학생이 있습니다.</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4">
+                      {debugMessages.map((message) => (
+                        <li key={message} className="font-mono text-xs">
+                          {message}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ) : null}
               </div>
 
-              {/* Tabs Navigation */}
-              <div className="border-b border-slate-200">
-                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
-                  <Link
-                    href={buildTabHref('overview')}
-                    className={`
-                      whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium
-                      ${viewParam === 'overview'
-                        ? 'border-indigo-500 text-indigo-600'
-                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'}
-                    `}
-                  >
-                    학습 현황
-                  </Link>
-                  <Link
-                    href={buildTabHref('template')}
-                    className={`
-                      whitespace-nowrap border-b-2 py-4 px-1 text-sm font-medium
-                      ${viewParam === 'template'
-                        ? 'border-indigo-500 text-indigo-600'
-                        : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'}
-                    `}
-                  >
+              {/* Section 2: Monthly Plan */}
+              <div className="space-y-4">
+                <div className="border-t border-slate-200 pt-8">
+                  <h2 className="text-xl font-semibold text-slate-900">
                     월간 계획 (템플릿)
-                  </Link>
-                </nav>
-              </div>
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-1">
+                    반별 주차 템플릿을 구성하여 학생 일지에 반영하세요.
+                  </p>
+                </div>
 
-              {viewParam === 'overview' ? (
-                <>
-                  {selectedSnapshots.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                      아직 학생이 배정되지 않았습니다.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>학생</TableHead>
-                            <TableHead className="hidden md:table-cell">상태</TableHead>
-                            <TableHead className="hidden md:table-cell">완료율</TableHead>
-                            <TableHead className="hidden lg:table-cell">제출일</TableHead>
-                            <TableHead className="hidden lg:table-cell">공개일</TableHead>
-                            <TableHead className="text-right">작업</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedSnapshots.map((snapshot) => {
-                            const completionRate = snapshot.completionRate ?? 0
-                            const entryHref = snapshot.entryId
-                              ? `/dashboard/teacher/learning-journal/entries/${snapshot.entryId}`
-                              : `/dashboard/teacher/learning-journal/entries/new?student=${snapshot.studentId}&period=${selectedPeriod.id}`
-                            return (
-                              <TableRow key={snapshot.studentId}>
-                                <TableCell className="font-medium text-slate-900">
-                                  {snapshot.name ?? snapshot.email ?? '학생 정보 없음'}
-                                </TableCell>
-                                <TableCell className="hidden md:table-cell text-sm text-slate-600">
-                                  {resolveStatusLabel(snapshot.status)}
-                                </TableCell>
-                                <TableCell className="hidden md:table-cell text-sm text-slate-600">
-                                  {Math.round(completionRate)}%
-                                </TableCell>
-                                <TableCell className="hidden lg:table-cell text-xs text-slate-500">
-                                  {snapshot.submittedAt
-                                    ? DateUtil.formatForDisplay(snapshot.submittedAt, {
-                                      locale: 'ko-KR',
-                                      timeZone: 'Asia/Seoul',
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })
-                                    : '-'}
-                                </TableCell>
-                                <TableCell className="hidden lg:table-cell text-xs text-slate-500">
-                                  {snapshot.publishedAt
-                                    ? DateUtil.formatForDisplay(snapshot.publishedAt, {
-                                      locale: 'ko-KR',
-                                      timeZone: 'Asia/Seoul',
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                    })
-                                    : '-'}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                  <Button asChild size="sm">
-                                    <Link href={entryHref}>
-                                      {snapshot.entryId ? '학습일지 열기' : '학습일지 생성'}
-                                    </Link>
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            )
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                  {debugMessages.length > 0 ? (
-                    <div className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-700">
-                      <p className="font-semibold">이름이 비어 있는 학생이 있습니다.</p>
-                      <ul className="mt-2 list-disc space-y-1 pl-4">
-                        {debugMessages.map((message) => (
-                          <li key={message} className="font-mono text-xs">
-                            {message}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  {template ? (
-                    <ClassTemplateEditorClient
-                      classId={selectedPeriod.classId}
-                      periodId={selectedPeriod.id}
-                      template={template}
-                      materials={materials}
-                    />
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
-                      템플릿 정보를 불러오지 못했습니다.
-                    </div>
-                  )}
-                </>
-              )}
+                {template ? (
+                  <ClassTemplateEditorClient
+                    classId={selectedPeriod.classId}
+                    periodId={selectedPeriod.id}
+                    template={template}
+                    materials={materials}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
+                    템플릿 정보를 불러오지 못했습니다.
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
         </div>
