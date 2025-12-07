@@ -1,5 +1,8 @@
+import Link from 'next/link'
+
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { getAuthContext } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
@@ -112,6 +115,26 @@ export async function AssignedClassesList() {
                                 )}
                             </div>
                         </CardContent>
+                        <CardFooter className="grid grid-cols-2 gap-2">
+                            <Button asChild variant="outline" size="sm" className="w-full">
+                                <Link href="/dashboard/assignments/new">
+                                    과제 출제하기
+                                </Link>
+                            </Button>
+                            <Button asChild variant="outline" size="sm" className="w-full">
+                                <Link href={`/dashboard/teacher/review/${c.id}`}>
+                                    과제 검사하기
+                                </Link>
+                            </Button>
+                            <Button asChild variant="outline" size="sm" className="w-full">
+                                <Link href="/dashboard/teacher/learning-journal">
+                                    학습일지 작성
+                                </Link>
+                            </Button>
+                            <Button variant="outline" size="sm" className="w-full" disabled>
+                                표준교육과정 확인하기
+                            </Button>
+                        </CardFooter>
                     </Card>
                 ))}
             </div>

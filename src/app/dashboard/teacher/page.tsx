@@ -59,12 +59,6 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         variant: 'outline',
       },
       {
-        label: '학습일지 작성',
-        href: '/dashboard/teacher/learning-journal',
-        description: '반별 학습일지를 작성하고 제출 상태를 관리하세요.',
-        variant: 'outline',
-      },
-      {
         label: '공지사항',
         href: '/dashboard/teacher/notices',
         description: '원장·실장·선생님과 공지를 공유하고 확인 현황을 추적하세요.',
@@ -77,21 +71,9 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     description: '반과 학생에게 과제를 배정하고 평가 흐름을 관리하세요.',
     actions: [
       {
-        label: '과제 출제하기',
-        href: '/dashboard/assignments/new',
-        description: '문제집을 선택해 새로운 과제를 배정합니다.',
-      },
-      {
-        label: '과제 검사하기',
-        href: '/dashboard/teacher/review',
-        description: '제출된 과제를 확인하고 평가를 진행하세요.',
-        variant: 'outline',
-      },
-      {
         label: '학생 아틀리에',
         href: '/dashboard/teacher/atelier',
         description: '학생 제출물을 추천하거나 목록에서 정리하세요.',
-        variant: 'outline',
       },
     ],
   },
