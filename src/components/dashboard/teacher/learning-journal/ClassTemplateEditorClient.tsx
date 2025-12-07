@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 import { ClassTemplateEditor } from '@/components/dashboard/teacher/learning-journal/ClassTemplateEditor'
 import { ClassTemplateMaterialDialog } from '@/components/dashboard/teacher/learning-journal/ClassTemplateMaterialDialog'
-import { upsertClassTemplateWeekAction } from '@/app/dashboard/teacher/learning-journal/templates/actions'
+import { upsertClassTemplateWeekAction } from '@/app/dashboard/teacher/learning-journal/actions'
 import type {
   ClassLearningJournalTemplate,
   LearningJournalSubject,

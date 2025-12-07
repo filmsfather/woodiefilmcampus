@@ -24,17 +24,7 @@ type TeacherDashboardSection = {
 }
 
 const TEACHER_SECTIONS: TeacherDashboardSection[] = [
-  {
-    title: '일정관리',
-    description: '연간 및 월간 학습 일정과 수업 시간표를 확인하세요.',
-    actions: [
-      {
-        label: '월간 학습 계획',
-        href: '/dashboard/teacher/learning-journal/templates',
-        description: '반별 주차 템플릿을 한 번에 구성하고 학생 일지에 반영하세요.',
-      },
-    ],
-  },
+
   {
     title: '근무관리',
     description: '근무일지를 작성하고 승인 현황을 확인하세요.',
