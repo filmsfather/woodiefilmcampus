@@ -14,9 +14,10 @@ import { LEARNING_JOURNAL_SUBJECTS, type LearningJournalSubject } from '@/types/
 export default async function LearningJournalTemplatePage({
   searchParams,
 }: {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const resolvedSearchParams = await searchParams
 
   const includeAllClasses = profile.role === 'principal' || profile.role === 'manager'
   const overview = await fetchTeacherLearningJournalOverview(profile.id, { includeAllClasses })
@@ -42,10 +43,10 @@ export default async function LearningJournalTemplatePage({
     )
   }
 
-  const classIdParam = typeof searchParams?.class === 'string' ? searchParams.class : overview.classes[0]?.classId
+  const classIdParam = typeof resolvedSearchParams?.class === 'string' ? resolvedSearchParams.class : overview.classes[0]?.classId
 
   const periodsForClass = overview.periods.filter((period) => period.classId === classIdParam)
-  const periodIdParam = typeof searchParams?.period === 'string' ? searchParams.period : periodsForClass[0]?.id
+  const periodIdParam = typeof resolvedSearchParams?.period === 'string' ? resolvedSearchParams.period : periodsForClass[0]?.id
 
   if (!classIdParam || !periodIdParam) {
     return (
