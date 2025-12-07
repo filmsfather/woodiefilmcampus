@@ -639,6 +639,20 @@ function toStudentSnapshot(
   }
 }
 
+function compareClassNames(a: string, b: string): number {
+  const isAKorean = /[가-힣]/.test(a)
+  const isBKorean = /[가-힣]/.test(b)
+
+  if (isAKorean && !isBKorean) {
+    return -1
+  }
+  if (!isAKorean && isBKorean) {
+    return 1
+  }
+
+  return a.localeCompare(b, 'ko-KR')
+}
+
 export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJournalPeriodWithClass[]> {
   const supabase = createServerSupabase()
 
@@ -688,9 +702,11 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
     )
   }
 
-  return rows.map((row) =>
+  const results = rows.map((row) =>
     toPeriodWithClass(row, studentCountMap.get(row.class_id) ?? 0)
   )
+
+  return results.sort((a, b) => compareClassNames(a.className, b.className))
 }
 
 export async function fetchLearningJournalPeriodsForClasses(
@@ -749,10 +765,12 @@ export async function fetchLearningJournalPeriodsForClasses(
     studentMap.set(row.class_id, list)
   }
 
-  return rows.map((row) => {
+  const results = rows.map((row) => {
     const studentCount = studentMap.get(row.class_id)?.length ?? 0
     return toPeriodWithClass(row, studentCount)
   })
+
+  return results.sort((a, b) => compareClassNames(a.className, b.className))
 }
 
 function createEmptyTemplateWeek(weekIndex: number) {

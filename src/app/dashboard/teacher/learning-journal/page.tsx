@@ -67,9 +67,19 @@ export default async function TeacherLearningJournalPage(props: {
   const periodIds = periods.map((period) => period.id)
   const stats = await fetchLearningJournalPeriodStats(periodIds)
   const selectedParam = typeof searchParams?.period === 'string' ? searchParams.period : null
-  const selectedPeriod = selectedParam
-    ? periods.find((period) => period.id === selectedParam)
-    : periods[0] ?? null
+  const classIdParam = typeof searchParams?.classId === 'string' ? searchParams.classId : null
+
+  let selectedPeriod = null
+
+  if (selectedParam) {
+    selectedPeriod = periods.find((period) => period.id === selectedParam) ?? null
+  } else if (classIdParam) {
+    selectedPeriod = periods.find((period) => period.classId === classIdParam) ?? null
+  }
+
+  if (!selectedPeriod) {
+    selectedPeriod = periods[0] ?? null
+  }
 
   const studentSnapshotsByPeriod =
     overview.studentSnapshots ?? new Map<string, LearningJournalStudentSnapshot[]>()

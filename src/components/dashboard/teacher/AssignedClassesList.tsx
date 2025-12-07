@@ -127,7 +127,7 @@ export async function AssignedClassesList() {
                                 </Link>
                             </Button>
                             <Button asChild variant="outline" size="sm" className="w-full">
-                                <Link href="/dashboard/teacher/learning-journal">
+                                <Link href={`/dashboard/teacher/learning-journal?classId=${c.id}`}>
                                     학습일지
                                 </Link>
                             </Button>
