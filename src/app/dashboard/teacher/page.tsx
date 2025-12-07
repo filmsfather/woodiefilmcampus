@@ -7,6 +7,7 @@ import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBa
 import { AssignedClassesList } from '@/components/dashboard/teacher/AssignedClassesList'
 import { AnnualScheduleSummaryCard } from '@/components/dashboard/teacher/AnnualScheduleSummaryCard'
 import { NoticeSummaryCard } from '@/components/dashboard/teacher/NoticeSummaryCard'
+import { TimetableSummaryCard } from '@/components/dashboard/teacher/TimetableSummaryCard'
 
 type TeacherDashboardAction = {
   label: string
@@ -136,9 +137,10 @@ export default async function TeacherDashboardPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <AnnualScheduleSummaryCard />
         <NoticeSummaryCard />
+        <TimetableSummaryCard />
       </div>
 
       <AssignedClassesList />
