@@ -54,6 +54,7 @@ export async function upsertClassTemplateWeekAction(rawForm: FormData) {
   }
 
   revalidatePath(TEMPLATE_PATH)
+  revalidatePath('/dashboard/teacher/learning-journal')
 
   return { success: true } as const
 }
@@ -93,6 +94,7 @@ export async function deleteClassTemplateWeekAction(formData: FormData) {
   }
 
   revalidatePath(TEMPLATE_PATH)
+  revalidatePath('/dashboard/teacher/learning-journal')
 
   return { success: true } as const
 }
