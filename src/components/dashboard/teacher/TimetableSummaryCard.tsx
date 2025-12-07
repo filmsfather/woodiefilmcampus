@@ -107,11 +107,12 @@ export async function TimetableSummaryCard() {
                     <div className="space-y-2">
                         {schedule.length > 0 ? (
                             schedule.slice(0, 5).map((item, index) => (
-                                <div key={index} className="flex items-center justify-between text-sm">
-                                    <span className="font-medium text-slate-900 truncate flex-1">
+                                <div key={index} className="flex items-center text-sm">
+                                    <span className="font-medium text-slate-900 truncate">
                                         {item.className}
                                     </span>
-                                    <span className="text-slate-500 w-16 shrink-0 text-right">{item.periodName}</span>
+                                    <span className="mx-1 text-slate-300">|</span>
+                                    <span className="text-slate-500 shrink-0">{item.periodName}</span>
                                 </div>
                             ))
                         ) : (
