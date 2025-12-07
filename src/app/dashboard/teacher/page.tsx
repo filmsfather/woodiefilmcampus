@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBanner'
 import { AssignedClassesList } from '@/components/dashboard/teacher/AssignedClassesList'
+import { AnnualScheduleSummaryCard } from '@/components/dashboard/teacher/AnnualScheduleSummaryCard'
 
 type TeacherDashboardAction = {
   label: string
@@ -135,6 +136,8 @@ export default async function TeacherDashboardPage() {
       </header>
 
       <UnreadNoticeBanner />
+
+      <AnnualScheduleSummaryCard />
 
       <AssignedClassesList />
 
