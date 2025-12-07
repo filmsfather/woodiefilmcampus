@@ -72,6 +72,8 @@ export async function AssignedClassesList() {
         }
     })
 
+    classesWithStudents.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
     return (
         <section className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">내 반 정보</h2>
