@@ -69,7 +69,7 @@ export function StudentInfoDialog({ student, children }: StudentInfoDialogProps)
                     <Button asChild variant="outline" className="w-full sm:w-auto">
                         <Link href="/dashboard/teacher/absences">
                             <CalendarDays className="mr-2 h-4 w-4" />
-                            결석 확인
+                            결석계 작성
                         </Link>
                     </Button>
                 </DialogFooter>
