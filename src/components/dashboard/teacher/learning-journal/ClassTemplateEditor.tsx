@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -30,74 +30,65 @@ interface ClassTemplateEditorProps {
 }
 
 export function ClassTemplateEditor({ weeks, onEdit }: ClassTemplateEditorProps) {
-  const [activeWeek, setActiveWeek] = useState<number>(weeks[0]?.weekIndex ?? 1)
-
-  const activeConfig = useMemo(() => weeks.find((week) => week.weekIndex === activeWeek), [weeks, activeWeek])
-
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {weeks.map((week) => (
-          <Button
-            key={week.weekIndex}
-            variant={week.weekIndex === activeWeek ? 'default' : 'outline'}
-            onClick={() => setActiveWeek(week.weekIndex)}
-            className="px-4 py-2 text-sm"
-          >
-            {week.weekIndex}주차
-          </Button>
-        ))}
-      </div>
+    <div className="space-y-6">
+      {LEARNING_JOURNAL_SUBJECTS.map((subject) => (
+        <Card key={subject} className="overflow-hidden border-slate-200">
+          <CardHeader className="bg-slate-50 px-4 py-3">
+            <CardTitle className="text-base font-semibold text-slate-900">
+              {LEARNING_JOURNAL_SUBJECT_INFO[subject].label}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid divide-y divide-slate-200 md:grid-cols-4 md:divide-x md:divide-y-0">
+              {[1, 2, 3, 4].map((weekIndex) => {
+                const weekConfig = weeks.find((w) => w.weekIndex === weekIndex)
+                const subjectConfig = weekConfig?.subjects[subject]
+                const hasMaterials =
+                  subjectConfig &&
+                  (subjectConfig.materialIds.length > 0 || subjectConfig.materialTitles.length > 0)
 
-      <div className="h-[500px] overflow-y-auto rounded-lg border border-slate-200 bg-white">
-        <div className="space-y-4 p-4">
-          {activeConfig ? (
-            LEARNING_JOURNAL_SUBJECTS.map((subject) => {
-              const config = activeConfig.subjects[subject]
-              const hasMaterials = config.materialIds.length > 0 || config.materialTitles.length > 0
+                return (
+                  <div
+                    key={weekIndex}
+                    className="group relative flex min-h-[120px] cursor-pointer flex-col gap-2 p-4 transition-colors hover:bg-slate-50"
+                    onClick={() => onEdit(weekIndex, subject)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-slate-500">{weekIndex}주차</span>
+                      {subjectConfig?.materialNotes ? (
+                        <Badge variant="secondary" className="text-[10px]">
+                          노트
+                        </Badge>
+                      ) : null}
+                    </div>
 
-              return (
-                <Card key={subject} className="border-slate-200">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg text-slate-900">{LEARNING_JOURNAL_SUBJECT_INFO[subject].label}</CardTitle>
-                    <Button size="sm" onClick={() => onEdit(activeConfig.weekIndex, subject)}>
-                      자료 선택 / 편집
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm text-slate-600">
                     {hasMaterials ? (
-                      <div className="space-y-2">
-                        <p className="text-xs text-slate-500">선택된 수업 자료</p>
-                        <ul className="space-y-1">
-                          {config.materialTitles.map((title, index) => (
-                            <li key={`${subject}-${index}`} className="flex items-center gap-2">
-                              <Badge variant="outline">자료 {index + 1}</Badge>
-                              <span className="text-slate-700">{title || '제목 없음'}</span>
-                            </li>
-                          ))}
-                        </ul>
-                        {config.materialNotes ? (
-                          <div className="rounded-md border border-slate-200 bg-slate-50 p-2 text-xs">
-                            {config.materialNotes}
-                          </div>
-                        ) : null}
+                      <div className="space-y-1">
+                        {subjectConfig.materialTitles.map((title, idx) => (
+                          <p key={idx} className="line-clamp-2 text-sm text-slate-700">
+                            {title || '제목 없음'}
+                          </p>
+                        ))}
                       </div>
                     ) : (
-                      <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                        아직 선택된 수업 자료가 없습니다.
+                      <div className="flex flex-1 items-center justify-center text-xs text-slate-400">
+                        계획 없음
                       </div>
                     )}
-                  </CardContent>
-                </Card>
-              )
-            })
-          ) : (
-            <div className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-500">
-              선택된 주차 정보가 없습니다.
+
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button variant="secondary" size="sm" className="shadow-sm">
+                        편집
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
-          )}
-        </div>
-      </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   )
 }
