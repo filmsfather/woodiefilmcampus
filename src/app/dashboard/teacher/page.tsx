@@ -8,6 +8,7 @@ import { AssignedClassesList } from '@/components/dashboard/teacher/AssignedClas
 import { AnnualScheduleSummaryCard } from '@/components/dashboard/teacher/AnnualScheduleSummaryCard'
 import { NoticeSummaryCard } from '@/components/dashboard/teacher/NoticeSummaryCard'
 import { TimetableSummaryCard } from '@/components/dashboard/teacher/TimetableSummaryCard'
+import { WorkJournalSummaryCard } from '@/components/dashboard/teacher/WorkJournalSummaryCard'
 
 type TeacherDashboardAction = {
   label: string
@@ -141,6 +142,7 @@ export default async function TeacherDashboardPage() {
         <AnnualScheduleSummaryCard />
         <NoticeSummaryCard />
         <TimetableSummaryCard />
+        <WorkJournalSummaryCard />
       </div>
 
       <AssignedClassesList />
