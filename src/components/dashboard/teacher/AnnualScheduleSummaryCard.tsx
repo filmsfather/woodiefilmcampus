@@ -42,6 +42,9 @@ export async function AnnualScheduleSummaryCard() {
                                     <p className="text-xs text-slate-500">
                                         {DateUtil.formatForDisplay(regularSchedule.start_date, { month: 'numeric', day: 'numeric' })} ~ {DateUtil.formatForDisplay(regularSchedule.end_date, { month: 'numeric', day: 'numeric' })}
                                     </p>
+                                    {regularSchedule.memo && (
+                                        <p className="mt-1 text-xs text-slate-600 line-clamp-1">{regularSchedule.memo}</p>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-400">진행 중인 정규 일정이 없습니다.</p>
@@ -56,6 +59,9 @@ export async function AnnualScheduleSummaryCard() {
                                     <p className="text-xs text-slate-500">
                                         {DateUtil.formatForDisplay(specialSchedule.start_date, { month: 'numeric', day: 'numeric' })} ~ {DateUtil.formatForDisplay(specialSchedule.end_date, { month: 'numeric', day: 'numeric' })}
                                     </p>
+                                    {specialSchedule.memo && (
+                                        <p className="mt-1 text-xs text-slate-600 line-clamp-1">{specialSchedule.memo}</p>
+                                    )}
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-400">진행 중인 특강 일정이 없습니다.</p>
