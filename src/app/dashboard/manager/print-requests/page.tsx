@@ -12,27 +12,27 @@ type RawPrintRequestItemRow = {
   asset_filename: string | null
   media_asset_id: string | null
   media_asset?:
-    | {
-        id: string
-        bucket: string | null
-        path: string | null
-      }
-    | Array<{
-        id: string
-        bucket: string | null
-        path: string | null
-      }>
-    | null
+  | {
+    id: string
+    bucket: string | null
+    path: string | null
+  }
+  | Array<{
+    id: string
+    bucket: string | null
+    path: string | null
+  }>
+  | null
   student_task?:
-    | {
-        id: string
-        profiles?: { id: string; name: string | null; email: string | null } | Array<{ id: string; name: string | null; email: string | null }> | null
-      }
-    | Array<{
-        id: string
-        profiles?: Array<{ id: string; name: string | null; email: string | null }> | null
-      }>
-    | null
+  | {
+    id: string
+    profiles?: { id: string; name: string | null; email: string | null } | Array<{ id: string; name: string | null; email: string | null }> | null
+  }
+  | Array<{
+    id: string
+    profiles?: Array<{ id: string; name: string | null; email: string | null }> | null
+  }>
+  | null
 }
 
 type RawPrintRequestRow = {
@@ -79,12 +79,13 @@ type RawClassMaterialRequestRow = {
 export default async function ManagerPrintRequestsPage({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard('manager')
   const supabase = createClient()
   const storageAdmin = createAdminClient()
-  const weekRange = resolveWeekRange(searchParams.week ?? null)
+  const resolvedSearchParams = await searchParams
+  const weekRange = resolveWeekRange(resolvedSearchParams.week ?? null)
   const desiredDateStart = DateUtil.formatISODate(weekRange.start)
   const desiredDateEndExclusive = DateUtil.formatISODate(weekRange.endExclusive)
 
@@ -242,11 +243,11 @@ export default async function ManagerPrintRequestsPage({
 
       const fallbackStudent = studentProfile
         ? [
-            {
-              id: studentProfile.id,
-              name: studentProfile.name ?? studentProfile.email ?? '학생 미확인',
-            },
-          ]
+          {
+            id: studentProfile.id,
+            name: studentProfile.name ?? studentProfile.email ?? '학생 미확인',
+          },
+        ]
         : []
 
       return {
@@ -269,11 +270,11 @@ export default async function ManagerPrintRequestsPage({
         },
         assignment: workbook
           ? {
-              id: assignmentRecord?.id ?? '',
-              title: workbook.title,
-              subject: workbook.subject,
-              type: workbook.type,
-            }
+            id: assignmentRecord?.id ?? '',
+            title: workbook.title,
+            subject: workbook.subject,
+            type: workbook.type,
+          }
           : null,
         students: uniqueStudents.length > 0 ? uniqueStudents : fallbackStudent,
         itemCount: items.length,
@@ -472,8 +473,8 @@ export default async function ManagerPrintRequestsPage({
     return createdA - createdB
   })
 
-  const previousWeekHref = buildWeekHref('/dashboard/manager/print-requests', searchParams, weekRange.previousStart)
-  const nextWeekHref = buildWeekHref('/dashboard/manager/print-requests', searchParams, weekRange.nextStart)
+  const previousWeekHref = buildWeekHref('/dashboard/manager/print-requests', resolvedSearchParams, weekRange.previousStart)
+  const nextWeekHref = buildWeekHref('/dashboard/manager/print-requests', resolvedSearchParams, weekRange.nextStart)
 
   return (
     <section className="space-y-6">
