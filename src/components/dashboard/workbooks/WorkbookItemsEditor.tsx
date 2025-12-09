@@ -42,7 +42,7 @@ const gradingCriteriaSchema = z.object({
 })
 
 const itemSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().uuid().optional(),
   prompt: z.string().min(1, { message: '문항 내용을 입력해주세요.' }),
   explanation: z.string().optional(),
   answerType: answerTypeSchema.optional(),
@@ -58,7 +58,7 @@ const baseFormSchema = z.object({
 type FormValues = z.infer<typeof baseFormSchema>
 
 export interface WorkbookItemsEditorItem {
-  id: string
+  id?: string
   position: number
   prompt: string
   explanation?: string | null
@@ -237,7 +237,7 @@ export default function WorkbookItemsEditor({
   })
 
   const { control, handleSubmit, setValue, formState, unregister } = form
-  const { fields } = useFieldArray({ control, name: 'items' })
+  const { fields, append } = useFieldArray({ control, name: 'items' })
   const watchedItems = form.watch('items')
 
   const onSubmit = (values: FormValues) => {
@@ -417,6 +417,42 @@ export default function WorkbookItemsEditor({
           </CardContent>
         </Card>
 
+        <div className="flex justify-center">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const baseItem = {
+                prompt: '',
+                explanation: '',
+              }
+
+              if (workbookType === 'writing') {
+                append({
+                  ...baseItem,
+                  gradingCriteria: { high: '', mid: '', low: '' },
+                })
+              } else if (workbookType === 'srs') {
+                append({
+                  ...baseItem,
+                  answerType: 'multiple_choice',
+                  choices: [
+                    { content: '', isCorrect: false },
+                    { content: '', isCorrect: false },
+                    { content: '', isCorrect: false },
+                    { content: '', isCorrect: false },
+                  ],
+                })
+              } else {
+                append(baseItem)
+              }
+            }}
+            className="gap-2"
+          >
+            <Plus className="size-4" /> 문항 추가
+          </Button>
+        </div>
+
         {submitState === 'success' && (
           <div className="flex items-center gap-2 rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
             <Check className="size-4" /> 문항을 저장했습니다.
@@ -435,7 +471,7 @@ export default function WorkbookItemsEditor({
           </Button>
         </div>
       </form>
-    </Form>
+    </Form >
   )
 }
 

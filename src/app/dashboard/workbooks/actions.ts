@@ -114,7 +114,7 @@ const shortFieldUpdateSchema = z.object({
 })
 
 const workbookItemUpdateSchema = z.object({
-  id: z.string().uuid('유효한 문항 ID가 아닙니다.'),
+  id: z.string().uuid('유효한 문항 ID가 아닙니다.').optional(),
   prompt: z.string().min(1),
   explanation: z.string().optional(),
   gradingCriteria: z
@@ -629,7 +629,10 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
 
   const existingItemIds = new Set((existingItems ?? []).map((item) => item.id))
 
-  for (const item of payload.items) {
+  const itemsToUpdate = payload.items.filter((item): item is typeof item & { id: string } => !!item.id)
+  const itemsToCreate = payload.items.filter((item) => !item.id)
+
+  for (const item of itemsToUpdate) {
     if (!existingItemIds.has(item.id)) {
       return {
         error: '존재하지 않는 문항이 포함되어 있습니다.',
@@ -685,7 +688,8 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
   }
 
   try {
-    for (const item of payload.items) {
+    // 1. Update existing items
+    for (const item of itemsToUpdate) {
       const answerType = item.answerType ?? 'multiple_choice'
 
       const updatePayload: Record<string, unknown> = {
@@ -798,6 +802,108 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
             console.error('[updateWorkbookItems] insert short fields error', insertShortFieldsError)
             return {
               error: '단답 필드 저장 중 오류가 발생했습니다.',
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Create new items
+    if (itemsToCreate.length > 0) {
+      // Get max position
+      const { data: maxPosData } = await supabase
+        .from('workbook_items')
+        .select('position')
+        .eq('workbook_id', payload.workbookId)
+        .order('position', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      let nextPosition = (maxPosData?.position ?? 0) + 1
+
+      const newItemRows = itemsToCreate.map((item, index) => {
+        const answerType =
+          workbook.type === 'srs' ? item.answerType ?? 'multiple_choice' : workbook.type
+
+        return {
+          workbook_id: payload.workbookId,
+          position: nextPosition + index,
+          prompt: item.prompt,
+          answer_type: answerType,
+          explanation: item.explanation ?? null,
+          grading_criteria: item.gradingCriteria ?? null,
+          srs_settings:
+            workbook.type === 'srs'
+              ? {
+                allowMultipleCorrect: workbook.config?.srs?.allowMultipleCorrect ?? false,
+              }
+              : null,
+        }
+      })
+
+      const { data: insertedItems, error: insertItemsError } = await supabase
+        .from('workbook_items')
+        .insert(newItemRows)
+        .select('id, position')
+
+      if (insertItemsError || !insertedItems) {
+        console.error('[updateWorkbookItems] insert new items error', insertItemsError)
+        return {
+          error: '새 문항 저장 중 오류가 발생했습니다.',
+        }
+      }
+
+      if (isSrsWorkbook) {
+        const choiceRows: Array<{ item_id: string; label: string; content: string; is_correct: boolean }> = []
+        const shortFieldRows: Array<{ item_id: string; label: string | null; answer: string; position: number }> = []
+
+        // Map inserted items back to payload items by index (since we inserted in order)
+        insertedItems.forEach((inserted, index) => {
+          const originalItem = itemsToCreate[index]
+          const answerType = originalItem?.answerType ?? 'multiple_choice'
+
+          if (answerType === 'short_answer') {
+            const fields = originalItem?.shortFields ?? []
+            fields.forEach((field, fieldIndex) => {
+              shortFieldRows.push({
+                item_id: inserted.id,
+                label: field.label && field.label.trim().length > 0 ? field.label.trim() : null,
+                answer: field.answer.trim(),
+                position: fieldIndex,
+              })
+            })
+            return
+          }
+
+          const choices = originalItem?.choices ?? []
+          choices.forEach((choice, choiceIndex) => {
+            choiceRows.push({
+              item_id: inserted.id,
+              label: String.fromCharCode(65 + choiceIndex),
+              content: choice.content,
+              is_correct: choice.isCorrect,
+            })
+          })
+        })
+
+        if (choiceRows.length > 0) {
+          const { error: choicesError } = await supabase.from('workbook_item_choices').insert(choiceRows)
+
+          if (choicesError) {
+            console.error('[updateWorkbookItems] insert new choices error', choicesError)
+            return {
+              error: '새 객관식 보기 저장 중 오류가 발생했습니다.',
+            }
+          }
+        }
+
+        if (shortFieldRows.length > 0) {
+          const { error: shortFieldError } = await supabase.from('workbook_item_short_fields').insert(shortFieldRows)
+
+          if (shortFieldError) {
+            console.error('[updateWorkbookItems] insert new short fields error', shortFieldError)
+            return {
+              error: '새 단답 필드 저장 중 오류가 발생했습니다.',
             }
           }
         }
