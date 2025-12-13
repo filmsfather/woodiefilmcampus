@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 }
 
 interface StudentAtelierPageProps {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 function parsePage(value: string | string[] | undefined): number {
@@ -49,7 +49,8 @@ function parseSearchText(value: string | string[] | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-export default async function StudentAtelierPage({ searchParams = {} }: StudentAtelierPageProps) {
+export default async function StudentAtelierPage(props: StudentAtelierPageProps) {
+  const searchParams = await props.searchParams
   const { profile } = await requireAuthForDashboard('student')
 
   if (!profile) {
