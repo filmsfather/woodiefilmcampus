@@ -4,11 +4,12 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
-import { updateMemberClassAssignments } from '@/app/dashboard/manager/members/actions'
+import { updateMemberClassAssignments, updateManagerMemo } from '@/app/dashboard/manager/members/actions'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
   SheetContent,
@@ -32,6 +33,7 @@ export interface UnassignedStudentSummary {
   studentPhone: string | null
   parentPhone: string | null
   academicRecord: string | null
+  managerMemo: string | null
 }
 
 export interface ClassSummary {
@@ -55,6 +57,38 @@ function formatPhone(value: string | null) {
   }
 
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+}
+
+function ManagerMemoInput({ studentId, initialMemo }: { studentId: string; initialMemo: string | null }) {
+  const [memo, setMemo] = useState(initialMemo ?? '')
+  const [isPending, startTransition] = useTransition()
+
+  const handleBlur = () => {
+    if (memo === (initialMemo ?? '')) return
+
+    startTransition(async () => {
+      await updateManagerMemo({ memberId: studentId, memo })
+    })
+  }
+
+  return (
+    <div className="relative">
+      <Textarea
+        value={memo}
+        onChange={(e) => setMemo(e.target.value)}
+        onBlur={handleBlur}
+        className="min-h-[80px] w-full resize-none text-xs"
+        placeholder="관리자 메모 (학생에게 보이지 않음)"
+        disabled={isPending}
+      />
+      {isPending && (
+        <div className="absolute right-2 bottom-2">
+          <LoadingSpinner className="size-3" />
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function UnassignedStudentsTable({
@@ -168,10 +202,11 @@ export function UnassignedStudentsTable({
               <TableHeader className="bg-slate-50">
                 <TableRow>
                   <TableHead className="w-64">학생 정보</TableHead>
-                  <TableHead className="w-40">학생 번호</TableHead>
-                  <TableHead className="w-40">부모님 번호</TableHead>
-                  <TableHead className="w-44">성적</TableHead>
-                  <TableHead className="w-48 text-right">액션</TableHead>
+                  <TableHead className="w-32">학생 번호</TableHead>
+                  <TableHead className="w-32">부모님 번호</TableHead>
+                  <TableHead className="w-32">성적</TableHead>
+                  <TableHead className="w-64">관리자 메모</TableHead>
+                  <TableHead className="w-32 text-right">액션</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -186,6 +221,9 @@ export function UnassignedStudentsTable({
                     <TableCell>{formatPhone(student.studentPhone)}</TableCell>
                     <TableCell>{formatPhone(student.parentPhone)}</TableCell>
                     <TableCell>{student.academicRecord?.trim() ? student.academicRecord : '-'}</TableCell>
+                    <TableCell>
+                      <ManagerMemoInput studentId={student.id} initialMemo={student.managerMemo} />
+                    </TableCell>
                     <TableCell className="flex items-center justify-end gap-2">
                       <Button asChild size="sm" variant="outline">
                         <Link href={`/dashboard/manager/members?focus=${student.id}`}>정보 수정</Link>

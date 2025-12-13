@@ -324,3 +324,44 @@ export async function transitionMemberToInactive(input: TransitionMemberStatusIn
     return { error: '사용자 상태 변경 중 예상치 못한 문제가 발생했습니다.' }
   }
 }
+
+const updateManagerMemoSchema = z.object({
+  memberId: z.string().uuid(),
+  memo: z.string().nullable(),
+})
+
+export async function updateManagerMemo(input: z.infer<typeof updateManagerMemoSchema>) {
+  const parsed = updateManagerMemoSchema.safeParse(input)
+
+  if (!parsed.success) {
+    return { error: '입력값을 확인해주세요.' }
+  }
+
+  const managerProfile = await ensureManagerProfile()
+
+  if (!managerProfile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        manager_memo: parsed.data.memo,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', parsed.data.memberId)
+
+    if (error) {
+      console.error('[manager] updateManagerMemo failed', error)
+      return { error: '메모 저장 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/manager/enrollment')
+    return { success: true }
+  } catch (error) {
+    console.error('[manager] updateManagerMemo unexpected', error)
+    return { error: '예상치 못한 오류가 발생했습니다.' }
+  }
+}
