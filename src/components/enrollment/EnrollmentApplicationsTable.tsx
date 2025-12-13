@@ -1,3 +1,27 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { MoreVertical, Trash2 } from 'lucide-react'
+
+import { deleteEnrollmentApplication } from '@/app/dashboard/manager/enrollment/actions'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -70,6 +94,68 @@ function renderStatus(item: EnrollmentApplicationItem) {
   }
 }
 
+
+function DeleteButton({ applicationId, studentName }: { applicationId: string; studentName: string }) {
+  const router = useRouter()
+  const [open, setOpen] = useState(false)
+  const [isPending, startTransition] = useTransition()
+
+  const handleDelete = () => {
+    startTransition(async () => {
+      const result = await deleteEnrollmentApplication({ applicationId })
+      if (result?.error) {
+        alert(result.error)
+        return
+      }
+      setOpen(false)
+      router.refresh()
+    })
+  }
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <MoreVertical className="h-4 w-4" />
+            <span className="sr-only">메뉴 열기</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => setOpen(true)} className="text-red-600 focus:text-red-600">
+            <Trash2 className="mr-2 h-4 w-4" />
+            삭제
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {studentName} 학생의 등록원서가 영구적으로 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>취소</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault()
+                handleDelete()
+              }}
+              disabled={isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isPending ? '삭제 중...' : '삭제'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 interface EnrollmentApplicationsTableProps {
   title?: string
   emptyHint?: string
@@ -110,69 +196,73 @@ export function EnrollmentApplicationsTable({ title, emptyHint, actions, applica
       ) : null}
       <CardContent className="px-0 pb-0">
         <div className="overflow-x-auto">
-      <Table>
-        <TableHeader className="bg-slate-50">
-          <TableRow>
-            <TableHead className="whitespace-nowrap">제출일</TableHead>
-            <TableHead className="whitespace-nowrap">학생 이름</TableHead>
-            <TableHead className="whitespace-nowrap">부모님 번호</TableHead>
-            <TableHead className="whitespace-nowrap">학생 번호 (선택)</TableHead>
-            <TableHead className="whitespace-nowrap">희망 반</TableHead>
-            <TableHead className="whitespace-nowrap">토요반 안내</TableHead>
-            <TableHead className="whitespace-nowrap">일정/수강료 확인</TableHead>
-            <TableHead className="whitespace-nowrap">상태</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {applications.map((item) => (
-            <TableRow key={item.id} className="text-sm text-slate-700">
-              <TableCell className="whitespace-nowrap text-slate-600">
-                {DateUtil.formatForDisplay(item.created_at, {
-                  dateStyle: 'medium',
-                  timeStyle: 'short',
-                })}
-              </TableCell>
-              <TableCell className="font-medium text-slate-900">{item.student_name}</TableCell>
-              <TableCell>{formatPhone(item.parent_phone)}</TableCell>
-              <TableCell>{item.student_phone ? formatPhone(item.student_phone) : <span className="text-slate-500">-</span>}</TableCell>
-              <TableCell>
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
-                  {classLabelMap[item.desired_class]}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                {item.desired_class === 'saturday' ? (
-                  item.saturday_briefing_received === null ? (
-                    <span className="text-slate-500">미응답</span>
-                  ) : item.saturday_briefing_received ? (
-                    <span className="text-emerald-600">네</span>
-                  ) : (
-                    <span className="text-slate-700">아니요</span>
-                  )
-                ) : (
-                  <span className="text-slate-500">해당 없음</span>
-                )}
-              </TableCell>
-              <TableCell>
-                {item.schedule_fee_confirmed ? (
-                  <span className="text-emerald-600">확인</span>
-                ) : (
-                  <span className="text-slate-700">미확인</span>
-                )}
-              </TableCell>
-              <TableCell className="space-y-1">
-                {renderStatus(item)}
-                <div className="text-xs text-slate-500">
-                  {DateUtil.formatForDisplay(item.status_updated_at, {
-                    dateStyle: 'short',
-                    timeStyle: 'short',
-                  })}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          <Table>
+            <TableHeader className="bg-slate-50">
+              <TableRow>
+                <TableHead className="whitespace-nowrap">제출일</TableHead>
+                <TableHead className="whitespace-nowrap">학생 이름</TableHead>
+                <TableHead className="whitespace-nowrap">부모님 번호</TableHead>
+                <TableHead className="whitespace-nowrap">학생 번호 (선택)</TableHead>
+                <TableHead className="whitespace-nowrap">희망 반</TableHead>
+                <TableHead className="whitespace-nowrap">토요반 안내</TableHead>
+                <TableHead className="whitespace-nowrap">일정/수강료 확인</TableHead>
+                <TableHead className="whitespace-nowrap">상태</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {applications.map((item) => (
+                <TableRow key={item.id} className="text-sm text-slate-700">
+                  <TableCell className="whitespace-nowrap text-slate-600">
+                    {DateUtil.formatForDisplay(item.created_at, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </TableCell>
+                  <TableCell className="font-medium text-slate-900">{item.student_name}</TableCell>
+                  <TableCell>{formatPhone(item.parent_phone)}</TableCell>
+                  <TableCell>{item.student_phone ? formatPhone(item.student_phone) : <span className="text-slate-500">-</span>}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-800">
+                      {classLabelMap[item.desired_class]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {item.desired_class === 'saturday' ? (
+                      item.saturday_briefing_received === null ? (
+                        <span className="text-slate-500">미응답</span>
+                      ) : item.saturday_briefing_received ? (
+                        <span className="text-emerald-600">네</span>
+                      ) : (
+                        <span className="text-slate-700">아니요</span>
+                      )
+                    ) : (
+                      <span className="text-slate-500">해당 없음</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {item.schedule_fee_confirmed ? (
+                      <span className="text-emerald-600">확인</span>
+                    ) : (
+                      <span className="text-slate-700">미확인</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="space-y-1">
+                    {renderStatus(item)}
+                    <div className="text-xs text-slate-500">
+                      {DateUtil.formatForDisplay(item.status_updated_at, {
+                        dateStyle: 'short',
+                        timeStyle: 'short',
+                      })}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <DeleteButton applicationId={item.id} studentName={item.student_name} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       </CardContent>
     </Card>

@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
 
 import { ensureManagerProfile } from '@/lib/authz'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -239,5 +240,42 @@ export async function syncEnrollmentApplicationStatuses() {
   } catch (error) {
     console.error('[enrollment] sync unexpected error', error)
     return { error: '등록원서 상태를 갱신하지 못했습니다.' }
+  }
+}
+
+const deleteEnrollmentApplicationSchema = z.object({
+  applicationId: z.string().uuid(),
+})
+
+export async function deleteEnrollmentApplication(input: z.infer<typeof deleteEnrollmentApplicationSchema>) {
+  const parsed = deleteEnrollmentApplicationSchema.safeParse(input)
+
+  if (!parsed.success) {
+    return { error: '잘못된 요청입니다.' }
+  }
+
+  const managerProfile = await ensureManagerProfile()
+
+  if (!managerProfile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { error } = await supabase
+      .from('enrollment_applications')
+      .delete()
+      .eq('id', parsed.data.applicationId)
+
+    if (error) {
+      console.error('[manager] deleteEnrollmentApplication failed', error)
+      return { error: '삭제 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/manager/enrollment')
+    return { success: true }
+  } catch (error) {
+    console.error('[manager] deleteEnrollmentApplication unexpected', error)
+    return { error: '예상치 못한 오류가 발생했습니다.' }
   }
 }
