@@ -5,11 +5,10 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchStudentTaskSummaries } from '@/lib/student-tasks'
 import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
 
-export default async function StudentTasksOverviewPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>
+export default async function StudentTasksOverviewPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  const searchParams = await props.searchParams
   const { profile } = await requireAuthForDashboard('student')
 
   if (!profile) {
