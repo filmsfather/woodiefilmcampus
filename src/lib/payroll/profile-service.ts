@@ -41,10 +41,10 @@ function mapRow(row: PayrollProfileRowWithTeacher): {
   const profile = mapTeacherPayrollProfile(row)
   const teacher = row.profiles && row.profiles.id
     ? summarizeTeacherProfile({
-        id: row.profiles.id,
-        name: row.profiles.name ?? null,
-        email: row.profiles.email ?? null,
-      })
+      id: row.profiles.id,
+      name: row.profiles.name ?? null,
+      email: row.profiles.email ?? null,
+    })
     : null
   return { profile, teacher }
 }
@@ -111,7 +111,7 @@ export async function savePayrollProfile(
   input: SavePayrollProfileInput,
   actorId: string
 ): Promise<{ profile: TeacherPayrollProfile; teacher: TeacherProfileSummary | null }> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   let targetProfileId = input.profileId ?? null
 
@@ -184,7 +184,7 @@ export async function setPayrollProfileEffectiveTo(
   profileId: string,
   effectiveTo: string | null
 ): Promise<TeacherPayrollProfile | null> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('teacher_payroll_profiles')

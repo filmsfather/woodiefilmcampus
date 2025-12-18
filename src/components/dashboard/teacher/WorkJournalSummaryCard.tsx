@@ -16,7 +16,7 @@ export async function WorkJournalSummaryCard() {
 
     DateUtil.initServerClock()
     const monthRange = resolveMonthRange(null) // Defaults to current month
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     const { data: entries } = await supabase
         .from('work_log_entries')

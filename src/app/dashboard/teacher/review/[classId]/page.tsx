@@ -81,7 +81,7 @@ export default async function TeacherClassReviewPage({
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const { classId } = await params
   const resolvedSearchParams = await searchParams
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const isPrincipal = profile.role === 'principal'
   const weekRange = resolveWeekRange(resolvedSearchParams.week ?? null)
 

@@ -55,7 +55,7 @@ interface WorkbookEditPageProps {
 export default async function WorkbookEditPage({ params }: WorkbookEditPageProps) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const { workbookId } = await params
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: workbook, error } = await supabase
     .from('workbooks')

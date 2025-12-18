@@ -51,7 +51,7 @@ export async function reviewWorkLogEntry(formData: FormData): Promise<ReviewResu
 
   const input: ReviewInput = parsed.data
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('work_log_entries')

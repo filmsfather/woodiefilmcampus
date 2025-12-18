@@ -283,10 +283,10 @@ export async function fetchExternalSubstituteEntries(
     const teacherRecord = Array.isArray(row.teacher) ? row.teacher[0] ?? null : row.teacher
     const teacherSummary = teacherRecord
       ? summarizeTeacherProfile({
-          id: teacherRecord.id,
-          name: teacherRecord.name ?? null,
-          email: teacherRecord.email ?? null,
-        })
+        id: teacherRecord.id,
+        name: teacherRecord.name ?? null,
+        email: teacherRecord.email ?? null,
+      })
       : null
 
     return {
@@ -441,7 +441,7 @@ export async function upsertPayrollRun(
   items: TeacherPayrollRunItem[],
   acknowledgement: TeacherPayrollAcknowledgement | null
 ) {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { error: runError } = await supabase.from('teacher_payroll_runs').upsert(
     {

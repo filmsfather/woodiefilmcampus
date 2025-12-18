@@ -26,7 +26,7 @@ export default async function TeacherNoticeBoardPage() {
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const notices = await fetchNoticeSummaries(supabase, profile.id)
   const canCreate = ['teacher', 'manager', 'principal'].includes(profile.role)
 

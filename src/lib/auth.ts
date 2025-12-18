@@ -22,7 +22,7 @@ export function resolveDashboardPath(role: UserRole) {
 }
 
 export async function getAuthContext(): Promise<AuthContext> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: userData, error: userError } = await supabase.auth.getUser()
 

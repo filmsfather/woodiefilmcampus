@@ -20,11 +20,11 @@ interface SubjectMaterial {
   title: string
   description: string | null
   handout:
-    | {
-        url: string
-        filename: string
-      }
-    | null
+  | {
+    url: string
+    filename: string
+  }
+  | null
 }
 
 interface WeekPlan {
@@ -61,7 +61,7 @@ export default async function StudentMonthlyPlanPage({
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: classRows, error: classError } = await supabase
     .from('class_students')
@@ -175,9 +175,9 @@ export default async function StudentMonthlyPlanPage({
           description: summary?.description ?? null,
           handout: handout
             ? {
-                url: handout.url,
-                filename: handout.filename,
-              }
+              url: handout.url,
+              filename: handout.filename,
+            }
             : null,
         })
       }

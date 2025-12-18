@@ -11,30 +11,30 @@ import { mapAbsenceReportRow, sortAbsenceReports, type AbsenceReportRow } from '
 interface ClassTeacherRow {
   class_id: string | null
   classes?:
-    | {
-        id: string | null
-        name: string | null
-      }
-    | Array<{
-        id: string | null
-        name: string | null
-      }>
+  | {
+    id: string | null
+    name: string | null
+  }
+  | Array<{
+    id: string | null
+    name: string | null
+  }>
 }
 
 interface ClassStudentRow {
   class_id: string | null
   student_id: string | null
   profiles?:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
 }
 
 export default async function TeacherAbsencesPage({
@@ -43,7 +43,7 @@ export default async function TeacherAbsencesPage({
   searchParams?: Record<string, string | string[] | undefined>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
   const weekStart = DateUtil.formatISODate(weekRange.start)
   const weekEndExclusive = DateUtil.formatISODate(weekRange.endExclusive)

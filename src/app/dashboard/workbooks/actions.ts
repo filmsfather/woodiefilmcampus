@@ -151,7 +151,7 @@ export async function createWorkbook(input: CreateWorkbookInput) {
 
   console.log('[createWorkbook] Payload items:', JSON.stringify(payload.items, null, 2))
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
 
   const allowedRoles = new Set(['teacher', 'principal', 'manager'])
@@ -475,7 +475,7 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
 
   const payload = parseResult.data
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
 
   const allowedRoles = new Set(['teacher', 'principal', 'manager'])
@@ -585,7 +585,7 @@ export async function updateWorkbookItems(input: UpdateWorkbookItemsInput) {
 
   const payload = parseResult.data
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
 
   const allowedRoles = new Set(['teacher', 'principal', 'manager'])
@@ -934,7 +934,7 @@ type StorageRemovalEntry = {
 }
 
 async function removeStoragePaths(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   entries: StorageRemovalEntry[]
 ) {
   if (!entries.length) {
@@ -963,7 +963,7 @@ async function removeStoragePaths(
 }
 
 async function removeStorageMap(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   map: Map<string, Set<string>>
 ) {
   if (map.size === 0) {
@@ -997,7 +997,7 @@ export async function deleteWorkbook(workbookId: string) {
     return { error: '삭제 권한이 없습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: workbook, error: fetchError } = await supabase
@@ -1124,7 +1124,7 @@ export async function duplicateWorkbook(workbookId: string) {
     return { error: '복제 권한이 없습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: workbook, error: fetchError } = await supabase

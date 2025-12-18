@@ -126,7 +126,7 @@ export async function submitSrsAnswer({
     }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: item, error: itemError } = await supabase
     .from('student_task_items')
@@ -226,7 +226,7 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
     return { success: false as const, error: '입력 값을 확인해주세요.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const ownsTask = await ensureStudentOwnsTask(supabase, parsed.studentTaskId, profile.id)
 
@@ -472,7 +472,7 @@ export async function previewTextResponse(input: z.infer<typeof textResponsesSch
     return { success: false as const, error: '입력 값을 확인해주세요.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const results: Array<{
     itemId: string
@@ -595,7 +595,7 @@ export async function submitFilmResponses(input: z.infer<typeof filmResponsesSch
 
   const payload = parsed.data
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const ownsTask = await ensureStudentOwnsTask(supabase, payload.studentTaskId, profile.id)
 
@@ -944,7 +944,7 @@ export async function submitPdfSubmission(formData: FormData) {
     }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const ownsTask = await ensureStudentOwnsTask(supabase, studentTaskId, profile.id)
 

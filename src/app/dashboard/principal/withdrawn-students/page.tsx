@@ -42,7 +42,7 @@ function mapInactiveMember(row: RawProfileRow): InactiveMemberSummary {
 
 export default async function PrincipalWithdrawnStudentsPage() {
   await requireAuthForDashboard('principal')
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('profiles')

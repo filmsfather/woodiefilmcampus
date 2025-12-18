@@ -39,7 +39,7 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
   const monthRange = resolveMonthRange(monthTokenParam)
   const monthToken = monthRange.startDate.slice(0, 7)
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const selectFields = `
     ${WORK_LOG_ENTRY_SELECT_FIELDS},
@@ -91,10 +91,10 @@ export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalW
     const entry = mapWorkLogRow(row)
     const teacherInfo = row.teacher && row.teacher.id
       ? summarizeTeacherProfile({
-          id: row.teacher.id,
-          name: row.teacher.name ?? null,
-          email: row.teacher.email ?? null,
-        })
+        id: row.teacher.id,
+        name: row.teacher.name ?? null,
+        email: row.teacher.email ?? null,
+      })
       : teacherDirectory[entry.teacherId] ?? null
 
     return {

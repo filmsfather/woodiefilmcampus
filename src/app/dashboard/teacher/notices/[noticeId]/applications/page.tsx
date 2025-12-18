@@ -16,7 +16,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
     }
 
     const { noticeId } = await params
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const notice = await fetchNoticeDetail(supabase, noticeId, profile.id)
 
     if (!notice) {

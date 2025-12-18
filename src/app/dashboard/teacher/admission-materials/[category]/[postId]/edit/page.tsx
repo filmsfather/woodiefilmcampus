@@ -21,7 +21,7 @@ export default async function EditAdmissionMaterialPage({
   if (!isAdmissionMaterialCategory(category)) {
     notFound()
   }
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('admission_material_posts')

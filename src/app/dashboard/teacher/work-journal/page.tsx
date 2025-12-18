@@ -94,7 +94,7 @@ export default async function TeacherWorkJournalPage(props: {
   const monthRange = resolveMonthRange(monthTokenParam)
   const monthToken = monthRange.startDate.slice(0, 7)
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: rows, error: fetchError } = await supabase
     .from('work_log_entries')

@@ -11,7 +11,7 @@ import { fetchLearningJournalAnnualSchedules } from '@/lib/learning-journals'
 
 export default async function ManagerDashboardPage() {
   const { profile } = await requireAuthForDashboard('manager')
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const [pendingCountResult, approvedCountResult, annualSchedules] = await Promise.all([
     supabase

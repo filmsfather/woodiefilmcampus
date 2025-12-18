@@ -82,7 +82,7 @@ export default async function ClassMaterialDetailPage({
     notFound()
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const signUrl = async (bucket: string | null | undefined, path: string | null | undefined) => {
     if (!bucket || !path) {

@@ -105,7 +105,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
 
   const { workbookId, dueAt, targetClassIds = [], targetStudentIds = [] } = parsedInput
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
   const writeClient = profile?.role === 'principal' ? createAdminClient() : supabase
 

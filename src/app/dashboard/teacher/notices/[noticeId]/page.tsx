@@ -13,7 +13,7 @@ export default async function NoticeDetailPage({ params }: { params: Promise<{ n
   }
 
   const { noticeId } = await params
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const notice = await fetchNoticeDetail(supabase, noticeId, profile.id)
 
   if (!notice) {

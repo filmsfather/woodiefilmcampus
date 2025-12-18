@@ -654,7 +654,7 @@ function compareClassNames(a: string, b: string): number {
 }
 
 export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJournalPeriodWithClass[]> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: periodRows, error: periodError } = await supabase
     .from('learning_journal_periods')
@@ -716,7 +716,7 @@ export async function fetchLearningJournalPeriodsForClasses(
     return []
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: periodRows, error: periodError } = await supabase
     .from('learning_journal_periods')
@@ -958,7 +958,7 @@ export async function fetchTeacherLearningJournalOverview(
   teacherId: string,
   options?: { includeAllClasses?: boolean }
 ) {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   let teacherClasses: Array<{
     classId: string
@@ -1154,7 +1154,7 @@ export async function fetchLearningJournalEntryDetail(entryId: string): Promise<
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: row, error } = await supabase
     .from('learning_journal_entries')
@@ -1352,7 +1352,7 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: entryRow, error: entryError } = await supabase
     .from('learning_journal_entries')
@@ -1572,7 +1572,7 @@ export async function refreshLearningJournalWeeklyData(entryId: string): Promise
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const nowIso = DateUtil.toISOString(new Date())
 
   const { error } = await supabase
@@ -1624,7 +1624,7 @@ export async function fetchLatestPublishedLearningJournalEntry(
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('learning_journal_entries')
@@ -1712,7 +1712,7 @@ export async function fetchLatestPublishedLearningJournalEntry(
 export async function fetchLearningJournalEntriesForPeriod(
   periodId: string
 ): Promise<Array<{ id: string; studentId: string; studentName: string }>> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: entries, error } = await supabase
     .from('learning_journal_entries')
@@ -1748,7 +1748,7 @@ export async function fetchLearningJournalEntriesForReview(params: {
   classId?: string | null
   periodId?: string | null
 }): Promise<ReviewEntrySummary[]> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   let query = supabase
     .from('learning_journal_entries')
@@ -1809,7 +1809,7 @@ export async function fetchLearningJournalPeriodStats(
     return new Map()
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('learning_journal_entries')
     .select('period_id, status')
@@ -1849,7 +1849,7 @@ export async function fetchLearningJournalComments(entryId: string): Promise<Lea
     return []
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('learning_journal_comments')
@@ -1879,7 +1879,7 @@ export async function fetchLearningJournalEntryLogs(entryId: string): Promise<Le
     return []
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('learning_journal_entry_logs')
     .select('id, entry_id, previous_status, next_status, changed_by, note, created_at')
@@ -1907,7 +1907,7 @@ export async function fetchLearningJournalGreeting(monthToken: string): Promise<
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('learning_journal_greetings')
     .select('month_token, message, principal_id, published_at, created_at, updated_at')
@@ -1942,7 +1942,7 @@ export async function fetchLearningJournalAcademicEvents(monthTokens: string[]):
     return []
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('learning_journal_academic_events')
     .select('id, month_token, title, start_date, end_date, memo, created_by, created_at, updated_at')
@@ -1968,7 +1968,7 @@ export async function fetchLearningJournalAcademicEvents(monthTokens: string[]):
 }
 
 export async function fetchLearningJournalAnnualSchedules(): Promise<LearningJournalAnnualSchedule[]> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('learning_journal_annual_schedules')
     .select('id, period_label, start_date, end_date, tuition_due_date, tuition_amount, memo, category, display_order, created_by, created_at, updated_at')

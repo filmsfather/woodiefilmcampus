@@ -37,7 +37,7 @@ export default async function ManagerLearningJournalPage({
   const periods = await fetchLearningJournalPeriodsForManager()
   const defaultStartDate = periods[0]?.startDate ?? nowIso
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data: classRows, error: classError } = await supabase
     .from('classes')
     .select('id, name')

@@ -50,7 +50,7 @@ export default async function ManagerCounselingSlotsPage({ searchParams }: { sea
   const month = Number(monthStr)
   const { start, end } = getMonthRange(year, month)
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: slotRows, error } = await supabase
     .from('counseling_slots')
     .select(

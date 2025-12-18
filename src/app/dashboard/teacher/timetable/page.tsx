@@ -29,7 +29,7 @@ export default async function TeacherTimetablePage() {
   }
 
   const teacherId = profile.id
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const { data: teacherColumnRows, error: teacherColumnError } = await supabase
     .from('timetable_teachers')

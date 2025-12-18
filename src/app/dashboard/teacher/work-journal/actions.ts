@@ -286,7 +286,7 @@ export async function saveWorkLogEntry(formData: FormData): Promise<ActionResult
     return { error: '본인을 대타로 지정할 수 없습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('work_log_entries')
@@ -383,7 +383,7 @@ export async function deleteWorkLogEntry(formData: FormData): Promise<ActionResu
     return { error: '삭제할 근무일 정보가 올바르지 않습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('work_log_entries')
@@ -450,7 +450,7 @@ export async function confirmPayrollAcknowledgement(formData: FormData) {
   }
 
   const input = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: acknowledgement, error: fetchError } = await supabase
     .from('teacher_payroll_acknowledgements')

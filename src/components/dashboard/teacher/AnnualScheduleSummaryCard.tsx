@@ -6,7 +6,7 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import DateUtil from '@/lib/date-util'
 
 export async function AnnualScheduleSummaryCard() {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     DateUtil.initServerClock()
     const today = DateUtil.nowUTC().toISOString().split('T')[0]

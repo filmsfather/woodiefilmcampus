@@ -41,7 +41,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
     notFound()
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: periodRow, error: periodError } = await supabase
     .from('learning_journal_periods')

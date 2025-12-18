@@ -10,25 +10,22 @@ function hasSetCapability(store: CookieStore): store is MutableCookieStore {
   return typeof (store as { set?: unknown }).set === 'function'
 }
 
-export function createClient() {
-  const cookieStore = cookies()
-  const cookieStorePromise = Promise.resolve(cookieStore)
+export async function createClient() {
+  const cookieStore = await cookies()
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async getAll() {
-          const store = await cookieStorePromise
-          return store.getAll()
+        getAll() {
+          return cookieStore.getAll()
         },
-        async setAll(cookiesToSet) {
-          const store = await cookieStorePromise
+        setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) => {
-              if (hasSetCapability(store)) {
-                store.set(name, value, options)
+              if (hasSetCapability(cookieStore)) {
+                cookieStore.set(name, value, options)
               }
             })
           } catch {

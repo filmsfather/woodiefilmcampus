@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 
 export default async function ManagerEnrollmentApplicationsPage() {
   await requireAuthForDashboard('manager')
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const [pendingStudentsResult, applicationsResult, approvedStudentsResult, classesResult] = await Promise.all([
     supabase

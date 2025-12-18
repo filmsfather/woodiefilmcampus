@@ -55,7 +55,7 @@ function extractClass(row: unknown): { id: string; name: string } | null {
 export default async function ManagerMembersPage() {
   await requireAuthForDashboard('manager')
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const [{ data: profileRows, error: profileError }, { data: classRows, error: classError }] = await Promise.all([
     supabase
@@ -85,15 +85,15 @@ export default async function ManagerMembersPage() {
   const [studentAssignmentsResult, teacherAssignmentsResult] = await Promise.all([
     studentIds.length
       ? supabase
-          .from('class_students')
-          .select('class_id, student_id, classes(id, name)')
-          .in('student_id', studentIds)
+        .from('class_students')
+        .select('class_id, student_id, classes(id, name)')
+        .in('student_id', studentIds)
       : Promise.resolve({ data: null, error: null }),
     teacherIds.length
       ? supabase
-          .from('class_teachers')
-          .select('class_id, teacher_id, is_homeroom, classes(id, name)')
-          .in('teacher_id', teacherIds)
+        .from('class_teachers')
+        .select('class_id, teacher_id, is_homeroom, classes(id, name)')
+        .in('teacher_id', teacherIds)
       : Promise.resolve({ data: null, error: null }),
   ])
 
@@ -132,11 +132,11 @@ export default async function ManagerMembersPage() {
         ? studentAssignmentsMap.get(row.id) ?? []
         : row.role === 'teacher'
           ? (teacherAssignmentsMap.get(row.id) ?? []).sort((a, b) => {
-              if (a.isHomeroom === b.isHomeroom) {
-                return a.name.localeCompare(b.name, 'ko')
-              }
-              return a.isHomeroom ? -1 : 1
-            })
+            if (a.isHomeroom === b.isHomeroom) {
+              return a.name.localeCompare(b.name, 'ko')
+            }
+            return a.isHomeroom ? -1 : 1
+          })
           : []
 
     return {

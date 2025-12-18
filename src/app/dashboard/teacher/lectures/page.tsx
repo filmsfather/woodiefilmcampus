@@ -21,7 +21,7 @@ export default async function TeacherLecturesPage() {
 
     if (!profile) return null
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const lectures = await fetchLectures(supabase)
 
     return (

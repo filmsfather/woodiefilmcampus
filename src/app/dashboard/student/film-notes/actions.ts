@@ -75,7 +75,7 @@ export async function createPersonalFilmNote(input: z.infer<typeof createPersona
   const entry = normalized.entry
   const isComplete = isFilmEntryComplete(entry)
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { error } = await supabase.from('film_notes').insert({
     student_id: profile.id,
@@ -120,7 +120,7 @@ export async function updatePersonalFilmNote(input: z.infer<typeof updatePersona
   const entry = normalized.entry
   const isComplete = isFilmEntryComplete(entry)
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('film_notes')
@@ -174,7 +174,7 @@ export async function deletePersonalFilmNote(input: z.infer<typeof deletePersona
     return { success: false as const, error: parsedInput.error.issues[0]?.message ?? '입력 값을 확인해주세요.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { error } = await supabase
     .from('film_notes')

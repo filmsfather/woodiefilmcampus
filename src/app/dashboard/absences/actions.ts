@@ -95,7 +95,7 @@ export async function createAbsenceReport(input: CreateAbsenceInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     if (isTeacherRole(profile)) {
@@ -180,7 +180,7 @@ export async function updateAbsenceReport(input: UpdateAbsenceInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: report, error: fetchError } = await supabase
@@ -271,7 +271,7 @@ export async function deleteAbsenceReport(input: DeleteAbsenceInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: report, error: fetchError } = await supabase

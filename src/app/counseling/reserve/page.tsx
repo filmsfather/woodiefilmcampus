@@ -43,7 +43,7 @@ export default async function CounselingReservePage({ searchParams }: { searchPa
   const month = Number(monthStr)
   const { start, end } = getMonthRange(year, month)
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const [{ data: slotRows, error: slotError }, { data: questionRows, error: questionError }] = await Promise.all([
     supabase

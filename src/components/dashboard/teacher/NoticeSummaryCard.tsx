@@ -14,7 +14,7 @@ export async function NoticeSummaryCard() {
         return null
     }
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const notices = await fetchUnreadNotices(supabase, profile.id)
     const unreadCount = notices.length
     const recentNotices = notices.slice(0, 3)

@@ -15,7 +15,7 @@ export default async function EditLecturePage({ params }: PageProps) {
     await requireAuthForDashboard(['teacher', 'manager', 'principal'])
     const { id } = (await params)
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const lecture = await getLecture(supabase, id).catch(() => null)
 
     if (!lecture) {

@@ -110,7 +110,7 @@ async function uploadAdmissionFile(
   category: AdmissionMaterialCategory,
   postId: string,
   kind: AdmissionMaterialAssetType,
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   ownerId: string
 ) {
   const sanitizedName = sanitizeFileName(file.name)
@@ -158,7 +158,7 @@ async function uploadAdmissionFile(
 }
 
 async function removeAdmissionAsset(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   assetId: string | null | undefined,
   storagePath: string | null | undefined
 ) {
@@ -357,7 +357,7 @@ export async function createAdmissionMaterialPost(formData: FormData): Promise<A
     }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const postId = randomUUID()
   const uploadedAssets: Array<{ assetId: string; storagePath: string }> = []
 
@@ -546,7 +546,7 @@ export async function updateAdmissionMaterialPost(formData: FormData): Promise<A
     }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('admission_material_posts')
@@ -687,7 +687,7 @@ export async function deleteAdmissionMaterialPost(postId: string): Promise<Delet
     return { error: '자료 정보를 확인할 수 없습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('admission_material_posts')
@@ -739,7 +739,7 @@ export async function listAdmissionScheduleEvents(params: {
     return { success: false, error: '일정을 조회할 권한이 없습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   let query = supabase
     .from('admission_material_schedules')
     .select(

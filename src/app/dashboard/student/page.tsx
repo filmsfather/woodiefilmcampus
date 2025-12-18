@@ -83,7 +83,7 @@ export default async function StudentDashboardPage() {
 
   const displayName = profile.name ?? profile.email ?? '학생'
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: membershipRows, error: membershipError } = await supabase
     .from('class_students')

@@ -42,7 +42,7 @@ export default async function PrincipalLearningJournalReviewPage({
   const canApprove = profile?.role === 'principal'
 
   const resolvedSearchParams = await searchParams
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const [{ data: classRows }, { data: periodRows }] = await Promise.all([
     supabase.from('classes').select('id, name').order('name', { ascending: true }),

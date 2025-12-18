@@ -19,7 +19,7 @@ export default async function StudentLecturesPage() {
 
     if (!profile) return null
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const allLectures = await fetchLectures(supabase)
     const lectures = allLectures.filter(l => l.is_published)
 

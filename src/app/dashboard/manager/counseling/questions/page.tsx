@@ -17,7 +17,7 @@ interface QuestionRow {
 export default async function ManagerCounselingQuestionsPage() {
   await requireAuthForDashboard('manager')
 
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data, error } = await supabase
     .from('counseling_questions')
     .select('id, field_key, prompt, field_type, is_required, is_active, position, select_options')

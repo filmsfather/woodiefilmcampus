@@ -12,7 +12,7 @@ export default async function StudentLectureDetailPage({ params }: PageProps) {
     await requireAuthForDashboard('student')
     const { id } = await params
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const lecture = await getLecture(supabase, id).catch(() => null)
 
     if (!lecture || !lecture.is_published) {

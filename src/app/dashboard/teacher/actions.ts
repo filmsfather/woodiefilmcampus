@@ -58,7 +58,7 @@ export async function evaluateSubmission(input: EvaluationInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: studentTask, error: fetchTaskError } = await supabase
@@ -227,7 +227,7 @@ export async function toggleStudentTaskStatus(input: ToggleInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: studentTask, error: fetchError } = await supabase
@@ -329,7 +329,7 @@ export async function updateStudentTaskReviewState(input: UpdateReviewStateInput
   const payload = parsed.data
   const desiredOverride =
     typeof payload.statusOverride === 'undefined' ? null : payload.statusOverride
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: studentTask, error: fetchError } = await supabase
@@ -450,7 +450,7 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: assignment, error: fetchError } = await supabase
@@ -518,8 +518,8 @@ export async function createPrintRequest(input: PrintRequestInput): Promise<Prin
           id: string
           media_asset_id: string | null
           media_asset?:
-            | { id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }
-            | Array<{ id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }>
+          | { id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }
+          | Array<{ id: string; bucket: string | null; path: string; mime_type: string | null; metadata: Record<string, unknown> | null }>
         }>
       }>
     }>
@@ -691,7 +691,7 @@ export async function cancelPrintRequest(input: CancelPrintRequestInput) {
   }
 
   const payload = parsed.data
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: request, error: fetchError } = await supabase

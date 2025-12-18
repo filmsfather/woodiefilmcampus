@@ -22,7 +22,7 @@ interface WorkbookDetailPageProps {
 export default async function WorkbookDetailPage(props: WorkbookDetailPageProps) {
   const params = await props.params
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: workbook, error } = await supabase
     .from('workbooks')

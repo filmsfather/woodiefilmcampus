@@ -59,7 +59,7 @@ export default async function ClassMaterialSubjectPage({
   const resolvedSearchParams = await searchParams
   const query = typeof resolvedSearchParams?.q === 'string' ? resolvedSearchParams?.q.trim() : ''
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   let postQuery = supabase
     .from('class_material_posts')
     .select(

@@ -16,7 +16,7 @@ export default async function StudentNoticeListPage() {
         return null
     }
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const notices = await fetchNoticeSummaries(supabase, profile.id)
 
     return (

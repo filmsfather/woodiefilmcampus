@@ -70,10 +70,10 @@ function normalizePostAssetRow(row: {
     media_asset_id: row.media_asset_id ? String(row.media_asset_id) : null,
     media_asset: mediaRelation
       ? {
-          id: String(mediaRelation.id),
-          bucket: mediaRelation.bucket ? String(mediaRelation.bucket) : null,
-          path: mediaRelation.path ? String(mediaRelation.path) : null,
-        }
+        id: String(mediaRelation.id),
+        bucket: mediaRelation.bucket ? String(mediaRelation.bucket) : null,
+        path: mediaRelation.path ? String(mediaRelation.path) : null,
+      }
       : null,
   }
 }
@@ -136,7 +136,7 @@ function parseUploadedClassMaterialAttachments(value: FormDataEntryValue | null 
 }
 
 async function finalizeClassMaterialAttachment(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   params: {
     attachment: UploadedClassMaterialAttachment
     postId: string
@@ -208,7 +208,7 @@ async function finalizeClassMaterialAttachment(
 }
 
 async function fetchClassMaterialPostAssets(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   postId: string
 ) {
   const { data, error } = await supabase
@@ -226,7 +226,7 @@ async function fetchClassMaterialPostAssets(
 }
 
 async function deleteClassMaterialPostAssets(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   assetRows: ClassMaterialPostAssetRow[]
 ) {
   if (!assetRows.length) {
@@ -270,7 +270,7 @@ async function deleteClassMaterialPostAssets(
 }
 
 async function syncPrimaryClassMaterialAssets(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   postId: string
 ) {
   const assets = await fetchClassMaterialPostAssets(supabase, postId)
@@ -322,7 +322,7 @@ async function syncPrimaryClassMaterialAssets(
 }
 
 async function cleanupPostAssetsByIds(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   assetIds: string[]
 ) {
   if (!assetIds.length) {
@@ -387,7 +387,7 @@ export async function createClassMaterialPost(formData: FormData): Promise<Actio
     return { error: error instanceof Error ? error.message : '첨부 파일 정보를 확인하지 못했습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const postId = randomUUID()
 
   try {
@@ -492,7 +492,7 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
       .filter((value): value is string => value.length > 0)
   )
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('class_material_posts')
@@ -594,7 +594,7 @@ export async function deleteClassMaterialPost(postId: string): Promise<DeleteRes
     return { error: '자료 정보를 확인할 수 없습니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('class_material_posts')
@@ -658,7 +658,7 @@ export async function createClassMaterialPrintRequest(formData: FormData): Promi
     return { error: '인쇄할 파일을 선택해주세요.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: post, error: fetchError } = await supabase
     .from('class_material_posts')
@@ -773,7 +773,7 @@ export async function cancelClassMaterialPrintRequest(formData: FormData): Promi
     throw new Error('인쇄 요청 정보를 확인할 수 없습니다.')
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: requestRow, error: fetchError } = await supabase
     .from('class_material_print_requests')

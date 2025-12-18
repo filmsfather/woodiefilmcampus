@@ -97,7 +97,7 @@ function parseUploadedAttachments(value: FormDataEntryValue | null | undefined):
 }
 
 async function deleteMediaAssets(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   assetIds: string[],
   storagePaths: string[]
 ) {
@@ -117,7 +117,7 @@ async function deleteMediaAssets(
 }
 
 async function persistNoticeAttachment(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   payload: UploadedAttachmentPayload,
   noticeId: string,
   ownerId: string,
@@ -255,7 +255,7 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
     }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: inserted, error: insertError } = await supabase
     .from('notice_posts')
@@ -323,7 +323,7 @@ export async function acknowledgeNotice(formData: FormData): Promise<Acknowledge
 
   const noticeId = noticeIdValue.trim()
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('notice_post_recipients')
@@ -348,7 +348,7 @@ export async function acknowledgeNotice(formData: FormData): Promise<Acknowledge
 }
 
 async function removeNoticeAttachments(
-  supabase: ReturnType<typeof createServerSupabase>,
+  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
   noticeId: string,
   attachmentIds: string[]
 ) {
@@ -437,7 +437,7 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
     return { error: '본문을 입력해주세요.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: noticeRow, error: noticeError } = await supabase
     .from('notice_posts')
@@ -624,7 +624,7 @@ export async function deleteNotice(formData: FormData): Promise<ActionResult> {
 
   const noticeId = noticeIdValue.trim()
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: noticeRow, error: noticeError } = await supabase
     .from('notice_posts')
@@ -690,7 +690,7 @@ export async function applyNotice(noticeId: string, formData: ApplicationFormDat
     return { error: '로그인이 필요합니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   // Fetch notice to check config
   const { data: notice, error: noticeError } = await supabase
@@ -752,7 +752,7 @@ export async function cancelApplication(noticeId: string): Promise<ActionResult>
     return { error: '로그인이 필요합니다.' }
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { error } = await supabase
     .from('notice_applications')

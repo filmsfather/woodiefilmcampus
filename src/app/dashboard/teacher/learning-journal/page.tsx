@@ -115,7 +115,7 @@ export default async function TeacherLearningJournalPage(props: {
   if (selectedPeriod) {
     template = await fetchClassLearningJournalTemplate(selectedPeriod.classId, selectedPeriod.id)
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const { data: materialRows, error: materialError } = await supabase
       .from('class_material_posts')
       .select('id, subject, title, description, week_label')

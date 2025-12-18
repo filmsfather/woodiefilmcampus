@@ -30,34 +30,34 @@ type WorkbookRow = {
 type ClassTeacherRow = {
   class_id: string | null
   classes:
-    | {
-        id: string
-        name: string
-        description: string | null
-      }
-    | Array<{
-        id: string
-        name: string
-        description: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string
+    description: string | null
+  }
+  | Array<{
+    id: string
+    name: string
+    description: string | null
+  }>
+  | null
 }
 
 type ClassStudentRow = {
   class_id: string | null
   student_id: string | null
   profiles:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
-    | null
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
+  | null
 }
 
 function compareStudents(a: AssignmentStudentSummary, b: AssignmentStudentSummary) {
@@ -72,7 +72,7 @@ function compareClasses(a: AssignmentClassSummary, b: AssignmentClassSummary) {
 
 export default async function AssignmentCreatePage() {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   DateUtil.clearServerClock()
   DateUtil.initServerClock()

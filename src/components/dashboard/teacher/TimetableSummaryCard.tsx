@@ -24,7 +24,7 @@ export async function TimetableSummaryCard() {
         return null
     }
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     // 1. Find the latest timetable for this teacher
     const { data: teacherColumnsData } = await supabase

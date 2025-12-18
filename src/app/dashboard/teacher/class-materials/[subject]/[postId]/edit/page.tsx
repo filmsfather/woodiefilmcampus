@@ -24,7 +24,7 @@ export default async function EditClassMaterialPage({
   if (!isClassMaterialSubject(subject)) {
     notFound()
   }
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('class_material_posts')

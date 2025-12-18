@@ -36,7 +36,7 @@ interface NoticeDetailViewProps {
 }
 
 export async function NoticeDetailView({ notice, viewerId, viewerRole, backLink, backLabel }: NoticeDetailViewProps) {
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     let applicationData = null
 
     if (notice.isApplicationRequired && notice.applicationConfig) {

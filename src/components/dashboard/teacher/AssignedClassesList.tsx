@@ -14,7 +14,7 @@ export async function AssignedClassesList() {
         return null
     }
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     // 1. Fetch classes where user is homeroom teacher
     const { data: homeroomClasses } = await supabase

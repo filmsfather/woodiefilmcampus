@@ -44,14 +44,13 @@ function matchesSearchTerm(classItem: ClassSummary, normalizedTerm: string) {
   return valuesToCheck.some((value) => value.toLowerCase().includes(normalizedTerm))
 }
 
-export default async function ManagerClassesPage({
-  searchParams,
-}: {
-  searchParams?: SearchParams
+export default async function ManagerClassesPage(props: {
+  searchParams?: Promise<SearchParams>
 }) {
   await requireAuthForDashboard('manager')
 
-  const supabase = createClient()
+  const searchParams = await props.searchParams
+  const supabase = await createClient()
   const searchParam = searchParams?.search
   const searchValue = Array.isArray(searchParam) ? searchParam[0] ?? '' : searchParam ?? ''
   const normalizedSearch = normalizeSearchValue(searchValue)

@@ -12,7 +12,7 @@ export default async function CreateNoticePage() {
     return null
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const recipients = await fetchNoticeRecipientDirectory(supabase, { excludeIds: [profile.id] })
   const classes = await fetchClassesWithStudents(supabase)
 

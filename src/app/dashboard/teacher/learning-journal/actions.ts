@@ -125,7 +125,7 @@ export async function saveLearningJournalCommentAction(
     return makeErrorState('입력값을 다시 확인해주세요.', parsed.error)
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const subjectValue = parsed.data.roleScope === 'homeroom' ? null : parsed.data.subject ?? null
 
   try {
@@ -205,7 +205,7 @@ export async function updateLearningJournalEntryStatusAction(
     return makeErrorState('공개 처리는 관리자만 가능합니다.')
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     const { data: current, error: fetchError } = await supabase
@@ -298,7 +298,7 @@ export async function regeneratePeriodLearningJournalWeeklyAction(
     return makeErrorState('학습일지 주기 정보를 확인하지 못했습니다.')
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   try {
     // 1. Fetch all entries for the period

@@ -21,7 +21,7 @@ export default async function EnsureLearningJournalEntryPage(props: {
     notFound()
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: existing, error: fetchError } = await supabase
     .from('learning_journal_entries')

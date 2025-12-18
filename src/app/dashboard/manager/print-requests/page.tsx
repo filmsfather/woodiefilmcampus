@@ -82,7 +82,7 @@ export default async function ManagerPrintRequestsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard('manager')
-  const supabase = createClient()
+  const supabase = await createClient()
   const storageAdmin = createAdminClient()
   const resolvedSearchParams = await searchParams
   const weekRange = resolveWeekRange(resolvedSearchParams.week ?? null)

@@ -18,7 +18,7 @@ interface WorkbookPreviewPageProps {
 export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProps) {
     const params = await props.params
     await requireAuthForDashboard(['teacher', 'manager'])
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
 
     const { data: workbook, error } = await supabase
         .from('workbooks')

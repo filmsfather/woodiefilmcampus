@@ -75,23 +75,23 @@ type TaskSubmissionAssetRow = {
   order_index: number | null
   media_asset_id: string | null
   media_asset?:
-    | {
-        id: string
-        bucket: string | null
-        path: string | null
-        mime_type: string | null
-        size: number | null
-        metadata: JsonRecord | null
-      }
-    | Array<{
-        id: string
-        bucket: string | null
-        path: string | null
-        mime_type: string | null
-        size: number | null
-        metadata: JsonRecord | null
-      }>
-    | null
+  | {
+    id: string
+    bucket: string | null
+    path: string | null
+    mime_type: string | null
+    size: number | null
+    metadata: JsonRecord | null
+  }
+  | Array<{
+    id: string
+    bucket: string | null
+    path: string | null
+    mime_type: string | null
+    size: number | null
+    metadata: JsonRecord | null
+  }>
+  | null
 }
 
 type StudentTaskItemRow = {
@@ -517,7 +517,7 @@ export async function fetchStudentTaskSummaries(
   studentId: string,
   filters?: StudentTaskSummaryFilters
 ): Promise<StudentTaskSummary[]> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('student_tasks')
     .select(
@@ -574,7 +574,7 @@ export async function fetchStudentTaskDetail(
   studentTaskId: string,
   studentId: string
 ): Promise<StudentTaskDetail | null> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const { data, error } = await supabase
     .from('student_tasks')
     .select(

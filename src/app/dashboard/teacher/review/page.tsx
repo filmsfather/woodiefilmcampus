@@ -8,14 +8,14 @@ import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
 
 interface RawTeacherClassRow {
   classes?:
-    | {
-        id: string | null
-        name: string | null
-      }
-    | Array<{
-        id: string | null
-        name: string | null
-      }>
+  | {
+    id: string | null
+    name: string | null
+  }
+  | Array<{
+    id: string | null
+    name: string | null
+  }>
 }
 
 interface RawPrincipalClassRow {
@@ -29,31 +29,31 @@ interface RawAssignmentRow {
   created_at: string
   target_scope: string | null
   workbooks?:
-    | {
-        id: string
-        title: string | null
-        subject: string | null
-        type: string | null
-        week_label: string | null
-      }
-    | Array<{
-        id: string
-        title: string | null
-        subject: string | null
-        type: string | null
-        week_label: string | null
-      }>
+  | {
+    id: string
+    title: string | null
+    subject: string | null
+    type: string | null
+    week_label: string | null
+  }
+  | Array<{
+    id: string
+    title: string | null
+    subject: string | null
+    type: string | null
+    week_label: string | null
+  }>
   assignment_targets?: Array<{
     class_id: string | null
     classes?:
-      | {
-          id: string | null
-          name: string | null
-        }
-      | Array<{
-          id: string | null
-          name: string | null
-        }>
+    | {
+      id: string | null
+      name: string | null
+    }
+    | Array<{
+      id: string | null
+      name: string | null
+    }>
   }>
   student_tasks?: Array<{
     id: string
@@ -63,18 +63,18 @@ interface RawAssignmentRow {
     student_id: string
     class_id: string | null
     profiles?:
-      | {
-          id: string
-          name: string | null
-          email: string | null
-          class_id: string | null
-        }
-      | Array<{
-          id: string
-          name: string | null
-          email: string | null
-          class_id: string | null
-        }>
+    | {
+      id: string
+      name: string | null
+      email: string | null
+      class_id: string | null
+    }
+    | Array<{
+      id: string
+      name: string | null
+      email: string | null
+      class_id: string | null
+    }>
   }>
   print_requests?: Array<{
     id: string
@@ -121,19 +121,19 @@ export default async function TeacherReviewOverviewPage({
   searchParams: Record<string, string | string[] | undefined>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const canSeeAllClasses = profile.role === 'principal' || profile.role === 'manager'
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
 
   const classQuery = canSeeAllClasses
     ? supabase
-        .from('classes')
-        .select('id, name')
-        .order('name', { ascending: true })
+      .from('classes')
+      .select('id, name')
+      .order('name', { ascending: true })
     : supabase
-        .from('class_teachers')
-        .select('classes(id, name)')
-        .eq('teacher_id', profile.id)
+      .from('class_teachers')
+      .select('classes(id, name)')
+      .eq('teacher_id', profile.id)
 
   const assignmentQuery = supabase
     .from('assignments')
@@ -185,25 +185,25 @@ export default async function TeacherReviewOverviewPage({
 
   const managedClasses: ManagedClass[] = canSeeAllClasses
     ? ((classRows as RawPrincipalClassRow[] | null | undefined)?.map((row) =>
-        row.id
-          ? {
-              id: row.id,
-              name: row.name ?? '이름 미정',
-            }
-          : null
-      )
-        .filter((value): value is ManagedClass => Boolean(value)) ?? [])
+      row.id
+        ? {
+          id: row.id,
+          name: row.name ?? '이름 미정',
+        }
+        : null
+    )
+      .filter((value): value is ManagedClass => Boolean(value)) ?? [])
     : ((classRows as RawTeacherClassRow[] | null | undefined)?.map((row) => {
-        const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
-        if (!cls?.id) {
-          return null
-        }
-        return {
-          id: cls.id,
-          name: cls.name ?? '이름 미정',
-        }
-      })
-        .filter((value): value is ManagedClass => Boolean(value)) ?? [])
+      const cls = Array.isArray(row.classes) ? row.classes[0] : row.classes
+      if (!cls?.id) {
+        return null
+      }
+      return {
+        id: cls.id,
+        name: cls.name ?? '이름 미정',
+      }
+    })
+      .filter((value): value is ManagedClass => Boolean(value)) ?? [])
 
   const assignments: AssignmentSummary[] = (assignmentRows as RawAssignmentRow[] | null | undefined)?.map((row) => {
     const classes = (row.assignment_targets ?? [])
@@ -352,11 +352,11 @@ export default async function TeacherReviewOverviewPage({
 
     const nextDueAtLabel = nextDueAt
       ? DateUtil.formatForDisplay(nextDueAt, {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        })
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
       : null
 
     return {

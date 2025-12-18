@@ -69,7 +69,7 @@ export async function fetchFilmNoteHistory(
   studentTaskId: string,
   studentId: string
 ): Promise<FilmNoteHistorySummary | null> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data: taskRow, error: taskError } = await supabase
     .from('student_tasks')
@@ -280,7 +280,7 @@ export interface StudentFilmNoteListItem {
 }
 
 export async function fetchStudentFilmNotesList(studentId: string): Promise<StudentFilmNoteListItem[]> {
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('film_notes')

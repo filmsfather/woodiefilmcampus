@@ -34,14 +34,14 @@ export interface ClassMaterialSummary {
   description: string | null
   weekLabel: string | null
   studentHandoutAsset:
-    | {
-        id: string
-        bucket: string
-        path: string
-        mimeType: string | null
-        metadata: Record<string, unknown> | null
-      }
-    | null
+  | {
+    id: string
+    bucket: string
+    path: string
+    mimeType: string | null
+    metadata: Record<string, unknown> | null
+  }
+  | null
 }
 
 export async function fetchClassMaterialSummaries(
@@ -51,7 +51,7 @@ export async function fetchClassMaterialSummaries(
     return new Map<string, ClassMaterialSummary>()
   }
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
 
   const { data, error } = await supabase
     .from('class_material_posts')
@@ -84,12 +84,12 @@ export async function fetchClassMaterialSummaries(
       weekLabel: row.week_label ?? null,
       studentHandoutAsset: handoutRelation
         ? {
-            id: handoutRelation.id,
-            bucket: handoutRelation.bucket,
-            path: handoutRelation.path,
-            mimeType: handoutRelation.mime_type ?? null,
-            metadata: handoutRelation.metadata ?? null,
-          }
+          id: handoutRelation.id,
+          bucket: handoutRelation.bucket,
+          path: handoutRelation.path,
+          mimeType: handoutRelation.mime_type ?? null,
+          metadata: handoutRelation.metadata ?? null,
+        }
         : null,
     })
   }

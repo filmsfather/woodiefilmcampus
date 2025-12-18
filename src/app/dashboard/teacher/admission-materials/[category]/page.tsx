@@ -96,7 +96,7 @@ export default async function AdmissionMaterialCategoryPage({
       PAST_EXAM_ADMISSION_TYPES.includes(type as (typeof PAST_EXAM_ADMISSION_TYPES)[number])
     )
 
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   let postQuery = supabase
     .from('admission_material_posts')
     .select(

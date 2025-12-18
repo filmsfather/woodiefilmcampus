@@ -64,7 +64,7 @@ export default async function ManagerCounselingReservationsPage({
   const rangeStart = view === 'day' ? selectedDate : weekRange.start
   const rangeEnd = view === 'day' ? selectedDate : weekRange.end
 
-  const supabase = createClient()
+  const supabase = await createClient()
 
   const [{ data: slotRows, error: slotError }, { data: questionRows, error: questionError }] = await Promise.all([
     supabase

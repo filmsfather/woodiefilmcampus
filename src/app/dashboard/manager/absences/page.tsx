@@ -17,16 +17,16 @@ interface ClassStudentRow {
   class_id: string | null
   student_id: string | null
   profiles?:
-    | {
-        id: string
-        name: string | null
-        email: string | null
-      }
-    | Array<{
-        id: string
-        name: string | null
-        email: string | null
-      }>
+  | {
+    id: string
+    name: string | null
+    email: string | null
+  }
+  | Array<{
+    id: string
+    name: string | null
+    email: string | null
+  }>
 }
 
 export default async function ManagerAbsencesPage({
@@ -35,7 +35,7 @@ export default async function ManagerAbsencesPage({
   searchParams?: Record<string, string | string[] | undefined>
 }) {
   const { profile } = await requireAuthForDashboard('manager')
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
   const weekStart = DateUtil.formatISODate(weekRange.start)
   const weekEndExclusive = DateUtil.formatISODate(weekRange.endExclusive)

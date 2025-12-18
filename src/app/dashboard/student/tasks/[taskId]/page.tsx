@@ -50,7 +50,7 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
   DateUtil.initServerClock()
 
   const { taskId } = await params
-  const supabase = createServerSupabase()
+  const supabase = await createServerSupabase()
   const adminSupabase = createAdminClient()
   const task = await fetchStudentTaskDetail(taskId, profile.id)
 

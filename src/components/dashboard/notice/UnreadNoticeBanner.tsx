@@ -14,7 +14,7 @@ export async function UnreadNoticeBanner() {
         return null
     }
 
-    const supabase = createServerSupabase()
+    const supabase = await createServerSupabase()
     const notices = await fetchUnreadNotices(supabase, profile.id)
 
     if (notices.length === 0) {
