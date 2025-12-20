@@ -50,12 +50,11 @@ function formatWeekLabel(start: string, end: string) {
   })}`
 }
 
-export default async function StudentMonthlyPlanPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
+export default async function StudentMonthlyPlanPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard('student')
+  const searchParams = await props.searchParams
 
   if (!profile) {
     return null

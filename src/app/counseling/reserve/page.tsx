@@ -35,7 +35,8 @@ function normalizeDate(value: string | undefined, fallback: string) {
   return value < fallback ? fallback : value
 }
 
-export default async function CounselingReservePage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function CounselingReservePage(props: { searchParams: Promise<SearchParams> }) {
+  const searchParams = await props.searchParams
   const today = getTodayISOInKst()
   const selectedDate = normalizeDate(searchParams?.date, today)
   const [yearStr, monthStr] = selectedDate.split('-')

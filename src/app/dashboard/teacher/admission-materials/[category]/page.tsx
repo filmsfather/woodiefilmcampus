@@ -72,7 +72,7 @@ export default async function AdmissionMaterialCategoryPage({
   searchParams,
 }: {
   params: Promise<{ category: string }>
-  searchParams?: Promise<Record<string, string | string[] | undefined>>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { category } = await params
   if (!isAdmissionMaterialCategory(category)) {

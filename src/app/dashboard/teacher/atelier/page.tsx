@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 }
 
 interface TeacherAtelierPageProps {
-  searchParams?: Record<string, string | string[] | undefined>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 function parsePage(value: string | string[] | undefined): number {
@@ -47,7 +47,8 @@ function parseSearchText(value: string | string[] | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null
 }
 
-export default async function TeacherAtelierPage({ searchParams = {} }: TeacherAtelierPageProps) {
+export default async function TeacherAtelierPage(props: TeacherAtelierPageProps) {
+  const searchParams = await props.searchParams
   const { profile } = await requireAuthForDashboard(['teacher', 'manager', 'principal'])
 
   if (!profile) {

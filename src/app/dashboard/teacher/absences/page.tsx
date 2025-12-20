@@ -37,11 +37,10 @@ interface ClassStudentRow {
   }>
 }
 
-export default async function TeacherAbsencesPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
+export default async function TeacherAbsencesPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
+  const searchParams = await props.searchParams
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = await createServerSupabase()
   const weekRange = resolveWeekRange(searchParams?.week ?? null)

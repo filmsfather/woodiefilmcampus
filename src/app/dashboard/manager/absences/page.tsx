@@ -29,13 +29,12 @@ interface ClassStudentRow {
   }>
 }
 
-export default async function ManagerAbsencesPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
+export default async function ManagerAbsencesPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard('manager')
   const supabase = await createServerSupabase()
+  const searchParams = await props.searchParams
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
   const weekStart = DateUtil.formatISODate(weekRange.start)
   const weekEndExclusive = DateUtil.formatISODate(weekRange.endExclusive)

@@ -48,12 +48,12 @@ function normalizeView(value: string | undefined) {
   return 'week'
 }
 
-export default async function ManagerCounselingReservationsPage({
-  searchParams,
-}: {
-  searchParams?: SearchParams
+export default async function ManagerCounselingReservationsPage(props: {
+  searchParams: Promise<SearchParams>
 }) {
   await requireAuthForDashboard('manager')
+
+  const searchParams = await props.searchParams
 
   const today = getTodayISOInKst()
   const selectedDate = normalizeDateParam(searchParams?.date, today)

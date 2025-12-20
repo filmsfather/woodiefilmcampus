@@ -26,10 +26,8 @@ function buildMonthOptions(periodStartTokens: string[], fallback: string): strin
   return unique
 }
 
-export default async function ManagerLearningJournalPage({
-  searchParams,
-}: {
-  searchParams?: Record<string, string | string[] | undefined>
+export default async function ManagerLearningJournalPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await requireAuthForDashboard('manager')
 
@@ -52,6 +50,7 @@ export default async function ManagerLearningJournalPage({
     name: row.name ?? '이름 미정',
   }))
 
+  const searchParams = await props.searchParams
   const monthParam = typeof searchParams?.month === 'string' ? searchParams.month : null
   const referenceMonth = resolveMonthToken(nowIso)
   const activeMonth = monthParam ?? referenceMonth

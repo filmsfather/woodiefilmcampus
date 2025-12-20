@@ -40,8 +40,11 @@ function normalizeDateParam(value: string | undefined, fallback: string) {
   return /^\d{4}-\d{2}-\d{2}$/u.test(value) ? value : fallback
 }
 
-export default async function ManagerCounselingSlotsPage({ searchParams }: { searchParams?: SearchParams }) {
+export default async function ManagerCounselingSlotsPage(props: {
+  searchParams: Promise<SearchParams>
+}) {
   await requireAuthForDashboard('manager')
+  const searchParams = await props.searchParams
   const today = getTodayISOInKst()
   const selectedDate = normalizeDateParam(searchParams?.date, today)
 

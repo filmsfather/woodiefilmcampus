@@ -22,15 +22,16 @@ interface WorkLogEntryWithTeacherRow extends WorkLogEntryRow {
   } | null
 }
 
-interface PrincipalWorkLogsPageProps {
-  searchParams?: Record<string, string | string[] | undefined>
-}
+
 
 const STATUS_OPTIONS = new Set(['pending', 'approved', 'rejected', 'all'])
 
-export default async function PrincipalWorkLogsPage({ searchParams }: PrincipalWorkLogsPageProps) {
+export default async function PrincipalWorkLogsPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   await requireAuthForDashboard('principal')
 
+  const searchParams = await props.searchParams
   const monthTokenParam = typeof searchParams?.month === 'string' ? searchParams.month : null
   const teacherFilterParam = typeof searchParams?.teacher === 'string' ? searchParams.teacher : null
   const statusToken = typeof searchParams?.status === 'string' ? searchParams.status : 'pending'

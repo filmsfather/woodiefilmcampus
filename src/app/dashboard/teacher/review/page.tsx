@@ -115,14 +115,13 @@ interface ManagedClass {
 
 const UPCOMING_WINDOW_DAYS = 3
 
-export default async function TeacherReviewOverviewPage({
-  searchParams,
-}: {
-  searchParams: Record<string, string | string[] | undefined>
+export default async function TeacherReviewOverviewPage(props: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = await createServerSupabase()
   const canSeeAllClasses = profile.role === 'principal' || profile.role === 'manager'
+  const searchParams = await props.searchParams
   const weekRange = resolveWeekRange(searchParams?.week ?? null)
 
   const classQuery = canSeeAllClasses
