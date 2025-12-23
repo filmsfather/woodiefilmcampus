@@ -43,8 +43,14 @@ export async function updateMemberProfile(input: UpdateProfileInput) {
     return trimmed.length === 0 ? null : trimmed
   }
 
-  const normalizedStudentPhone = normalize(payload.studentPhone)
-  const normalizedParentPhone = normalize(payload.parentPhone)
+  const sanitizePhone = (value?: string | null) => {
+    if (!value) return null
+    const digits = value.replace(/\D/g, '')
+    return digits.length > 0 ? digits : null
+  }
+
+  const normalizedStudentPhone = sanitizePhone(payload.studentPhone)
+  const normalizedParentPhone = sanitizePhone(payload.parentPhone)
   const normalizedAcademicRecord = normalize(payload.academicRecord)
 
   if (payload.role === 'student' && !normalizedStudentPhone) {

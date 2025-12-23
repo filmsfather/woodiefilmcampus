@@ -148,6 +148,10 @@ function normalizeInput(value: string) {
   return value.trim()
 }
 
+function sanitizePhone(value: string) {
+  return value.replace(/\D/g, '')
+}
+
 export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClientProps) {
   const router = useRouter()
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null)
@@ -231,8 +235,8 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
         memberId: activeEditMember.memberId,
         role: activeEditMember.role,
         name: normalizeInput(activeEditMember.name),
-        studentPhone: normalizeInput(activeEditMember.studentPhone),
-        parentPhone: normalizeInput(activeEditMember.parentPhone),
+        studentPhone: sanitizePhone(activeEditMember.studentPhone),
+        parentPhone: sanitizePhone(activeEditMember.parentPhone),
         academicRecord: normalizeInput(activeEditMember.academicRecord),
       })
 
