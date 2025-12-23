@@ -261,36 +261,23 @@ export function ClassDashboard({
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-2xl font-semibold text-slate-900">{className} 반 과제 점검</h1>
-            <p className="text-sm text-slate-600">반의 과제 진행 상황을 확인하고 필요한 학생을 빠르게 평가하세요.</p>
-          </div>
-          <div className="flex flex-col gap-2 md:items-end">
-            <Select value={classId} onValueChange={handleClassChange}>
-              <SelectTrigger className="w-full md:w-60">
-                <SelectValue placeholder="반을 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {managedClasses.map((managedClass) => (
-                  <SelectItem key={managedClass.id} value={managedClass.id}>
-                    {managedClass.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-              <Badge variant="outline">미평가 {summary.incompleteStudents}명</Badge>
-              <Badge variant={summary.overdueAssignments > 0 ? 'destructive' : 'outline'}>
-                지연 {summary.overdueAssignments}건
-              </Badge>
-              <Badge variant={summary.pendingPrintRequests > 0 ? 'secondary' : 'outline'}>
-                인쇄 대기 {summary.pendingPrintRequests}건
-              </Badge>
-              {summary.nextDueAtLabel && <Badge variant="outline">다음 마감 {summary.nextDueAtLabel}</Badge>}
-            </div>
-          </div>
+        <div className="flex items-center gap-2">
+          <Select value={classId} onValueChange={handleClassChange}>
+            <SelectTrigger className="h-auto border-none bg-transparent p-0 shadow-none hover:bg-transparent focus:ring-0">
+              <h1 className="text-2xl font-semibold text-slate-900">
+                {className} 반 과제 점검
+              </h1>
+            </SelectTrigger>
+            <SelectContent>
+              {managedClasses.map((managedClass) => (
+                <SelectItem key={managedClass.id} value={managedClass.id}>
+                  {managedClass.name} 반 과제 점검
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+        <p className="text-sm text-slate-600">반의 과제 진행 상황을 확인하고 필요한 학생을 빠르게 평가하세요.</p>
       </header>
 
       <Card id="print-requests" className="border-slate-200">
@@ -475,6 +462,20 @@ export function ClassDashboard({
                                 : activeAssignment.assignedBy.email ?? '정보 없음'}
                             </span>
                           )}
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="h-3 w-3" />
+                            {activeAssignment.dueAt
+                              ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '마감 없음'}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <CheckCircle2 className="h-3 w-3" /> {activeAssignment.completedStudents}/{activeAssignment.totalStudents}명
+                          </span>
                         </div>
                       </div>
                       <Button
@@ -485,34 +486,6 @@ export function ClassDashboard({
                       >
                         이 반에서 삭제
                       </Button>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                      <span className="inline-flex items-center gap-1">
-                        <CalendarClock className="h-3 w-3" />
-                        {activeAssignment.dueAt
-                          ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                          : '마감 없음'}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> 완료 {activeAssignment.completedStudents}/{activeAssignment.totalStudents}명
-                      </span>
-                      <Badge variant="outline">{activeAssignment.completionRate}%</Badge>
-                      <Badge variant={activeAssignment.outstandingStudents > 0 ? 'destructive' : 'secondary'}>
-                        미평가 {activeAssignment.outstandingStudents}명
-                      </Badge>
-                      {statusSummary &&
-                        Object.entries(statusSummary)
-                          .filter(([, count]) => count > 0)
-                          .map(([status, count]) => (
-                            <Badge key={status} variant={STATUS_BADGE_VARIANT[status] ?? 'outline'}>
-                              {STATUS_LABELS[status] ?? status} {count}명
-                            </Badge>
-                          ))}
                     </div>
                   </CardHeader>
                   <CardContent>

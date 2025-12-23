@@ -25,6 +25,8 @@ type WorkbookRow = {
   tags: string[] | null
   updated_at: string
   workbook_items: Array<{ count: number }>
+  author_id: string | null
+  profiles: { id: string; name: string | null } | { id: string; name: string | null }[] | null
 }
 
 type ClassTeacherRow = {
@@ -87,7 +89,7 @@ export default async function AssignmentCreatePage() {
 
   const { data: workbookData, error: workbookError } = await supabase
     .from('workbooks')
-    .select('id, title, subject, type, week_label, tags, updated_at, workbook_items(count)')
+    .select('id, title, subject, type, week_label, tags, updated_at, workbook_items(count), author_id, profiles!workbooks_author_id_fkey(id, name)')
     .order('updated_at', { ascending: false })
 
   if (workbookError) {
@@ -104,6 +106,8 @@ export default async function AssignmentCreatePage() {
     tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
     updatedAt: row.updated_at,
     itemCount: row.workbook_items?.[0]?.count ?? 0,
+    authorId: row.author_id ?? null,
+    authorName: (Array.isArray(row.profiles) ? row.profiles[0]?.name : row.profiles?.name) ?? null,
   }))
 
   const classInfoMap = new Map<string, { name: string; description: string | null }>()

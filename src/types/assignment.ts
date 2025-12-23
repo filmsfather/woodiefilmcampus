@@ -7,6 +7,8 @@ export interface AssignmentWorkbookSummary {
   tags: string[]
   updatedAt: string
   itemCount: number
+  authorId: string | null
+  authorName: string | null
 }
 
 export interface AssignmentStudentSummary {

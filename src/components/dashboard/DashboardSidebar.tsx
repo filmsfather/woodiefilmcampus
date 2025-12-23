@@ -11,7 +11,13 @@ import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/supabase'
 import { createClient } from '@/lib/supabase/client'
 import { SignOutButton } from '@/components/dashboard/SignOutButton'
-import { getNavigationSections, ROLE_LABELS } from '@/components/dashboard/dashboard-navigation'
+import {
+  getNavigationSections,
+  getSectionsByViewRole,
+  ROLE_LABELS,
+  VIEW_AS_LABELS,
+  type ViewAsRole,
+} from '@/components/dashboard/dashboard-navigation'
 
 interface DashboardSidebarProps {
   role: UserRole
@@ -20,6 +26,8 @@ interface DashboardSidebarProps {
   onNavigate?: () => void
   className?: string
 }
+
+const VIEW_AS_ROLES: ViewAsRole[] = ['principal', 'manager', 'teacher', 'student']
 
 export function DashboardSidebar({
   role,
@@ -30,9 +38,31 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   const pathname = usePathname()
   const supabase = createClient()
-  const sections = getNavigationSections(role)
   const displayName = profileName ?? email ?? '계정'
   const roleLabel = ROLE_LABELS[role]
+
+  // Principal인 경우 탭으로 역할별 메뉴 선택
+  const isPrincipal = role === 'principal'
+  const [viewAs, setViewAs] = useState<ViewAsRole>('principal')
+
+  // 현재 경로에 따라 초기 탭 자동 설정
+  useEffect(() => {
+    if (!isPrincipal) return
+
+    if (pathname.startsWith('/dashboard/student')) {
+      setViewAs('student')
+    } else if (pathname.startsWith('/dashboard/teacher')) {
+      setViewAs('teacher')
+    } else if (pathname.startsWith('/dashboard/manager')) {
+      setViewAs('manager')
+    } else if (pathname.startsWith('/dashboard/principal')) {
+      setViewAs('principal')
+    }
+  }, [pathname, isPrincipal])
+
+  const sections = isPrincipal
+    ? getSectionsByViewRole(viewAs)
+    : getNavigationSections(role)
 
   const [hasLinkedSocial, setHasLinkedSocial] = useState<boolean | null>(null)
   const [isLinking, setIsLinking] = useState(false)
@@ -115,6 +145,29 @@ export function DashboardSidebar({
           )}
         </div>
       </div>
+      {/* Principal 역할일 경우 역할 탭 표시 */}
+      {isPrincipal && (
+        <div className="border-b px-3 py-3">
+          <p className="mb-2 text-xs font-medium text-slate-500">역할별 메뉴 보기</p>
+          <div className="grid grid-cols-4 gap-1">
+            {VIEW_AS_ROLES.map((r) => (
+              <button
+                key={r}
+                onClick={() => setViewAs(r)}
+                className={cn(
+                  'rounded-md px-2 py-1.5 text-xs font-medium transition-colors',
+                  viewAs === r
+                    ? 'bg-slate-900 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                )}
+              >
+                {VIEW_AS_LABELS[r]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
         {sections.map((section) => (
           <div key={section.id} className="space-y-2">

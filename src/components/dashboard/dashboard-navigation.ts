@@ -104,30 +104,36 @@ const teacherSections: NavigationSection[] = [
   },
   {
     id: 'teacher-schedule',
-    title: '일정관리',
+    title: '일정 & 시간표',
     items: [
       { label: '연간 일정', href: '/dashboard/learning-journal/annual-schedule' },
-      { label: '월간 학습 계획', href: '/dashboard/teacher/learning-journal/templates' },
       { label: '수업 시간표', href: '/dashboard/teacher/timetable' },
     ],
   },
   {
     id: 'teacher-work',
-    title: '근무관리',
+    title: '근무 관리',
     items: [
-      { label: '결석확인', href: '/dashboard/teacher/absences' },
       { label: '근무일지 작성', href: '/dashboard/teacher/work-journal' },
-      { label: '학습일지 작성', href: '/dashboard/teacher/learning-journal' },
       { label: '공지사항', href: '/dashboard/teacher/notices' },
     ],
   },
   {
-    id: 'teacher-assignments',
-    title: '과제관리',
+    id: 'teacher-class',
+    title: '내 반 관리',
     items: [
       { label: '과제 출제하기', href: '/dashboard/assignments/new' },
       { label: '과제 검사하기', href: '/dashboard/teacher/review' },
+      { label: '학습일지 작성', href: '/dashboard/teacher/learning-journal' },
+    ],
+  },
+  {
+    id: 'teacher-assignments',
+    title: '과제 관리',
+    items: [
       { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
+      { label: '출판된 문제집 확인', href: '/dashboard/workbooks' },
     ],
   },
   {
@@ -135,15 +141,8 @@ const teacherSections: NavigationSection[] = [
     title: '수업자료',
     items: [
       { label: '수업자료 아카이브', href: '/dashboard/teacher/class-materials' },
+      { label: '온라인 강의 관리', href: '/dashboard/teacher/lectures' },
       { label: '입시자료 아카이브', href: '/dashboard/teacher/admission-materials' },
-    ],
-  },
-  {
-    id: 'teacher-workbooks',
-    title: '문제집 관리',
-    items: [
-      { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
-      { label: '출판된 문제집 확인', href: '/dashboard/workbooks' },
     ],
   },
 ]
@@ -227,4 +226,29 @@ const roleNavigation: Record<UserRole, NavigationSection[]> = {
 
 export function getNavigationSections(role: UserRole): NavigationSection[] {
   return roleNavigation[role]
+}
+
+// Principal용 역할별 섹션 (탭 기반 UI에서 사용)
+export type ViewAsRole = 'principal' | 'manager' | 'teacher' | 'student'
+
+export const VIEW_AS_LABELS: Record<ViewAsRole, string> = {
+  principal: '원장',
+  manager: '실장',
+  teacher: '교사',
+  student: '학생',
+}
+
+export function getSectionsByViewRole(viewAs: ViewAsRole): NavigationSection[] {
+  switch (viewAs) {
+    case 'principal':
+      return principalCoreSections
+    case 'manager':
+      return managerSections
+    case 'teacher':
+      return teacherSections
+    case 'student':
+      return studentSections
+    default:
+      return principalCoreSections
+  }
 }
