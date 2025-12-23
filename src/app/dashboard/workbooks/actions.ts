@@ -1374,6 +1374,14 @@ const generateAIExplanationInputSchema = z.object({
 
 export type GenerateAIExplanationInput = z.infer<typeof generateAIExplanationInputSchema>
 
+// AI SRT 문항 생성 입력 스키마
+const generateQuestionsFromSrtInputSchema = z.object({
+  srtText: z.string().min(1, 'SRT 내용이 필요합니다.'),
+  questionCount: z.number().int().min(1).max(20).optional().default(10),
+})
+
+export type GenerateQuestionsFromSrtInput = z.infer<typeof generateQuestionsFromSrtInputSchema>
+
 // AI 채점 기준 생성 입력 스키마
 const generateAIGradingCriteriaInputSchema = z.object({
   prompt: z.string().min(1, '문항 내용이 필요합니다.'),
@@ -1440,5 +1448,39 @@ export async function generateAIGradingCriteria(input: GenerateAIGradingCriteria
     high: result.high,
     mid: result.mid,
     low: result.low,
+  }
+}
+
+/**
+ * AI를 사용하여 SRT 대본에서 문항을 자동 생성합니다.
+ * principal 역할만 사용 가능합니다.
+ */
+export async function generateAIQuestionsFromSrt(input: GenerateQuestionsFromSrtInput) {
+  const parseResult = generateQuestionsFromSrtInputSchema.safeParse(input)
+
+  if (!parseResult.success) {
+    return { error: '입력 값을 확인해주세요.' }
+  }
+
+  const { profile } = await getAuthContext()
+
+  // principal만 사용 가능
+  if (!profile || profile.role !== 'principal') {
+    return { error: 'AI 문항 자동 생성은 교장 계정만 사용할 수 있습니다.' }
+  }
+
+  const { generateQuestionsFromSrt } = await import('@/lib/gemini')
+  const result = await generateQuestionsFromSrt(
+    parseResult.data.srtText,
+    parseResult.data.questionCount
+  )
+
+  if ('error' in result) {
+    return { error: result.error }
+  }
+
+  return {
+    success: true as const,
+    questions: result.questions,
   }
 }

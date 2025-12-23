@@ -40,7 +40,11 @@ export default async function WorkbookCreatePage() {
         </p>
       </div>
 
-      <WorkbookWizard teacherId={profile?.id ?? ''} teachers={teachers} />
+      <WorkbookWizard
+        teacherId={profile?.id ?? ''}
+        teachers={teachers}
+        userRole={profile?.role ?? 'teacher'}
+      />
     </section>
   )
 }

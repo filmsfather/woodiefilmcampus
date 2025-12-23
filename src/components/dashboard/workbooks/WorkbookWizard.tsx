@@ -12,7 +12,7 @@ import {
   type Resolver,
   type FieldPath,
 } from 'react-hook-form'
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { AlertCircle, Check, ChevronLeft, ChevronRight, FileText, Loader2, Plus, Sparkles, Trash2, Upload } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -31,7 +31,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { createWorkbook, generateAIExplanation, generateAIGradingCriteria } from '@/app/dashboard/workbooks/actions'
+import { createWorkbook, generateAIExplanation, generateAIGradingCriteria, generateAIQuestionsFromSrt } from '@/app/dashboard/workbooks/actions'
+import { extractTextFromSrt } from '@/lib/srt-parser'
 import {
   Dialog,
   DialogContent,
@@ -178,7 +179,13 @@ export interface TeacherOption {
   name: string
 }
 
-export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId: string; teachers?: TeacherOption[] }) {
+export interface WorkbookWizardProps {
+  teacherId: string
+  teachers?: TeacherOption[]
+  userRole?: string
+}
+
+export default function WorkbookWizard({ teacherId, teachers = [], userRole = 'teacher' }: WorkbookWizardProps) {
   const form = useForm<WorkbookFormValues>({
     resolver: zodResolver(workbookFormSchema) as Resolver<WorkbookFormValues>,
     defaultValues,
@@ -201,6 +208,14 @@ export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId
   const [isGeneratingExplanation, setIsGeneratingExplanation] = useState<Record<number, boolean>>({})
   const [isGeneratingCriteria, setIsGeneratingCriteria] = useState<Record<number, boolean>>({})
   const [aiError, setAiError] = useState<string | null>(null)
+
+  // SRT 기반 AI 문항 생성 관련 상태
+  const [srtDialogOpen, setSrtDialogOpen] = useState(false)
+  const [srtInput, setSrtInput] = useState('')
+  const [storedSrtText, setStoredSrtText] = useState('')  // Context 자동 채우기용
+  const [isGeneratingQuestions, setIsGeneratingQuestions] = useState(false)
+  const [generatedQuestions, setGeneratedQuestions] = useState<Array<{ prompt: string; selected: boolean }>>([])
+  const [questionSelectionStep, setQuestionSelectionStep] = useState(false)
 
   const { control, watch, setValue, unregister, formState } = form
   const { fields, append, remove } = useFieldArray({
@@ -551,11 +566,101 @@ export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId
     setValue(`items.${aiTargetItemIndex}.explanation`, result.explanation, { shouldDirty: true })
   }
 
-  // Context 입력 다이얼로그 열기
+  // Context 입력 다이얼로그 열기 (SRT 내용이 있으면 자동 채우기)
   const openContextDialog = (itemIndex: number) => {
     setAiTargetItemIndex(itemIndex)
-    setAiContextInput('')
+    setAiContextInput(storedSrtText)  // SRT 내용 자동 채우기
     setAiContextDialogOpen(true)
+  }
+
+  // SRT 파일 업로드 처리
+  const handleSrtFileUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const content = e.target?.result as string
+      if (content) {
+        const extractedText = extractTextFromSrt(content)
+        setSrtInput(extractedText)
+      }
+    }
+    reader.readAsText(file)
+    event.target.value = ''
+  }
+
+  // AI 문항 생성 요청
+  const handleGenerateQuestionsFromSrt = async () => {
+    if (!srtInput.trim()) {
+      setAiError('SRT 내용을 입력해주세요.')
+      return
+    }
+
+    setIsGeneratingQuestions(true)
+    setAiError(null)
+
+    const result = await generateAIQuestionsFromSrt({
+      srtText: srtInput.trim(),
+      questionCount: 10,
+    })
+
+    setIsGeneratingQuestions(false)
+
+    if ('error' in result) {
+      setAiError(result.error ?? '알 수 없는 오류가 발생했습니다.')
+      return
+    }
+
+    // 생성된 문항을 선택 가능한 형태로 변환
+    setGeneratedQuestions(
+      result.questions.map((q) => ({
+        prompt: q.prompt,
+        selected: true,  // 기본적으로 모두 선택
+      }))
+    )
+    setStoredSrtText(srtInput.trim())  // Context 자동 채우기용 저장
+    setQuestionSelectionStep(true)
+  }
+
+  // 문항 선택 토글
+  const toggleQuestionSelection = (index: number) => {
+    setGeneratedQuestions((prev) =>
+      prev.map((q, i) => (i === index ? { ...q, selected: !q.selected } : q))
+    )
+  }
+
+  // 선택된 문항 적용
+  const applySelectedQuestions = () => {
+    const selectedQuestions = generatedQuestions.filter((q) => q.selected)
+    
+    if (selectedQuestions.length === 0) {
+      setAiError('최소 1개 이상의 문항을 선택해주세요.')
+      return
+    }
+
+    // 선택된 문항들을 폼에 추가
+    selectedQuestions.forEach((q) => {
+      append({
+        prompt: q.prompt,
+        explanation: '',
+        gradingCriteria: { high: '', mid: '', low: '' },
+      })
+    })
+
+    // 다이얼로그 닫기 및 상태 초기화
+    setSrtDialogOpen(false)
+    setSrtInput('')
+    setGeneratedQuestions([])
+    setQuestionSelectionStep(false)
+  }
+
+  // SRT 다이얼로그 닫기
+  const closeSrtDialog = () => {
+    setSrtDialogOpen(false)
+    setSrtInput('')
+    setGeneratedQuestions([])
+    setQuestionSelectionStep(false)
   }
 
   // AI 채점 기준 생성
@@ -1041,11 +1146,26 @@ export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId
 
           {currentStep.id === 'items' && (
             <Card>
-              <CardHeader className="flex flex-col space-y-2">
-                <CardTitle>문항 구성</CardTitle>
-                <p className="text-sm text-slate-600">
-                  각 문항에 대한 문제 내용과 해설(선택)을 입력하세요. 유형별 상세 필드는 차후 단계에서 확장됩니다.
-                </p>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div className="flex flex-col space-y-2">
+                  <CardTitle>문항 구성</CardTitle>
+                  <p className="text-sm text-slate-600">
+                    각 문항에 대한 문제 내용과 해설(선택)을 입력하세요. 유형별 상세 필드는 차후 단계에서 확장됩니다.
+                  </p>
+                </div>
+                {/* AI 자동문제생성 버튼 - principal + writing 타입에서만 표시 */}
+                {userRole === 'principal' && selectedType === 'writing' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-2"
+                    onClick={() => setSrtDialogOpen(true)}
+                  >
+                    <FileText className="size-4" />
+                    AI 자동문제생성
+                  </Button>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 {fields.map((field, index) => {
@@ -1532,6 +1652,7 @@ export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId
             <DialogTitle>AI 해설 생성 - Context 입력</DialogTitle>
             <DialogDescription>
               AI가 해설을 생성할 때 참고할 추가 정보를 입력하세요. 입력하지 않아도 생성됩니다.
+              {storedSrtText && ' (SRT 대본 내용이 자동으로 채워졌습니다.)'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1562,6 +1683,144 @@ export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId
                 </>
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* SRT 기반 AI 문항 생성 다이얼로그 */}
+      <Dialog open={srtDialogOpen} onOpenChange={(open) => !open && closeSrtDialog()}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {questionSelectionStep ? 'AI 생성 문항 선택' : 'AI 자동문제생성'}
+            </DialogTitle>
+            <DialogDescription>
+              {questionSelectionStep
+                ? '생성된 문항 중 사용할 문항을 선택하세요.'
+                : '영상 대본(SRT) 파일을 업로드하거나 내용을 붙여넣으면 AI가 학생 이해도 점검용 문항을 자동으로 생성합니다.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {!questionSelectionStep ? (
+            // SRT 입력 단계
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-2">
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-slate-300 px-4 py-2 text-sm text-slate-600 transition-colors hover:border-slate-400 hover:bg-slate-50">
+                  <Upload className="size-4" />
+                  SRT 파일 업로드
+                  <input
+                    type="file"
+                    accept=".srt,.txt"
+                    className="hidden"
+                    onChange={handleSrtFileUpload}
+                    disabled={isGeneratingQuestions}
+                  />
+                </label>
+                <span className="text-xs text-slate-500">또는 아래에 직접 붙여넣기</span>
+              </div>
+              <Textarea
+                value={srtInput}
+                onChange={(e) => setSrtInput(e.target.value)}
+                placeholder="SRT 파일 내용 또는 영상 대본을 여기에 붙여넣으세요..."
+                rows={12}
+                disabled={isGeneratingQuestions}
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-slate-500">
+                SRT 형식이 아니어도 됩니다. 영상의 대사나 내레이션 텍스트를 입력하면 AI가 분석합니다.
+              </p>
+            </div>
+          ) : (
+            // 문항 선택 단계
+            <div className="space-y-4 py-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-slate-600">
+                  {generatedQuestions.filter((q) => q.selected).length}개 선택됨
+                </span>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setGeneratedQuestions((prev) => prev.map((q) => ({ ...q, selected: true })))}
+                  >
+                    전체 선택
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setGeneratedQuestions((prev) => prev.map((q) => ({ ...q, selected: false })))}
+                  >
+                    전체 해제
+                  </Button>
+                </div>
+              </div>
+              <div className="max-h-96 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-2">
+                {generatedQuestions.map((question, index) => (
+                  <label
+                    key={index}
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
+                      question.selected
+                        ? 'border-primary/50 bg-primary/5'
+                        : 'border-slate-200 bg-white hover:bg-slate-50'
+                    }`}
+                  >
+                    <Checkbox
+                      checked={question.selected}
+                      onChange={() => toggleQuestionSelection(index)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1">
+                      <span className="text-xs font-medium text-slate-500">문항 {index + 1}</span>
+                      <p className="mt-1 text-sm text-slate-900">{question.prompt}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {!questionSelectionStep ? (
+              <>
+                <Button variant="outline" onClick={closeSrtDialog} disabled={isGeneratingQuestions}>
+                  취소
+                </Button>
+                <Button
+                  onClick={handleGenerateQuestionsFromSrt}
+                  disabled={isGeneratingQuestions || !srtInput.trim()}
+                >
+                  {isGeneratingQuestions ? (
+                    <>
+                      <Loader2 className="mr-2 size-4 animate-spin" />
+                      문항 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="mr-2 size-4" />
+                      문항 생성
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setQuestionSelectionStep(false)}
+                >
+                  뒤로
+                </Button>
+                <Button
+                  onClick={applySelectedQuestions}
+                  disabled={generatedQuestions.filter((q) => q.selected).length === 0}
+                >
+                  <Check className="mr-2 size-4" />
+                  {generatedQuestions.filter((q) => q.selected).length}개 문항 적용
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

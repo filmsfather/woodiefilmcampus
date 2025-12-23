@@ -98,7 +98,16 @@ export interface FormatOptions extends Intl.DateTimeFormatOptions {
 
 export function formatForDisplay(value: DateLike, options?: FormatOptions): string {
   const { locale = "ko-KR", timeZone = "Asia/Seoul", ...rest } = options ?? {}
-  return new Intl.DateTimeFormat(locale, { timeZone, ...rest }).format(toDate(value))
+  
+  // 시간 표시 시 서버/클라이언트 hydration 불일치 방지를 위해 24시간 형식 사용
+  const hasHour = rest.hour !== undefined || rest.timeStyle !== undefined
+  const normalizedOptions: Intl.DateTimeFormatOptions = {
+    timeZone,
+    ...rest,
+    ...(hasHour && !rest.hourCycle && rest.hour12 === undefined ? { hourCycle: 'h23' } : {}),
+  }
+  
+  return new Intl.DateTimeFormat(locale, normalizedOptions).format(toDate(value))
 }
 
 export function isSameUtcDay(a: DateLike, b: DateLike): boolean {

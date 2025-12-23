@@ -62,7 +62,7 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
 
     try {
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: {
@@ -147,7 +147,7 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
 
     try {
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: {
@@ -182,6 +182,122 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
 
         try {
             const result = JSON.parse(text) as GenerateGradingCriteriaResult
+            return result
+        } catch (parseError) {
+            console.error('[Gemini] JSON parse error', parseError, text)
+            return { error: 'AI 응답 형식이 올바르지 않습니다.' }
+        }
+    } catch (error) {
+        console.error('[Gemini] Network or unexpected error', error)
+        return { error: 'AI 서버 연결에 실패했습니다.' }
+    }
+}
+
+export interface GeneratedQuestion {
+    prompt: string
+}
+
+export interface GenerateQuestionsFromSrtResult {
+    questions: GeneratedQuestion[]
+}
+
+/**
+ * SRT 대본을 분석하여 학생 이해도 점검용 문항을 생성합니다.
+ */
+export async function generateQuestionsFromSrt(
+    srtText: string,
+    questionCount: number = 10
+): Promise<GenerateQuestionsFromSrtResult | { error: string }> {
+    if (!GEMINI_API_KEY) {
+        console.error('GEMINI_API_KEY is not set')
+        return { error: 'AI 설정이 완료되지 않았습니다. 관리자에게 문의하세요.' }
+    }
+
+    const aiPrompt = `
+You are an expert film education instructor creating essay questions for your students.
+Analyze the following lecture transcript and generate ${questionCount} thoughtful questions that assess students' understanding of the KEY CONCEPTS.
+
+**Lecture Transcript:**
+${srtText}
+
+**Instructions:**
+1. Generate exactly ${questionCount} questions based on the transcript content.
+2. Write questions as if YOU are the instructor directly asking students.
+3. DO NOT use phrases like "강사는...", "영상에서...", "위 내용에 따르면...", "강의에서 언급된..."
+4. Instead, ask directly using formats like:
+   - "~는 무엇인가?"
+   - "~를 설명하시오."
+   - "~에 대해 서술하시오."
+   - "~를 분석하시오."
+   - "~의 차이점을 비교하시오."
+5. Focus on the KEY CONCEPTS and IMPORTANT POINTS from the lecture.
+6. Questions should:
+   - Test understanding of core concepts
+   - Ask students to apply what they learned
+   - Encourage critical thinking about the material
+7. All questions must be in Korean.
+8. Questions should be suitable for essay-style (서술형) answers.
+
+**Bad Example (DO NOT generate questions like this):**
+- "강사는 이야기의 구성 요소로 무엇을 제시했는가?"
+- "영상에서 설명한 아이러니의 정의는 무엇인가?"
+- "강의 내용에 따르면 스토리텔링의 핵심은 무엇인가?"
+
+**Good Example (Generate questions like this):**
+- "이야기를 구성하는 핵심 요소 4가지를 설명하고, 각각의 역할을 서술하시오."
+- "아이러니가 스토리텔링에서 중요한 이유를 구체적인 예시와 함께 설명하시오."
+- "'광해' 영화에서 인물, 사건, 배경이 어떻게 유기적으로 연결되는지 분석하시오."
+- "좋은 캐릭터가 갖춰야 할 조건을 3가지 이상 제시하고, 각각을 설명하시오."
+
+**Output Format:**
+Return a JSON object with the following structure:
+{
+  "questions": [
+    { "prompt": "Question 1 in Korean..." },
+    { "prompt": "Question 2 in Korean..." },
+    ...
+  ]
+}
+Do not include any markdown formatting (like \`\`\`json). Just the raw JSON string.
+`
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [{ text: aiPrompt }],
+                        },
+                    ],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        )
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Gemini] API error', response.status, errorText)
+            return { error: 'AI 문항 생성 중 오류가 발생했습니다.' }
+        }
+
+        const data = await response.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+        if (!text) {
+            console.error('[Gemini] No content in response', data)
+            return { error: 'AI 응답을 분석할 수 없습니다.' }
+        }
+
+        try {
+            const result = JSON.parse(text) as GenerateQuestionsFromSrtResult
             return result
         } catch (parseError) {
             console.error('[Gemini] JSON parse error', parseError, text)
@@ -243,7 +359,7 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
 
     try {
         const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:generateContent?key=${GEMINI_API_KEY}`,
             {
                 method: 'POST',
                 headers: {
