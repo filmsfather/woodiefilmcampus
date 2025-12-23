@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Separator } from '@/components/ui/separator'
 import { completeProfile, type CompleteProfileState } from './actions'
 
 export default function CompleteProfilePage() {
@@ -150,6 +151,30 @@ export default function CompleteProfilePage() {
             <p className="text-sm text-slate-500">
               프로필 완성 후 관리자 승인이 필요합니다.
             </p>
+          </div>
+
+          <Separator className="my-6" />
+
+          {/* 기존 계정 안내 */}
+          <div className="space-y-3 text-center">
+            <p className="text-sm text-slate-600">
+              이미 다른 이메일로 가입한 계정이 있으신가요?
+            </p>
+            <p className="text-xs text-slate-500">
+              기존 계정으로 로그인하시면 동일한 프로필을 사용할 수 있습니다.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={async () => {
+                await supabase.auth.signOut()
+                router.push('/login')
+              }}
+            >
+              다른 계정으로 로그인
+            </Button>
           </div>
         </CardContent>
       </Card>
