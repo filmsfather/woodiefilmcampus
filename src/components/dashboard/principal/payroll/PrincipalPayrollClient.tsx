@@ -621,7 +621,9 @@ function TeacherPayrollCard({
             <CardDescription className="space-y-1 text-sm">
               <p>{teacher.email ?? '이메일 미등록'}</p>
               <p>
-                시급 {formatCurrency(payrollProfile.hourlyRate)} · 계약 형태{' '}
+                시급 {formatCurrency(payrollProfile.hourlyRate)}
+                {currentBreakdown.baseSalaryTotal > 0 && ` · 기본급 ${formatCurrency(currentBreakdown.baseSalaryTotal)}`}
+                {' '}· 계약 형태{' '}
                 {payrollProfile.contractType === 'employee'
                   ? '근로자'
                   : payrollProfile.contractType === 'freelancer'
@@ -639,63 +641,28 @@ function TeacherPayrollCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <section className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-lg border border-slate-200 p-3">
-            <p className="text-sm font-medium text-slate-900">집계 개요</p>
-            <dl className="mt-2 space-y-1 text-sm text-slate-600">
-              <div className="flex justify-between">
-                <dt>근무 시간</dt>
-                <dd>{formatHours(currentBreakdown.totalWorkHours)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt>주휴수당 시간</dt>
-                <dd>{formatHours(currentBreakdown.weeklyHolidayAllowanceHours)}</dd>
-              </div>
-              {currentBreakdown.baseSalaryTotal > 0 && (
-                <div className="flex justify-between">
-                  <dt>기본급</dt>
-                  <dd>{formatCurrency(currentBreakdown.baseSalaryTotal)}</dd>
-                </div>
-              )}
-            </dl>
-          </div>
-          <div className="rounded-lg border border-slate-200 p-3">
-            <p className="text-sm font-medium text-slate-900">확인 현황</p>
-            <dl className="mt-2 space-y-1 text-sm text-slate-600">
-              <div className="flex justify-between">
-                <dt>요청 상태</dt>
-                <dd>{status.label}</dd>
-              </div>
-              {run?.requestedAt && (
-                <div className="flex justify-between">
-                  <dt>요청 시간</dt>
-                  <dd>{dateTimeFormatter.format(new Date(run.requestedAt))}</dd>
-                </div>
-              )}
-              {acknowledgement?.confirmedAt && (
-                <div className="flex justify-between text-emerald-600">
-                  <dt>구성원 확인</dt>
-                  <dd>{dateTimeFormatter.format(new Date(acknowledgement.confirmedAt))}</dd>
-                </div>
-              )}
-              {acknowledgement?.note && (
-                <div className="space-y-1">
-                  <dt className="font-medium text-slate-900">구성원 메모</dt>
-                  <dd className="whitespace-pre-wrap text-slate-600">{acknowledgement.note}</dd>
-                </div>
-              )}
-            </dl>
-          </div>
+        <section className="space-y-2">
+          <details className="rounded-lg border border-slate-200 p-4">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900">
+              <span>금액 구성</span>
+              <span className="ml-4 text-xs font-normal text-slate-500">
+                총지급 {formatCurrency(currentBreakdown.grossPay)} · 공제 {formatCurrency(currentBreakdown.deductionsTotal)} · 실지급 {formatCurrency(currentBreakdown.netPay)}
+              </span>
+            </summary>
+            <div className="mt-3">
+              <PayrollBreakdownTable breakdown={currentBreakdown} />
+            </div>
+          </details>
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-sm font-medium text-slate-900">금액 구성</h3>
-          <PayrollBreakdownTable breakdown={currentBreakdown} />
-        </section>
-
-        <section className="space-y-2">
-          <details className="rounded-lg border border-slate-200 p-4" open>
-            <summary className="cursor-pointer text-sm font-medium text-slate-900">주차별 계산 흐름</summary>
+          <details className="rounded-lg border border-slate-200 p-4">
+            <summary className="cursor-pointer text-sm font-medium text-slate-900">
+              <span>주차별 계산 흐름</span>
+              <span className="ml-4 text-xs font-normal text-slate-500">
+                근무 {formatHours(currentBreakdown.totalWorkHours)} · 주휴수당 {formatHours(currentBreakdown.weeklyHolidayAllowanceHours)}
+              </span>
+            </summary>
             <div className="mt-3">
               <WeeklySummaryList breakdown={currentBreakdown} />
             </div>
@@ -777,36 +744,40 @@ function TeacherPayrollCard({
                 </div>
               )}
             </div>
-            <div>
-              <h3 className="text-sm font-medium text-slate-900">구성원 안내 메시지</h3>
-              <p className="text-xs text-slate-500">기본 메시지를 확인하고 필요 시 추가 안내를 입력하세요.</p>
-            </div>
-            <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
-              {messagePreviewState}
-            </pre>
-            <div className="space-y-1">
-              <label htmlFor={`message-append-${teacher.id}`} className="text-sm font-medium text-slate-900">
-                추가 안내 문구 (선택)
-              </label>
-              <Textarea
-                id={`message-append-${teacher.id}`}
-                name="messageAppend"
-                placeholder={`${teacher.name ?? teacher.email ?? '구성원'}께 추가로 전달할 요청 사항이 있다면 입력하세요.`}
-                disabled={isPending}
-              />
-            </div>
-            <div className="space-y-1">
-              <label htmlFor={`request-note-${teacher.id}`} className="text-sm font-medium text-slate-900">
-                원장 메모 (카드에 노출)
-              </label>
-              <Textarea
-                id={`request-note-${teacher.id}`}
-                name="requestNote"
-                placeholder="정산 안내 카드에 함께 표시할 메시지를 입력하세요."
-                defaultValue={requestNote ?? ''}
-                disabled={isPending}
-              />
-            </div>
+            <details className="rounded-lg border border-slate-200 p-4">
+              <summary className="cursor-pointer text-sm font-medium text-slate-900">
+                <span>구성원 안내 메시지</span>
+                <span className="ml-4 text-xs font-normal text-slate-500">기본 메시지 확인 및 추가 안내 입력</span>
+              </summary>
+              <div className="mt-3 space-y-3">
+                <pre className="max-h-64 overflow-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+                  {messagePreviewState}
+                </pre>
+                <div className="space-y-1">
+                  <label htmlFor={`message-append-${teacher.id}`} className="text-sm font-medium text-slate-900">
+                    추가 안내 문구 (선택)
+                  </label>
+                  <Textarea
+                    id={`message-append-${teacher.id}`}
+                    name="messageAppend"
+                    placeholder={`${teacher.name ?? teacher.email ?? '구성원'}께 추가로 전달할 요청 사항이 있다면 입력하세요.`}
+                    disabled={isPending}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label htmlFor={`request-note-${teacher.id}`} className="text-sm font-medium text-slate-900">
+                    원장 메모 (카드에 노출)
+                  </label>
+                  <Textarea
+                    id={`request-note-${teacher.id}`}
+                    name="requestNote"
+                    placeholder="정산 안내 카드에 함께 표시할 메시지를 입력하세요."
+                    defaultValue={requestNote ?? ''}
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
+            </details>
             {feedback && (
               <p className={cn('text-sm', feedback.type === 'success' ? 'text-emerald-600' : 'text-rose-600')}>
                 {feedback.message}
@@ -845,9 +816,44 @@ export function PrincipalPayrollClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isRouting, startTransition] = useTransition()
-  const [sortField, setSortField] = useState<SummarySortField>('name')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [sortField, setSortField] = useState<SummarySortField>('netPay')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [isExternalModalOpen, setExternalModalOpen] = useState(false)
+  const [activeTeacherTab, setActiveTeacherTab] = useState<string | null>(null)
+
+  // 정렬된 순서에 맞게 탭도 정렬
+  const sortedTeachers = useMemo(() => {
+    return [...teachers].sort((a, b) => {
+      const direction = sortDirection === 'asc' ? 1 : -1
+      if (sortField === 'name') {
+        const nameA = a.teacher.name ?? a.teacher.email ?? ''
+        const nameB = b.teacher.name ?? b.teacher.email ?? ''
+        return nameA.localeCompare(nameB, 'ko') * direction
+      }
+      const getValue = (entry: PrincipalPayrollTeacherEntry) => {
+        switch (sortField) {
+          case 'totalWorkHours': return entry.breakdown.totalWorkHours
+          case 'baseSalaryTotal': return entry.breakdown.baseSalaryTotal
+          case 'hourlyRate': return entry.payrollProfile.hourlyRate
+          case 'grossPay': return entry.breakdown.grossPay
+          case 'deductionsTotal': return entry.breakdown.deductionsTotal
+          case 'netPay': return entry.breakdown.netPay
+          default: return 0
+        }
+      }
+      return (getValue(a) - getValue(b)) * direction
+    })
+  }, [teachers, sortField, sortDirection])
+
+  // 현재 선택된 교사 (없으면 첫 번째 교사)
+  const activeTeacher = useMemo(() => {
+    if (sortedTeachers.length === 0) return null
+    if (activeTeacherTab) {
+      const found = sortedTeachers.find((t) => t.teacher.id === activeTeacherTab)
+      if (found) return found
+    }
+    return sortedTeachers[0]
+  }, [sortedTeachers, activeTeacherTab])
 
   const summaryRows = useMemo<PayrollSummaryRow[]>(() => {
     const unsorted = teachers.map((entry) => ({
@@ -987,10 +993,56 @@ export function PrincipalPayrollClient({
             표시할 급여 정보가 없습니다. 급여 프로필이 등록된 교직원인지 또는 승인된 근무일지가 있는지 확인해주세요.
           </div>
         ) : (
-          <div className="space-y-6">
-            {teachers.map((entry) => (
-              <TeacherPayrollCard key={entry.teacher.id} monthToken={monthToken} monthLabel={monthLabel} entry={entry} />
-            ))}
+          <div className="space-y-4">
+            {/* 교사 탭 네비게이션 */}
+            <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-2">
+              {sortedTeachers.map((entry, index) => {
+                const isActive = activeTeacher?.teacher.id === entry.teacher.id
+                const teacherName = entry.teacher.name ?? entry.teacher.email ?? '이름 미등록'
+                const status = statusBadge(entry.run, entry.acknowledgement)
+                return (
+                  <button
+                    key={entry.teacher.id}
+                    type="button"
+                    onClick={() => setActiveTeacherTab(entry.teacher.id)}
+                    className={cn(
+                      'flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'border-border bg-secondary text-secondary-foreground'
+                        : 'border-transparent bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    )}
+                  >
+                    <span className={cn('text-xs', isActive ? 'text-secondary-foreground/70' : 'text-muted-foreground/70')}>{index + 1}</span>
+                    <span>{teacherName}</span>
+                    <Badge
+                      variant={
+                        status.label === '지급 완료' ? 'default' :
+                        status.label === '확인 완료' ? 'outline' :
+                        status.label === '확인 대기' ? 'secondary' : 'secondary'
+                      }
+                      className={cn(
+                        'text-xs',
+                        status.label === '지급 완료' && 'bg-emerald-600',
+                        status.label === '확인 완료' && 'border-blue-300 text-blue-700',
+                        status.label === '확인 대기' && 'bg-amber-100 text-amber-800'
+                      )}
+                    >
+                      {status.label}
+                    </Badge>
+                  </button>
+                )
+              })}
+            </div>
+            
+            {/* 선택된 교사의 카드 */}
+            {activeTeacher && (
+              <TeacherPayrollCard
+                key={activeTeacher.teacher.id}
+                monthToken={monthToken}
+                monthLabel={monthLabel}
+                entry={activeTeacher}
+              />
+            )}
           </div>
         )}
       </section>

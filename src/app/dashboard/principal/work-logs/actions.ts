@@ -101,3 +101,55 @@ export async function reviewWorkLogEntry(formData: FormData): Promise<ReviewResu
     entry: mapWorkLogRow(row),
   }
 }
+
+const bulkApproveSchema = z.object({
+  entryIds: z.array(z.string().uuid('근무일지 ID가 올바르지 않습니다.')).min(1, '승인할 항목이 없습니다.'),
+})
+
+type BulkApproveResult = {
+  success?: true
+  approvedCount?: number
+  error?: string
+}
+
+export async function bulkApproveWorkLogEntries(entryIds: string[]): Promise<BulkApproveResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'principal') {
+    return { error: '근무일지를 승인할 권한이 없습니다.' }
+  }
+
+  const parsed = bulkApproveSchema.safeParse({ entryIds })
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '승인 정보를 확인해주세요.' }
+  }
+
+  const supabase = await createServerSupabase()
+  const now = new Date().toISOString()
+
+  const { data: rows, error: updateError } = await supabase
+    .from('work_log_entries')
+    .update({
+      review_status: 'approved',
+      reviewed_by: profile.id,
+      reviewed_at: now,
+    })
+    .in('id', parsed.data.entryIds)
+    .eq('review_status', 'pending')
+    .select('id')
+
+  if (updateError) {
+    console.error('[principal-work-log] bulk approve error', updateError)
+    return { error: '일괄 승인 처리에 실패했습니다.' }
+  }
+
+  revalidatePath('/dashboard/teacher/work-journal')
+  revalidatePath('/dashboard/principal/work-logs')
+
+  return {
+    success: true,
+    approvedCount: rows?.length ?? 0,
+  }
+}

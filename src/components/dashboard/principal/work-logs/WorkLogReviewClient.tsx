@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
-import { reviewWorkLogEntry } from '@/app/dashboard/principal/work-logs/actions'
+import { bulkApproveWorkLogEntries, reviewWorkLogEntry } from '@/app/dashboard/principal/work-logs/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -168,6 +168,40 @@ export function WorkLogReviewClient({
     return entry.reviewNote ?? ''
   }
 
+  const pendingEntries = useMemo(() => {
+    return entriesState.filter((entry) => entry.reviewStatus === 'pending')
+  }, [entriesState])
+
+  const handleBulkApprove = () => {
+    if (pendingEntries.length === 0) {
+      setFeedback({ type: 'error', message: '승인 대기 중인 항목이 없습니다.' })
+      return
+    }
+
+    const entryIds = pendingEntries.map((entry) => entry.id)
+
+    startTransition(async () => {
+      const result = await bulkApproveWorkLogEntries(entryIds)
+      if (!result.success) {
+        setFeedback({ type: 'error', message: result.error ?? '일괄 승인 처리 중 오류가 발생했습니다.' })
+        return
+      }
+
+      setEntriesState((prev) =>
+        prev.map((entry) =>
+          entry.reviewStatus === 'pending'
+            ? { ...entry, reviewStatus: 'approved' as const }
+            : entry
+        )
+      )
+
+      setFeedback({
+        type: 'success',
+        message: `${result.approvedCount}건의 근무일지를 일괄 승인했습니다.`,
+      })
+    })
+  }
+
   const handleDecision = (entry: WorkLogEntryWithTeacher, decision: ReviewDecision) => {
     const note = getNoteDraft(entry).trim()
     const formData = new FormData()
@@ -274,7 +308,23 @@ export function WorkLogReviewClient({
                 <TableHead className="w-24">근무 시간</TableHead>
                 <TableHead className="w-40">대타 정보</TableHead>
                 <TableHead className="w-40">승인 상태</TableHead>
-                <TableHead className="w-32">조치</TableHead>
+                <TableHead className="w-40">
+                  <div className="flex items-center gap-2">
+                    <span>조치</span>
+                    {pendingEntries.length > 0 && (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        onClick={handleBulkApprove}
+                        disabled={isPending}
+                        className="h-6 px-2 text-xs"
+                      >
+                        일괄 승인 ({pendingEntries.length})
+                      </Button>
+                    )}
+                  </div>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
