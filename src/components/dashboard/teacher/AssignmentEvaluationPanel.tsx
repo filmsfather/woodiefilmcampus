@@ -747,6 +747,11 @@ function SrsReviewPanel({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  const filteredTasks = useMemo(() => {
+    if (!focusStudentTaskId) return assignment.studentTasks
+    return assignment.studentTasks.filter((task) => task.id === focusStudentTaskId)
+  }, [assignment.studentTasks, focusStudentTaskId])
+
   const handleToggle = (studentTaskId: string, cancel: boolean) => {
     setPendingTaskId(studentTaskId)
     setErrorMessage(null)
@@ -761,6 +766,16 @@ function SrsReviewPanel({
       }
       setPendingTaskId(null)
     })
+  }
+
+  if (filteredTasks.length === 0) {
+    return (
+      <Card className="border-slate-200">
+        <CardContent className="py-8 text-center text-sm text-slate-500">
+          학생을 선택해주세요.
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -787,7 +802,7 @@ function SrsReviewPanel({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {assignment.studentTasks.map((task) => {
+            {filteredTasks.map((task) => {
               const item = task.items[0]
               const className = task.student.classId
                 ? classLookup.get(task.student.classId) ?? '반 정보 없음'
@@ -982,25 +997,51 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
 
   return (
     <Card className="border-slate-200">
-      <CardHeader className="space-y-2">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <CardTitle className="text-lg text-slate-900">PDF 제출 평가</CardTitle>
-          <p className="text-xs text-slate-500">제출 파일을 확인한 뒤 Pass / Non-pass 상태를 저장하세요. 인쇄 요청도 이곳에서 생성할 수 있습니다.</p>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          <div className="grid gap-2 md:grid-cols-[repeat(5,minmax(0,1fr))]">
+      <CardHeader>
+        <CardTitle className="text-lg text-slate-900">PDF 제출 평가</CardTitle>
+        <p className="text-xs text-slate-500">제출 파일 확인 후 평가하세요.</p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* 학생 평가 카드 */}
+        {focusStudentTaskId && !assignment.studentTasks.some((task) => task.id === focusStudentTaskId) ? (
+          <p className="py-8 text-center text-sm text-slate-500">학생을 선택해주세요.</p>
+        ) : (
+          <div className="space-y-3">
+            {(focusStudentTaskId
+              ? assignment.studentTasks.filter((task) => task.id === focusStudentTaskId)
+              : assignment.studentTasks
+            ).map((task) => (
+              <PdfEvaluationCard
+                key={task.id}
+                assignmentId={assignment.id}
+                task={task}
+                className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
+                isFocused={task.id === focusStudentTaskId}
+                onDeleteStudentTask={onDeleteStudentTask}
+                deleteState={deleteState}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* 인쇄 요청 섹션 */}
+        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-3">
+          <p className="text-xs font-medium text-slate-700">인쇄 요청</p>
+          {/* 인쇄 옵션 - 2x2 그리드 */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Input
               type="date"
               value={printState.desiredDate}
               onChange={(event) => setPrintState((prev) => ({ ...prev, desiredDate: event.target.value }))}
               required
+              className="text-sm"
             />
             <Select
               value={printState.desiredPeriod || undefined}
               onValueChange={(value) => setPrintState((prev) => ({ ...prev, desiredPeriod: value }))}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="교시 선택" />
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="교시" />
               </SelectTrigger>
               <SelectContent>
                 {PRINT_PERIOD_OPTIONS.map((period) => (
@@ -1015,15 +1056,16 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               min={1}
               max={50}
               value={printState.copies}
-              placeholder="부수입력"
+              placeholder="부수"
               onChange={(event) => setPrintState((prev) => ({ ...prev, copies: Number(event.target.value || 1) }))}
+              className="text-sm"
             />
             <Select
               value={printState.colorMode}
               onValueChange={(value) => setPrintState((prev) => ({ ...prev, colorMode: value as 'bw' | 'color' }))}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="인쇄 모드" />
+              <SelectTrigger className="text-sm">
+                <SelectValue placeholder="모드" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="bw">흑백</SelectItem>
@@ -1031,113 +1073,91 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               </SelectContent>
             </Select>
           </div>
-          <div className="mt-3 space-y-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {/* 학생 선택 */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-slate-500">
-                선택 {selectedTaskIds.length}명 / PDF 제출 {selectableStudents.length}명
+                {selectedTaskIds.length}/{selectableStudents.length}명
               </p>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-3 text-xs"
+                  className="h-7 px-2 text-xs"
                   disabled={selectableStudents.length === 0}
                   onClick={handleSelectAll}
                 >
-                  전체 선택
+                  전체
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 px-3 text-xs"
+                  className="h-7 px-2 text-xs"
                   disabled={selectedTaskIds.length === 0}
                   onClick={handleClearSelection}
                 >
-                  선택 해제
+                  해제
                 </Button>
               </div>
             </div>
-            <div className="max-h-44 space-y-1 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
+            <div className="flex flex-wrap gap-1">
               {selectableStudents.length === 0 ? (
-                <p className="text-xs text-slate-500">PDF 제출이 있는 학생이 없습니다.</p>
+                <p className="text-xs text-slate-500">PDF 제출 학생 없음</p>
               ) : (
                 selectableStudents.map(({ task }) => (
-                  <label key={task.id} className="flex items-center gap-3 text-xs text-slate-600">
+                  <label
+                    key={task.id}
+                    className={`flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition ${
+                      selectedTaskIds.includes(task.id)
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
                     <Checkbox
                       checked={selectedTaskIds.includes(task.id)}
                       onChange={(event) => handleToggleStudent(task.id, event.target.checked)}
+                      className="h-3 w-3"
                     />
-                    <span className="flex-1 truncate">{task.student.name}</span>
+                    <span>{task.student.name}</span>
                   </label>
                 ))
               )}
             </div>
             {missingStudents.length > 0 && (
-              <p className="text-[11px] text-slate-500">
-                제출본 미확인 학생: {missingStudents.map((item) => item.task.student.name ?? '이름 미정').join(', ')}
+              <p className="text-[11px] text-slate-400">
+                미제출: {missingStudents.map((item) => item.task.student.name ?? '?').join(', ')}
               </p>
             )}
           </div>
-          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          {/* 메모 + 요청 버튼 */}
+          <div className="space-y-2">
             <Textarea
               placeholder="요청 메모 (선택)"
               value={printState.notes}
               onChange={(event) => setPrintState((prev) => ({ ...prev, notes: event.target.value }))}
+              rows={2}
+              className="text-sm"
             />
-            <div className="flex items-center gap-2 md:self-end">
+            <div className="flex items-center justify-between gap-2">
               {printMessage && (
-                <span className={`text-xs ${printMessage.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
+                <span className={`flex-1 text-xs ${printMessage.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
                   {printMessage}
                 </span>
               )}
-              <Button disabled={isRequestPending} onClick={handlePrintSubmit}>
-                {isRequestPending ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <LoadingSpinner />
-                    요청 중...
-                  </span>
-                ) : (
-                  '인쇄 요청'
-                )}
+              <Button size="sm" disabled={isRequestPending} onClick={handlePrintSubmit} className="shrink-0">
+                {isRequestPending ? <LoadingSpinner /> : '인쇄 요청'}
               </Button>
             </div>
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>학생</TableHead>
-              <TableHead>반</TableHead>
-              <TableHead>제출</TableHead>
-              <TableHead>평가</TableHead>
-              <TableHead>상태</TableHead>
-              <TableHead className="text-right">관리</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {assignment.studentTasks.map((task) => (
-              <PdfEvaluationRow
-                key={task.id}
-                assignmentId={assignment.id}
-                task={task}
-                className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
-                isFocused={task.id === focusStudentTaskId}
-                onDeleteStudentTask={onDeleteStudentTask}
-                deleteState={deleteState}
-              />
-            ))}
-          </TableBody>
-        </Table>
       </CardContent>
     </Card>
   )
 }
 
-function PdfEvaluationRow({
+function PdfEvaluationCard({
   assignmentId,
   task,
   className,
@@ -1182,40 +1202,53 @@ function PdfEvaluationRow({
       if (result?.error) {
         setMessage(result.error)
       } else {
-        setMessage('평가 결과가 저장되었습니다.')
+        setMessage('저장 완료')
+        setTimeout(() => setMessage(null), 2000)
       }
     })
   }
 
   return (
-    <TableRow className={isFocused ? 'bg-primary/5' : undefined}>
-      <TableCell className="max-w-[200px] truncate" title={task.student.name}>
-        <div className="font-medium text-slate-900">{task.student.name}</div>
-        {task.student.email && <div className="text-xs text-slate-500">{task.student.email}</div>}
-      </TableCell>
-      <TableCell>{className}</TableCell>
-      <TableCell>
+    <div className={`rounded-lg border p-3 space-y-3 ${isFocused ? 'border-primary/40 bg-primary/5' : 'border-slate-200 bg-white'}`}>
+      {/* 첫 줄: 이름 + 삭제 */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-slate-900">{task.student.name}</p>
+          <p className="text-xs text-slate-500">{className}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={deleteState.isPending && deleteState.pendingId === task.id}
+          onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+          className="shrink-0 h-7 px-2"
+        >
+          {deleteState.isPending && deleteState.pendingId === task.id ? <LoadingSpinner /> : '삭제'}
+        </Button>
+      </div>
+      {/* 둘째 줄: 상태 + 제출 파일 */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
         {submission ? (
-          <div className="flex flex-col gap-1">
-            {submission.assets.length > 0 ? (
-              submission.assets.map((asset) => (
-                <Button key={asset.id} asChild variant="outline" size="sm" className="h-7 justify-start px-2 text-xs">
-                  <a href={asset.url} target="_blank" rel="noreferrer" className="max-w-[180px] truncate">
-                    <Download className="mr-1 h-3 w-3 flex-shrink-0" /> {asset.filename}
-                  </a>
-                </Button>
-              ))
-            ) : (
-              <Badge variant="secondary">제출됨 (파일 없음)</Badge>
-            )}
-          </div>
+          submission.assets.length > 0 ? (
+            submission.assets.map((asset) => (
+              <Button key={asset.id} asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
+                <a href={asset.url} target="_blank" rel="noreferrer" className="max-w-[140px] truncate">
+                  <Download className="mr-1 h-3 w-3 shrink-0" /> {asset.filename}
+                </a>
+              </Button>
+            ))
+          ) : (
+            <Badge variant="secondary">제출됨</Badge>
+          )
         ) : (
           <Badge variant="outline">미제출</Badge>
         )}
-      </TableCell>
-      <TableCell>
+      </div>
+      {/* 셋째 줄: 평가 + 저장 */}
+      <div className="flex items-center gap-2">
         <Select value={score} onValueChange={setScore}>
-          <SelectTrigger className="w-28">
+          <SelectTrigger className="w-24 h-8 text-sm">
             <SelectValue placeholder="평가" />
           </SelectTrigger>
           <SelectContent>
@@ -1223,51 +1256,35 @@ function PdfEvaluationRow({
             <SelectItem value="nonpass">Non-pass</SelectItem>
           </SelectContent>
         </Select>
-      </TableCell>
-      <TableCell>
-        <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
-      </TableCell>
-      <TableCell className="text-right">
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Button size="sm" disabled={!submission || isPending || !score} onClick={handleSave}>
-              {isPending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
-                  저장 중...
-                </span>
-              ) : (
-                '저장'
-              )}
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={deleteState.isPending && deleteState.pendingId === task.id}
-              onClick={() => onDeleteStudentTask(task.id, task.student.name)}
-            >
-              {deleteState.isPending && deleteState.pendingId === task.id ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
-                  삭제 중...
-                </span>
-              ) : (
-                '삭제'
-              )}
-            </Button>
-          </div>
-          {message && (
-            <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
-              {message}
-            </p>
-          )}
-        </div>
-      </TableCell>
-    </TableRow>
+        <Button size="sm" className="h-8" disabled={!submission || isPending || !score} onClick={handleSave}>
+          {isPending ? <LoadingSpinner /> : '저장'}
+        </Button>
+        {message && (
+          <span className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
+            {message}
+          </span>
+        )}
+      </div>
+    </div>
   )
 }
 
 function WritingReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
+  const filteredTasks = useMemo(() => {
+    if (!focusStudentTaskId) return assignment.studentTasks
+    return assignment.studentTasks.filter((task) => task.id === focusStudentTaskId)
+  }, [assignment.studentTasks, focusStudentTaskId])
+
+  if (filteredTasks.length === 0) {
+    return (
+      <Card className="border-slate-200">
+        <CardContent className="py-8 text-center text-sm text-slate-500">
+          학생을 선택해주세요.
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className="border-slate-200">
       <CardHeader className="space-y-1">
@@ -1275,7 +1292,7 @@ function WritingReviewPanel({ assignment, classLookup, focusStudentTaskId, onDel
         <p className="text-xs text-slate-500">답안을 확인한 뒤 Pass / Non-pass와 피드백을 저장하세요.</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {assignment.studentTasks.map((task) => (
+        {filteredTasks.map((task) => (
           <WritingEvaluationCard
             key={task.id}
             assignmentId={assignment.id}
@@ -1306,17 +1323,117 @@ function WritingEvaluationCard({
   onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
   deleteState: { pendingId: string | null; isPending: boolean }
 }) {
-  const submission = task.submissions[0] ?? null
-  const taskItem = submission && submission.itemId
-    ? task.items.find((item) => item.itemId === submission.itemId) ?? task.items[0] ?? null
-    : task.items[0] ?? null
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+  // 각 item에 대한 submission 매핑
+  const itemSubmissions = useMemo(() => {
+    return task.items.map((item) => {
+      const submission = task.submissions.find((sub) => sub.itemId === item.itemId) ?? null
+      return { item, submission }
+    })
+  }, [task.items, task.submissions])
+
+  const totalItems = task.items.length
+  const completedItems = itemSubmissions.filter(({ submission }) => submission?.score).length
+  const hasAiFeedback = task.submissions.some((sub) => sub.feedback?.includes('[AI 평가:'))
+  const firstSubmission = task.submissions[0] ?? null
+
+  return (
+    <Card className={isFocused ? 'border-primary/40 bg-primary/5' : 'border-slate-200'}>
+      <CardHeader className="space-y-3">
+        {/* 첫 줄: 이름 + 삭제 버튼 */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-base font-semibold text-slate-900">{task.student.name}</p>
+            <p className="text-xs text-slate-500">{className}</p>
+          </div>
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={deleteState.isPending && deleteState.pendingId === task.id}
+            onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+            className="shrink-0"
+          >
+            {deleteState.isPending && deleteState.pendingId === task.id ? (
+              <LoadingSpinner />
+            ) : (
+              '삭제'
+            )}
+          </Button>
+        </div>
+        {/* 둘째 줄: 상태 + 메타 정보 */}
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
+          {firstSubmission?.updatedAt && (
+            <span className="text-slate-500">
+              최근 {DateUtil.formatForDisplay(firstSubmission.updatedAt, { month: 'short', day: 'numeric' })}
+            </span>
+          )}
+          <Badge variant="outline">문제 {totalItems}개</Badge>
+          <Badge variant={completedItems === totalItems ? 'secondary' : 'outline'}>
+            {completedItems}/{totalItems}
+          </Badge>
+          {hasAiFeedback && (
+            <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+              AI
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* 점검하기 버튼 */}
+        <Sheet open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <SheetTrigger asChild>
+            <Button size="sm" className="w-full">
+              점검하기
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="right" className="sm:max-w-2xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>{task.student.name} 서술형 답안 점검</SheetTitle>
+              <SheetDescription>
+                {className} · 총 {totalItems}문제 · 평가 완료 {completedItems}/{totalItems}
+              </SheetDescription>
+            </SheetHeader>
+            <div className="mt-6 space-y-6">
+              {itemSubmissions.map(({ item, submission }, index) => (
+                <WritingItemDetail
+                  key={item.id}
+                  index={index}
+                  assignmentId={assignmentId}
+                  studentTaskId={task.id}
+                  item={item}
+                  submission={submission}
+                />
+              ))}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </CardContent>
+    </Card>
+  )
+}
+
+function WritingItemDetail({
+  index,
+  assignmentId,
+  studentTaskId,
+  item,
+  submission,
+}: {
+  index: number
+  assignmentId: string
+  studentTaskId: string
+  item: StudentTaskItemSummary
+  submission: SubmissionSummary | null
+}) {
   const [score, setScore] = useState<string>(submission?.score ?? '')
   const [feedback, setFeedback] = useState<string>(submission?.feedback ?? '')
   const [message, setMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const handleSave = () => {
-    if (!submission || !taskItem) {
+    if (!submission) {
       setMessage('학생 답안을 찾을 수 없습니다.')
       return
     }
@@ -1325,8 +1442,8 @@ function WritingEvaluationCard({
     startTransition(async () => {
       const result = await evaluateSubmission({
         assignmentId,
-        studentTaskId: task.id,
-        studentTaskItemId: taskItem.id,
+        studentTaskId,
+        studentTaskItemId: item.id,
         submissionId: submission.id,
         score: normalizedScore,
         feedback,
@@ -1335,97 +1452,114 @@ function WritingEvaluationCard({
       if (result?.error) {
         setMessage(result.error)
       } else {
-        setMessage('평가 결과가 저장되었습니다.')
+        setMessage('저장 완료')
+        setTimeout(() => setMessage(null), 2000)
       }
     })
   }
 
   return (
-    <Card className={isFocused ? 'border-primary/40 bg-primary/5' : 'border-slate-200'}>
-      <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-base font-semibold text-slate-900">{task.student.name}</p>
-          <p className="text-xs text-slate-500">{className}</p>
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+      {/* 문제 */}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-slate-500">문제 {index + 1}</p>
+        <p className="text-sm font-medium text-slate-900">
+          {item.workbookItem?.prompt ?? '문제 정보 없음'}
+        </p>
+        {item.workbookItem?.explanation && (
+          <p className="text-xs text-slate-500">해설: {item.workbookItem.explanation}</p>
+        )}
+      </div>
+
+      {/* 학생 답안 */}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold text-slate-500">학생 답안</p>
+        {submission?.content ? (
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="whitespace-pre-line text-sm leading-relaxed text-slate-700">
+              {submission.content}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs text-slate-400">답안 없음</p>
+          </div>
+        )}
+      </div>
+
+      {/* AI 피드백 (있는 경우) */}
+      {feedback.includes('[AI 평가:') && (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold text-blue-600">AI 평가 결과</p>
+          <div className="rounded-md bg-blue-50 p-3 text-sm text-blue-800">
+            <p className="whitespace-pre-line">{feedback}</p>
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-2 md:flex-row md:items-center">
-          <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
-          {submission?.updatedAt && (
-            <span className="text-xs text-slate-500">
-              최근 평가 {DateUtil.formatForDisplay(submission.updatedAt, { month: 'short', day: 'numeric' })}
-            </span>
-          )}
-          <Button
-            size="sm"
-            variant="destructive"
-            disabled={deleteState.isPending && deleteState.pendingId === task.id}
-            onClick={() => onDeleteStudentTask(task.id, task.student.name)}
-          >
-            {deleteState.isPending && deleteState.pendingId === task.id ? (
-              <span className="flex items-center justify-center gap-2">
-                <LoadingSpinner />
-                삭제 중...
-              </span>
-            ) : (
-              '삭제'
-            )}
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm text-slate-700">
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-          {submission?.content ? (
-            <p className="whitespace-pre-line leading-relaxed">{submission.content}</p>
-          ) : (
-            <p className="text-xs text-slate-400">제출된 답안이 없습니다.</p>
-          )}
-        </div>
-        <div className="grid gap-3 md:grid-cols-[minmax(0,160px)_1fr_minmax(0,120px)]">
+      )}
+
+      {/* 평가 입력 */}
+      <div className="space-y-2 border-t border-slate-100 pt-3">
+        <div className="flex items-center gap-3">
           <Select value={score} onValueChange={setScore}>
-            <SelectTrigger>
-              <SelectValue placeholder="평가" />
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="평가 선택" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="pass">Pass</SelectItem>
               <SelectItem value="nonpass">Non-pass</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex flex-col gap-2">
-            {feedback.includes('[AI 평가:') && (
-              <div className="rounded-md bg-blue-50 p-2 text-xs text-blue-700">
-                <span className="font-semibold">AI 평가 결과가 포함되어 있습니다.</span> 내용을 검토하고 필요시 수정하세요.
-              </div>
+          <Button size="sm" disabled={isPending || !submission} onClick={handleSave}>
+            {isPending ? (
+              <span className="flex items-center gap-2">
+                <LoadingSpinner />
+                저장 중...
+              </span>
+            ) : (
+              '저장'
             )}
-            <Textarea
-              placeholder="피드백 (선택)"
-              value={feedback}
-              onChange={(event) => setFeedback(event.target.value)}
-              rows={3}
-            />
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <Button size="sm" disabled={isPending || !submission} onClick={handleSave} className="w-full">
-              {isPending ? (
-                <span className="flex items-center justify-center gap-2">
-                  <LoadingSpinner />
-                  저장 중...
-                </span>
-              ) : (
-                '저장'
-              )}
-            </Button>
-            {message && (
-              <p className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
-                {message}
-              </p>
-            )}
-          </div>
+          </Button>
+          {message && (
+            <span className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
+              {message}
+            </span>
+          )}
         </div>
-      </CardContent>
-    </Card>
+        {!feedback.includes('[AI 평가:') && (
+          <Textarea
+            placeholder="피드백 (선택)"
+            value={feedback}
+            onChange={(e) => setFeedback(e.target.value)}
+            rows={2}
+            className="text-sm"
+          />
+        )}
+        {feedback.includes('[AI 평가:') && (
+          <div className="text-xs text-slate-500">
+            AI 평가 결과를 수정하려면 아래에 피드백을 입력하세요.
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
 function FilmReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
+  const filteredTasks = useMemo(() => {
+    if (!focusStudentTaskId) return assignment.studentTasks
+    return assignment.studentTasks.filter((task) => task.id === focusStudentTaskId)
+  }, [assignment.studentTasks, focusStudentTaskId])
+
+  if (filteredTasks.length === 0) {
+    return (
+      <Card className="border-slate-200">
+        <CardContent className="py-8 text-center text-sm text-slate-500">
+          학생을 선택해주세요.
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card className="border-slate-200">
       <CardHeader className="space-y-1">
@@ -1433,7 +1567,7 @@ function FilmReviewPanel({ assignment, classLookup, focusStudentTaskId, onDelete
         <p className="text-xs text-slate-500">감상지를 확인하고 Pass / Non-pass를 저장하세요.</p>
       </CardHeader>
       <CardContent className="space-y-3">
-        {assignment.studentTasks.map((task) => (
+        {filteredTasks.map((task) => (
           <FilmEvaluationCard
             key={task.id}
             assignmentId={assignment.id}

@@ -6,6 +6,7 @@ import {
   Calendar,
   CalendarClock,
   CheckCircle2,
+  ChevronDown,
   CircleDot,
   Printer,
   Users,
@@ -114,6 +115,8 @@ export function ClassDashboard({
   const [focusStudentTaskId, setFocusStudentTaskId] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isDeletingClass, startDeleteClass] = useTransition()
+  const [isPrintRequestsOpen, setIsPrintRequestsOpen] = useState(false)
+  const [isAssignmentListOpen, setIsAssignmentListOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -291,61 +294,91 @@ export function ClassDashboard({
       </header>
 
       <Card id="print-requests" className="border-slate-200">
-        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <CardTitle className="text-base text-slate-900">인쇄 요청 현황</CardTitle>
+        <CardHeader
+          className="flex cursor-pointer flex-col gap-2 transition-colors hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+          onClick={() => setIsPrintRequestsOpen((prev) => !prev)}
+        >
+          <div className="flex items-center gap-2">
+            <ChevronDown
+              className={`h-4 w-4 text-slate-500 transition-transform ${isPrintRequestsOpen ? 'rotate-180' : ''}`}
+            />
+            <CardTitle className="text-base text-slate-900">인쇄 요청 현황</CardTitle>
+            {printRequestRows.length > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {printRequestRows.length}건
+              </Badge>
+            )}
+          </div>
           <p className="text-xs text-slate-500">대기 중인 요청은 관리자에게 인쇄를 의뢰해주세요.</p>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-slate-600">
-          {printRequestRows.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
-              현재 등록된 인쇄 요청이 없습니다.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {printRequestRows.map(({ assignment, request }) => {
-                const desiredLabel = request.desiredDate
-                  ? DateUtil.formatForDisplay(request.desiredDate, { month: 'short', day: 'numeric' })
-                  : '희망일 미정'
-                return (
-                  <div
-                    key={request.id}
-                    className="flex flex-col gap-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span className="font-medium text-slate-900">
-                        {assignment.title} — {desiredLabel}
-                        {request.desiredPeriod ? ` · ${request.desiredPeriod}` : ''}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {request.copies}부 · {request.colorMode === 'color' ? '컬러' : '흑백'}
-                        {request.notes ? ` · 메모 ${request.notes}` : ''}
-                      </span>
+        {isPrintRequestsOpen && (
+          <CardContent className="space-y-2 text-sm text-slate-600">
+            {printRequestRows.length === 0 ? (
+              <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+                현재 등록된 인쇄 요청이 없습니다.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {printRequestRows.map(({ assignment, request }) => {
+                  const desiredLabel = request.desiredDate
+                    ? DateUtil.formatForDisplay(request.desiredDate, { month: 'short', day: 'numeric' })
+                    : '희망일 미정'
+                  return (
+                    <div
+                      key={request.id}
+                      className="flex flex-col gap-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 md:flex-row md:items-center md:justify-between"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-slate-900">
+                          {assignment.title} — {desiredLabel}
+                          {request.desiredPeriod ? ` · ${request.desiredPeriod}` : ''}
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          {request.copies}부 · {request.colorMode === 'color' ? '컬러' : '흑백'}
+                          {request.notes ? ` · 메모 ${request.notes}` : ''}
+                        </span>
+                      </div>
+                      <Badge variant={request.status === 'requested' ? 'destructive' : 'secondary'}>
+                        {request.status === 'requested' ? '대기' : request.status === 'done' ? '완료' : '취소'}
+                      </Badge>
                     </div>
-                    <Badge variant={request.status === 'requested' ? 'destructive' : 'secondary'}>
-                      {request.status === 'requested' ? '대기' : request.status === 'done' ? '완료' : '취소'}
-                    </Badge>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        )}
       </Card>
 
-      {!hasAssignments ? (
-        <Card className="border-dashed border-slate-200">
-          <CardContent className="py-16 text-center text-sm text-slate-500">
-            아직 이 반에 배정된 과제가 없습니다.
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(240px,320px)_1fr]">
-          <Card className="h-fit border-slate-200">
-            <CardHeader>
-              <CardTitle className="text-base text-slate-900">과제 목록</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {assignments.map((assignment) => {
+      {/* 과제 목록 드롭다운 */}
+      <Card className="border-slate-200">
+        <CardHeader
+          className="flex cursor-pointer flex-col gap-2 transition-colors hover:bg-slate-50 md:flex-row md:items-center md:justify-between"
+          onClick={() => setIsAssignmentListOpen((prev) => !prev)}
+        >
+          <div className="flex items-center gap-2">
+            <ChevronDown
+              className={`h-4 w-4 text-slate-500 transition-transform ${isAssignmentListOpen ? 'rotate-180' : ''}`}
+            />
+            <CardTitle className="text-base text-slate-900">과제 목록</CardTitle>
+            <Badge variant="secondary" className="text-xs">
+              {assignments.length}개
+            </Badge>
+          </div>
+          {activeAssignment && (
+            <p className="text-xs text-slate-500">
+              선택: {activeAssignment.title}
+            </p>
+          )}
+        </CardHeader>
+        {isAssignmentListOpen && (
+          <CardContent className="space-y-3">
+            {!hasAssignments ? (
+              <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-xs text-slate-500">
+                아직 이 반에 배정된 과제가 없습니다.
+              </div>
+            ) : (
+              assignments.map((assignment) => {
                 const dueLabel = assignment.dueAt
                   ? DateUtil.formatForDisplay(assignment.dueAt, {
                       month: 'short',
@@ -366,7 +399,11 @@ export function ClassDashboard({
                   <button
                     key={assignment.id}
                     type="button"
-                    onClick={() => setActiveAssignmentId(assignment.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setActiveAssignmentId(assignment.id)
+                      setIsAssignmentListOpen(false)
+                    }}
                     className={`w-full rounded-md border px-3 py-3 text-left transition ${
                       isActive ? 'border-primary bg-primary/10' : 'border-slate-200 bg-white hover:border-primary/40'
                     }`}
@@ -399,11 +436,15 @@ export function ClassDashboard({
                     </div>
                   </button>
                 )
-              })}
-            </CardContent>
-          </Card>
+              })
+            )}
+          </CardContent>
+        )}
+      </Card>
 
-          <div className="space-y-4">
+      {/* 과제 상세 및 평가 */}
+      {hasAssignments && (
+        <div className="space-y-4">
             {actionMessage && (
               <div
                 className={`rounded-md border px-3 py-2 text-xs ${
@@ -460,97 +501,54 @@ export function ClassDashboard({
                       <span className="inline-flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3" /> 완료 {activeAssignment.completedStudents}/{activeAssignment.totalStudents}명
                       </span>
-                      <Badge variant="outline">미평가 {activeAssignment.outstandingStudents}명</Badge>
+                      <Badge variant="outline">{activeAssignment.completionRate}%</Badge>
+                      <Badge variant={activeAssignment.outstandingStudents > 0 ? 'destructive' : 'secondary'}>
+                        미평가 {activeAssignment.outstandingStudents}명
+                      </Badge>
+                      {statusSummary &&
+                        Object.entries(statusSummary)
+                          .filter(([, count]) => count > 0)
+                          .map(([status, count]) => (
+                            <Badge key={status} variant={STATUS_BADGE_VARIANT[status] ?? 'outline'}>
+                              {STATUS_LABELS[status] ?? status} {count}명
+                            </Badge>
+                          ))}
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid gap-2 sm:grid-cols-4">
-                      <SummaryTile
-                        label="마감일"
-                        value={
-                          activeAssignment.dueAt
-                            ? DateUtil.formatForDisplay(activeAssignment.dueAt, {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
-                            : '마감 없음'
-                        }
-                      />
-                      <SummaryTile label="완료율" value={`${activeAssignment.completionRate}%`} />
-                      <SummaryTile label="미평가" value={`${activeAssignment.outstandingStudents}명`} />
-                      <SummaryTile
-                        label="출제자"
-                        value={
-                          activeAssignment.assignedBy
-                            ? activeAssignment.assignedBy.name?.trim() ||
-                              activeAssignment.assignedBy.email ||
-                              '정보 없음'
-                            : '정보 없음'
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-sm font-semibold text-slate-700">상태 요약</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                        {statusSummary &&
-                          Object.entries(statusSummary)
-                            .filter(([, count]) => count > 0)
-                            .map(([status, count]) => (
-                              <Badge key={status} variant={STATUS_BADGE_VARIANT[status] ?? 'outline'}>
-                                {STATUS_LABELS[status] ?? status} {count}명
-                              </Badge>
-                            ))}
-                        {statusSummary && Object.values(statusSummary).every((count) => count === 0) && (
-                          <span className="text-xs text-slate-500">학생 데이터가 없습니다.</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold text-slate-700">미평가 학생</p>
-                      </div>
-                      {pendingTasks.length === 0 ? (
-                        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-xs text-slate-500">
-                          모든 학생 평가가 완료되었습니다.
-                        </div>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {activeDetail.studentTasks.length === 0 ? (
+                        <p className="text-xs text-slate-500">학생 데이터가 없습니다.</p>
                       ) : (
-                        <div className="space-y-2">
-                          {pendingTasks.slice(0, 5).map((task) => (
-                            <div
+                        activeDetail.studentTasks.map((task) => {
+                          const isSelected = focusStudentTaskId === task.id
+                          const statusVariant = STATUS_BADGE_VARIANT[task.status] ?? 'outline'
+                          return (
+                            <Button
                               key={task.id}
-                              className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 md:flex-row md:items-center md:justify-between"
+                              size="sm"
+                              variant={isSelected ? 'default' : 'outline'}
+                              onClick={() => handleFocusStudentTask(task.id)}
+                              className={`gap-1.5 ${
+                                !isSelected && statusVariant === 'destructive'
+                                  ? 'border-destructive/50 text-destructive hover:bg-destructive/10'
+                                  : !isSelected && statusVariant === 'secondary'
+                                    ? 'border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                                    : ''
+                              }`}
                             >
-                              <div className="space-y-1">
-                                <p className="font-medium text-slate-900">{task.student.name}</p>
-                                <p className="text-[11px] text-slate-500">
-                                  {task.className} · {task.completedCount}/{task.totalItems}문항 완료
-                                  {task.student.email ? ` · ${task.student.email}` : ''}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={STATUS_BADGE_VARIANT[task.status] ?? 'outline'}>
-                                  {STATUS_LABELS[task.status] ?? task.status}
-                                </Badge>
-                                <Button size="sm" variant="ghost" onClick={() => handleFocusStudentTask(task.id)}>
-                                  평가
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                          {pendingTasks.length > 5 && (
-                            <p className="text-[11px] text-slate-500">나머지 {pendingTasks.length - 5}명은 아래 평가 패널에서 계속 확인할 수 있습니다.</p>
-                          )}
-                        </div>
+                              {task.student.name}
+                              <Badge
+                                variant={isSelected ? 'outline' : statusVariant}
+                                className={`text-[10px] px-1.5 py-0 ${isSelected ? 'bg-white/20 border-white/40 text-white' : ''}`}
+                              >
+                                {STATUS_LABELS[task.status] ?? task.status}
+                              </Badge>
+                            </Button>
+                          )
+                        })
                       )}
                     </div>
-
-                    <p className="text-xs text-slate-500">
-                      하단의 평가 패널에서 학생별 제출물 검토, Pass/Non-pass 저장, 인쇄 요청을 바로 처리할 수 있습니다.
-                    </p>
                   </CardContent>
                 </Card>
 
@@ -572,7 +570,6 @@ export function ClassDashboard({
               </Card>
             )}
           </div>
-        </div>
       )}
 
       {summary.upcomingAssignments > 0 && (
