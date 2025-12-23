@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
-import WorkbookMetadataForm from '@/components/dashboard/workbooks/WorkbookMetadataForm'
+import WorkbookMetadataForm, { type TeacherOption } from '@/components/dashboard/workbooks/WorkbookMetadataForm'
 import WorkbookItemsEditor, {
   type WorkbookItemsEditorItem,
 } from '@/components/dashboard/workbooks/WorkbookItemsEditor'
@@ -60,7 +60,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
   const { data: workbook, error } = await supabase
     .from('workbooks')
     .select(
-      `id, teacher_id, title, subject, type, week_label, tags, description, config,
+      `id, teacher_id, author_id, title, subject, type, week_label, tags, description, config,
        workbook_items(id, position, prompt, explanation, answer_type,
         workbook_item_choices(content, is_correct),
         workbook_item_short_fields(label, answer, position)
@@ -78,6 +78,17 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
   if (!workbook || !canManageWorkbook) {
     notFound()
   }
+
+  // Fetch teachers and principals for author selection
+  const { data: teacherData } = await supabase
+    .from('profiles')
+    .select('id, name')
+    .in('role', ['teacher', 'principal'])
+    .order('name', { ascending: true })
+
+  const teachers: TeacherOption[] = (teacherData ?? [])
+    .filter((t): t is { id: string; name: string } => !!t.name)
+    .map((t) => ({ id: t.id, name: t.name }))
 
   const formDefaults = buildMetadataFormDefaults(workbook)
 
@@ -127,7 +138,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
       </div>
 
       <div className="space-y-6">
-        <WorkbookMetadataForm workbookId={workbook.id} defaultValues={formDefaults} />
+        <WorkbookMetadataForm workbookId={workbook.id} defaultValues={formDefaults} teachers={teachers} />
         <WorkbookItemsEditor
           workbookId={workbook.id}
           workbookType={workbook.type as 'srs' | 'pdf' | 'writing' | 'film' | 'lecture'}
@@ -142,6 +153,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
 type WorkbookRecord = {
   id: string
   teacher_id: string
+  author_id: string | null
   title: string
   subject: string
   type: string
@@ -177,6 +189,7 @@ const buildMetadataFormDefaults = (workbook: WorkbookRecord): WorkbookMetadataFo
     title: workbook.title,
     subject: workbook.subject as WorkbookMetadataFormValues['subject'],
     type: workbook.type as WorkbookMetadataFormValues['type'],
+    authorId: workbook.author_id ?? '',
     weekLabel: workbook.week_label ?? '',
     tagsInput: (workbook.tags ?? []).join(', '),
     description: workbook.description ?? '',

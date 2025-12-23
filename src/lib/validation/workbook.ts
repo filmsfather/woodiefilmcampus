@@ -145,6 +145,7 @@ export const workbookFormSchema = z
       .max(120, { message: '제목은 120자 이내로 입력해주세요.' }),
     subject: z.enum(WORKBOOK_SUBJECTS),
     type: z.enum(WORKBOOK_TYPES),
+    authorId: z.string().optional().transform((value) => value === '' ? undefined : value),
     weekLabel: optionalTrimmedString,
     tagsInput: optionalTrimmedString,
     description: optionalTrimmedString,
@@ -253,6 +254,7 @@ export const workbookMetadataFormSchema = z.object({
     .max(120, { message: '제목은 120자 이내로 입력해주세요.' }),
   subject: z.enum(WORKBOOK_SUBJECTS),
   type: z.enum(WORKBOOK_TYPES),
+  authorId: z.string().optional().transform((value) => value === '' ? undefined : value),
   weekLabel: optionalTrimmedString,
   tagsInput: optionalTrimmedString,
   description: optionalTrimmedString,
@@ -289,6 +291,7 @@ export interface NormalizedWorkbookPayload {
   title: string
   subject: (typeof WORKBOOK_SUBJECTS)[number]
   type: (typeof WORKBOOK_TYPES)[number]
+  authorId?: string
   weekLabel?: string
   tags: string[]
   description?: string
@@ -484,6 +487,7 @@ export function buildNormalizedWorkbookPayload(
     title: values.title.trim(),
     subject: values.subject,
     type: values.type,
+    authorId: values.authorId || undefined,
     weekLabel: normalizeString(values.weekLabel),
     tags,
     description: normalizeString(values.description),
@@ -497,6 +501,7 @@ export interface WorkbookMetadataPayload {
   title: string
   subject: (typeof WORKBOOK_SUBJECTS)[number]
   type: (typeof WORKBOOK_TYPES)[number]
+  authorId?: string
   weekLabel?: string
   tags: string[]
   description?: string
@@ -562,6 +567,7 @@ export function buildWorkbookMetadataPayload(values: WorkbookMetadataFormValues)
     title: values.title.trim(),
     subject: values.subject,
     type: values.type,
+    authorId: values.authorId || undefined,
     weekLabel: normalizeString(values.weekLabel),
     tags,
     description: normalizeString(values.description),

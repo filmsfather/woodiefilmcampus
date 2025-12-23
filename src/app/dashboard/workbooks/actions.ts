@@ -81,6 +81,7 @@ const createWorkbookInputSchema = z.object({
   title: z.string().min(1),
   subject: z.enum(WORKBOOK_SUBJECTS),
   type: z.enum(WORKBOOK_TYPES),
+  authorId: z.string().uuid().optional().nullable(),
   weekLabel: z.string().optional(),
   tags: z.array(z.string()),
   description: z.string().optional(),
@@ -95,6 +96,7 @@ const updateWorkbookInputSchema = z.object({
   workbookId: z.string().uuid('유효한 문제집 ID가 아닙니다.'),
   title: z.string().min(1),
   subject: z.enum(WORKBOOK_SUBJECTS),
+  authorId: z.string().uuid().optional().nullable(),
   weekLabel: z.string().optional(),
   tags: z.array(z.string()),
   description: z.string().optional(),
@@ -270,6 +272,7 @@ export async function createWorkbook(input: CreateWorkbookInput) {
       .from('workbooks')
       .insert({
         teacher_id: profile.id,
+        author_id: payload.authorId ?? null,
         title: payload.title,
         subject: payload.subject,
         week_label: payload.weekLabel ?? null,
@@ -545,6 +548,7 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
     .update({
       title: payload.title,
       subject: payload.subject,
+      author_id: payload.authorId ?? null,
       week_label: payload.weekLabel ?? null,
       tags: payload.tags,
       description: payload.description ?? null,
@@ -1359,5 +1363,82 @@ export async function duplicateWorkbook(workbookId: string) {
   } catch (error) {
     console.error('[duplicateWorkbook] unexpected error', error)
     return { error: '문제집 복제 중 예상치 못한 오류가 발생했습니다.' }
+  }
+}
+
+// AI 해설 생성 입력 스키마
+const generateAIExplanationInputSchema = z.object({
+  prompt: z.string().min(1, '문항 내용이 필요합니다.'),
+  context: z.string().optional(),
+})
+
+export type GenerateAIExplanationInput = z.infer<typeof generateAIExplanationInputSchema>
+
+// AI 채점 기준 생성 입력 스키마
+const generateAIGradingCriteriaInputSchema = z.object({
+  prompt: z.string().min(1, '문항 내용이 필요합니다.'),
+})
+
+export type GenerateAIGradingCriteriaInput = z.infer<typeof generateAIGradingCriteriaInputSchema>
+
+/**
+ * AI를 사용하여 문항 해설을 생성합니다.
+ */
+export async function generateAIExplanation(input: GenerateAIExplanationInput) {
+  const parseResult = generateAIExplanationInputSchema.safeParse(input)
+
+  if (!parseResult.success) {
+    return { error: '입력 값을 확인해주세요.' }
+  }
+
+  const { profile } = await getAuthContext()
+  const allowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !allowedRoles.has(profile.role)) {
+    return { error: 'AI 기능을 사용할 권한이 없습니다.' }
+  }
+
+  const { generateExplanation } = await import('@/lib/gemini')
+  const result = await generateExplanation(parseResult.data.prompt, parseResult.data.context)
+
+  if ('error' in result) {
+    return { error: result.error }
+  }
+
+  return {
+    success: true as const,
+    explanation: result.explanation,
+  }
+}
+
+/**
+ * AI를 사용하여 채점 기준을 생성합니다.
+ */
+export async function generateAIGradingCriteria(input: GenerateAIGradingCriteriaInput) {
+  const parseResult = generateAIGradingCriteriaInputSchema.safeParse(input)
+
+  if (!parseResult.success) {
+    return { error: '입력 값을 확인해주세요.' }
+  }
+
+  const { profile } = await getAuthContext()
+  const allowedRoles = new Set(['teacher', 'principal', 'manager'])
+
+  if (!profile || !allowedRoles.has(profile.role)) {
+    return { error: 'AI 기능을 사용할 권한이 없습니다.' }
+  }
+
+  const { generateGradingCriteria } = await import('@/lib/gemini')
+  const result = await generateGradingCriteria(parseResult.data.prompt)
+
+  if ('error' in result) {
+    return { error: result.error }
+  }
+
+  return {
+    success: true as const,
+    high: result.high,
+    mid: result.mid,
+    low: result.low,
   }
 }

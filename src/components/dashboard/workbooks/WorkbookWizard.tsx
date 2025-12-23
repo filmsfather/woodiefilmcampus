@@ -12,7 +12,7 @@ import {
   type Resolver,
   type FieldPath,
 } from 'react-hook-form'
-import { AlertCircle, Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -31,7 +31,15 @@ import {
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { createWorkbook } from '@/app/dashboard/workbooks/actions'
+import { createWorkbook, generateAIExplanation, generateAIGradingCriteria } from '@/app/dashboard/workbooks/actions'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   WORKBOOK_SUBJECTS,
   WORKBOOK_TITLES,
@@ -91,6 +99,7 @@ const stepFieldMap: Record<(typeof steps)[number]['id'], string[]> = {
     'title',
     'subject',
     'type',
+    'authorId',
     'weekLabel',
     'tagsInput',
     'description',
@@ -136,6 +145,7 @@ const defaultValues: WorkbookFormValues = {
   title: '',
   subject: WORKBOOK_SUBJECTS[0],
   type: WORKBOOK_TYPES[0],
+  authorId: '',
   weekLabel: '',
   tagsInput: '',
   description: '',
@@ -146,7 +156,7 @@ const defaultValues: WorkbookFormValues = {
     instructions: '',
   },
   writingSettings: {
-    instructions: '',
+    instructions: '제출 즉시 채점됩니다. high 등급 이상이어야 통과됩니다. 최선을 다해 작성해주세요.',
     maxCharacters: '',
   },
   filmSettings: {
@@ -163,7 +173,12 @@ const defaultValues: WorkbookFormValues = {
   items: [createEmptyItem(true)],
 }
 
-export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
+export interface TeacherOption {
+  id: string
+  name: string
+}
+
+export default function WorkbookWizard({ teacherId, teachers = [] }: { teacherId: string; teachers?: TeacherOption[] }) {
   const form = useForm<WorkbookFormValues>({
     resolver: zodResolver(workbookFormSchema) as Resolver<WorkbookFormValues>,
     defaultValues,
@@ -178,6 +193,14 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
   const [serverError, setServerError] = useState<string | null>(null)
   const [successWorkbookId, setSuccessWorkbookId] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+
+  // AI 생성 관련 상태
+  const [aiContextDialogOpen, setAiContextDialogOpen] = useState(false)
+  const [aiContextInput, setAiContextInput] = useState('')
+  const [aiTargetItemIndex, setAiTargetItemIndex] = useState<number | null>(null)
+  const [isGeneratingExplanation, setIsGeneratingExplanation] = useState<Record<number, boolean>>({})
+  const [isGeneratingCriteria, setIsGeneratingCriteria] = useState<Record<number, boolean>>({})
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const { control, watch, setValue, unregister, formState } = form
   const { fields, append, remove } = useFieldArray({
@@ -471,6 +494,93 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
 
   const handleAddItem = () => {
     append(createEmptyItem(selectedType === 'srs'))
+  }
+
+  // AI 해설 생성 (Context 없이)
+  const handleGenerateExplanation = async (itemIndex: number) => {
+    const prompt = watch(`items.${itemIndex}.prompt`)
+    if (!prompt || prompt.trim().length === 0) {
+      setAiError('문항 내용을 먼저 입력해주세요.')
+      return
+    }
+
+    setIsGeneratingExplanation((prev) => ({ ...prev, [itemIndex]: true }))
+    setAiError(null)
+
+    const result = await generateAIExplanation({ prompt })
+
+    setIsGeneratingExplanation((prev) => ({ ...prev, [itemIndex]: false }))
+
+    if ('error' in result) {
+      setAiError(result.error ?? '알 수 없는 오류가 발생했습니다.')
+      return
+    }
+
+    setValue(`items.${itemIndex}.explanation`, result.explanation, { shouldDirty: true })
+  }
+
+  // AI 해설 생성 (Context와 함께)
+  const handleGenerateExplanationWithContext = async () => {
+    if (aiTargetItemIndex === null) return
+
+    const prompt = watch(`items.${aiTargetItemIndex}.prompt`)
+    if (!prompt || prompt.trim().length === 0) {
+      setAiError('문항 내용을 먼저 입력해주세요.')
+      setAiContextDialogOpen(false)
+      return
+    }
+
+    setIsGeneratingExplanation((prev) => ({ ...prev, [aiTargetItemIndex]: true }))
+    setAiError(null)
+    setAiContextDialogOpen(false)
+
+    const result = await generateAIExplanation({
+      prompt,
+      context: aiContextInput.trim() || undefined,
+    })
+
+    setIsGeneratingExplanation((prev) => ({ ...prev, [aiTargetItemIndex]: false }))
+    setAiContextInput('')
+    setAiTargetItemIndex(null)
+
+    if ('error' in result) {
+      setAiError(result.error ?? '알 수 없는 오류가 발생했습니다.')
+      return
+    }
+
+    setValue(`items.${aiTargetItemIndex}.explanation`, result.explanation, { shouldDirty: true })
+  }
+
+  // Context 입력 다이얼로그 열기
+  const openContextDialog = (itemIndex: number) => {
+    setAiTargetItemIndex(itemIndex)
+    setAiContextInput('')
+    setAiContextDialogOpen(true)
+  }
+
+  // AI 채점 기준 생성
+  const handleGenerateGradingCriteria = async (itemIndex: number) => {
+    const prompt = watch(`items.${itemIndex}.prompt`)
+    if (!prompt || prompt.trim().length === 0) {
+      setAiError('문항 내용을 먼저 입력해주세요.')
+      return
+    }
+
+    setIsGeneratingCriteria((prev) => ({ ...prev, [itemIndex]: true }))
+    setAiError(null)
+
+    const result = await generateAIGradingCriteria({ prompt })
+
+    setIsGeneratingCriteria((prev) => ({ ...prev, [itemIndex]: false }))
+
+    if ('error' in result) {
+      setAiError(result.error ?? '알 수 없는 오류가 발생했습니다.')
+      return
+    }
+
+    setValue(`items.${itemIndex}.gradingCriteria.high`, result.high, { shouldDirty: true })
+    setValue(`items.${itemIndex}.gradingCriteria.mid`, result.mid, { shouldDirty: true })
+    setValue(`items.${itemIndex}.gradingCriteria.low`, result.low, { shouldDirty: true })
   }
 
   const handleSubmit = (values: WorkbookFormValues) => {
@@ -829,7 +939,7 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                   )}
                 />
 
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                   <FormField
                     control={form.control}
                     name="subject"
@@ -875,9 +985,35 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                             ))}
                           </SelectContent>
                         </Select>
-                        <FormDescription>
-                          {WORKBOOK_TYPE_DESCRIPTIONS[field.value as keyof typeof WORKBOOK_TYPE_DESCRIPTIONS]}
-                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="authorId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>작성자</FormLabel>
+                        <Select
+                          value={field.value || '__common__'}
+                          onValueChange={(value) => field.onChange(value === '__common__' ? '' : value)}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="작성자 선택" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="__common__">공통</SelectItem>
+                            {teachers.map((teacher) => (
+                              <SelectItem key={teacher.id} value={teacher.id}>
+                                {teacher.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -892,45 +1028,11 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                         <FormControl>
                           <Input placeholder="예: 3주차 또는 공통" {...field} />
                         </FormControl>
-                        <FormDescription>주차 또는 공통 과제 여부를 표현합니다.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="tagsInput"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>태그</FormLabel>
-                      <FormControl>
-                        <Input placeholder="쉼표(,)로 구분하여 입력" {...field} />
-                      </FormControl>
-                      {tagsPreview.length > 0 && (
-                        <FormDescription>
-                          입력된 태그: {tagsPreview.map((tag) => `#${tag}`).join(' ')}
-                        </FormDescription>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>설명 (선택)</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="문제집에 대한 간단한 안내를 입력하세요." {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
                 {renderTypeSpecificFields()}
               </CardContent>
@@ -991,7 +1093,36 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
                           name={`items.${index}.explanation`}
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>해설 / 참고 (선택)</FormLabel>
+                              <div className="flex items-center justify-between">
+                                <FormLabel>해설 / 참고 (선택)</FormLabel>
+                                <div className="flex gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 gap-1 text-xs"
+                                    onClick={() => handleGenerateExplanation(index)}
+                                    disabled={isGeneratingExplanation[index]}
+                                  >
+                                    {isGeneratingExplanation[index] ? (
+                                      <Loader2 className="size-3 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="size-3" />
+                                    )}
+                                    AI 생성
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 gap-1 text-xs"
+                                    onClick={() => openContextDialog(index)}
+                                    disabled={isGeneratingExplanation[index]}
+                                  >
+                                    Context 추가
+                                  </Button>
+                                </div>
+                              </div>
                               <FormControl>
                                 <Textarea rows={3} placeholder="정답 해설 또는 참고사항" {...field} />
                               </FormControl>
@@ -1002,11 +1133,28 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
 
                         {selectedType === 'writing' && (
                           <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                            <div className="space-y-1">
-                              <h4 className="text-sm font-semibold text-slate-900">채점 기준 (AI 자동 평가)</h4>
-                              <p className="text-xs text-slate-500">
-                                AI가 학생의 답안을 평가할 때 사용할 기준을 상세히 입력해주세요.
-                              </p>
+                            <div className="flex items-start justify-between">
+                              <div className="space-y-1">
+                                <h4 className="text-sm font-semibold text-slate-900">채점 기준 (AI 자동 평가)</h4>
+                                <p className="text-xs text-slate-500">
+                                  AI가 학생의 답안을 평가할 때 사용할 기준을 상세히 입력해주세요.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 gap-1 text-xs"
+                                onClick={() => handleGenerateGradingCriteria(index)}
+                                disabled={isGeneratingCriteria[index]}
+                              >
+                                {isGeneratingCriteria[index] ? (
+                                  <Loader2 className="size-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="size-3" />
+                                )}
+                                AI 기준 생성
+                              </Button>
                             </div>
                             <div className="grid gap-4 md:grid-cols-3">
                               <FormField
@@ -1376,6 +1524,62 @@ export default function WorkbookWizard({ teacherId }: { teacherId: string }) {
           </div>
         </form>
       </Form>
+
+      {/* AI Context 입력 다이얼로그 */}
+      <Dialog open={aiContextDialogOpen} onOpenChange={setAiContextDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>AI 해설 생성 - Context 입력</DialogTitle>
+            <DialogDescription>
+              AI가 해설을 생성할 때 참고할 추가 정보를 입력하세요. 입력하지 않아도 생성됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <Textarea
+              value={aiContextInput}
+              onChange={(e) => setAiContextInput(e.target.value)}
+              placeholder="예: 이 문항은 누벨바그 영화 운동에 관한 것입니다. 특히 프랑수아 트뤼포와 장뤼크 고다르의 작품을 중심으로 설명해주세요."
+              rows={5}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiContextDialogOpen(false)}>
+              취소
+            </Button>
+            <Button
+              onClick={handleGenerateExplanationWithContext}
+              disabled={aiTargetItemIndex !== null && isGeneratingExplanation[aiTargetItemIndex]}
+            >
+              {aiTargetItemIndex !== null && isGeneratingExplanation[aiTargetItemIndex] ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" />
+                  생성 중...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 size-4" />
+                  AI 해설 생성
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI 에러 메시지 */}
+      {aiError && (
+        <div className="fixed bottom-4 right-4 z-50 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg">
+          <AlertCircle className="size-4" />
+          <span>{aiError}</span>
+          <button
+            type="button"
+            onClick={() => setAiError(null)}
+            className="ml-2 text-red-500 hover:text-red-700"
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }

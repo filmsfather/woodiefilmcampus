@@ -24,7 +24,6 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   WORKBOOK_SUBJECTS,
   WORKBOOK_TITLES,
-  WORKBOOK_TYPE_DESCRIPTIONS,
   buildWorkbookMetadataPayload,
   parseTagsInput,
   workbookMetadataFormSchema,
@@ -32,12 +31,18 @@ import {
 } from '@/lib/validation/workbook'
 import { updateWorkbook } from '@/app/dashboard/workbooks/actions'
 
+export interface TeacherOption {
+  id: string
+  name: string
+}
+
 interface WorkbookMetadataFormProps {
   workbookId: string
   defaultValues: WorkbookMetadataFormValues
+  teachers?: TeacherOption[]
 }
 
-export default function WorkbookMetadataForm({ workbookId, defaultValues }: WorkbookMetadataFormProps) {
+export default function WorkbookMetadataForm({ workbookId, defaultValues, teachers = [] }: WorkbookMetadataFormProps) {
   const router = useRouter()
   const form = useForm<WorkbookMetadataFormValues>({
     resolver: zodResolver(workbookMetadataFormSchema),
@@ -63,6 +68,7 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
         workbookId,
         title: payload.title,
         subject: payload.subject,
+        authorId: payload.authorId ?? null,
         weekLabel: payload.weekLabel,
         tags: payload.tags,
         description: payload.description,
@@ -332,9 +338,6 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
                 <FormLabel>문제집 유형</FormLabel>
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
                   <p className="font-medium text-slate-900">{WORKBOOK_TITLES[selectedType]}</p>
-                  <p className="text-xs text-slate-500">
-                    {WORKBOOK_TYPE_DESCRIPTIONS[selectedType]}
-                  </p>
                 </div>
               </FormItem>
 
@@ -347,7 +350,35 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues }: Work
                     <FormControl>
                       <Input placeholder="예: 3주차 또는 공통" {...field} />
                     </FormControl>
-                    <FormDescription>주차 또는 공통 과제 여부를 표현합니다.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="authorId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>작성자</FormLabel>
+                    <Select
+                      value={field.value || '__common__'}
+                      onValueChange={(value) => field.onChange(value === '__common__' ? '' : value)}
+                    >
+                      <FormControl>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="작성자 선택" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="__common__">공통</SelectItem>
+                        {teachers.map((teacher) => (
+                          <SelectItem key={teacher.id} value={teacher.id}>
+                            {teacher.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
