@@ -7,7 +7,7 @@ import { Menu } from 'lucide-react'
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
 import { ROLE_LABELS } from '@/components/dashboard/dashboard-navigation'
 import type { UserProfile } from '@/lib/supabase'
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SignOutButton } from '@/components/dashboard/SignOutButton'
@@ -44,6 +44,10 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="w-72 max-w-[80vw] p-0">
+                    <SheetHeader className="sr-only">
+                      <SheetTitle>메뉴</SheetTitle>
+                      <SheetDescription>모바일 네비게이션 메뉴입니다.</SheetDescription>
+                    </SheetHeader>
                     <DashboardSidebar
                       role={profile.role}
                       profileName={profile.name}
