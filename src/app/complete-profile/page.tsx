@@ -17,7 +17,7 @@ export default function CompleteProfilePage() {
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [userEmail, setUserEmail] = useState<string | null>(null)
-  const [existingName, setExistingName] = useState<string>('')
+  const [name, setName] = useState<string>('')
 
   const [state, formAction, isPending] = useActionState<CompleteProfileState, FormData>(
     completeProfile,
@@ -38,9 +38,9 @@ export default function CompleteProfilePage() {
       // OAuth로 로그인한 경우 Google/Kakao에서 받은 이름이 있을 수 있음
       const googleName = userData.user.user_metadata?.full_name
       const kakaoName = userData.user.user_metadata?.name
-      const existingProfileName = userData.user.user_metadata?.name
 
-      setExistingName(googleName || kakaoName || existingProfileName || '')
+      // 기본값으로 설정하되, 사용자가 자유롭게 수정 가능
+      setName(googleName || kakaoName || '')
       setLoading(false)
     }
 
@@ -80,11 +80,17 @@ export default function CompleteProfilePage() {
               <Input
                 id="name"
                 name="name"
-                defaultValue={existingName}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="홍길동"
                 required
                 autoComplete="name"
               />
+              {name && (
+                <p className="text-xs text-slate-500">
+                  소셜 계정에서 가져온 이름입니다. 수정 가능합니다.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
