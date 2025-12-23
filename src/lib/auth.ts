@@ -17,6 +17,11 @@ function isApprovedStatus(value: string | null | undefined) {
   return typeof value === 'string' && value.trim().toLowerCase() === 'approved'
 }
 
+export function isProfileComplete(profile: UserProfile | null): boolean {
+  if (!profile) return false
+  return !!(profile.name && profile.student_phone && profile.academic_record)
+}
+
 export function resolveDashboardPath(role: UserRole) {
   return `/dashboard/${role}`
 }
@@ -93,16 +98,24 @@ export async function requireAuthForDashboard(targetRole?: UserRole | UserRole[]
 }
 
 export async function redirectAuthenticatedUser() {
-  const { profile } = await getAuthContext()
+  const { session, profile } = await getAuthContext()
 
-  if (!profile) {
+  // 로그인 안 된 상태
+  if (!session) {
     return
   }
 
+  // 프로필이 없거나 필수 정보 미완성 → 프로필 완성 페이지로
+  if (!profile || !isProfileComplete(profile)) {
+    redirect('/complete-profile')
+  }
+
+  // 승인 대기 상태
   if (!isApprovedStatus(profile.status)) {
     redirect('/pending-approval')
   }
 
+  // 승인됨 → 대시보드로
   if (profile.role) {
     redirect(resolveDashboardPath(profile.role))
   }
