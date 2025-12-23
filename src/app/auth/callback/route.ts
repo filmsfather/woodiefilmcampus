@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
+  const action = searchParams.get('action')
 
   if (code) {
     const cookieStore = await cookies()
@@ -33,6 +34,11 @@ export async function GET(request: NextRequest) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
 
     if (!error) {
+      // 계정 연결(link) 액션인 경우 - 바로 next로 리다이렉트
+      if (action === 'link') {
+        return NextResponse.redirect(`${origin}${next}?linked=true`)
+      }
+
       // 세션 교환 성공 - 프로필 완성 여부에 따라 리다이렉트
       const { data: userData } = await supabase.auth.getUser()
 
