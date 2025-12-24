@@ -101,6 +101,20 @@ export const LEARNING_JOURNAL_SUBJECT_INFO: Record<LearningJournalSubject, {
   },
 }
 
+// 클라이언트에서 사용할 수 있는 과목 옵션 목록
+export const LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER: LearningJournalSubject[] = [
+  'directing',
+  'screenwriting',
+  'film_research',
+  'karts',
+  'integrated_theory',
+]
+
+export const LEARNING_JOURNAL_SUBJECT_OPTIONS = LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER.map((subject) => ({
+  value: subject,
+  label: LEARNING_JOURNAL_SUBJECT_INFO[subject].label,
+}))
+
 export interface LearningJournalGreeting {
   monthToken: string
   message: string
@@ -208,6 +222,7 @@ export interface LearningJournalWeekMaterialItem {
 
 export interface LearningJournalWeekAssignmentItem {
   id: string
+  taskId: string  // student_tasks.id - 배치 업데이트용
   title: string
   status: 'completed' | 'in_progress' | 'not_started' | 'pending'
   dueDate: string | null
@@ -215,6 +230,8 @@ export interface LearningJournalWeekAssignmentItem {
   submittedLate: boolean
   score: number | null
   note: string | null
+  weekOverride: number | null  // 수동 주차 지정 (1-4)
+  periodOverride: string | null  // 수동 period 지정 (UUID)
 }
 
 export interface SharedLearningJournalSnapshot {

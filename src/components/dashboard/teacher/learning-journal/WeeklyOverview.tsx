@@ -1,5 +1,15 @@
+'use client'
+
 import { Badge } from '@/components/ui/badge'
-import type { LearningJournalWeeklyData, LearningJournalWeeklySubjectData } from '@/types/learning-journal'
+import { Button } from '@/components/ui/button'
+import { Plus, MoreVertical } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import type { LearningJournalWeeklyData, LearningJournalWeeklySubjectData, LearningJournalSubject, LearningJournalWeekAssignmentItem } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -11,9 +21,30 @@ const STATUS_LABEL: Record<string, string> = {
 
 interface WeeklyOverviewProps {
   weeks: LearningJournalWeeklyData[]
+  className?: string
+  editable?: boolean
+  onEdit?: (weekIndex: number, subject: LearningJournalSubject) => void
+  onEditTaskPlacement?: (task: LearningJournalWeekAssignmentItem, weekIndex: number) => void
 }
 
-export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
+export function WeeklyOverview({ weeks, className, editable = false, onEdit, onEditTaskPlacement }: WeeklyOverviewProps) {
+  const handleMaterialClick = (weekIndex: number, subject: LearningJournalSubject) => {
+    if (editable && onEdit) {
+      onEdit(weekIndex, subject)
+    }
+  }
+
+  const handleTaskPlacementClick = (task: LearningJournalWeekAssignmentItem, weekIndex: number) => {
+    if (editable && onEditTaskPlacement) {
+      // taskId가 없으면 id를 fallback으로 사용 (기존 데이터 호환성)
+      const normalizedTask = {
+        ...task,
+        taskId: task.taskId ?? task.id,
+      }
+      onEditTaskPlacement(normalizedTask, weekIndex)
+    }
+  }
+
   return (
     <div className="space-y-4">
       {weeks.map((week) => {
@@ -45,9 +76,28 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
             </header>
 
             {allSubjectsEmpty ? (
-              <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
-                등록된 학습 정보가 없습니다.
-              </div>
+              editable && onEdit ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {LEARNING_JOURNAL_SUBJECTS.map((subject) => (
+                    <button
+                      key={subject}
+                      type="button"
+                      onClick={() => handleMaterialClick(week.weekIndex, subject)}
+                      className="group flex items-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500 transition-colors hover:border-slate-400 hover:bg-slate-100"
+                    >
+                      <Plus className="h-4 w-4 text-slate-400 transition-colors group-hover:text-slate-500" />
+                      <span>
+                        {className ? `${className} ` : ''}
+                        {LEARNING_JOURNAL_SUBJECT_INFO[subject].label} 수업내용 추가하기
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500">
+                  등록된 학습 정보가 없습니다.
+                </div>
+              )
             ) : (
               <div className="grid gap-4 md:grid-cols-2">
                 {LEARNING_JOURNAL_SUBJECTS.map((subject) => {
@@ -63,15 +113,28 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
                   const hasSummary = Boolean(data.summaryNote && data.summaryNote.trim())
                   const hasContent = hasMaterials || hasAssignments || hasSummary
 
-                  if (!hasContent) {
+                  // 편집 모드일 때는 내용이 없어도 표시
+                  if (!hasContent && !editable) {
                     return null
                   }
 
                   return (
                     <div key={subject} className="space-y-3 rounded-md border border-slate-200 p-3">
-                      <h4 className="text-sm font-semibold text-slate-900">
-                        {LEARNING_JOURNAL_SUBJECT_INFO[subject].label}
-                      </h4>
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-slate-900">
+                          {LEARNING_JOURNAL_SUBJECT_INFO[subject].label}
+                        </h4>
+                        {editable && onEdit ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleMaterialClick(week.weekIndex, subject)}
+                            className="h-7 px-2 text-xs text-slate-500 hover:text-slate-700"
+                          >
+                            {hasMaterials ? '편집' : '추가'}
+                          </Button>
+                        ) : null}
+                      </div>
 
                       {hasMaterials || hasSummary ? (
                         <div className="space-y-2">
@@ -82,7 +145,16 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
                                 {data.materials.map((item, index) => (
                                   <li
                                     key={`${subject}-material-${index}`}
-                                    className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
+                                    className={
+                                      editable && onEdit
+                                        ? 'cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-3 py-2 transition-colors hover:border-slate-300 hover:bg-slate-100'
+                                        : 'rounded-md border border-slate-200 bg-slate-50 px-3 py-2'
+                                    }
+                                    onClick={
+                                      editable && onEdit
+                                        ? () => handleMaterialClick(week.weekIndex, subject)
+                                        : undefined
+                                    }
                                   >
                                     <span className="font-medium text-slate-800">{item.title}</span>
                                   </li>
@@ -97,35 +169,77 @@ export function WeeklyOverview({ weeks }: WeeklyOverviewProps) {
                             </p>
                           ) : null}
                         </div>
+                      ) : editable && onEdit ? (
+                        <button
+                          type="button"
+                          onClick={() => handleMaterialClick(week.weekIndex, subject)}
+                          className="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-400 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-500"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>
+                            {className ? `${className} ` : ''}수업내용 추가하기
+                          </span>
+                        </button>
                       ) : null}
 
                       {hasAssignments ? (
                         <div className="space-y-2">
                           <p className="text-xs font-medium text-slate-500">과제</p>
                           <ul className="space-y-2">
-                            {data.assignments.map((assignment) => (
-                              <li
-                                key={assignment.id}
-                                className="space-y-1 rounded-md border border-slate-200 bg-white p-2 text-xs"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="font-medium text-slate-800">{assignment.title}</span>
-                                  <div className="flex items-center gap-1">
-                                    <Badge
-                                      variant={assignment.status === 'completed' ? 'default' : 'outline'}
-                                      className="text-[10px]"
-                                    >
-                                      {STATUS_LABEL[assignment.status] ?? assignment.status}
-                                    </Badge>
-                                    {assignment.submittedLate ? (
-                                      <Badge variant="destructive" className="text-[10px]">
-                                        지각
+                            {data.assignments.map((assignment) => {
+                              const hasPlacementOverride = assignment.weekOverride !== null || assignment.periodOverride !== null
+
+                              return (
+                                <li
+                                  key={assignment.id}
+                                  className="space-y-1 rounded-md border border-slate-200 bg-white p-2 text-xs"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="font-medium text-slate-800">{assignment.title}</span>
+                                      {hasPlacementOverride ? (
+                                        <Badge variant="secondary" className="text-[9px] px-1">
+                                          수동
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Badge
+                                        variant={assignment.status === 'completed' ? 'default' : 'outline'}
+                                        className="text-[10px]"
+                                      >
+                                        {STATUS_LABEL[assignment.status] ?? assignment.status}
                                       </Badge>
-                                    ) : null}
+                                      {assignment.submittedLate ? (
+                                        <Badge variant="destructive" className="text-[10px]">
+                                          지각
+                                        </Badge>
+                                      ) : null}
+                                      {editable && onEditTaskPlacement ? (
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-5 w-5 p-0 text-slate-400 hover:text-slate-600"
+                                            >
+                                              <MoreVertical className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            <DropdownMenuItem
+                                              onClick={() => handleTaskPlacementClick(assignment, week.weekIndex)}
+                                            >
+                                              배치 변경
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
+                                      ) : null}
+                                    </div>
                                   </div>
-                                </div>
-                              </li>
-                            ))}
+                                </li>
+                              )
+                            })}
                           </ul>
                         </div>
                       ) : null}

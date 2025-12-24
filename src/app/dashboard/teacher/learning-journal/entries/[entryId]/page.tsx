@@ -13,12 +13,13 @@ import {
   fetchLearningJournalGreeting,
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
 } from '@/lib/learning-journals'
-import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CommentEditor } from '@/components/dashboard/teacher/learning-journal/CommentEditor'
 import { EntryNavigation } from '@/components/dashboard/teacher/learning-journal/EntryNavigation'
 import { EntryStatusPanel } from '@/components/dashboard/teacher/learning-journal/EntryStatusPanel'
 import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
+import { LearningJournalEntryEditor } from '@/components/dashboard/teacher/learning-journal/LearningJournalEntryEditor'
+import { LEARNING_JOURNAL_SUBJECTS, type LearningJournalSubject } from '@/types/learning-journal'
 
 interface PageParams {
   entryId: string
@@ -93,6 +94,58 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
   const greeting = primaryMonth ? await fetchLearningJournalGreeting(primaryMonth) : null
   const academicEvents = monthTokens.length > 0 ? await fetchLearningJournalAcademicEvents(monthTokens) : []
 
+  // 과목별 수업 자료 가져오기
+  const { data: materialRows, error: materialError } = await supabase
+    .from('class_material_posts')
+    .select('id, subject, title, description, week_label')
+    .in('subject', LEARNING_JOURNAL_SUBJECTS)
+    .order('created_at', { ascending: false })
+    .limit(120)
+
+  if (materialError) {
+    console.error('[learning-journal] material fetch error', materialError)
+  }
+
+  const materials: Record<LearningJournalSubject, Array<{
+    id: string
+    title: string
+    description: string | null
+    subject: LearningJournalSubject
+    display: string
+    weekLabel: string | null
+  }>> = LEARNING_JOURNAL_SUBJECTS.reduce((acc, subject) => {
+    acc[subject] = []
+    return acc
+  }, {} as Record<LearningJournalSubject, Array<{
+    id: string
+    title: string
+    description: string | null
+    subject: LearningJournalSubject
+    display: string
+    weekLabel: string | null
+  }>>)
+
+  for (const row of materialRows ?? []) {
+    const subject = row.subject as LearningJournalSubject
+    if (!LEARNING_JOURNAL_SUBJECTS.includes(subject)) {
+      continue
+    }
+
+    const display = row.description && row.description.trim().length > 0
+      ? `${row.title} - ${row.description}`
+      : row.title
+    const weekLabel = row.week_label ? String(row.week_label) : null
+
+    materials[subject].push({
+      id: row.id,
+      title: row.title,
+      description: row.description ?? null,
+      subject,
+      display,
+      weekLabel,
+    })
+  }
+
   const fallbackHref = profile?.role === 'principal'
     ? '/dashboard/principal/learning-journal/review'
     : profile?.role === 'manager'
@@ -100,6 +153,21 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
       : `/dashboard/teacher/learning-journal?period=${periodRow.id}`
 
   const periodEntries = await fetchLearningJournalEntriesForPeriod(entry.periodId)
+
+  // 과제 배치 변경을 위한 available periods 가져오기 (최근 6개월)
+  const { data: availablePeriodsData } = await supabase
+    .from('learning_journal_periods')
+    .select('id, label, start_date, end_date')
+    .eq('class_id', periodRow.class_id)
+    .order('start_date', { ascending: false })
+    .limit(6)
+
+  const availablePeriods = (availablePeriodsData ?? []).map((p) => ({
+    id: p.id,
+    label: p.label ?? `${p.start_date} ~ ${p.end_date}`,
+    startDate: p.start_date,
+    endDate: p.end_date,
+  }))
 
   return (
     <section className="space-y-6">
@@ -119,7 +187,11 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-6">
-          <LearningJournalEntryContent
+          <LearningJournalEntryEditor
+            classId={periodRow.class_id}
+            periodId={periodRow.id}
+            entryId={entry.id}
+            className={classInfo?.name ?? '반 미지정'}
             header={{
               title: studentName,
               subtitle: `${classInfo?.name ?? '반 미지정'} · ${periodRow.label ?? `${periodRow.start_date} ~ ${periodRow.end_date}`
@@ -160,6 +232,8 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
             summary={entry.summary}
             weekly={entry.weekly}
             comments={comments}
+            materials={materials}
+            availablePeriods={availablePeriods}
           />
 
           <RegenerateWeeklyButton entryId={entry.id} />

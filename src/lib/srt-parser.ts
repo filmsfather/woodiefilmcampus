@@ -81,3 +81,4 @@ export function extractTextLinesFromSrt(srtContent: string): string {
   return entries.map((entry) => entry.text).join('\n')
 }
 
+

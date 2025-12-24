@@ -151,7 +151,6 @@ export const saveLearningJournalCommentSchema = z.object({
   body: z
     .string()
     .trim()
-    .min(1, '코멘트를 최소 1자 이상 입력해주세요.')
     .max(4_000, '코멘트는 최대 4,000자까지 입력할 수 있습니다.'),
 })
   .superRefine((value, ctx) => {

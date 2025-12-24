@@ -1245,6 +1245,8 @@ interface StudentTaskWeeklyRow {
   submitted_late?: boolean | null
   completion_at: string | null
   progress_meta: Record<string, unknown> | null
+  week_override?: number | null
+  period_override?: string | null
   assignments?:
   | {
     id: string
@@ -1418,6 +1420,8 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
        submitted_late,
        completion_at,
        progress_meta,
+       week_override,
+       period_override,
        assignments:assignments!student_tasks_assignment_id_fkey(
          id,
          due_at,
@@ -1472,9 +1476,22 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
       continue
     }
 
+    // period 필터링: period_override가 이 period이거나, override가 없고 날짜 기준으로 이 period에 속하는 경우
     const weekIndexFromCreatedAt = deriveWeekIndexFromDate(assignmentRelation.created_at, weeklyRanges)
     const weekIndexFromDueAt = deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
-    const weekIndex = weekIndexFromCreatedAt ?? weekIndexFromDueAt
+    const autoWeekIndex = weekIndexFromCreatedAt ?? weekIndexFromDueAt
+
+    const hasPeriodOverride = row.period_override !== null && row.period_override !== undefined
+    const matchesThisPeriod = hasPeriodOverride
+      ? row.period_override === period.id
+      : autoWeekIndex !== null  // 날짜 기준으로 이 period의 주차 범위에 속함
+
+    if (!matchesThisPeriod) {
+      continue
+    }
+
+    // 주차 결정: week_override 우선, 없으면 자동 계산
+    const weekIndex = row.week_override ?? autoWeekIndex
 
     if (!weekIndex || weekIndex < 1 || weekIndex > 4) {
       continue
@@ -1495,6 +1512,7 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
 
     subjectAssignments.push({
       id: row.id,
+      taskId: row.id,  // student_tasks.id - 배치 업데이트용
       title: workbook?.title ?? '과제',
       status: normalizeAssignmentStatus(resolvedStatus),
       dueDate: assignmentRelation.due_at,
@@ -1502,6 +1520,8 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
       submittedLate: Boolean(row.submitted_late),
       score: extractScore(progressMeta),
       note: null,
+      weekOverride: row.week_override ?? null,
+      periodOverride: row.period_override ?? null,
     })
   }
 
@@ -1985,18 +2005,8 @@ export async function fetchLearningJournalAnnualSchedules(): Promise<LearningJou
   )
 }
 
-const LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER: LearningJournalSubject[] = [
-  'directing',
-  'screenwriting',
-  'film_research',
-  'karts',
-  'integrated_theory',
-]
-
-export const LEARNING_JOURNAL_SUBJECT_OPTIONS = LEARNING_JOURNAL_SUBJECT_DISPLAY_ORDER.map((subject) => ({
-  value: subject,
-  label: LEARNING_JOURNAL_SUBJECT_INFO[subject].label,
-}))
+// Re-export from types for backward compatibility
+export { LEARNING_JOURNAL_SUBJECT_OPTIONS } from '@/types/learning-journal'
 
 const SHARE_TOKEN_BYTE_LENGTH = 24
 

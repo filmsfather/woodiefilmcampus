@@ -144,7 +144,27 @@ export async function saveLearningJournalCommentAction(
       return makeErrorState('기존 코멘트를 확인하지 못했습니다.')
     }
 
+    const isEmptyBody = !parsed.data.body || parsed.data.body.trim().length === 0
+
     if (existing?.id) {
+      if (isEmptyBody) {
+        // 빈 값이면 기존 코멘트 삭제
+        const { error: deleteError } = await supabase
+          .from('learning_journal_comments')
+          .delete()
+          .eq('id', existing.id)
+
+        if (deleteError) {
+          console.error('[learning-journal] comment delete error', deleteError)
+          return makeErrorState('코멘트를 삭제하지 못했습니다.')
+        }
+
+        revalidatePath(TEACHER_LEARNING_JOURNAL_PATH)
+        revalidateEntryPath(parsed.data.entryId)
+        return makeSuccessState('코멘트를 삭제했습니다.')
+      }
+
+      // 기존 코멘트 업데이트
       const { error: updateError } = await supabase
         .from('learning_journal_comments')
         .update({
@@ -158,6 +178,11 @@ export async function saveLearningJournalCommentAction(
         return makeErrorState('코멘트를 저장하지 못했습니다.')
       }
     } else {
+      // 빈 값이면 삽입하지 않음
+      if (isEmptyBody) {
+        return makeSuccessState('저장할 코멘트가 없습니다.')
+      }
+
       const { error: insertError } = await supabase
         .from('learning_journal_comments')
         .insert({
@@ -437,4 +462,79 @@ export async function deleteClassTemplateWeekAction(formData: FormData) {
   revalidatePath(TEACHER_LEARNING_JOURNAL_PATH)
 
   return { success: true } as const
+}
+
+// 과제 배치 오버라이드 액션
+export async function updateTaskPlacementAction(formData: FormData) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || !canManageLearningJournal(profile.role)) {
+    return { error: '과제 배치를 변경할 권한이 없습니다.' }
+  }
+
+  const taskId = formData.get('taskId')?.toString()
+  const weekOverrideRaw = formData.get('weekOverride')?.toString()
+  const periodOverrideRaw = formData.get('periodOverride')?.toString()
+  const entryId = formData.get('entryId')?.toString()
+
+  // taskId 검증 강화 - "undefined" 문자열도 체크
+  if (!taskId || taskId === 'undefined') {
+    console.error('[learning-journal] task placement - invalid taskId:', taskId)
+    return { error: '과제 정보를 확인하지 못했습니다. (taskId가 없음)' }
+  }
+
+  // weekOverride: "1"-"4" 또는 "auto"(null로 설정)
+  const weekOverride = (() => {
+    if (!weekOverrideRaw || weekOverrideRaw === 'auto') {
+      return null
+    }
+    const parsed = parseInt(weekOverrideRaw, 10)
+    if (isNaN(parsed) || parsed < 1 || parsed > 4) {
+      return null
+    }
+    return parsed
+  })()
+
+  // periodOverride: UUID 또는 "auto"(null로 설정)
+  const periodOverride = (() => {
+    if (!periodOverrideRaw || periodOverrideRaw === 'auto') {
+      return null
+    }
+    return periodOverrideRaw
+  })()
+
+  const supabase = await createServerSupabase()
+
+  try {
+    const { error: updateError } = await supabase
+      .from('student_tasks')
+      .update({
+        week_override: weekOverride,
+        period_override: periodOverride,
+      })
+      .eq('id', taskId)
+
+    if (updateError) {
+      console.error('[learning-journal] task placement update error', updateError)
+      return { error: '과제 배치를 저장하지 못했습니다.' }
+    }
+
+    // 저장 후 자동으로 weekly 데이터 재생성
+    if (entryId) {
+      const weeklyData = await refreshLearningJournalWeeklyData(entryId)
+      if (!weeklyData) {
+        console.warn('[learning-journal] task placement - weekly regeneration failed for entry:', entryId)
+      }
+    }
+
+    revalidatePath(TEACHER_LEARNING_JOURNAL_PATH)
+    if (entryId) {
+      revalidateEntryPath(entryId)
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('[learning-journal] task placement unexpected error', error)
+    return { error: '과제 배치를 변경하는 중 문제가 발생했습니다.' }
+  }
 }

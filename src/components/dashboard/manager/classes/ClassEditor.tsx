@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useFormState, useFormStatus } from 'react-dom'
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react'
+import { useFormStatus } from 'react-dom'
 
 import { createClassAction, updateClassAction } from '@/app/dashboard/manager/classes/actions'
 import { initialActionState } from '@/app/dashboard/manager/classes/action-state'
@@ -54,7 +54,7 @@ export function ClassEditor({
   onCompleted,
 }: ClassEditorProps) {
   const action = mode === 'create' ? createClassAction : updateClassAction
-  const [state, formAction] = useFormState(action, initialActionState)
+  const [state, formAction] = useActionState(action, initialActionState)
   const formRef = useRef<HTMLFormElement>(null)
   const [localError, setLocalError] = useState<string | null>(null)
 

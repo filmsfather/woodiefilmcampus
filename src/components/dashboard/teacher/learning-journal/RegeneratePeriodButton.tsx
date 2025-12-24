@@ -1,8 +1,8 @@
 'use client'
 
 import { RefreshCw } from 'lucide-react'
-import { useFormState, useFormStatus } from 'react-dom'
-import { useEffect } from 'react'
+import { useFormStatus } from 'react-dom'
+import { useActionState, useEffect } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -36,7 +36,7 @@ interface RegeneratePeriodButtonProps {
 }
 
 export function RegeneratePeriodButton({ periodId }: RegeneratePeriodButtonProps) {
-    const [state, formAction] = useFormState(regeneratePeriodLearningJournalWeeklyAction, initialState)
+    const [state, formAction] = useActionState(regeneratePeriodLearningJournalWeeklyAction, initialState)
 
     useEffect(() => {
         if (state.status === 'success') {

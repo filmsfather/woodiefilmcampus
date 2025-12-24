@@ -2,14 +2,16 @@ import type { ReactNode } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { WeeklyOverview } from '@/components/dashboard/teacher/learning-journal/WeeklyOverview'
-import { LEARNING_JOURNAL_SUBJECT_OPTIONS } from '@/lib/learning-journals'
 import { cn } from '@/lib/utils'
-import type {
-  LearningJournalAcademicEvent,
-  LearningJournalComment,
-  LearningJournalGreeting,
-  LearningJournalWeeklyData,
-  LearningJournalWeeklySubjectData,
+import {
+  LEARNING_JOURNAL_SUBJECT_OPTIONS,
+  type LearningJournalAcademicEvent,
+  type LearningJournalComment,
+  type LearningJournalGreeting,
+  type LearningJournalSubject,
+  type LearningJournalWeeklyData,
+  type LearningJournalWeeklySubjectData,
+  type LearningJournalWeekAssignmentItem,
 } from '@/types/learning-journal'
 
 interface HeaderMetaItem {
@@ -35,6 +37,11 @@ interface LearningJournalEntryContentProps {
   emptySummaryMessage?: string
   emptyWeeklyMessage?: string
   actionPanel?: ReactNode
+  // 편집 모드 관련 props
+  editable?: boolean
+  className?: string
+  onEditWeeklyMaterial?: (weekIndex: number, subject: LearningJournalSubject) => void
+  onEditTaskPlacement?: (task: LearningJournalWeekAssignmentItem, weekIndex: number) => void
 }
 
 function renderStructuredContent(data: unknown) {
@@ -167,6 +174,10 @@ export function LearningJournalEntryContent({
   emptySummaryMessage = '아직 요약 정보가 준비되지 않았습니다.',
   emptyWeeklyMessage = '주차별 콘텐츠가 아직 등록되지 않았습니다.',
   actionPanel,
+  editable = false,
+  className,
+  onEditWeeklyMaterial,
+  onEditTaskPlacement,
 }: LearningJournalEntryContentProps) {
   const homeroomComment = comments.find((comment) => comment.roleScope === 'homeroom')
   const homeroomBody = homeroomComment?.body?.trim() ?? ''
@@ -215,41 +226,47 @@ export function LearningJournalEntryContent({
         ) : null}
       </header>
 
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900">원장 인사말</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {greeting ? (
-            <p className="whitespace-pre-wrap text-sm text-slate-600">{greeting.message}</p>
-          ) : (
-            <p className="text-sm text-slate-500">{emptyGreetingMessage}</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* 편집 모드(선생님 화면)에서는 비어있으면 숨김 */}
+      {greeting || !editable ? (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">원장 인사말</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {greeting ? (
+              <p className="whitespace-pre-wrap text-sm text-slate-600">{greeting.message}</p>
+            ) : (
+              <p className="text-sm text-slate-500">{emptyGreetingMessage}</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900">주요 학사 일정</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {academicEvents.length > 0 ? (
-            <ul className="space-y-3 text-sm text-slate-600">
-              {academicEvents.map((event) => (
-                <li key={event.id} className="rounded-md bg-slate-50 px-3 py-2">
-                  <p className="font-medium text-slate-900">
-                    {event.startDate}
-                    {event.endDate ? ` ~ ${event.endDate}` : ''} · {event.title}
-                  </p>
-                  {event.memo ? <p className="text-xs text-slate-500">{event.memo}</p> : null}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-slate-500">{emptyEventsMessage}</p>
-          )}
-        </CardContent>
-      </Card>
+      {/* 편집 모드(선생님 화면)에서는 비어있으면 숨김 */}
+      {academicEvents.length > 0 || !editable ? (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">주요 학사 일정</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {academicEvents.length > 0 ? (
+              <ul className="space-y-3 text-sm text-slate-600">
+                {academicEvents.map((event) => (
+                  <li key={event.id} className="rounded-md bg-slate-50 px-3 py-2">
+                    <p className="font-medium text-slate-900">
+                      {event.startDate}
+                      {event.endDate ? ` ~ ${event.endDate}` : ''} · {event.title}
+                    </p>
+                    {event.memo ? <p className="text-xs text-slate-500">{event.memo}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-slate-500">{emptyEventsMessage}</p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-slate-200">
         <CardHeader>
@@ -369,7 +386,13 @@ export function LearningJournalEntryContent({
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-slate-600">
           {weeklyStructured && weeklyStructured.length > 0 ? (
-            <WeeklyOverview weeks={weeklyStructured} />
+            <WeeklyOverview
+              weeks={weeklyStructured}
+              className={className}
+              editable={editable}
+              onEdit={onEditWeeklyMaterial}
+              onEditTaskPlacement={onEditTaskPlacement}
+            />
           ) : renderedWeekly ? (
             <pre className="max-h-72 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-600">
               {renderedWeekly}

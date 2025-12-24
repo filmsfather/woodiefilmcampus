@@ -53,9 +53,8 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
           name="body"
           defaultValue={defaultValue}
           rows={6}
-          placeholder="코멘트를 입력하세요."
+          placeholder="코멘트를 입력하세요. (비워두면 삭제됩니다)"
           disabled={isPending}
-          required
           maxLength={4000}
         />
         <div className="flex justify-end">
