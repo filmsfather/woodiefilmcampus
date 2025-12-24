@@ -44,6 +44,19 @@ interface PeriodOption {
   endDate: string
 }
 
+interface StudentEntry {
+  id: string
+  studentId: string
+  studentName: string
+}
+
+interface ClassOption {
+  periodId: string
+  classId: string
+  className: string
+  firstEntryId: string | null
+}
+
 interface LearningJournalEntryEditorProps {
   classId: string
   periodId: string
@@ -57,6 +70,9 @@ interface LearningJournalEntryEditorProps {
   comments: LearningJournalComment[]
   materials: Record<LearningJournalSubject, MaterialOption[]>
   availablePeriods: PeriodOption[]
+  entries?: StudentEntry[]
+  availableClasses?: ClassOption[]
+  currentClassId?: string
 }
 
 export function LearningJournalEntryEditor({
@@ -72,6 +88,9 @@ export function LearningJournalEntryEditor({
   comments,
   materials,
   availablePeriods,
+  entries,
+  availableClasses,
+  currentClassId,
 }: LearningJournalEntryEditorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -225,6 +244,10 @@ export function LearningJournalEntryEditor({
         className={className}
         onEditWeeklyMaterial={handleEdit}
         onEditTaskPlacement={handleEditTaskPlacement}
+        entries={entries}
+        currentEntryId={entryId}
+        availableClasses={availableClasses}
+        currentClassId={currentClassId}
       />
 
       {dialogState.open ? (

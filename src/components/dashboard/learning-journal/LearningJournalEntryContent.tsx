@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { WeeklyOverview } from '@/components/dashboard/teacher/learning-journal/WeeklyOverview'
+import { StudentSelector } from '@/components/dashboard/teacher/learning-journal/StudentSelector'
 import { cn } from '@/lib/utils'
 import {
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
@@ -13,6 +14,19 @@ import {
   type LearningJournalWeeklySubjectData,
   type LearningJournalWeekAssignmentItem,
 } from '@/types/learning-journal'
+
+interface StudentEntry {
+  id: string
+  studentId: string
+  studentName: string
+}
+
+interface ClassOption {
+  periodId: string
+  classId: string
+  className: string
+  firstEntryId: string | null
+}
 
 interface HeaderMetaItem {
   label: string
@@ -42,6 +56,12 @@ interface LearningJournalEntryContentProps {
   className?: string
   onEditWeeklyMaterial?: (weekIndex: number, subject: LearningJournalSubject) => void
   onEditTaskPlacement?: (task: LearningJournalWeekAssignmentItem, weekIndex: number) => void
+  // 학생 네비게이션 props
+  entries?: StudentEntry[]
+  currentEntryId?: string
+  // 반 선택 props
+  availableClasses?: ClassOption[]
+  currentClassId?: string
 }
 
 function renderStructuredContent(data: unknown) {
@@ -178,6 +198,10 @@ export function LearningJournalEntryContent({
   className,
   onEditWeeklyMaterial,
   onEditTaskPlacement,
+  entries,
+  currentEntryId,
+  availableClasses,
+  currentClassId,
 }: LearningJournalEntryContentProps) {
   const homeroomComment = comments.find((comment) => comment.roleScope === 'homeroom')
   const homeroomBody = homeroomComment?.body?.trim() ?? ''
@@ -209,10 +233,22 @@ export function LearningJournalEntryContent({
     : null
   const finalEvaluation = averagePercent !== null ? calculateCompletionEvaluation(averagePercent) : null
 
+  // 학생 네비게이션 사용 여부
+  const showStudentSelector = editable && entries && entries.length > 0 && currentEntryId
+
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">{header.title}</h1>
+        {showStudentSelector ? (
+          <StudentSelector
+            currentEntryId={currentEntryId}
+            entries={entries}
+            availableClasses={availableClasses}
+            currentClassId={currentClassId}
+          />
+        ) : (
+          <h1 className="text-2xl font-semibold text-slate-900">{header.title}</h1>
+        )}
         {header.subtitle ? <p className="text-sm text-slate-600">{header.subtitle}</p> : null}
         {header.meta && header.meta.length > 0 ? (
           <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">

@@ -15,7 +15,6 @@ import {
 } from '@/lib/learning-journals'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CommentEditor } from '@/components/dashboard/teacher/learning-journal/CommentEditor'
-import { EntryNavigation } from '@/components/dashboard/teacher/learning-journal/EntryNavigation'
 import { EntryStatusPanel } from '@/components/dashboard/teacher/learning-journal/EntryStatusPanel'
 import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 import { LearningJournalEntryEditor } from '@/components/dashboard/teacher/learning-journal/LearningJournalEntryEditor'
@@ -152,7 +151,55 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
       ? '/dashboard/manager/learning-journal'
       : `/dashboard/teacher/learning-journal?period=${periodRow.id}`
 
-  const periodEntries = await fetchLearningJournalEntriesForPeriod(entry.periodId)
+  const periodEntriesRaw = await fetchLearningJournalEntriesForPeriod(entry.periodId)
+  const periodEntries = periodEntriesRaw.sort((a, b) => 
+    a.studentName.localeCompare(b.studentName, 'ko')
+  )
+
+  // 같은 기간에 다른 반의 period 가져오기 (반 전환용)
+  const { data: samePeriodClasses } = await supabase
+    .from('learning_journal_periods')
+    .select(`
+      id,
+      class_id,
+      classes:classes!learning_journal_periods_class_id_fkey(id, name),
+      entries:learning_journal_entries(
+        id,
+        student:profiles!learning_journal_entries_student_id_fkey(id, name)
+      )
+    `)
+    .eq('start_date', periodRow.start_date)
+    .eq('end_date', periodRow.end_date)
+    .order('class_id')
+
+  const availableClasses = (samePeriodClasses ?? [])
+    .map((p) => {
+      const cls = Array.isArray(p.classes) ? p.classes[0] : p.classes
+      const entries = (p.entries ?? []) as Array<{ id: string; student: { id: string; name: string | null } | { id: string; name: string | null }[] | null }>
+      
+      // 첫 번째 학생 엔트리 찾기 (이름순 정렬)
+      const sortedEntries = entries
+        .map((e) => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student
+          return {
+            entryId: e.id,
+            studentName: student?.name ?? '',
+          }
+        })
+        .filter((e) => e.studentName)
+        .sort((a, b) => a.studentName.localeCompare(b.studentName, 'ko'))
+      
+      const firstEntry = sortedEntries[0]
+
+      return {
+        periodId: p.id,
+        classId: p.class_id,
+        className: cls?.name ?? '반 미지정',
+        firstEntryId: firstEntry?.entryId ?? null,
+      }
+    })
+    .filter((c) => c.className !== '반 미지정' && c.firstEntryId)
+    .sort((a, b) => a.className.localeCompare(b.className, 'ko'))
 
   // 과제 배치 변경을 위한 available periods 가져오기 (최근 6개월)
   const { data: availablePeriodsData } = await supabase
@@ -171,19 +218,11 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
 
   return (
     <section className="space-y-6">
-      <div className="flex items-center justify-between">
-        <DashboardBackLink
-          fallbackHref={fallbackHref}
-          label="학습일지 개요로 돌아가기"
-        />
-        <EntryNavigation currentEntryId={entry.id} entries={periodEntries} />
-      </div>
-      <div className="space-y-2">
-        <h1 className="text-3xl font-semibold text-slate-900">학습일지 작성</h1>
-        <p className="text-sm text-slate-600">
-          학생에게 공개될 화면을 확인하고 필요한 코멘트를 작성하세요.
-        </p>
-      </div>
+      <DashboardBackLink
+        fallbackHref={fallbackHref}
+        label="학습일지 개요로 돌아가기"
+      />
+      <h1 className="text-3xl font-semibold text-slate-900">학습일지 작성</h1>
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="space-y-6">
@@ -234,6 +273,9 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
             comments={comments}
             materials={materials}
             availablePeriods={availablePeriods}
+            entries={periodEntries}
+            availableClasses={availableClasses}
+            currentClassId={periodRow.class_id}
           />
 
           <RegenerateWeeklyButton entryId={entry.id} />

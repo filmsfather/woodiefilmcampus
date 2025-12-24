@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -91,6 +92,18 @@ export default async function TeacherLearningJournalPage(props: {
     ? studentSnapshotsByPeriod.get(selectedPeriod.id) ?? []
     : []
   const selectedStats = selectedPeriod ? stats.get(selectedPeriod.id) ?? null : null
+
+  // period 파라미터 없이 접근했을 때 첫 번째 학생 엔트리로 리다이렉트
+  // (classId만 있거나 파라미터가 없는 경우)
+  if (!selectedParam && selectedSnapshots.length > 0) {
+    const sortedSnapshots = [...selectedSnapshots].sort((a, b) => 
+      (a.name ?? '').localeCompare(b.name ?? '', 'ko')
+    )
+    const firstEntry = sortedSnapshots[0]
+    if (firstEntry?.entryId) {
+      redirect(`/dashboard/teacher/learning-journal/entries/${firstEntry.entryId}`)
+    }
+  }
   const debugMessages = selectedSnapshots
     .filter((snapshot) => !snapshot.name)
     .map((snapshot) => {
