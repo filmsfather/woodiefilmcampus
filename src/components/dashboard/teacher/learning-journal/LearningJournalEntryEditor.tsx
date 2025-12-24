@@ -149,6 +149,7 @@ export function LearningJournalEntryEditor({
     const formData = new FormData()
     formData.set('classId', classId)
     formData.set('periodId', periodId)
+    formData.set('entryId', entryId)
     formData.set('weekIndex', String(dialogState.weekIndex))
     formData.set('subject', dialogState.subject)
 
@@ -254,6 +255,7 @@ export function LearningJournalEntryEditor({
         <ClassTemplateMaterialDialog
           open={dialogState.open}
           onClose={handleDialogClose}
+          subject={dialogState.subject}
           subjectLabel={LEARNING_JOURNAL_SUBJECT_INFO[dialogState.subject].label}
           options={materials[dialogState.subject] ?? []}
           selected={selectedMaterials}

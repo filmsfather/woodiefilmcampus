@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
+import { FolderPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { QuickClassMaterialDialog } from './QuickClassMaterialDialog'
 
 interface MaterialOption {
   id: string
@@ -23,9 +24,18 @@ interface SelectedMaterial {
   title: string
 }
 
+interface CreatedMaterial {
+  id: string
+  title: string
+  description: string | null
+  weekLabel: string | null
+  subject: string
+}
+
 interface ClassTemplateMaterialDialogProps {
   open: boolean
   onClose: () => void
+  subject: string
   subjectLabel: string
   options: MaterialOption[]
   selected: SelectedMaterial[]
@@ -36,10 +46,10 @@ interface ClassTemplateMaterialDialogProps {
 export function ClassTemplateMaterialDialog({
   open,
   onClose,
+  subject,
   subjectLabel,
   options,
   selected,
-  notes,
   onSubmit,
 }: ClassTemplateMaterialDialogProps) {
   const [query, setQuery] = useState('')
@@ -48,7 +58,11 @@ export function ClassTemplateMaterialDialog({
   const [editedTitles, setEditedTitles] = useState<Map<string, string>>(
     () => new Map(selected.map((item) => [item.id, item.title]))
   )
-  const [materialNotes, setMaterialNotes] = useState<string>(notes ?? '')
+
+  // 새 자료 추가 다이얼로그 상태
+  const [showQuickAdd, setShowQuickAdd] = useState(false)
+  // 동적으로 추가된 자료 (DB에 저장된 후 목록에 추가)
+  const [addedMaterials, setAddedMaterials] = useState<MaterialOption[]>([])
 
   useEffect(() => {
     if (!open) {
@@ -58,21 +72,49 @@ export function ClassTemplateMaterialDialog({
     setSelectedIds(new Set(selected.map((item) => item.id)))
     setSelectedOrder(selected.map((item) => item.id))
     setEditedTitles(new Map(selected.map((item) => [item.id, item.title])))
-    setMaterialNotes(notes ?? '')
-  }, [open, selected, notes])
+    setAddedMaterials([])
+  }, [open, selected])
+
+  // 새 자료가 생성되면 목록에 추가하고 자동 선택
+  const handleMaterialCreated = useCallback((material: CreatedMaterial) => {
+    const newOption: MaterialOption = {
+      id: material.id,
+      title: material.title,
+      description: material.description,
+      subject: material.subject,
+      display: material.description
+        ? `${material.title} - ${material.description}`
+        : material.title,
+      weekLabel: material.weekLabel,
+    }
+
+    setAddedMaterials((prev) => [newOption, ...prev])
+
+    // 자동 선택
+    setSelectedIds((prev) => new Set([...prev, material.id]))
+    setSelectedOrder((prev) => [...prev, material.id])
+    setEditedTitles((prev) => {
+      const next = new Map(prev)
+      next.set(material.id, newOption.display)
+      return next
+    })
+  }, [])
+
+  // 기존 옵션 + 새로 추가한 자료를 합쳐서 표시
+  const allOptions = useMemo(() => [...addedMaterials, ...options], [addedMaterials, options])
 
   const filteredOptions = useMemo(() => {
     if (!query.trim()) {
-      return options
+      return allOptions
     }
     const tokens = query.trim().toLowerCase().split(/\s+/)
-    return options.filter((option) => {
+    return allOptions.filter((option) => {
       const haystack = `${option.display} ${option.description ?? ''} ${option.weekLabel ?? ''}`.toLowerCase()
       return tokens.every((token) => haystack.includes(token))
     })
-  }, [options, query])
+  }, [allOptions, query])
 
-  const optionMap = useMemo(() => new Map(options.map((option) => [option.id, option])), [options])
+  const optionMap = useMemo(() => new Map(allOptions.map((option) => [option.id, option])), [allOptions])
 
   const toggleSelection = (material: MaterialOption) => {
     const isSelected = selectedIds.has(material.id)
@@ -136,11 +178,12 @@ export function ClassTemplateMaterialDialog({
 
   const handleSubmit = () => {
     const ids = selectedEntries
+    const materialIds = ids
     const titles = ids.map((id) => editedTitles.get(id) ?? '')
     onSubmit({
-      materialIds: ids,
+      materialIds,
       materialTitles: titles,
-      materialNotes,
+      materialNotes: null,
     })
     onClose()
   }
@@ -198,9 +241,20 @@ export function ClassTemplateMaterialDialog({
             )}
           </div>
 
+          {/* 새 자료 추가 버튼 */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowQuickAdd(true)}
+            className="w-full gap-1"
+          >
+            <FolderPlus className="h-4 w-4" />
+            새 자료 추가
+          </Button>
+
           {selectedEntries.length > 0 ? (
             <div className="space-y-2">
-              <p className="text-xs text-slate-500">선택된 자료 제목 수정</p>
+              <p className="text-xs text-slate-500">선택된 자료 ({selectedEntries.length}개) · 제목 수정 가능</p>
               <div className="space-y-2">
                 {selectedEntries.map((id) => {
                   const option = optionMap.get(id)
@@ -233,19 +287,9 @@ export function ClassTemplateMaterialDialog({
             </div>
           ) : (
             <div className="rounded-md border border-dashed border-slate-200 p-4 text-center text-xs text-slate-500">
-              선택한 자료가 없습니다.
+              위에서 자료를 선택하거나, 새 자료를 추가하세요.
             </div>
           )}
-
-          <div className="space-y-2">
-            <p className="text-xs text-slate-500">주차 상세 메모 (학생/교사 모두에게 노출)</p>
-            <Textarea
-              value={materialNotes}
-              onChange={(event) => setMaterialNotes(event.target.value)}
-              rows={4}
-              maxLength={2000}
-            />
-          </div>
 
           <div className="flex justify-end gap-2 pb-2">
             <Button variant="outline" onClick={onClose}>
@@ -256,6 +300,15 @@ export function ClassTemplateMaterialDialog({
             </Button>
           </div>
         </div>
+
+        {/* 새 자료 추가 Dialog */}
+        <QuickClassMaterialDialog
+          open={showQuickAdd}
+          onClose={() => setShowQuickAdd(false)}
+          subject={subject}
+          subjectLabel={subjectLabel}
+          onCreated={handleMaterialCreated}
+        />
       </SheetContent>
     </Sheet>
   )

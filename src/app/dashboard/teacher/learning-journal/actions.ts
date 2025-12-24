@@ -386,6 +386,8 @@ export async function upsertClassTemplateWeekAction(rawForm: FormData) {
     return { error: '월간 학습 계획을 수정할 권한이 없습니다.' }
   }
 
+  const entryId = rawForm.get('entryId')?.toString() ?? ''
+
   const payload = {
     classId: String(rawForm.get('classId') ?? ''),
     periodId: String(rawForm.get('periodId') ?? ''),
@@ -415,6 +417,15 @@ export async function upsertClassTemplateWeekAction(rawForm: FormData) {
 
   if (!template) {
     return { error: '템플릿을 저장하지 못했습니다.' }
+  }
+
+  // 저장 후 자동으로 weekly 데이터 재생성
+  if (entryId) {
+    const weeklyData = await refreshLearningJournalWeeklyData(entryId)
+    if (!weeklyData) {
+      console.warn('[learning-journal] upsertClassTemplateWeek - weekly regeneration failed for entry:', entryId)
+    }
+    revalidateEntryPath(entryId)
   }
 
   // Revalidate both the old template path (if it exists) and the main page

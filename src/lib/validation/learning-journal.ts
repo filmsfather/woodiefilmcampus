@@ -199,7 +199,8 @@ export const upsertClassLearningJournalWeekSchema = z
       .min(1, '1주차부터 선택할 수 있습니다.')
       .max(4, '4주차까지만 입력할 수 있습니다.'),
     subject: z.enum(LEARNING_JOURNAL_SUBJECTS),
-    materialIds: z.array(z.string().uuid()).max(20, '자료는 최대 20개까지 선택할 수 있습니다.'),
+    // 직접 입력한 자료는 빈 문자열 ID를 가지므로 UUID 또는 빈 문자열 허용
+    materialIds: z.array(z.string().uuid().or(z.literal(''))).max(20, '자료는 최대 20개까지 선택할 수 있습니다.'),
     materialTitles: z.array(z.string().trim().max(200, '자료 제목은 200자 이하여야 합니다.')),
     materialNotes: z
       .string()

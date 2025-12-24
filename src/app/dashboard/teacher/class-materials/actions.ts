@@ -354,6 +354,89 @@ function revalidateMaterialPaths(subject: ClassMaterialSubject, postId?: string)
   revalidatePath('/dashboard/manager')
 }
 
+// 빠른 수업 자료 추가 (파일 없이 제목/설명/주차만)
+export type QuickClassMaterialResult = {
+  success?: boolean
+  error?: string
+  material?: {
+    id: string
+    title: string
+    description: string | null
+    weekLabel: string | null
+    subject: ClassMaterialSubject
+  }
+}
+
+export async function createQuickClassMaterialAction(
+  subject: string,
+  title: string,
+  description: string,
+  weekLabel: string
+): Promise<QuickClassMaterialResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.role || !isClassMaterialAllowedRole(profile.role)) {
+    return { error: '수업자료를 등록할 권한이 없습니다.' }
+  }
+
+  if (!isClassMaterialSubject(subject)) {
+    return { error: '유효한 과목이 아닙니다.' }
+  }
+
+  const trimmedTitle = title.trim()
+  if (trimmedTitle.length === 0) {
+    return { error: '제목을 입력해주세요.' }
+  }
+
+  if (trimmedTitle.length > 200) {
+    return { error: '제목은 200자 이하로 입력해주세요.' }
+  }
+
+  const trimmedDescription = description.trim()
+  if (trimmedDescription.length > 1000) {
+    return { error: '설명은 1000자 이하로 입력해주세요.' }
+  }
+
+  const trimmedWeekLabel = weekLabel.trim()
+
+  const supabase = await createServerSupabase()
+  const postId = randomUUID()
+
+  try {
+    const { error: insertError } = await supabase.from('class_material_posts').insert({
+      id: postId,
+      subject,
+      week_label: trimmedWeekLabel || null,
+      title: trimmedTitle,
+      description: trimmedDescription || null,
+      class_material_asset_id: null,
+      student_handout_asset_id: null,
+      created_by: profile.id,
+    })
+
+    if (insertError) {
+      console.error('[class-materials] quick create failed', insertError)
+      return { error: '수업자료를 저장하지 못했습니다.' }
+    }
+
+    revalidateMaterialPaths(subject, postId)
+
+    return {
+      success: true,
+      material: {
+        id: postId,
+        title: trimmedTitle,
+        description: trimmedDescription || null,
+        weekLabel: trimmedWeekLabel || null,
+        subject,
+      },
+    }
+  } catch (error) {
+    console.error('[class-materials] quick create error', error)
+    return { error: '자료 등록 중 문제가 발생했습니다.' }
+  }
+}
+
 export async function createClassMaterialPost(formData: FormData): Promise<ActionResult> {
   const { profile } = await getAuthContext()
 

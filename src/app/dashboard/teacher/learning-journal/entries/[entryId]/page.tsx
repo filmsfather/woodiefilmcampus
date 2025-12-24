@@ -11,6 +11,7 @@ import {
   fetchLearningJournalEntriesForPeriod,
   fetchLearningJournalEntryDetail,
   fetchLearningJournalGreeting,
+  refreshLearningJournalWeeklyData,
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
 } from '@/lib/learning-journals'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -34,6 +35,9 @@ const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', str
 export default async function TeacherLearningJournalEntryPage(props: { params: Promise<PageParams> }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const params = await props.params
+
+  // 페이지 로드 시 항상 주차별 데이터를 최신 상태로 갱신
+  await refreshLearningJournalWeeklyData(params.entryId)
 
   const entry = await fetchLearningJournalEntryDetail(params.entryId)
 

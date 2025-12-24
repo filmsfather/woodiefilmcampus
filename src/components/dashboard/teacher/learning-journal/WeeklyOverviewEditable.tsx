@@ -144,6 +144,7 @@ export function WeeklyOverviewEditable({
         <ClassTemplateMaterialDialog
           open={dialogState.open}
           onClose={handleDialogClose}
+          subject={dialogState.subject}
           subjectLabel={LEARNING_JOURNAL_SUBJECT_INFO[dialogState.subject].label}
           options={materials[dialogState.subject] ?? []}
           selected={selectedMaterials}

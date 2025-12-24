@@ -105,6 +105,7 @@ export function ClassTemplateEditorClient({ classId, periodId, template, materia
         <ClassTemplateMaterialDialog
           open={dialogState.open}
           onClose={handleDialogClose}
+          subject={dialogState.subject}
           subjectLabel={LEARNING_JOURNAL_SUBJECT_INFO[dialogState.subject].label}
           options={materials[dialogState.subject] ?? []}
           selected={activeConfig.materialIds.map((id, index) => ({
