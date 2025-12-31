@@ -309,6 +309,102 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
     }
 }
 
+export interface GeneratePrincipalGreetingResult {
+    greeting: string
+}
+
+/**
+ * AI를 사용하여 원장 인사말을 생성합니다.
+ */
+export async function generatePrincipalGreeting(
+    monthToken: string,
+    context?: string
+): Promise<GeneratePrincipalGreetingResult | { error: string }> {
+    if (!GEMINI_API_KEY) {
+        console.error('GEMINI_API_KEY is not set')
+        return { error: 'AI 설정이 완료되지 않았습니다. 관리자에게 문의하세요.' }
+    }
+
+    // monthToken format: "2024-01" -> "2024년 1월"
+    const [year, month] = monthToken.split('-')
+    const monthLabel = `${year}년 ${parseInt(month, 10)}월`
+
+    const contextSection = context?.trim()
+        ? `\n**원장이 전달하고 싶은 내용/키워드:**\n${context}\n`
+        : ''
+
+    const aiPrompt = `
+You are a warm and professional principal of a film education academy writing a monthly greeting to parents.
+Please write a heartfelt and encouraging message for ${monthLabel}.
+
+${contextSection}
+**Instructions:**
+1. Write a warm, professional monthly greeting from a principal to parents.
+2. The tone should be encouraging, supportive, and positive.
+3. Mention the season/month naturally (${monthLabel}).
+4. If context is provided, incorporate those themes/keywords naturally.
+5. Include appreciation for parents' support and trust.
+6. Encourage students' learning journey in film education.
+7. The message should be 3-5 paragraphs, not too long.
+8. The greeting must be entirely in Korean with polite formal style (합니다체).
+9. Do NOT include a signature line - just the greeting content.
+
+**Output Format:**
+Return a JSON object with the following structure:
+{
+  "greeting": "Your greeting message in Korean..."
+}
+Do not include any markdown formatting (like \`\`\`json). Just the raw JSON string.
+`
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [{ text: aiPrompt }],
+                        },
+                    ],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        )
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Gemini] API error', response.status, errorText)
+            return { error: 'AI 인사말 생성 중 오류가 발생했습니다.' }
+        }
+
+        const data = await response.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+        if (!text) {
+            console.error('[Gemini] No content in response', data)
+            return { error: 'AI 응답을 분석할 수 없습니다.' }
+        }
+
+        try {
+            const result = JSON.parse(text) as GeneratePrincipalGreetingResult
+            return result
+        } catch (parseError) {
+            console.error('[Gemini] JSON parse error', parseError, text)
+            return { error: 'AI 응답 형식이 올바르지 않습니다.' }
+        }
+    } catch (error) {
+        console.error('[Gemini] Network or unexpected error', error)
+        return { error: 'AI 서버 연결에 실패했습니다.' }
+    }
+}
+
 export async function evaluateWritingSubmission(
     question: string,
     explanation: string,

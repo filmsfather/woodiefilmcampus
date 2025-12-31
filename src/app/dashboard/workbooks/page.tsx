@@ -4,7 +4,6 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { WORKBOOK_SUBJECTS, WORKBOOK_TITLES } from '@/lib/validation/workbook'
@@ -82,17 +81,6 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
 
   const workbooks: WorkbookListItem[] = data ?? []
 
-  const formatDate = (value: string) =>
-    DateUtil.formatForDisplay(value, {
-      locale: 'ko-KR',
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
   return (
     <section className="space-y-6">
       <div className="space-y-3">
@@ -143,20 +131,16 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
               <table className="w-full min-w-[820px] table-fixed border-collapse text-sm">
                 <thead className="bg-white text-slate-600">
                   <tr className="border-b border-slate-200">
-                    <th className="px-4 py-3 text-left font-medium">주차</th>
+                    <th className="w-20 px-4 py-3 text-left font-medium">주차</th>
                     <th className="px-4 py-3 text-left font-medium">제목</th>
-                    <th className="px-4 py-3 text-left font-medium">유형</th>
-                    <th className="px-4 py-3 text-left font-medium">과목</th>
-                    <th className="px-4 py-3 text-left font-medium">작성자</th>
-                    <th className="px-4 py-3 text-left font-medium">문항 수</th>
-                    <th className="px-4 py-3 text-left font-medium">태그</th>
-                    <th className="px-4 py-3 text-left font-medium">수정일</th>
-                    <th className="px-4 py-3 text-right font-medium">작업</th>
+                    <th className="w-24 px-4 py-3 text-left font-medium">유형</th>
+                    <th className="w-16 px-4 py-3 text-left font-medium">과목</th>
+                    <th className="w-24 px-4 py-3 text-left font-medium">작성자</th>
+                    <th className="w-44 px-4 py-3 text-right font-medium">작업</th>
                   </tr>
                 </thead>
                 <tbody>
                   {workbooks.map((workbook) => {
-                    const itemCount = workbook.workbook_items?.[0]?.count ?? 0
                     const readableType = WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type
                     const weekLabel = (workbook.week_label ?? '').trim()
                     const teacherRecord = Array.isArray(workbook.teacher) ? workbook.teacher[0] : workbook.teacher
@@ -179,18 +163,6 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
                         </td>
                         <td className="px-4 py-3 align-top text-slate-600">{workbook.subject}</td>
                         <td className="px-4 py-3 align-top text-slate-600">{author}</td>
-                        <td className="px-4 py-3 align-top text-slate-600">{itemCount.toLocaleString()}개</td>
-                        <td className="px-4 py-3 align-top">
-                          <div className="flex flex-wrap gap-1 text-xs text-slate-500">
-                            {(workbook.tags ?? []).length === 0 ? <span className="text-slate-400">-</span> : null}
-                            {(workbook.tags ?? []).map((tag) => (
-                              <span key={tag} className="rounded bg-slate-100 px-2 py-0.5">#{tag}</span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-top text-xs text-slate-500 whitespace-nowrap">
-                          {formatDate(workbook.updated_at)}
-                        </td>
                         <td className="px-4 py-3 align-top text-right">
                           <div className="flex justify-end gap-2">
                             {['srs', 'writing'].includes(workbook.type) && (

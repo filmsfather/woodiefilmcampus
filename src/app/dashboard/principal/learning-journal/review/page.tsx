@@ -1,12 +1,10 @@
-import Link from 'next/link'
-
 import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
+import { ClassPeriodSelector } from '@/components/dashboard/principal/ClassPeriodSelector'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { updateEntryStatusByPrincipalAction } from '@/app/dashboard/principal/learning-journal/actions'
 import type {
@@ -221,208 +219,23 @@ export default async function PrincipalLearningJournalReviewPage({
 
       <Card className="border-slate-200">
         <CardHeader>
-          <CardTitle className="text-lg text-slate-900">승인 대기 학습일지</CardTitle>
-          <CardDescription>모든 반의 승인 대기 항목입니다. 클릭하면 아래 상세에서 바로 확인할 수 있습니다.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="max-h-[360px] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>학생</TableHead>
-                  <TableHead>반</TableHead>
-                  <TableHead>주기</TableHead>
-                  <TableHead className="text-right">제출일</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-sm text-slate-500">
-                      승인 대기 중인 학습일지가 없습니다.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pendingEntries.map((entry) => {
-                    const href = new URLSearchParams()
-                    if (entry.classId) {
-                      href.set('class', entry.classId)
-                    }
-                    href.set('period', entry.periodId)
-                    href.set('entry', entry.id)
-
-                    return (
-                      <TableRow key={`pending-${entry.id}`} className={entryIdParam === entry.id ? 'bg-sky-50' : ''}>
-                        <TableCell>
-                          <Link
-                            href={`/dashboard/principal/learning-journal/review?${href.toString()}`}
-                            className="font-medium text-slate-900 hover:underline"
-                          >
-                            {entry.studentName ?? entry.studentEmail ?? '학생 정보 없음'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{entry.className ?? '-'}</TableCell>
-                        <TableCell>{entry.periodLabel ?? `${entry.periodStartDate} ~ ${entry.periodEndDate}`}</TableCell>
-                        <TableCell className="text-right text-xs text-slate-500">
-                          {entry.submittedAt
-                            ? DateUtil.formatForDisplay(entry.submittedAt, {
-                              locale: 'ko-KR',
-                              timeZone: 'Asia/Seoul',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })
-                            : '미기록'}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-slate-200">
-        <CardHeader>
           <CardTitle className="text-lg text-slate-900">반 · 주기 선택</CardTitle>
           <CardDescription>반을 고른 뒤 주기를 선택하면 해당 범위의 학습일지를 모두 확인할 수 있습니다.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           {classes.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              {classes.map((classItem) => {
-                const params = new URLSearchParams()
-                params.set('class', classItem.id)
-                params.set('period', 'all')
-                return (
-                  <Button
-                    key={classItem.id}
-                    asChild
-                    size="sm"
-                    variant={classItem.id === classParam ? 'default' : 'outline'}
-                  >
-                    <Link href={`/dashboard/principal/learning-journal/review?${params.toString()}`}>
-                      {classItem.name}
-                    </Link>
-                  </Button>
-                )
-              })}
-            </div>
+            <ClassPeriodSelector
+              classes={classes}
+              periods={periodsForClass}
+              students={filteredEntries}
+              selectedClassId={classParam}
+              selectedPeriodId={periodParam}
+              selectedEntryId={entryIdParam}
+              basePath="/dashboard/principal/learning-journal/review"
+            />
           ) : (
             <p className="text-sm text-slate-500">반 정보가 없습니다. 반 등록 후 다시 확인하세요.</p>
           )}
-
-          {classParam ? (
-            periodsForClass.length > 0 ? (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                {(() => {
-                  const params = new URLSearchParams()
-                  params.set('class', classParam)
-                  params.set('period', 'all')
-                  return (
-                    <Button
-                      key="period-all"
-                      asChild
-                      size="sm"
-                      variant={periodParam === 'all' ? 'default' : 'outline'}
-                    >
-                      <Link href={`/dashboard/principal/learning-journal/review?${params.toString()}`}>
-                        전체 기간
-                      </Link>
-                    </Button>
-                  )
-                })()}
-                {periodsForClass.map((period) => {
-                  const params = new URLSearchParams()
-                  params.set('class', classParam)
-                  params.set('period', period.id)
-                  return (
-                    <Button
-                      key={period.id}
-                      asChild
-                      size="sm"
-                      variant={periodParam === period.id ? 'default' : 'outline'}
-                    >
-                      <Link href={`/dashboard/principal/learning-journal/review?${params.toString()}`}>
-                        {period.label ?? `${period.start_date} ~ ${period.end_date}`}
-                      </Link>
-                    </Button>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-500">선택한 반에는 등록된 학습일지 주기가 없습니다.</p>
-            )
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card className="border-slate-200">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900">학습일지 목록</CardTitle>
-          <CardDescription>선택한 반·주기 조건의 모든 학습일지입니다. 상태와 업데이트 일시를 확인하세요.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="max-h-[600px] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>학생</TableHead>
-                  <TableHead>상태</TableHead>
-                  <TableHead>기간</TableHead>
-                  <TableHead className="text-right">최근 업데이트</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-sm text-slate-500">
-                      표시할 학습일지가 없습니다. 반과 주기를 다시 선택해 보세요.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredEntries.map((entry) => {
-                    const href = new URLSearchParams()
-                    if (classParam) {
-                      href.set('class', classParam)
-                    }
-                    if (periodParam !== 'all') {
-                      href.set('period', periodParam)
-                    }
-                    href.set('entry', entry.id)
-
-                    return (
-                      <TableRow key={`filtered-${entry.id}`} className={entryIdParam === entry.id ? 'bg-sky-50' : ''}>
-                        <TableCell>
-                          <Link
-                            href={`/dashboard/principal/learning-journal/review?${href.toString()}`}
-                            className="font-medium text-slate-900 hover:underline"
-                          >
-                            {entry.studentName ?? entry.studentEmail ?? '학생 정보 없음'}
-                          </Link>
-                        </TableCell>
-                        <TableCell>{renderStatusBadge(entry.status)}</TableCell>
-                        <TableCell>{entry.periodLabel ?? `${entry.periodStartDate} ~ ${entry.periodEndDate}`}</TableCell>
-                        <TableCell className="text-right text-xs text-slate-500">
-                          {DateUtil.formatForDisplay(entry.updatedAt, {
-                            locale: 'ko-KR',
-                            timeZone: 'Asia/Seoul',
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
         </CardContent>
       </Card>
 
