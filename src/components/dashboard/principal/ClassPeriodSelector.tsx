@@ -87,25 +87,6 @@ export function ClassPeriodSelector({
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-slate-600">반</span>
-        <Select
-          value={selectedClassId ?? undefined}
-          onValueChange={handleClassChange}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="반 선택" />
-          </SelectTrigger>
-          <SelectContent>
-            {classes.map((classItem) => (
-              <SelectItem key={classItem.id} value={classItem.id}>
-                {classItem.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
       {selectedClassId && periods.length > 0 && (
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-slate-600">기간</span>
@@ -127,6 +108,25 @@ export function ClassPeriodSelector({
           </Select>
         </div>
       )}
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-slate-600">반</span>
+        <Select
+          value={selectedClassId ?? undefined}
+          onValueChange={handleClassChange}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="반 선택" />
+          </SelectTrigger>
+          <SelectContent>
+            {classes.map((classItem) => (
+              <SelectItem key={classItem.id} value={classItem.id}>
+                {classItem.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {selectedClassId && students.length > 0 && (
         <div className="flex items-center gap-2">

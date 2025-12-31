@@ -1,5 +1,5 @@
-import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { ClassPeriodSelector } from '@/components/dashboard/principal/ClassPeriodSelector'
+import { LearningJournalEntryEditor } from '@/components/dashboard/teacher/learning-journal/LearningJournalEntryEditor'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -11,7 +11,9 @@ import type {
   LearningJournalAcademicEvent,
   LearningJournalAnnualSchedule,
   LearningJournalGreeting,
+  LearningJournalSubject,
 } from '@/types/learning-journal'
+import { LEARNING_JOURNAL_SUBJECTS } from '@/types/learning-journal'
 import {
   deriveMonthTokensForRange,
   fetchLearningJournalAcademicEvents,
@@ -21,6 +23,7 @@ import {
   fetchLearningJournalGreeting,
   fetchLearningJournalComments,
   fetchLearningJournalShareToken,
+  refreshLearningJournalWeeklyData,
 } from '@/lib/learning-journals'
 import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 
@@ -91,6 +94,8 @@ export default async function PrincipalLearningJournalReviewPage({
   let comments: Awaited<ReturnType<typeof fetchLearningJournalComments>> = []
 
   if (entryIdParam && targetSummary) {
+    // 페이지 로드 시 주차별 데이터를 최신 상태로 갱신
+    await refreshLearningJournalWeeklyData(entryIdParam)
     targetEntry = await fetchLearningJournalEntryDetail(entryIdParam)
     comments = await fetchLearningJournalComments(entryIdParam)
   }
@@ -98,6 +103,26 @@ export default async function PrincipalLearningJournalReviewPage({
   let greeting: LearningJournalGreeting | null = null
   let academicEvents: LearningJournalAcademicEvent[] = []
   let annualSchedules: LearningJournalAnnualSchedule[] = []
+  let materials: Record<LearningJournalSubject, Array<{
+    id: string
+    title: string
+    description: string | null
+    subject: LearningJournalSubject
+    display: string
+    weekLabel: string | null
+  }>> = LEARNING_JOURNAL_SUBJECTS.reduce((acc, subject) => {
+    acc[subject] = []
+    return acc
+  }, {} as Record<LearningJournalSubject, Array<{
+    id: string
+    title: string
+    description: string | null
+    subject: LearningJournalSubject
+    display: string
+    weekLabel: string | null
+  }>>)
+  let availablePeriods: Array<{ id: string; label: string; startDate: string; endDate: string }> = []
+  let periodClassId: string | null = null
 
   if (targetEntry && targetSummary) {
     const monthTokens = deriveMonthTokensForRange(
@@ -116,6 +141,61 @@ export default async function PrincipalLearningJournalReviewPage({
     }
 
     annualSchedules = await fetchLearningJournalAnnualSchedules()
+
+    // 수업 자료 가져오기
+    const { data: materialRows } = await supabase
+      .from('class_material_posts')
+      .select('id, subject, title, description, week_label')
+      .in('subject', LEARNING_JOURNAL_SUBJECTS)
+      .order('created_at', { ascending: false })
+      .limit(120)
+
+    for (const row of materialRows ?? []) {
+      const subject = row.subject as LearningJournalSubject
+      if (!LEARNING_JOURNAL_SUBJECTS.includes(subject)) {
+        continue
+      }
+
+      const display = row.description && row.description.trim().length > 0
+        ? `${row.title} - ${row.description}`
+        : row.title
+      const weekLabel = row.week_label ? String(row.week_label) : null
+
+      materials[subject].push({
+        id: row.id,
+        title: row.title,
+        description: row.description ?? null,
+        subject,
+        display,
+        weekLabel,
+      })
+    }
+
+    // period의 class_id 가져오기
+    const { data: periodRow } = await supabase
+      .from('learning_journal_periods')
+      .select('class_id')
+      .eq('id', targetEntry.periodId)
+      .maybeSingle()
+
+    periodClassId = periodRow?.class_id ?? null
+
+    // 과제 배치 변경을 위한 available periods 가져오기
+    if (periodClassId) {
+      const { data: availablePeriodsData } = await supabase
+        .from('learning_journal_periods')
+        .select('id, label, start_date, end_date')
+        .eq('class_id', periodClassId)
+        .order('start_date', { ascending: false })
+        .limit(6)
+
+      availablePeriods = (availablePeriodsData ?? []).map((p) => ({
+        id: p.id,
+        label: p.label ?? `${p.start_date} ~ ${p.end_date}`,
+        startDate: p.start_date,
+        endDate: p.end_date,
+      }))
+    }
   }
 
   let shareUrl: string | null = null
@@ -357,7 +437,11 @@ export default async function PrincipalLearningJournalReviewPage({
                 </div>
               </div>
 
-              <LearningJournalEntryContent
+              <LearningJournalEntryEditor
+                classId={periodClassId ?? ''}
+                periodId={targetEntry.periodId}
+                entryId={targetEntry.id}
+                className={targetSummary.className ?? '반 미지정'}
                 header={{
                   title: targetSummary.studentName ?? targetSummary.studentEmail ?? '학생 정보 없음',
                   subtitle: `${targetSummary.className ?? '-'} · ${targetSummary.periodLabel ?? `${targetSummary.periodStartDate} ~ ${targetSummary.periodEndDate}`
@@ -398,64 +482,65 @@ export default async function PrincipalLearningJournalReviewPage({
                 summary={targetEntry.summary}
                 weekly={targetEntry.weekly}
                 comments={comments}
-                actionPanel={
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap gap-2">
-                      <form action={publishAction}>
-                        <input type="hidden" name="entryId" value={targetEntry.id} />
-                        <input type="hidden" name="status" value="published" />
-                        <Button
-                          type="submit"
-                          disabled={!canApprove || targetEntry.status === 'published'}
-                        >
-                          공개 승인
-                        </Button>
-                      </form>
-                      <form action={revertAction}>
-                        <input type="hidden" name="entryId" value={targetEntry.id} />
-                        <input type="hidden" name="status" value="draft" />
-                        <Button
-                          type="submit"
-                          variant="outline"
-                          disabled={!canApprove || targetEntry.status === 'draft'}
-                        >
-                          작성 중으로 되돌리기
-                        </Button>
-                      </form>
-                      <RegenerateWeeklyButton entryId={targetEntry.id} />
-                    </div>
-
-                    {!canApprove ? (
-                      <p className="text-xs text-slate-500">
-                        학습일지 상태 변경은 원장만 할 수 있습니다. 열람용으로 확인해 주세요.
-                      </p>
-                    ) : null}
-
-                    {shareUrl ? (
-                      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
-                        <p className="font-medium text-slate-500">학부모 공유 링크</p>
-                        <p className="break-all rounded-md bg-white px-3 py-2 text-slate-900 shadow-sm">
-                          {shareUrl}
-                        </p>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button asChild size="sm" variant="outline">
-                            <a href={shareUrl} target="_blank" rel="noopener noreferrer">
-                              새 창에서 열기
-                            </a>
-                          </Button>
-                        </div>
-                        <p className="text-[10px] text-slate-500">
-                          링크를 받은 학부모는 별도 로그인 없이 학습일지를 확인할 수 있습니다. 안전하게 전달해주세요.
-                        </p>
-                      </div>
-                    ) : targetEntry.status === 'published' ? (
-                      <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-700">
-                        공유 링크를 불러오지 못했습니다. 페이지를 새로고침하거나 다시 시도해주세요.
-                      </div>
-                    ) : null}
-                  </div>
-                }
+                materials={materials}
+                availablePeriods={availablePeriods}
               />
+
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <form action={publishAction}>
+                    <input type="hidden" name="entryId" value={targetEntry.id} />
+                    <input type="hidden" name="status" value="published" />
+                    <Button
+                      type="submit"
+                      disabled={!canApprove || targetEntry.status === 'published'}
+                    >
+                      공개 승인
+                    </Button>
+                  </form>
+                  <form action={revertAction}>
+                    <input type="hidden" name="entryId" value={targetEntry.id} />
+                    <input type="hidden" name="status" value="draft" />
+                    <Button
+                      type="submit"
+                      variant="outline"
+                      disabled={!canApprove || targetEntry.status === 'draft'}
+                    >
+                      작성 중으로 되돌리기
+                    </Button>
+                  </form>
+                  <RegenerateWeeklyButton entryId={targetEntry.id} />
+                </div>
+
+                {!canApprove ? (
+                  <p className="text-xs text-slate-500">
+                    학습일지 상태 변경은 원장만 할 수 있습니다. 열람용으로 확인해 주세요.
+                  </p>
+                ) : null}
+
+                {shareUrl ? (
+                  <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+                    <p className="font-medium text-slate-500">학부모 공유 링크</p>
+                    <p className="break-all rounded-md bg-white px-3 py-2 text-slate-900 shadow-sm">
+                      {shareUrl}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button asChild size="sm" variant="outline">
+                        <a href={shareUrl} target="_blank" rel="noopener noreferrer">
+                          새 창에서 열기
+                        </a>
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      링크를 받은 학부모는 별도 로그인 없이 학습일지를 확인할 수 있습니다. 안전하게 전달해주세요.
+                    </p>
+                  </div>
+                ) : targetEntry.status === 'published' ? (
+                  <div className="rounded-md border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-700">
+                    공유 링크를 불러오지 못했습니다. 페이지를 새로고침하거나 다시 시도해주세요.
+                  </div>
+                ) : null}
+              </div>
             </div>
           )}
         </CardContent>

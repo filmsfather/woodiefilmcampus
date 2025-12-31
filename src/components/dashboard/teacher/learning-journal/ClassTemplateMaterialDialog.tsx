@@ -100,8 +100,18 @@ export function ClassTemplateMaterialDialog({
     })
   }, [])
 
-  // 기존 옵션 + 새로 추가한 자료를 합쳐서 표시
-  const allOptions = useMemo(() => [...addedMaterials, ...options], [addedMaterials, options])
+  // 기존 옵션 + 새로 추가한 자료를 합쳐서 표시 (중복 ID 제거)
+  const allOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const result: MaterialOption[] = []
+    for (const option of [...addedMaterials, ...options]) {
+      if (!seen.has(option.id)) {
+        seen.add(option.id)
+        result.push(option)
+      }
+    }
+    return result
+  }, [addedMaterials, options])
 
   const filteredOptions = useMemo(() => {
     if (!query.trim()) {
