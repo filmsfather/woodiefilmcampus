@@ -6,7 +6,7 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
-import { updateEntryStatusByPrincipalAction } from '@/app/dashboard/principal/learning-journal/actions'
+import { updateEntryStatusByPrincipalAction, bulkPublishEntriesAction } from '@/app/dashboard/principal/learning-journal/actions'
 import type {
   LearningJournalAcademicEvent,
   LearningJournalAnnualSchedule,
@@ -312,6 +312,7 @@ export default async function PrincipalLearningJournalReviewPage({
               selectedPeriodId={periodParam}
               selectedEntryId={entryIdParam}
               basePath="/dashboard/principal/learning-journal/review"
+              onBulkPublish={canApprove ? bulkPublishEntriesAction : undefined}
             />
           ) : (
             <p className="text-sm text-slate-500">반 정보가 없습니다. 반 등록 후 다시 확인하세요.</p>

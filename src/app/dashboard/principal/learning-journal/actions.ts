@@ -425,3 +425,84 @@ export async function updateEntryStatusByPrincipalAction(formData: FormData) {
 
   return { success: true }
 }
+
+export async function bulkPublishEntriesAction(entryIds: string[]) {
+  const profile = await ensurePrincipalProfile()
+
+  if (!profile) {
+    return { error: '학습일지를 일괄 승인할 권한이 없습니다.' }
+  }
+
+  if (!entryIds || entryIds.length === 0) {
+    return { error: '승인할 학습일지가 없습니다.' }
+  }
+
+  const admin = createAdminClient()
+  const nowIso = new Date().toISOString()
+  let successCount = 0
+  let errorCount = 0
+
+  for (const entryId of entryIds) {
+    try {
+      const { data: current, error: fetchError } = await admin
+        .from('learning_journal_entries')
+        .select('status, submitted_at')
+        .eq('id', entryId)
+        .maybeSingle()
+
+      if (fetchError || !current) {
+        errorCount++
+        continue
+      }
+
+      // 이미 공개된 경우 스킵
+      if (current.status === 'published') {
+        continue
+      }
+
+      const { error: updateError } = await admin
+        .from('learning_journal_entries')
+        .update({
+          status: 'published',
+          published_at: nowIso,
+          submitted_at: current.submitted_at ?? nowIso,
+          updated_at: nowIso,
+        })
+        .eq('id', entryId)
+
+      if (updateError) {
+        errorCount++
+        continue
+      }
+
+      // 학부모 알림 발송
+      await notifyParentOfLearningJournalPublish(entryId)
+
+      // 로그 기록
+      await insertEntryLog(admin, entryId, current.status ?? null, 'published', profile.id)
+
+      successCount++
+    } catch {
+      errorCount++
+    }
+  }
+
+  revalidatePath(PRINCIPAL_REVIEW_PATH)
+  revalidatePath(PRINCIPAL_LEARNING_JOURNAL_PATH)
+
+  if (errorCount > 0) {
+    return {
+      success: true,
+      message: `${successCount}개 승인 완료, ${errorCount}개 실패`,
+      successCount,
+      errorCount,
+    }
+  }
+
+  return {
+    success: true,
+    message: `${successCount}개 학습일지를 승인했습니다.`,
+    successCount,
+    errorCount: 0,
+  }
+}
