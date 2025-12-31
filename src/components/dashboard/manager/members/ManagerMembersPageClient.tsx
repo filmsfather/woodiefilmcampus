@@ -3,11 +3,17 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 
-import { updateMemberProfile, updateMemberClassAssignments, transitionMemberToInactive } from '@/app/dashboard/manager/members/actions'
+import { updateMemberProfile, updateMemberClassAssignments, transitionMemberToInactive, updateMemberRole } from '@/app/dashboard/manager/members/actions'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import {
@@ -164,6 +170,8 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
   const [inactiveState, setInactiveState] = useState<InactiveDialogState | null>(null)
   const [inactiveError, setInactiveError] = useState<string | null>(null)
   const [inactivePending, startInactiveTransition] = useTransition()
+  const [roleChangePending, startRoleChangeTransition] = useTransition()
+  const [roleChangeTargetId, setRoleChangeTargetId] = useState<string | null>(null)
 
   const classes = initialData.classes
   const members = initialData.members
@@ -402,6 +410,41 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
     })
   }
 
+  const handleChangeRole = (member: ManagerMemberSummary, newRole: 'student' | 'teacher') => {
+    if (member.role === newRole) {
+      return
+    }
+
+    setStatusMessage(null)
+    setRoleChangeTargetId(member.id)
+
+    startRoleChangeTransition(async () => {
+      const result = await updateMemberRole({
+        memberId: member.id,
+        newRole,
+      })
+
+      setRoleChangeTargetId(null)
+
+      if (result?.error) {
+        setStatusMessage({ type: 'error', text: result.error })
+        return
+      }
+
+      const roleLabel = newRole === 'student' ? '학생' : '교사'
+      setStatusMessage({
+        type: 'success',
+        text: `${member.name ?? member.email} 님의 역할을 ${roleLabel}(으)로 변경했습니다.`,
+      })
+      router.refresh()
+    })
+  }
+
+  const canChangeRole = (member: ManagerMemberSummary) => {
+    // manager, principal은 역할 변경 불가
+    return member.role === 'student' || member.role === 'teacher'
+  }
+
   const renderPhoneCell = (value: string | null, editingValue: string, onChange: (value: string) => void, isEditable: boolean) => {
     if (isEditable) {
       return (
@@ -527,7 +570,65 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{roleLabelMap[member.role]}</Badge>
+                      {canChangeRole(member) ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild disabled={roleChangePending && roleChangeTargetId === member.id}>
+                            <button
+                              type="button"
+                              className="cursor-pointer focus:outline-none"
+                              title="역할 변경"
+                            >
+                              <Badge
+                                variant="outline"
+                                className="hover:bg-slate-100 transition-colors"
+                              >
+                                {roleChangePending && roleChangeTargetId === member.id ? (
+                                  <span className="flex items-center gap-1">
+                                    <LoadingSpinner className="size-3" />
+                                    변경 중
+                                  </span>
+                                ) : (
+                                  <>
+                                    {roleLabelMap[member.role]}
+                                    <svg
+                                      xmlns="http://www.w3.org/2000/svg"
+                                      width="12"
+                                      height="12"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="ml-1"
+                                    >
+                                      <path d="m6 9 6 6 6-6" />
+                                    </svg>
+                                  </>
+                                )}
+                              </Badge>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem
+                              onClick={() => handleChangeRole(member, 'student')}
+                              disabled={member.role === 'student'}
+                              className={member.role === 'student' ? 'bg-slate-100' : ''}
+                            >
+                              학생으로 변경
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleChangeRole(member, 'teacher')}
+                              disabled={member.role === 'teacher'}
+                              className={member.role === 'teacher' ? 'bg-slate-100' : ''}
+                            >
+                              교사로 변경
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : (
+                        <Badge variant="outline">{roleLabelMap[member.role]}</Badge>
+                      )}
                     </TableCell>
                     <TableCell className="max-w-sm truncate" title={formatAssignments(member.classAssignments, member.role)}>
                       {formatAssignments(member.classAssignments, member.role)}

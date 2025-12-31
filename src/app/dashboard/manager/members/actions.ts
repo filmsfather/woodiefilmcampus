@@ -331,6 +331,101 @@ export async function transitionMemberToInactive(input: TransitionMemberStatusIn
   }
 }
 
+const updateMemberRoleSchema = z.object({
+  memberId: z.string().uuid('사용자 ID가 올바르지 않습니다.'),
+  newRole: z.enum(['student', 'teacher']),
+})
+
+type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
+
+export async function updateMemberRole(input: UpdateMemberRoleInput) {
+  const parsed = updateMemberRoleSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '입력값을 확인해주세요.' }
+  }
+
+  const managerProfile = await ensureManagerProfile()
+
+  if (!managerProfile) {
+    return { error: '역할을 변경할 권한이 없습니다.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+
+    // 대상 사용자 정보 조회
+    const { data: targetProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, role, status')
+      .eq('id', parsed.data.memberId)
+      .maybeSingle()
+
+    if (profileError) {
+      console.error('[manager] updateMemberRole profile error', profileError)
+      return { error: '사용자 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!targetProfile || targetProfile.status !== 'approved') {
+      return { error: '승인된 사용자만 역할을 변경할 수 있습니다.' }
+    }
+
+    // manager, principal은 역할 변경 불가
+    if (targetProfile.role === 'manager' || targetProfile.role === 'principal') {
+      return { error: '매니저나 원장의 역할은 변경할 수 없습니다.' }
+    }
+
+    // 동일 역할로 변경 시도
+    if (targetProfile.role === parsed.data.newRole) {
+      return { error: '이미 해당 역할입니다.' }
+    }
+
+    // 기존 역할에 따라 반 배정 삭제
+    if (targetProfile.role === 'student') {
+      const { error: deleteStudentsError } = await supabase
+        .from('class_students')
+        .delete()
+        .eq('student_id', targetProfile.id)
+
+      if (deleteStudentsError) {
+        console.error('[manager] updateMemberRole delete class_students error', deleteStudentsError)
+      }
+    } else if (targetProfile.role === 'teacher') {
+      const { error: deleteTeachersError } = await supabase
+        .from('class_teachers')
+        .delete()
+        .eq('teacher_id', targetProfile.id)
+
+      if (deleteTeachersError) {
+        console.error('[manager] updateMemberRole delete class_teachers error', deleteTeachersError)
+      }
+    }
+
+    // 역할 업데이트
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({
+        role: parsed.data.newRole,
+        class_id: null, // 역할 변경 시 대표 반 초기화
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', targetProfile.id)
+
+    if (updateError) {
+      console.error('[manager] updateMemberRole update error', updateError)
+      return { error: '역할 변경 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/manager/members')
+    revalidatePath('/dashboard/manager')
+    return { success: true as const }
+  } catch (error) {
+    console.error('[manager] updateMemberRole unexpected', error)
+    return { error: '역할 변경 중 예상치 못한 문제가 발생했습니다.' }
+  }
+}
+
 const updateManagerMemoSchema = z.object({
   memberId: z.string().uuid(),
   memo: z.string().nullable(),
