@@ -152,7 +152,7 @@ export default async function ManagerAbsencesPage(props: {
           <h1 className="text-2xl font-semibold text-slate-900">결석계 관리</h1>
           <p className="text-sm text-slate-600">반별 결석계를 작성하고 교사 조치 내용을 확인하세요.</p>
         </div>
-        <WeekNavigator label={weekRange.label} previousHref={previousHref} nextHref={nextHref} />
+        <WeekNavigator label={weekRange.label} previousHref={previousHref} nextHref={nextHref} currentWeekStart={weekRange.start} />
       </div>
 
       <AbsenceManagerClient

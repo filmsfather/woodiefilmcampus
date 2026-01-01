@@ -12,34 +12,38 @@ const uuidSchema = z
   .min(1, { message: 'ID가 필요합니다.' })
   .uuid('유효한 ID 형식이 아닙니다.')
 
+const optionalDateTransform = (fieldName: string, errorMessage: string) =>
+  z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (!value) {
+        return null
+      }
+
+      const trimmed = value.trim()
+      if (!trimmed) {
+        return null
+      }
+
+      const parsed = new Date(trimmed)
+      if (Number.isNaN(parsed.getTime())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [fieldName],
+          message: errorMessage,
+        })
+        return null
+      }
+
+      return parsed.toISOString()
+    })
+
 const createAssignmentInputSchema = z
   .object({
     workbookId: uuidSchema,
-    dueAt: z
-      .string()
-      .optional()
-      .transform((value, ctx) => {
-        if (!value) {
-          return null
-        }
-
-        const trimmed = value.trim()
-        if (!trimmed) {
-          return null
-        }
-
-        const parsed = new Date(trimmed)
-        if (Number.isNaN(parsed.getTime())) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ['dueAt'],
-            message: '유효한 마감일이 아닙니다.',
-          })
-          return null
-        }
-
-        return parsed.toISOString()
-      }),
+    dueAt: optionalDateTransform('dueAt', '유효한 마감일이 아닙니다.'),
+    publishedAt: optionalDateTransform('publishedAt', '유효한 출제일이 아닙니다.'),
     targetClassIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
     targetStudentIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
   })
@@ -103,7 +107,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
     return { error: '입력 값을 확인해주세요.' }
   }
 
-  const { workbookId, dueAt, targetClassIds = [], targetStudentIds = [] } = parsedInput
+  const { workbookId, dueAt, publishedAt, targetClassIds = [], targetStudentIds = [] } = parsedInput
 
   const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
@@ -274,6 +278,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
         workbook_id: workbookId,
         assigned_by: profile.id,
         due_at: dueAt,
+        published_at: publishedAt,
         target_scope: targetScope,
       })
       .select('id')

@@ -26,6 +26,7 @@ interface RawPrincipalClassRow {
 interface RawAssignmentRow {
   id: string
   due_at: string | null
+  published_at: string | null
   created_at: string
   target_scope: string | null
   workbooks?:
@@ -137,7 +138,7 @@ export default async function TeacherReviewOverviewPage(props: {
   const assignmentQuery = supabase
     .from('assignments')
     .select(
-      `id, due_at, created_at, target_scope,
+      `id, due_at, published_at, created_at, target_scope,
        assignment_targets(class_id, classes(id, name)),
       student_tasks(
        id,
@@ -396,6 +397,7 @@ export default async function TeacherReviewOverviewPage(props: {
           label={weekRange.label}
           previousHref={previousWeekHref}
           nextHref={nextWeekHref}
+          currentWeekStart={weekRange.start}
           className="w-full max-w-xs md:w-auto"
         />
       </div>

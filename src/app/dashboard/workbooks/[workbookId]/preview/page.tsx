@@ -209,6 +209,7 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
         assignment: {
             id: 'mock-assignment-id',
             dueAt: null,
+            publishedAt: null,
             createdAt: new Date().toISOString(),
             targetScope: 'class',
             workbook: {

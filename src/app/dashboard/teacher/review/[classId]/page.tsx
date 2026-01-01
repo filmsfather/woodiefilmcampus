@@ -316,6 +316,7 @@ export default async function TeacherClassReviewPage({
           label={weekRange.label}
           previousHref={previousWeekHref}
           nextHref={nextWeekHref}
+          currentWeekStart={weekRange.start}
           className="w-full max-w-xs md:w-auto"
         />
       </div>

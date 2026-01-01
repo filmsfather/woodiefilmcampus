@@ -124,6 +124,7 @@ type WorkbookRow = {
 type AssignmentRow = {
   id: string
   due_at: string | null
+  published_at: string | null
   created_at: string
   target_scope: string
   workbook_id: string | null
@@ -204,6 +205,7 @@ function toAssignmentSummary(
   return {
     id: row.id,
     dueAt: row.due_at,
+    publishedAt: row.published_at,
     createdAt: row.created_at,
     targetScope: row.target_scope,
     workbook: getWorkbookSummary(row.workbook_id, lookup),
@@ -478,7 +480,7 @@ async function loadAssignmentSummaries(
 
   const { data, error } = await adminClient
     .from('assignments')
-    .select('id, due_at, created_at, target_scope, workbook_id')
+    .select('id, due_at, published_at, created_at, target_scope, workbook_id')
     .in('id', assignmentIds)
 
   if (error) {
@@ -541,8 +543,18 @@ export async function fetchStudentTaskSummaries(
 
   const range = filters?.dueBetween
   const dueAtOrAfter = filters?.dueAtOrAfter
+  const nowMs = DateUtil.nowUTC().getTime()
 
   return summaries.filter((summary) => {
+    // 아직 공개되지 않은 과제는 필터링
+    const publishedAt = summary.assignment?.publishedAt
+    if (publishedAt) {
+      const publishedTime = new Date(publishedAt).getTime()
+      if (!Number.isNaN(publishedTime) && publishedTime > nowMs) {
+        return false
+      }
+    }
+
     const dueValue = summary.due.dueAt ?? summary.assignment?.dueAt ?? null
 
     if (!dueValue) {
@@ -608,6 +620,15 @@ export async function fetchStudentTaskDetail(
   )
 
   const assignmentSummary = row.assignment_id ? assignmentLookup.get(row.assignment_id) ?? null : null
+
+  // 아직 공개되지 않은 과제는 접근 불가
+  if (assignmentSummary?.publishedAt) {
+    const publishedTime = new Date(assignmentSummary.publishedAt).getTime()
+    const nowMs = DateUtil.nowUTC().getTime()
+    if (!Number.isNaN(publishedTime) && publishedTime > nowMs) {
+      return null
+    }
+  }
 
   // workbook_items와 task_submissions를 병렬로 조회
   const adminClient = createAdminClient()

@@ -490,6 +490,7 @@ export default async function ManagerPrintRequestsPage({
           label={weekRange.label}
           previousHref={previousWeekHref}
           nextHref={nextWeekHref}
+          currentWeekStart={weekRange.start}
         />
         {combinedRequests.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">

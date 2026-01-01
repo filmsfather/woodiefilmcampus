@@ -1250,6 +1250,7 @@ interface StudentTaskWeeklyRow {
   | {
     id: string
     due_at: string | null
+    published_at: string | null
     created_at: string
     target_scope: string | null
     workbook?:
@@ -1280,6 +1281,7 @@ interface StudentTaskWeeklyRow {
   | Array<{
     id: string
     due_at: string | null
+    published_at: string | null
     created_at: string
     target_scope: string | null
     workbook?:
@@ -1424,6 +1426,7 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
        assignments:assignments!student_tasks_assignment_id_fkey(
          id,
          due_at,
+         published_at,
          created_at,
          target_scope,
          workbook:workbooks!assignments_workbook_id_fkey(
@@ -1475,10 +1478,21 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
       continue
     }
 
+    // 아직 공개되지 않은 과제는 학습일지에 표시하지 않음
+    const publishedAt = assignmentRelation.published_at
+    if (publishedAt) {
+      const publishedTime = new Date(publishedAt).getTime()
+      const nowMs = DateUtil.nowUTC().getTime()
+      if (!Number.isNaN(publishedTime) && publishedTime > nowMs) {
+        continue
+      }
+    }
+
     // period 필터링: period_override가 이 period이거나, override가 없고 날짜 기준으로 이 period에 속하는 경우
-    const weekIndexFromCreatedAt = deriveWeekIndexFromDate(assignmentRelation.created_at, weeklyRanges)
+    // 출제일(published_at) 기준으로 주차 결정, 없으면 마감일(due_at) 사용
+    const weekIndexFromPublishedAt = deriveWeekIndexFromDate(assignmentRelation.published_at, weeklyRanges)
     const weekIndexFromDueAt = deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
-    const autoWeekIndex = weekIndexFromCreatedAt ?? weekIndexFromDueAt
+    const autoWeekIndex = weekIndexFromPublishedAt ?? weekIndexFromDueAt
 
     const hasPeriodOverride = row.period_override !== null && row.period_override !== undefined
     const matchesThisPeriod = hasPeriodOverride

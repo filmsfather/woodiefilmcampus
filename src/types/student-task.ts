@@ -14,6 +14,7 @@ export interface StudentTaskWorkbookSummary {
 export interface StudentTaskAssignmentSummary {
   id: string
   dueAt: string | null
+  publishedAt: string | null
   createdAt: string
   targetScope: string
   workbook: StudentTaskWorkbookSummary

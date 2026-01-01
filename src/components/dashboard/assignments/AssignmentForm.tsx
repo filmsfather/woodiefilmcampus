@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, Check, Search, Users } from 'lucide-react'
+import { AlertCircle, CalendarIcon, Check, Search, Users, X } from 'lucide-react'
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -10,9 +10,11 @@ import { createAssignment } from '@/app/dashboard/assignments/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Checkbox } from '@/components/ui/checkbox'
+import { ko } from 'date-fns/locale'
+import { Calendar } from '@/components/ui/calendar'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DateUtil from '@/lib/date-util'
 import type {
@@ -26,6 +28,7 @@ const assignmentFormSchema = z
     workbookId: z.string().min(1, { message: '문제집을 선택해주세요.' }),
     targetClassIds: z.array(z.string()).default([]),
     targetStudentIds: z.array(z.string()).default([]),
+    publishedAt: z.string().optional(),
     dueAt: z.string().optional(),
   })
   .superRefine((value, ctx) => {
@@ -40,6 +43,17 @@ const assignmentFormSchema = z
       })
     }
 
+    if (value.publishedAt) {
+      const parsed = new Date(value.publishedAt)
+      if (Number.isNaN(parsed.getTime())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['publishedAt'],
+          message: '유효한 출제일을 입력해주세요.',
+        })
+      }
+    }
+
     if (value.dueAt) {
       const parsed = new Date(value.dueAt)
       if (Number.isNaN(parsed.getTime())) {
@@ -47,6 +61,19 @@ const assignmentFormSchema = z
           code: z.ZodIssueCode.custom,
           path: ['dueAt'],
           message: '유효한 마감일을 입력해주세요.',
+        })
+      }
+    }
+
+    // 출제일이 마감일보다 늦으면 안 됨
+    if (value.publishedAt && value.dueAt) {
+      const publishedTime = new Date(value.publishedAt).getTime()
+      const dueTime = new Date(value.dueAt).getTime()
+      if (!Number.isNaN(publishedTime) && !Number.isNaN(dueTime) && publishedTime >= dueTime) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['publishedAt'],
+          message: '출제일은 마감일보다 이전이어야 합니다.',
         })
       }
     }
@@ -136,8 +163,9 @@ export function AssignmentForm({
   const [workbookTypeFilter, setWorkbookTypeFilter] = useState<'all' | string>('all')
   const [workbookAuthorFilter, setWorkbookAuthorFilter] = useState<'all' | string>('all')
   const [workbookQuery, setWorkbookQuery] = useState('')
-  const [studentQuery, setStudentQuery] = useState('')
-  const [submitState, setSubmitState] = useState<'idle' | 'success' | 'error'>('idle')
+  const [studentClassFilter, setStudentClassFilter] = useState<string>('')
+  const [targetMode, setTargetMode] = useState<'class' | 'student'>('class')
+  const [submitState, setSubmitState] = useState<'idle' | 'success' | 'scheduled' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -147,6 +175,7 @@ export function AssignmentForm({
       workbookId: '',
       targetClassIds: [],
       targetStudentIds: [],
+      publishedAt: '',
       dueAt: defaultDueAt,
     },
     mode: 'onBlur',
@@ -190,20 +219,13 @@ export function AssignmentForm({
     return Array.from(authorMap.entries()).map(([id, name]) => ({ id, name }))
   }, [workbooks])
 
-  const filteredStudents = useMemo(() => {
-    const normalized = normalizeSearchTerm(studentQuery)
-
-    if (!normalized) {
-      return students
+  // 선택된 반에 따른 학생 필터링 (드롭다운용)
+  const studentsForSelectedClass = useMemo(() => {
+    if (!studentClassFilter) {
+      return []
     }
-
-    return students.filter((student) => {
-      const haystack = [student.name ?? '', student.email ?? '', student.className ?? '']
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(normalized)
-    })
-  }, [studentQuery, students])
+    return students.filter((student) => student.classId === studentClassFilter)
+  }, [studentClassFilter, students])
 
   const handleToggleClass = (classId: string) => {
     form.setValue(
@@ -229,11 +251,13 @@ export function AssignmentForm({
     setServerError(null)
     setSubmitState('idle')
 
+    const payloadPublishedAt = values.publishedAt ? new Date(values.publishedAt).toISOString() : null
     const payloadDueAt = values.dueAt ? new Date(values.dueAt).toISOString() : null
 
     startTransition(async () => {
       const result = await createAssignment({
         workbookId: values.workbookId,
+        publishedAt: payloadPublishedAt,
         dueAt: payloadDueAt,
         targetClassIds: values.targetClassIds,
         targetStudentIds: values.targetStudentIds,
@@ -245,15 +269,18 @@ export function AssignmentForm({
         return
       }
 
-      setSubmitState('success')
+      // 예약 출제인지 즉시 출제인지 구분
+      const isScheduled = payloadPublishedAt && new Date(payloadPublishedAt).getTime() > Date.now()
+      setSubmitState(isScheduled ? 'scheduled' : 'success')
       form.reset({
         workbookId: '',
         targetClassIds: [],
         targetStudentIds: [],
+        publishedAt: '',
         dueAt: defaultDueAt,
       })
       setWorkbookQuery('')
-      setStudentQuery('')
+      setStudentClassFilter('')
       setWorkbookSubjectFilter('')
       setWorkbookTypeFilter('all')
       setWorkbookAuthorFilter('all')
@@ -348,50 +375,62 @@ export function AssignmentForm({
                     <FormItem>
                       <FormLabel className="sr-only">워크북</FormLabel>
                       <FormControl>
-                        <div className="grid gap-2">
-                          {filteredWorkbooks.map((workbook) => {
-                            const isActive = field.value === workbook.id
-                            return (
-                              <button
-                                type="button"
-                                key={workbook.id}
-                                onClick={() => field.onChange(workbook.id)}
-                                className={`rounded-lg border p-4 text-left transition ${
-                                  isActive
-                                    ? 'border-primary bg-primary/5 shadow-sm'
-                                    : 'border-slate-200 hover:border-primary/50 hover:bg-slate-50'
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div>
-                                    <p className="text-base font-semibold text-slate-900">{workbook.title}</p>
-                                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-500">
-                                      <Badge variant="secondary">{workbook.subject}</Badge>
-                                      <Badge variant="outline">{workbook.type.toUpperCase()}</Badge>
-                                      {workbook.weekLabel && <Badge variant="outline">{workbook.weekLabel}</Badge>}
-                                      {workbook.authorName && (
-                                        <Badge variant="outline" className="bg-slate-100">
-                                          {workbook.authorName}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {isActive && <Check className="size-5 text-primary" />}
+                        <div className="space-y-3">
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="워크북을 선택하세요" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {filteredWorkbooks.map((workbook) => (
+                                <SelectItem key={workbook.id} value={workbook.id}>
+                                  {workbook.title} ({workbook.itemCount}문항)
+                                  {workbook.weekLabel && ` · ${workbook.weekLabel}`}
+                                </SelectItem>
+                              ))}
+                              {filteredWorkbooks.length === 0 && (
+                                <div className="px-2 py-1.5 text-sm text-slate-500">
+                                  조건에 맞는 워크북이 없습니다
                                 </div>
-                                <p className="mt-3 text-xs text-slate-500">
-                                  문항 {workbook.itemCount}개 · 수정일{' '}
-                                  {DateUtil.formatForDisplay(workbook.updatedAt, {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                  })}
-                                </p>
-                              </button>
-                            )
-                          })}
-                          {filteredWorkbooks.length === 0 && (
-                            <p className="col-span-full rounded-md border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                              조건에 맞는 워크북이 없습니다. 필터를 변경해보세요.
+                              )}
+                            </SelectContent>
+                          </Select>
+
+                          {/* 선택된 워크북 상세 정보 */}
+                          {selectedWorkbook && (
+                            <div className="rounded-lg border border-primary bg-primary/5 p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-base font-semibold text-slate-900">{selectedWorkbook.title}</p>
+                                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                    <Badge variant="secondary">{selectedWorkbook.subject}</Badge>
+                                    <Badge variant="outline">{selectedWorkbook.type.toUpperCase()}</Badge>
+                                    {selectedWorkbook.weekLabel && <Badge variant="outline">{selectedWorkbook.weekLabel}</Badge>}
+                                    {selectedWorkbook.authorName && (
+                                      <Badge variant="outline" className="bg-slate-100">
+                                        {selectedWorkbook.authorName}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                                <Check className="size-5 text-primary" />
+                              </div>
+                              <p className="mt-3 text-xs text-slate-500">
+                                문항 {selectedWorkbook.itemCount}개 · 수정일{' '}
+                                {DateUtil.formatForDisplay(selectedWorkbook.updatedAt, {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                            </div>
+                          )}
+
+                          {!selectedWorkbook && filteredWorkbooks.length > 0 && (
+                            <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                              워크북을 선택하면 상세 정보가 표시됩니다.
                             </p>
                           )}
                         </div>
@@ -407,99 +446,214 @@ export function AssignmentForm({
               <header className="space-y-1">
                 <h2 className="text-lg font-semibold text-slate-900">2. 대상 선택</h2>
                 <p className="text-sm text-slate-500">
-                  반을 선택하면 소속 학생 전원이 포함되고, 개별 학생을 추가로 지정할 수도 있습니다.
+                  반 단위로 출제하거나, 개별 학생을 선택해서 출제할 수 있습니다.
                 </p>
               </header>
 
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-slate-800">반 목록</h3>
-                    <span className="text-xs text-slate-500">선택 {selectedClassIds.length}개</span>
-                  </div>
-                  <div className="grid gap-2">
-                    {classes.length === 0 && (
-                      <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
-                        담당 중인 반이 없습니다. 관리자에게 반 배정을 요청해주세요.
-                      </p>
-                    )}
-                    {classes.map((classItem) => {
-                      const checked = selectedClassIds.includes(classItem.id)
-                      return (
-                        <label
-                          key={classItem.id}
-                          className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition ${
-                            checked ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-primary/50'
-                          }`}
-                        >
-                          <Checkbox
-                            checked={checked}
-                            onChange={() => handleToggleClass(classItem.id)}
-                          />
-                          <div className="space-y-1">
-                            <p className="font-medium text-slate-900">{classItem.name}</p>
-                            {classItem.description && <p className="text-xs text-slate-500">{classItem.description}</p>}
-                            <p className="text-xs text-slate-500">학생 {classItem.studentCount}명</p>
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
+              {/* 탭 버튼 */}
+              <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setTargetMode('class')}
+                  className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    targetMode === 'class'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  반별 출제
+                  {selectedClassIds.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {selectedClassIds.length}
+                    </Badge>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetMode('student')}
+                  className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    targetMode === 'student'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  개별 출제
+                  {selectedStudentIds.length > 0 && (
+                    <Badge variant="secondary" className="ml-2">
+                      {selectedStudentIds.length}
+                    </Badge>
+                  )}
+                </button>
+              </div>
 
+              {/* 반별 출제 */}
+              {targetMode === 'class' && (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-medium text-slate-800">개별 학생</h3>
-                    <span className="text-xs text-slate-500">선택 {selectedStudentIds.length}명</span>
+                  {classes.length === 0 ? (
+                    <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                      담당 중인 반이 없습니다. 관리자에게 반 배정을 요청해주세요.
+                    </p>
+                  ) : (
+                    <>
+                      <Select
+                        value=""
+                        onValueChange={(value) => {
+                          if (value && !selectedClassIds.includes(value)) {
+                            handleToggleClass(value)
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="반을 선택하세요" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes
+                            .filter((classItem) => !selectedClassIds.includes(classItem.id))
+                            .map((classItem) => (
+                              <SelectItem key={classItem.id} value={classItem.id}>
+                                {classItem.name} ({classItem.studentCount}명)
+                              </SelectItem>
+                            ))}
+                          {classes.filter((classItem) => !selectedClassIds.includes(classItem.id)).length === 0 && (
+                            <div className="px-2 py-1.5 text-sm text-slate-500">
+                              모든 반이 선택되었습니다
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+
+                      {selectedClassIds.length > 0 && (
+                        <div className="space-y-2">
+                          {selectedClassIds.map((classId) => {
+                            const classItem = classesById.get(classId)
+                            if (!classItem) return null
+                            return (
+                              <div
+                                key={classId}
+                                className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 p-3 text-sm"
+                              >
+                                <div className="space-y-1">
+                                  <p className="font-medium text-slate-900">{classItem.name}</p>
+                                  {classItem.description && (
+                                    <p className="text-xs text-slate-500">{classItem.description}</p>
+                                  )}
+                                  <p className="text-xs text-slate-500">학생 {classItem.studentCount}명</p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600"
+                                  onClick={() => handleToggleClass(classId)}
+                                >
+                                  <X className="h-4 w-4" />
+                                  <span className="sr-only">제거</span>
+                                </Button>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {selectedClassIds.length === 0 && (
+                        <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                          반을 선택하면 해당 반의 모든 학생에게 과제가 배정됩니다.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* 개별 출제 */}
+              {targetMode === 'student' && (
+                <div className="space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Select
+                      value={studentClassFilter}
+                      onValueChange={setStudentClassFilter}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="반 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {classes.map((classItem) => (
+                          <SelectItem key={classItem.id} value={classItem.id}>
+                            {classItem.name} ({classItem.studentCount}명)
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Select
+                      value=""
+                      onValueChange={(value) => {
+                        if (value && !selectedStudentIds.includes(value)) {
+                          handleToggleStudent(value)
+                        }
+                      }}
+                      disabled={!studentClassFilter}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={studentClassFilter ? "학생 선택" : "반을 먼저 선택하세요"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {studentsForSelectedClass
+                          .filter((student) => !selectedStudentIds.includes(student.id))
+                          .map((student) => (
+                            <SelectItem key={student.id} value={student.id}>
+                              {student.name ?? student.email ?? '이름 미등록'}
+                            </SelectItem>
+                          ))}
+                        {studentsForSelectedClass.filter((student) => 
+                          !selectedStudentIds.includes(student.id)
+                        ).length === 0 && studentClassFilter && (
+                          <div className="px-2 py-1.5 text-sm text-slate-500">
+                            추가할 학생이 없습니다
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                    <Input
-                      placeholder="이름, 이메일, 반 이름으로 검색"
-                      value={studentQuery}
-                      onChange={(event) => setStudentQuery(event.target.value)}
-                      className="pl-9"
-                    />
-                  </div>
-                  <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
-                    {filteredStudents.length === 0 ? (
-                      <p className="p-3 text-sm text-slate-500">검색 조건에 맞는 학생이 없습니다.</p>
-                    ) : (
-                      filteredStudents.map((student) => {
-                        const checked = selectedStudentIds.includes(student.id)
-                        const includedByClass = studentsFromSelectedClasses.has(student.id)
+
+                  {selectedStudentIds.length > 0 ? (
+                    <div className="space-y-2">
+                      {selectedStudentIds.map((studentId) => {
+                        const student = students.find((s) => s.id === studentId)
+                        if (!student) return null
                         return (
-                          <label
-                            key={student.id}
-                            className={`flex cursor-pointer items-start gap-3 rounded-md px-2 py-2 text-sm transition ${
-                              checked
-                                ? 'bg-primary/5 text-slate-900'
-                                : includedByClass
-                                  ? 'bg-slate-100 text-slate-600'
-                                  : 'hover:bg-slate-100'
-                            }`}
+                          <div
+                            key={studentId}
+                            className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 p-3 text-sm"
                           >
-                            <Checkbox
-                              checked={checked || includedByClass}
-                              onChange={() => handleToggleStudent(student.id)}
-                              disabled={includedByClass}
-                            />
                             <div className="space-y-1">
                               <p className="font-medium text-slate-900">{student.name ?? '이름 미등록'}</p>
-                              <p className="text-xs text-slate-500">{student.email ?? '이메일 미등록'}</p>
-                              <p className="text-xs text-slate-400">
+                              <p className="text-xs text-slate-500">
                                 <Users className="mr-1 inline size-3" />
                                 {student.className ?? '반 정보 없음'}
-                                {includedByClass && ' · 반 선택으로 포함'}
                               </p>
                             </div>
-                          </label>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-slate-600"
+                              onClick={() => handleToggleStudent(studentId)}
+                            >
+                              <X className="h-4 w-4" />
+                              <span className="sr-only">제거</span>
+                            </Button>
+                          </div>
                         )
-                      })
-                    )}
-                  </div>
+                      })}
+                    </div>
+                  ) : (
+                    <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                      개별 학생을 선택하여 과제를 배정할 수 있습니다.
+                    </p>
+                  )}
                 </div>
-              </div>
+              )}
 
               <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                 <p>
@@ -510,33 +664,192 @@ export function AssignmentForm({
 
             <section className="space-y-4">
               <header className="space-y-1">
-                <h2 className="text-lg font-semibold text-slate-900">3. 마감일 설정</h2>
-                <p className="text-sm text-slate-500">선택하지 않으면 마감일 없이 배정됩니다.</p>
+                <h2 className="text-lg font-semibold text-slate-900">3. 일정 설정</h2>
+                <p className="text-sm text-slate-500">출제일을 설정하면 해당 시점에 학생에게 과제가 공개됩니다.</p>
               </header>
 
-              <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="publishedAt"
+                  render={({ field }) => {
+                    const dateValue = field.value ? new Date(field.value) : undefined
+                    const timeValue = field.value
+                      ? `${String(new Date(field.value).getHours()).padStart(2, '0')}:${String(new Date(field.value).getMinutes()).padStart(2, '0')}`
+                      : '09:00'
+
+                    const handleDateSelect = (date: Date | undefined) => {
+                      if (!date) {
+                        field.onChange('')
+                        return
+                      }
+                      const [hours, minutes] = timeValue.split(':').map(Number)
+                      date.setHours(hours, minutes, 0, 0)
+                      field.onChange(toDateInputValue(date.toISOString()))
+                    }
+
+                    const handleTimeChange = (time: string) => {
+                      if (!dateValue) return
+                      const [hours, minutes] = time.split(':').map(Number)
+                      const newDate = new Date(dateValue)
+                      newDate.setHours(hours, minutes, 0, 0)
+                      field.onChange(toDateInputValue(newDate.toISOString()))
+                    }
+
+                    return (
+                      <FormItem>
+                        <FormLabel>출제일 (예약)</FormLabel>
+                        <div className="flex gap-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={`flex-1 justify-start text-left font-normal ${!dateValue ? 'text-muted-foreground' : ''}`}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {dateValue
+                                    ? DateUtil.formatForDisplay(dateValue.toISOString(), {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                      })
+                                    : '날짜 선택'}
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={dateValue}
+                                onSelect={handleDateSelect}
+                                locale={ko}
+                              />
+                              {dateValue && (
+                                <div className="border-t p-3">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full text-slate-500"
+                                    onClick={() => field.onChange('')}
+                                  >
+                                    날짜 지우기
+                                  </Button>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                          <Input
+                            type="time"
+                            value={dateValue ? timeValue : ''}
+                            onChange={(e) => handleTimeChange(e.target.value)}
+                            disabled={!dateValue}
+                            className="w-28"
+                          />
+                        </div>
+                        <FormMessage />
+                        <p className="text-xs text-slate-500">
+                          비워두거나 과거 시간이면 즉시 출제됩니다.
+                        </p>
+                      </FormItem>
+                    )
+                  }}
+                />
+
                 <FormField
                   control={form.control}
                   name="dueAt"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>마감일</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="datetime-local"
-                          value={field.value ?? ''}
-                          min={defaultDueAt}
-                          onChange={(event) => field.onChange(event.target.value)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  render={({ field }) => {
+                    const dateValue = field.value ? new Date(field.value) : undefined
+                    const timeValue = field.value
+                      ? `${String(new Date(field.value).getHours()).padStart(2, '0')}:${String(new Date(field.value).getMinutes()).padStart(2, '0')}`
+                      : '23:59'
 
-                <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-                  마감일은 서버 기준 UTC 시각으로 저장되며, 학생 화면에서는 자동으로 브라우저 시간대로 표시됩니다.
-                </div>
+                    const handleDateSelect = (date: Date | undefined) => {
+                      if (!date) {
+                        field.onChange('')
+                        return
+                      }
+                      const [hours, minutes] = timeValue.split(':').map(Number)
+                      date.setHours(hours, minutes, 0, 0)
+                      field.onChange(toDateInputValue(date.toISOString()))
+                    }
+
+                    const handleTimeChange = (time: string) => {
+                      if (!dateValue) return
+                      const [hours, minutes] = time.split(':').map(Number)
+                      const newDate = new Date(dateValue)
+                      newDate.setHours(hours, minutes, 0, 0)
+                      field.onChange(toDateInputValue(newDate.toISOString()))
+                    }
+
+                    return (
+                      <FormItem>
+                        <FormLabel>마감일</FormLabel>
+                        <div className="flex gap-2">
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className={`flex-1 justify-start text-left font-normal ${!dateValue ? 'text-muted-foreground' : ''}`}
+                                >
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {dateValue
+                                    ? DateUtil.formatForDisplay(dateValue.toISOString(), {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                      })
+                                    : '날짜 선택'}
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={dateValue}
+                                onSelect={handleDateSelect}
+                                locale={ko}
+                              />
+                              {dateValue && (
+                                <div className="border-t p-3">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="w-full text-slate-500"
+                                    onClick={() => field.onChange('')}
+                                  >
+                                    날짜 지우기
+                                  </Button>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                          <Input
+                            type="time"
+                            value={dateValue ? timeValue : ''}
+                            onChange={(e) => handleTimeChange(e.target.value)}
+                            disabled={!dateValue}
+                            className="w-28"
+                          />
+                        </div>
+                        <FormMessage />
+                        <p className="text-xs text-slate-500">
+                          비워두면 마감일 없이 배정됩니다.
+                        </p>
+                      </FormItem>
+                    )
+                  }}
+                />
+              </div>
+
+              <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
+                일정은 서버 기준 UTC 시각으로 저장되며, 학생 화면에서는 자동으로 브라우저 시간대로 표시됩니다.
               </div>
             </section>
 
@@ -550,7 +863,14 @@ export function AssignmentForm({
             {submitState === 'success' && !serverError && (
               <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
                 <Check className="size-4" />
-                <span>과제 배정이 완료되었습니다.</span>
+                <span>과제 배정이 완료되었습니다. 학생들에게 즉시 공개됩니다.</span>
+              </div>
+            )}
+
+            {submitState === 'scheduled' && !serverError && (
+              <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                <Check className="size-4" />
+                <span>예약 과제가 생성되었습니다. 출제일에 학생들에게 자동으로 공개됩니다.</span>
               </div>
             )}
 
