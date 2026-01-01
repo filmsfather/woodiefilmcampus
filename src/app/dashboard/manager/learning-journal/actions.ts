@@ -38,8 +38,11 @@ function makeSuccessState(message: string): ActionState {
 function parseCreatePayload(formData: FormData):
   | { success: true; data: CreateLearningJournalPeriodInput }
   | { success: false; error: Record<string, string[]> } {
+  const classIdsRaw = formData.get('classIds')?.toString() ?? ''
+  const classIds = classIdsRaw ? classIdsRaw.split(',').filter(Boolean) : []
+
   const payload = {
-    classId: formData.get('classId')?.toString() ?? '',
+    classIds,
     startDate: formData.get('startDate')?.toString() ?? '',
     label: formData.get('label')?.toString() ?? '',
   }
@@ -151,32 +154,49 @@ export async function createLearningJournalPeriodAction(
     return makeErrorState('입력값을 다시 확인해주세요.', parsed.error)
   }
 
-  const { classId, startDate, label } = parsed.data
+  const { classIds, startDate, label } = parsed.data
   const supabase = createAdminClient()
   const endDate = calculatePeriodEnd(startDate)
 
   try {
-    const { data: inserted, error } = await supabase
-      .from('learning_journal_periods')
-      .insert({
-        class_id: classId,
-        start_date: startDate,
-        end_date: endDate,
-        label: label?.trim() ? label.trim() : null,
-        status: 'in_progress',
-        created_by: profile.id,
-      })
-      .select('id')
-      .maybeSingle()
+    let successCount = 0
+    const errors: string[] = []
 
-    if (error || !inserted) {
-      console.error('[learning-journal] create period error', error)
+    for (const classId of classIds) {
+      const { data: inserted, error } = await supabase
+        .from('learning_journal_periods')
+        .insert({
+          class_id: classId,
+          start_date: startDate,
+          end_date: endDate,
+          label: label?.trim() ? label.trim() : null,
+          status: 'in_progress',
+          created_by: profile.id,
+        })
+        .select('id')
+        .maybeSingle()
+
+      if (error || !inserted) {
+        console.error('[learning-journal] create period error for class', classId, error)
+        errors.push(classId)
+        continue
+      }
+
+      await seedEntriesForClass(inserted.id, classId)
+      successCount++
+    }
+
+    revalidatePath(MANAGER_LEARNING_JOURNAL_PATH)
+
+    if (successCount === 0) {
       return makeErrorState('학습일지 주기를 생성하지 못했습니다.')
     }
 
-    await seedEntriesForClass(inserted.id, classId)
-    revalidatePath(MANAGER_LEARNING_JOURNAL_PATH)
-    return makeSuccessState('새로운 학습일지 주기를 만들었습니다.')
+    if (errors.length > 0) {
+      return makeSuccessState(`${successCount}개 반의 학습일지 주기를 만들었습니다. (${errors.length}개 실패)`)
+    }
+
+    return makeSuccessState(`${successCount}개 반의 학습일지 주기를 만들었습니다.`)
   } catch (caughtError) {
     console.error('[learning-journal] create period unexpected error', caughtError)
     return makeErrorState('학습일지 주기를 생성하는 중 문제가 발생했습니다.')

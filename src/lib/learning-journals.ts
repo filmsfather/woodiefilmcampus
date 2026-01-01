@@ -525,13 +525,15 @@ function toPeriod(row: LearningJournalPeriodRow): LearningJournalPeriod {
 
 function toPeriodWithClass(
   row: LearningJournalPeriodRow,
-  studentCount: number
+  studentCount: number,
+  students: LearningJournalPeriodWithClass['students'] = []
 ): LearningJournalPeriodWithClass {
   const period = toPeriod(row)
   return {
     ...period,
     className: normalizeClassName(row),
     studentCount,
+    students,
   }
 }
 
@@ -668,7 +670,8 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
        locked_at,
        created_at,
        updated_at,
-       classes:classes!learning_journal_periods_class_id_fkey(id, name)
+       classes:classes!learning_journal_periods_class_id_fkey(id, name),
+       learning_journal_entries(id, student_id, status)
       `
     )
     .order('start_date', { ascending: false })
@@ -678,32 +681,106 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
     return []
   }
 
-  const rows = (periodRows ?? []) as LearningJournalPeriodRow[]
+  const rows = (periodRows ?? []) as (LearningJournalPeriodRow & {
+    learning_journal_entries?: Array<{ id: string; student_id: string; status: string }> | null
+  })[]
   const classIds = Array.from(new Set(rows.map((row) => row.class_id)))
+  const periodIds = rows.map((row) => row.id)
 
   let studentCountMap = new Map<string, number>()
+  let classStudentsMap = new Map<string, Array<{ studentId: string; name: string }>>()
 
   if (classIds.length > 0) {
     const { data: studentRows, error: studentError } = await supabase
       .from('class_students')
-      .select('class_id, student_id')
+      .select('class_id, student_id, profiles:profiles!class_students_student_id_fkey(id, name)')
       .in('class_id', classIds)
 
     if (studentError) {
       console.error('[learning-journal] student count fetch error', studentError)
     }
 
+    // 학생 수 카운트 맵
     studentCountMap = new Map(
       classIds.map((classId) => {
         const count = (studentRows ?? []).filter((row) => row.class_id === classId).length
         return [classId, count] as const
       })
     )
+
+    // 반별 학생 목록 맵
+    for (const row of (studentRows ?? [])) {
+      const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
+      if (!profile) continue
+
+      const existing = classStudentsMap.get(row.class_id) ?? []
+      existing.push({
+        studentId: row.student_id,
+        name: profile.name ?? '이름 없음',
+      })
+      classStudentsMap.set(row.class_id, existing)
+    }
   }
 
-  const results = rows.map((row) =>
-    toPeriodWithClass(row, studentCountMap.get(row.class_id) ?? 0)
-  )
+  // 주기별 entry 정보를 맵으로 구성
+  const periodEntriesMap = new Map<string, Map<string, { entryId: string; status: string }>>()
+  for (const row of rows) {
+    const entries = row.learning_journal_entries ?? []
+    const entryMap = new Map<string, { entryId: string; status: string }>()
+    for (const entry of entries) {
+      entryMap.set(entry.student_id, { entryId: entry.id, status: entry.status })
+    }
+    periodEntriesMap.set(row.id, entryMap)
+  }
+
+  const results = rows.map((row) => {
+    const classStudents = classStudentsMap.get(row.class_id) ?? []
+    const entryMap = periodEntriesMap.get(row.id) ?? new Map()
+
+    // 학생 목록과 상태 정보 결합
+    const students: LearningJournalPeriodWithClass['students'] = classStudents
+      .map((student) => {
+        const entryInfo = entryMap.get(student.studentId)
+        return {
+          studentId: student.studentId,
+          name: student.name,
+          entryId: entryInfo?.entryId ?? null,
+          status: (entryInfo?.status as LearningJournalPeriodWithClass['students'][number]['status']) ?? null,
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'))
+
+    return toPeriodWithClass(row, studentCountMap.get(row.class_id) ?? 0, students)
+  })
+
+  // 모든 학생이 published 상태이고 아직 completed가 아닌 주기를 자동으로 completed로 변경
+  const periodsToComplete = results.filter((period) => {
+    // 이미 completed 상태면 스킵
+    if (period.status === 'completed') return false
+    // 학생이 없으면 스킵
+    if (period.students.length === 0) return false
+    // 모든 학생이 published 상태인지 확인
+    return period.students.every((student) => student.status === 'published')
+  })
+
+  if (periodsToComplete.length > 0) {
+    const periodIdsToComplete = periodsToComplete.map((p) => p.id)
+    const { error: updateError } = await supabase
+      .from('learning_journal_periods')
+      .update({ status: 'completed' })
+      .in('id', periodIdsToComplete)
+
+    if (updateError) {
+      console.error('[learning-journal] auto-complete period error', updateError)
+    } else {
+      // 결과에도 상태 반영
+      for (const period of results) {
+        if (periodIdsToComplete.includes(period.id)) {
+          period.status = 'completed'
+        }
+      }
+    }
+  }
 
   return results.sort((a, b) => compareClassNames(a.className, b.className))
 }

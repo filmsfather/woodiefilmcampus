@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useEffect, useRef } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +20,7 @@ import {
 interface ClassOption {
   id: string
   name: string
+  studentCount: number
 }
 
 interface CreatePeriodFormProps {
@@ -32,12 +34,36 @@ export function CreatePeriodForm({ classOptions, defaultStartDate }: CreatePerio
     createLearningJournalPeriodAction,
     initialActionState
   )
+  const [selectedClassIds, setSelectedClassIds] = useState<string[]>([])
+
   const hasClasses = classOptions.length > 0
   const selectDisabled = isPending || !hasClasses
+
+  // 선택되지 않은 반 목록
+  const availableClasses = classOptions.filter((c) => !selectedClassIds.includes(c.id))
+
+  const handleAddClass = (classId: string) => {
+    if (classId && !selectedClassIds.includes(classId)) {
+      setSelectedClassIds((prev) => [...prev, classId])
+    }
+  }
+
+  const handleRemoveClass = (classId: string) => {
+    setSelectedClassIds((prev) => prev.filter((id) => id !== classId))
+  }
+
+  const getClassInfo = (classId: string) => {
+    const classOption = classOptions.find((c) => c.id === classId)
+    return {
+      name: classOption?.name ?? '알 수 없음',
+      studentCount: classOption?.studentCount ?? 0,
+    }
+  }
 
   useEffect(() => {
     if (state.status === 'success') {
       formRef.current?.reset()
+      setSelectedClassIds([])
     }
   }, [state.status])
 
@@ -60,31 +86,55 @@ export function CreatePeriodForm({ classOptions, defaultStartDate }: CreatePerio
         ) : null}
 
         <form ref={formRef} action={formAction} className="grid gap-4 md:grid-cols-2">
+          {/* 숨김 필드: 선택된 반 ID들 */}
+          <input type="hidden" name="classIds" value={selectedClassIds.join(',')} />
+
           <div className="grid gap-2 md:col-span-1">
-            <Label htmlFor="classId">반 선택</Label>
+            <Label>반 선택</Label>
             <Select
-              name="classId"
-              defaultValue={classOptions[0]?.id}
-              disabled={selectDisabled}
-              required
+              value=""
+              onValueChange={handleAddClass}
+              disabled={selectDisabled || availableClasses.length === 0}
             >
-              <SelectTrigger id="classId">
-                <SelectValue placeholder="반을 선택하세요" />
+              <SelectTrigger>
+                <SelectValue placeholder={availableClasses.length === 0 ? '모든 반이 선택됨' : '반을 선택하세요'} />
               </SelectTrigger>
               <SelectContent>
-                {classOptions.length === 0 ? (
-                  <SelectItem value="" disabled>
-                    등록된 반이 없습니다.
+                {availableClasses.map((option) => (
+                  <SelectItem key={option.id} value={option.id}>
+                    {option.name} ({option.studentCount}명)
                   </SelectItem>
-                ) : (
-                  classOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.name}
-                    </SelectItem>
-                  ))
-                )}
+                ))}
               </SelectContent>
             </Select>
+
+            {/* 선택된 반 목록 */}
+            {selectedClassIds.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedClassIds.map((classId) => {
+                  const info = getClassInfo(classId)
+                  return (
+                    <span
+                      key={classId}
+                      className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700"
+                    >
+                      {info.name} ({info.studentCount}명)
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveClass(classId)}
+                        disabled={isPending}
+                        className="ml-1 rounded-full p-0.5 hover:bg-slate-200 disabled:opacity-50"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+            {selectedClassIds.length === 0 && (
+              <p className="text-xs text-slate-500">반을 선택해주세요.</p>
+            )}
           </div>
 
           <div className="grid gap-2 md:col-span-1">
@@ -105,8 +155,8 @@ export function CreatePeriodForm({ classOptions, defaultStartDate }: CreatePerio
           </div>
 
           <div className="md:col-span-2 flex justify-end">
-            <Button type="submit" disabled={isPending || !hasClasses} className="md:w-40">
-              {isPending ? '생성 중...' : '주기 생성'}
+            <Button type="submit" disabled={isPending || !hasClasses || selectedClassIds.length === 0} className="md:w-40">
+              {isPending ? '생성 중...' : `주기 생성 (${selectedClassIds.length}개)`}
             </Button>
           </div>
         </form>

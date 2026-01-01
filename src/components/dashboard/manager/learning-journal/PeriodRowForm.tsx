@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useMemo, useRef } from 'react'
+import Link from 'next/link'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,6 +20,7 @@ import {
   LEARNING_JOURNAL_PERIOD_STATUSES,
   type LearningJournalPeriodWithClass,
 } from '@/types/learning-journal'
+import { cn } from '@/lib/utils'
 
 interface PeriodRowFormProps {
   period: LearningJournalPeriodWithClass
@@ -56,6 +58,49 @@ export function PeriodRowForm({ period }: PeriodRowFormProps) {
           상태: {STATUS_LABEL[period.status] ?? period.status}
         </span>
       </div>
+
+      {/* 학생 버튼 목록 */}
+      {period.students.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {period.students.map((student) => {
+            const isPublished = student.status === 'published'
+            const hasEntry = !!student.entryId
+
+            // 학습일지가 있으면 해당 학습일지 상세 페이지로 이동
+            const href = hasEntry
+              ? `/dashboard/teacher/learning-journal/entries/${student.entryId}`
+              : undefined
+
+            const buttonContent = (
+              <span
+                className={cn(
+                  'inline-flex items-center rounded-full px-3 py-1 text-xs font-medium transition',
+                  isPublished
+                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                  !hasEntry && 'opacity-50 cursor-not-allowed'
+                )}
+              >
+                {student.name}
+              </span>
+            )
+
+            if (hasEntry && href) {
+              return (
+                <Link key={student.studentId} href={href}>
+                  {buttonContent}
+                </Link>
+              )
+            }
+
+            return (
+              <span key={student.studentId} title="학습일지가 아직 생성되지 않았습니다">
+                {buttonContent}
+              </span>
+            )
+          })}
+        </div>
+      )}
 
       {updateState.status === 'error' && updateState.message ? (
         <Alert variant="destructive">

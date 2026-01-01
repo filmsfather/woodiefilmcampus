@@ -162,9 +162,17 @@ export interface LearningJournalEntryLog {
   createdAt: string
 }
 
+export interface LearningJournalPeriodStudent {
+  studentId: string
+  name: string
+  entryId: string | null
+  status: LearningJournalEntryStatus | null
+}
+
 export interface LearningJournalPeriodWithClass extends LearningJournalPeriod {
   className: string
   studentCount: number
+  students: LearningJournalPeriodStudent[]
 }
 
 export interface LearningJournalStudentSnapshot {

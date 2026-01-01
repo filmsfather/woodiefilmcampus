@@ -9,7 +9,7 @@ import {
   resolveMonthToken,
 } from '@/lib/learning-journals'
 import { CreatePeriodForm } from '@/components/dashboard/manager/learning-journal/CreatePeriodForm'
-import { PeriodRowForm } from '@/components/dashboard/manager/learning-journal/PeriodRowForm'
+import { PeriodTabs } from '@/components/dashboard/manager/learning-journal/PeriodTabs'
 import { AcademicEventCreateForm } from '@/components/dashboard/manager/learning-journal/AcademicEventCreateForm'
 import { AcademicEventList } from '@/components/dashboard/manager/learning-journal/AcademicEventList'
 import { MonthSelect } from '@/components/dashboard/manager/learning-journal/MonthSelect'
@@ -45,9 +45,30 @@ export default async function ManagerLearningJournalPage(props: {
     console.error('[learning-journal] manager class fetch error', classError)
   }
 
+  // 반별 학생 수 조회
+  const classIds = (classRows ?? []).map((row) => row.id)
+  let studentCountMap = new Map<string, number>()
+
+  if (classIds.length > 0) {
+    const { data: studentRows, error: studentError } = await supabase
+      .from('class_students')
+      .select('class_id')
+      .in('class_id', classIds)
+
+    if (studentError) {
+      console.error('[learning-journal] student count fetch error', studentError)
+    }
+
+    for (const classId of classIds) {
+      const count = (studentRows ?? []).filter((row) => row.class_id === classId).length
+      studentCountMap.set(classId, count)
+    }
+  }
+
   const classOptions = (classRows ?? []).map((row) => ({
     id: row.id,
     name: row.name ?? '이름 미정',
+    studentCount: studentCountMap.get(row.id) ?? 0,
   }))
 
   const searchParams = await props.searchParams
@@ -77,17 +98,13 @@ export default async function ManagerLearningJournalPage(props: {
       <CreatePeriodForm classOptions={classOptions} defaultStartDate={defaultStartDate} />
 
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-slate-900">진행 중인 주기</h2>
+        <h2 className="text-xl font-semibold text-slate-900">학습일지 주기</h2>
         {periods.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
             생성된 학습일지 주기가 없습니다. 위에서 새 주기를 먼저 만들어 주세요.
           </div>
         ) : (
-          <div className="space-y-4">
-            {periods.map((period) => (
-              <PeriodRowForm key={period.id} period={period} />
-            ))}
-          </div>
+          <PeriodTabs periods={periods} />
         )}
       </div>
 

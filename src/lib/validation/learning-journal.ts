@@ -22,7 +22,7 @@ export const monthTokenSchema = z
   .regex(/^\d{4}-(0[1-9]|1[0-2])$/, '월 형식은 YYYY-MM 이어야 합니다.')
 
 export const createLearningJournalPeriodSchema = z.object({
-  classId: uuidSchema,
+  classIds: z.array(uuidSchema).min(1, { message: '반을 최소 1개 이상 선택해주세요.' }),
   startDate: isoDateSchema,
   label: z
     .string()
