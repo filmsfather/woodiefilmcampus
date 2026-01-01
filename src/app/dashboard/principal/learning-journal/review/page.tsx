@@ -1,4 +1,5 @@
 import { ClassPeriodSelector } from '@/components/dashboard/principal/ClassPeriodSelector'
+import { GreetingForm } from '@/components/dashboard/principal/learning-journal/GreetingForm'
 import { LearningJournalEntryEditor } from '@/components/dashboard/teacher/learning-journal/LearningJournalEntryEditor'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
@@ -99,6 +100,7 @@ export default async function PrincipalLearningJournalReviewPage({
   }
 
   let greeting: LearningJournalGreeting | null = null
+  let activeMonthToken: string | null = null
   let academicEvents: LearningJournalAcademicEvent[] = []
   let annualSchedules: LearningJournalAnnualSchedule[] = []
   let materials: Record<LearningJournalSubject, Array<{
@@ -129,8 +131,9 @@ export default async function PrincipalLearningJournalReviewPage({
     )
 
     if (monthTokens.length > 0) {
+      activeMonthToken = monthTokens[0]
       const [fetchedGreeting, fetchedEvents] = await Promise.all([
-        fetchLearningJournalGreeting(monthTokens[0]),
+        fetchLearningJournalGreeting(activeMonthToken),
         fetchLearningJournalAcademicEvents(monthTokens),
       ])
 
@@ -344,6 +347,16 @@ export default async function PrincipalLearningJournalReviewPage({
                 comments={comments}
                 materials={materials}
                 availablePeriods={availablePeriods}
+                greetingSlot={
+                  activeMonthToken ? (
+                    <GreetingForm
+                      key={activeMonthToken}
+                      monthToken={activeMonthToken}
+                      defaultMessage={greeting?.message ?? ''}
+                    />
+                  ) : undefined
+                }
+                annualScheduleHref="/dashboard/principal/learning-journal/annual-schedule"
               />
 
               <div className="space-y-3">

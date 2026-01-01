@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
+import Link from 'next/link'
 
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { WeeklyOverview } from '@/components/dashboard/teacher/learning-journal/WeeklyOverview'
 import { StudentSelector } from '@/components/dashboard/teacher/learning-journal/StudentSelector'
@@ -58,6 +60,10 @@ interface LearningJournalEntryContentProps {
   afterHeader?: ReactNode
   /** 코멘트 카드 대신 렌더링할 커스텀 슬롯 (편집 모드용) */
   commentSlot?: ReactNode
+  /** 인사말 카드 대신 렌더링할 커스텀 슬롯 (원장 편집 모드용) */
+  greetingSlot?: ReactNode
+  /** 연간 일정 관리 페이지 링크 (원장용) */
+  annualScheduleHref?: string
   // 편집 모드 관련 props
   editable?: boolean
   className?: string
@@ -204,6 +210,8 @@ export function LearningJournalEntryContent({
   actionPanel,
   afterHeader,
   commentSlot,
+  greetingSlot,
+  annualScheduleHref,
   editable = false,
   className,
   onEditWeeklyMaterial,
@@ -274,8 +282,10 @@ export function LearningJournalEntryContent({
 
       {afterHeader}
 
-      {/* 편집 모드(선생님 화면)에서는 비어있으면 숨김 */}
-      {greeting || !editable ? (
+      {/* 편집 모드(선생님 화면)에서는 비어있으면 숨김, greetingSlot이 있으면 대체 */}
+      {greetingSlot ? (
+        greetingSlot
+      ) : greeting || !editable ? (
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">원장 인사말</CardTitle>
@@ -313,7 +323,7 @@ export function LearningJournalEntryContent({
               <p className="text-sm text-slate-500">{emptyEventsMessage}</p>
             )}
 
-            {annualSchedules.length > 0 ? (
+            {annualSchedules.length > 0 || annualScheduleHref ? (
               <details className="overflow-hidden rounded-md border border-slate-200">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
                   연간 일정 펼쳐보기
@@ -394,6 +404,14 @@ export function LearningJournalEntryContent({
                   </div>
                 </div>
               </details>
+            ) : null}
+
+            {annualScheduleHref ? (
+              <div className="flex justify-end">
+                <Button asChild size="sm" variant="outline">
+                  <Link href={annualScheduleHref}>연간 일정 관리</Link>
+                </Button>
+              </div>
             ) : null}
           </CardContent>
         </Card>

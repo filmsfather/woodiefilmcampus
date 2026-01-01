@@ -77,6 +77,10 @@ interface LearningJournalEntryEditorProps {
   currentClassId?: string
   /** 코멘트 카드 대신 렌더링할 커스텀 슬롯 (편집 모드용) */
   commentSlot?: React.ReactNode
+  /** 인사말 카드 대신 렌더링할 커스텀 슬롯 (원장 편집 모드용) */
+  greetingSlot?: React.ReactNode
+  /** 연간 일정 관리 페이지 링크 (원장용) */
+  annualScheduleHref?: string
 }
 
 export function LearningJournalEntryEditor({
@@ -97,6 +101,8 @@ export function LearningJournalEntryEditor({
   availableClasses,
   currentClassId,
   commentSlot,
+  greetingSlot,
+  annualScheduleHref,
 }: LearningJournalEntryEditorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -249,6 +255,8 @@ export function LearningJournalEntryEditor({
         weekly={weekly}
         comments={comments}
         commentSlot={commentSlot}
+        greetingSlot={greetingSlot}
+        annualScheduleHref={annualScheduleHref}
         editable={true}
         className={className}
         onEditWeeklyMaterial={handleEdit}
