@@ -48,6 +48,13 @@ const principalCoreSections: NavigationSection[] = [
       { label: '학습일지 관리', href: '/dashboard/principal/learning-journal' },
     ],
   },
+  {
+    id: 'principal-assignments',
+    title: '과제 관리',
+    items: [
+      { label: '과제 현황', href: '/dashboard/principal/assignments' },
+    ],
+  },
 ]
 
 const managerSections: NavigationSection[] = [
