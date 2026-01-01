@@ -456,7 +456,14 @@ export async function fetchAtelierPosts({
     query = query.ilike('profiles.name', escapedPattern)
   }
 
-  const { data, error, count } = await query
+  // 메인 쿼리와 필터 조회를 병렬로 실행
+  const [queryResult, filtersResult] = await Promise.all([
+    query,
+    loadAtelierFilters(admin),
+  ])
+
+  const { data, error, count } = queryResult
+  const { filters, includesUnassigned, hasWeekless } = filtersResult
 
   if (error) {
     console.error('[atelier] failed to fetch posts', error)
@@ -628,8 +635,6 @@ export async function fetchAtelierPosts({
   const totalCount = count ?? rows.length
   const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / safePerPage)
 
-  const { filters, includesUnassigned, hasWeekless } = await loadAtelierFilters(admin)
-
   return {
     items,
     totalCount,
@@ -646,63 +651,38 @@ export async function fetchAtelierPosts({
 }
 
 async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
-  const { data: workbookRows, error: workbookError } = await admin
-    .from('atelier_posts')
-    .select('workbook_id')
-    .eq('is_deleted', false)
+  // 병렬로 workbook_id와 class_id를 동시에 조회
+  const [workbookResult, classResult] = await Promise.all([
+    admin
+      .from('atelier_posts')
+      .select('workbook_id')
+      .eq('is_deleted', false)
+      .not('workbook_id', 'is', null),
+    admin
+      .from('atelier_posts')
+      .select('class_id')
+      .eq('is_deleted', false),
+  ])
 
-  if (workbookError) {
-    console.error('[atelier] failed to load workbook ids for filters', workbookError)
+  if (workbookResult.error) {
+    console.error('[atelier] failed to load workbook ids for filters', workbookResult.error)
+  }
+  if (classResult.error) {
+    console.error('[atelier] failed to load class ids for filters', classResult.error)
   }
 
   const workbookIds = Array.from(
     new Set(
-      (workbookRows ?? [])
+      (workbookResult.data ?? [])
         .map((row) => (row?.workbook_id as string | null) ?? null)
         .filter((value): value is string => Boolean(value))
     )
   )
 
-  let weekLabels: string[] = []
-  let hasWeekless = false
-
-  if (workbookIds.length > 0) {
-    const { data: workbooks, error } = await admin
-      .from('workbooks')
-      .select('id, week_label')
-      .in('id', workbookIds)
-
-    if (error) {
-      console.error('[atelier] failed to load workbook week labels', error)
-    } else {
-      const labelSet = new Set<string>()
-
-      for (const row of workbooks ?? []) {
-        const label = (row?.week_label as string | null) ?? null
-        if (typeof label === 'string' && label.trim().length > 0) {
-          labelSet.add(label.trim())
-        } else {
-          hasWeekless = true
-        }
-      }
-
-      weekLabels = Array.from(labelSet).sort((a, b) => a.localeCompare(b, 'ko'))
-    }
-  }
-
-  const { data: classRows, error: classError } = await admin
-    .from('atelier_posts')
-    .select('class_id')
-    .eq('is_deleted', false)
-
-  if (classError) {
-    console.error('[atelier] failed to load class ids for filters', classError)
-  }
-
   const classIdSet = new Set<string>()
   let hasUnassigned = false
 
-  for (const row of classRows ?? []) {
+  for (const row of classResult.data ?? []) {
     const classId = (row?.class_id as string | null) ?? null
     if (!classId) {
       hasUnassigned = true
@@ -711,24 +691,53 @@ async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
     classIdSet.add(classId)
   }
 
+  // 병렬로 workbooks와 classes 조회
+  const [workbooksResult, classesResult] = await Promise.all([
+    workbookIds.length > 0
+      ? admin
+          .from('workbooks')
+          .select('id, week_label')
+          .in('id', workbookIds)
+      : Promise.resolve({ data: [], error: null }),
+    classIdSet.size > 0
+      ? admin
+          .from('classes')
+          .select('id, name')
+          .in('id', Array.from(classIdSet))
+      : Promise.resolve({ data: [], error: null }),
+  ])
+
+  let weekLabels: string[] = []
+  let hasWeekless = false
+
+  if (workbooksResult.error) {
+    console.error('[atelier] failed to load workbook week labels', workbooksResult.error)
+  } else {
+    const labelSet = new Set<string>()
+
+    for (const row of workbooksResult.data ?? []) {
+      const label = (row?.week_label as string | null) ?? null
+      if (typeof label === 'string' && label.trim().length > 0) {
+        labelSet.add(label.trim())
+      } else {
+        hasWeekless = true
+      }
+    }
+
+    weekLabels = Array.from(labelSet).sort((a, b) => a.localeCompare(b, 'ko'))
+  }
+
   let classes: Array<{ id: string; name: string }> = []
 
-  if (classIdSet.size > 0) {
-    const { data: classList, error } = await admin
-      .from('classes')
-      .select('id, name')
-      .in('id', Array.from(classIdSet))
-
-    if (error) {
-      console.error('[atelier] failed to load class names for filters', error)
-    } else {
-      classes = (classList ?? [])
-        .map((row) => ({
-          id: row.id as string,
-          name: ((row.name as string | null) ?? '이름 미지정').trim() || '이름 미지정',
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-    }
+  if (classesResult.error) {
+    console.error('[atelier] failed to load class names for filters', classesResult.error)
+  } else {
+    classes = (classesResult.data ?? [])
+      .map((row) => ({
+        id: row.id as string,
+        name: ((row.name as string | null) ?? '이름 미지정').trim() || '이름 미지정',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   }
 
   return {
