@@ -609,41 +609,45 @@ export async function fetchStudentTaskDetail(
 
   const assignmentSummary = row.assignment_id ? assignmentLookup.get(row.assignment_id) ?? null : null
 
+  // workbook_items와 task_submissions를 병렬로 조회
+  const adminClient = createAdminClient()
+  const [workbookItemsResult, submissionResult] = await Promise.all([
+    assignmentSummary?.workbook.id
+      ? adminClient
+          .from('workbook_items')
+          .select(
+            `id, position, prompt, answer_type, explanation, srs_settings,
+             workbook_item_choices(id, label, content, is_correct),
+             workbook_item_short_fields(id, label, answer, position),
+             workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))`
+          )
+          .eq('workbook_id', assignmentSummary.workbook.id)
+      : Promise.resolve({ data: null, error: null }),
+    supabase
+      .from('task_submissions')
+      .select(
+        `id, student_task_id, item_id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at,
+         task_submission_assets(id, order_index, media_asset_id, media_asset:media_assets(id, bucket, path, mime_type, size, metadata))`
+      )
+      .eq('student_task_id', row.id),
+  ])
+
   let workbookItemLookup: Map<string, WorkbookItemRow> | null = null
 
-  if (assignmentSummary?.workbook.id) {
-    const adminClient = createAdminClient()
-    const { data: workbookItemRows, error: workbookItemsError } = await adminClient
-      .from('workbook_items')
-      .select(
-        `id, position, prompt, answer_type, explanation, srs_settings,
-         workbook_item_choices(id, label, content, is_correct),
-         workbook_item_short_fields(id, label, answer, position),
-         workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))`
-      )
-      .eq('workbook_id', assignmentSummary.workbook.id)
-
-    if (workbookItemsError) {
-      console.error('[student-tasks] failed to load workbook items for detail', workbookItemsError)
-    } else if (workbookItemRows) {
-      workbookItemLookup = new Map(
-        (workbookItemRows as unknown as WorkbookItemRow[]).map((item) => [item.id, item])
-      )
-    }
+  if (workbookItemsResult.error) {
+    console.error('[student-tasks] failed to load workbook items for detail', workbookItemsResult.error)
+  } else if (workbookItemsResult.data) {
+    workbookItemLookup = new Map(
+      (workbookItemsResult.data as unknown as WorkbookItemRow[]).map((item) => [item.id, item])
+    )
   }
 
-  const { data: submissionRows, error: submissionError } = await supabase
-    .from('task_submissions')
-    .select(
-      `id, student_task_id, item_id, submission_type, content, media_asset_id, score, feedback, evaluated_by, evaluated_at, created_at, updated_at,
-       task_submission_assets(id, order_index, media_asset_id, media_asset:media_assets(id, bucket, path, mime_type, size, metadata))`
-    )
-    .eq('student_task_id', row.id)
-
-  if (submissionError) {
-    console.error('[student-tasks] failed to fetch task submissions', submissionError)
+  if (submissionResult.error) {
+    console.error('[student-tasks] failed to fetch task submissions', submissionResult.error)
     throw new Error('학생 과제 제출 정보를 불러오지 못했습니다.')
   }
+
+  const submissionRows = submissionResult.data
 
   const itemSubmissionMap = new Map<string, StudentTaskSubmissionRow[]>()
   const taskLevelSubmissions: TaskSubmissionRow[] = []

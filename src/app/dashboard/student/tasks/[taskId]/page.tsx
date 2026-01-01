@@ -114,45 +114,52 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
     mimeType: string | null
   }
 
-  const attachmentPairs = await Promise.all(
-    task.items.map(async (item) => {
-      if (!item.workbookItem.media || item.workbookItem.media.length === 0) {
-        return null
-      }
+  // 모든 미디어의 signed URL을 한 번에 병렬로 생성
+  const allMediaItems = task.items.flatMap((item) =>
+    (item.workbookItem.media ?? [])
+      .filter((media) => media.asset.path)
+      .map((media) => ({
+        itemId: item.id,
+        mediaId: media.id,
+        bucket: media.asset.bucket ?? 'workbook-assets',
+        path: media.asset.path,
+        mimeType: media.asset.mimeType ?? null,
+        metadata: media.asset.metadata as { originalName?: string; original_name?: string } | null,
+      }))
+  )
 
-      const attachments: AttachmentEntry[] = []
-
-      for (const media of item.workbookItem.media) {
-        if (!media.asset.path) {
-          continue
-        }
-
-        const bucket = media.asset.bucket ?? 'workbook-assets'
-        const { data: signed } = await adminSupabase.storage.from(bucket).createSignedUrl(media.asset.path, 60 * 30)
-
-        if (!signed?.signedUrl) {
-          continue
-        }
-
-        const metadata = (media.asset.metadata as { originalName?: string; original_name?: string } | null) ?? null
-        const filename =
-          metadata?.originalName ?? metadata?.original_name ?? media.asset.path.split('/').pop() ?? '첨부 파일'
-
-        attachments.push({
-          id: media.id,
-          filename,
-          url: signed.signedUrl,
-          mimeType: media.asset.mimeType ?? null,
-        })
-      }
-
-      if (attachments.length === 0) {
-        return null
-      }
-
-      return [item.id, attachments] as const
+  const signedUrls = await Promise.all(
+    allMediaItems.map(async (media) => {
+      const { data: signed } = await adminSupabase.storage
+        .from(media.bucket)
+        .createSignedUrl(media.path, 60 * 30)
+      return { ...media, signedUrl: signed?.signedUrl ?? null }
     })
   )
+
+  // itemId별로 attachments 그룹화
+  const attachmentsByItemTemp = new Map<string, AttachmentEntry[]>()
+  for (const media of signedUrls) {
+    if (!media.signedUrl) continue
+
+    const filename =
+      media.metadata?.originalName ?? media.metadata?.original_name ?? media.path.split('/').pop() ?? '첨부 파일'
+
+    const entry: AttachmentEntry = {
+      id: media.mediaId,
+      filename,
+      url: media.signedUrl,
+      mimeType: media.mimeType,
+    }
+
+    const list = attachmentsByItemTemp.get(media.itemId) ?? []
+    list.push(entry)
+    attachmentsByItemTemp.set(media.itemId, list)
+  }
+
+  const attachmentPairs = task.items
+    .filter((item) => attachmentsByItemTemp.has(item.id))
+    .map((item) => [item.id, attachmentsByItemTemp.get(item.id)!] as const)
 
   const attachmentsByItem = Object.fromEntries(
     attachmentPairs.filter((entry): entry is [string, AttachmentEntry[]] => Boolean(entry))
