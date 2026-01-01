@@ -1068,12 +1068,7 @@ export async function submitPdfSubmission(formData: FormData) {
       }
     }
 
-    for (const asset of removalTargets) {
-      if (asset.mediaAssetId) {
-        await removeMediaAsset(supabase, asset.mediaAssetId)
-      }
-    }
-
+    // NOTE: latestAssets 조회를 삭제 전에 수행하여 새 asset 정보를 확보
     const { data: latestAssets, error: latestAssetsError } = await supabase
       .from('task_submission_assets')
       .select('id, order_index, media_asset:media_assets(id, metadata)')
@@ -1085,16 +1080,44 @@ export async function submitPdfSubmission(formData: FormData) {
       throw new Error('제출 파일 정보를 불러오지 못했습니다.')
     }
 
-    const normalizedAssets = (latestAssets ?? []).map((asset, index) => ({
-      id: asset.id,
-      orderIndex: asset.order_index ?? index,
-      mediaAsset: Array.isArray(asset.media_asset) ? asset.media_asset[0] : asset.media_asset,
-    }))
+    // 삭제할 asset을 제외한 유효한 asset만 필터링
+    const removedMediaAssetIds = new Set(removalTargets.map((t) => t.mediaAssetId).filter(Boolean))
+    const normalizedAssets = (latestAssets ?? [])
+      .map((asset, index) => ({
+        id: asset.id,
+        orderIndex: asset.order_index ?? index,
+        mediaAsset: Array.isArray(asset.media_asset) ? asset.media_asset[0] : asset.media_asset,
+      }))
+      .filter((asset) => asset.mediaAsset?.id && !removedMediaAssetIds.has(asset.mediaAsset.id))
 
     if (normalizedAssets.length === 0) {
       throw new Error('최소 1개의 PDF 파일을 업로드해주세요.')
     }
 
+    const primaryAsset = normalizedAssets[0]?.mediaAsset ?? null
+    const primaryAssetId = primaryAsset?.id ?? null
+    const primaryName = (primaryAsset?.metadata as { originalName?: string } | null)?.originalName ?? null
+
+    // IMPORTANT: atelier 동기화를 먼저 수행하여 새 asset으로 업데이트
+    // removeMediaAsset이 CASCADE로 atelier_post_assets를 삭제할 때
+    // 트리거가 NULL 설정을 시도하는 문제를 방지
+    if (primaryAssetId) {
+      await syncAtelierPostForPdfSubmission({
+        studentTaskId,
+        studentId: profile.id,
+        taskSubmissionId: submissionId,
+        mediaAssetId: primaryAssetId,
+      })
+    }
+
+    // 이제 이전 파일 삭제 (atelier가 이미 새 asset을 참조하므로 안전)
+    for (const asset of removalTargets) {
+      if (asset.mediaAssetId) {
+        await removeMediaAsset(supabase, asset.mediaAssetId)
+      }
+    }
+
+    // order_index 재정렬
     for (let index = 0; index < normalizedAssets.length; index += 1) {
       const asset = normalizedAssets[index]
       if (asset.orderIndex !== index) {
@@ -1110,10 +1133,6 @@ export async function submitPdfSubmission(formData: FormData) {
         }
       }
     }
-
-    const primaryAsset = normalizedAssets[0]?.mediaAsset ?? null
-    const primaryAssetId = primaryAsset?.id ?? null
-    const primaryName = (primaryAsset?.metadata as { originalName?: string } | null)?.originalName ?? null
 
     const { error: updateSubmissionError } = await supabase
       .from('task_submissions')
@@ -1133,15 +1152,6 @@ export async function submitPdfSubmission(formData: FormData) {
       .from('student_tasks')
       .update({ status: 'completed', completion_at: new Date().toISOString() })
       .eq('id', studentTaskId)
-
-    if (primaryAssetId) {
-      await syncAtelierPostForPdfSubmission({
-        studentTaskId,
-        studentId: profile.id,
-        taskSubmissionId: submissionId,
-        mediaAssetId: primaryAssetId,
-      })
-    }
 
     revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${studentTaskId}`)

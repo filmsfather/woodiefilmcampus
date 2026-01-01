@@ -195,13 +195,23 @@ export async function getAtelierAttachmentDownload(input: z.infer<typeof downloa
 
   const bucketId = (assetRow.bucket as string | null) ?? 'submissions'
 
+  // Debug: Log the storage path being requested
+  console.log('[atelier] attempting to create signed URL', {
+    mediaAssetId: parsed.data.mediaAssetId,
+    bucket: bucketId,
+    path: assetRow.path,
+  })
+
   try {
     const { data: signed, error: signedError } = await admin.storage
       .from(bucketId)
       .createSignedUrl(assetRow.path, 60 * 30)
 
     if (signedError || !signed?.signedUrl) {
-      console.error('[atelier] failed to create signed download url', signedError)
+      console.error('[atelier] failed to create signed download url', signedError, {
+        bucket: bucketId,
+        path: assetRow.path,
+      })
       return { success: false as const, error: '다운로드 URL 생성에 실패했습니다.' }
     }
 

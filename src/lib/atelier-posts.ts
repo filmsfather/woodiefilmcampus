@@ -83,6 +83,13 @@ export async function syncAtelierPostForPdfSubmission({
   mediaAssetId,
   submittedAt,
 }: SyncPostArgs) {
+  console.log('[atelier] syncAtelierPostForPdfSubmission called', {
+    studentTaskId,
+    studentId,
+    taskSubmissionId,
+    mediaAssetId,
+  })
+
   const admin = createAdminClient()
 
   const { data: taskRow, error: taskError } = await admin
@@ -121,12 +128,20 @@ export async function syncAtelierPostForPdfSubmission({
 
   const attachments = await fetchSubmissionAttachmentOrder(admin, taskSubmissionId, mediaAssetId)
 
+  console.log('[atelier] fetchSubmissionAttachmentOrder result', {
+    taskSubmissionId,
+    attachmentsCount: attachments.length,
+    attachments: attachments.map(a => a.mediaAssetId),
+  })
+
   if (attachments.length === 0) {
     console.warn('[atelier] submission has no attachments; skipping post sync', { taskSubmissionId })
     return
   }
 
   const primaryAttachmentId = attachments[0]?.mediaAssetId ?? mediaAssetId
+
+  console.log('[atelier] determined primaryAttachmentId', { primaryAttachmentId, fallbackMediaAssetId: mediaAssetId })
 
   if (!primaryAttachmentId) {
     console.warn('[atelier] unable to determine primary attachment for submission', { taskSubmissionId })
@@ -153,6 +168,11 @@ export async function syncAtelierPostForPdfSubmission({
     ...updatePayload,
   }
 
+  console.log('[atelier] upserting atelier_posts', {
+    studentTaskId,
+    mediaAssetId: updatePayload.media_asset_id,
+  })
+
   const { data: postRow, error: upsertError } = await admin
     .from('atelier_posts')
     .upsert(upsertPayload, { onConflict: 'student_task_id', ignoreDuplicates: false })
@@ -160,9 +180,11 @@ export async function syncAtelierPostForPdfSubmission({
     .single()
 
   if (upsertError || !postRow?.id) {
-    console.error('[atelier] failed to upsert post', upsertError)
+    console.error('[atelier] failed to upsert post', upsertError, { upsertPayload })
     return
   }
+
+  console.log('[atelier] upsert success', { postId: postRow.id, mediaAssetId: updatePayload.media_asset_id })
 
   await replaceAtelierPostAssets(admin, { postId: postRow.id, studentId, attachments })
 }

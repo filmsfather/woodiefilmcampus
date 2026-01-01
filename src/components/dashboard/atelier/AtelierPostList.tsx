@@ -39,13 +39,16 @@ function formatDateTime(value: string) {
     if (Number.isNaN(date.getTime())) {
       return '-'
     }
-    return new Intl.DateTimeFormat('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date)
+    // Use explicit formatting to avoid hydration mismatch between server/client locales
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = date.getHours()
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const period = hours < 12 ? '오전' : '오후'
+    const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+
+    return `${year}. ${month}. ${day}. ${period} ${displayHour}:${minutes}`
   } catch (error) {
     console.error('[AtelierPostList] invalid date', error)
     return '-'
