@@ -9,6 +9,7 @@ import { TaskPlacementDialog } from '@/components/dashboard/teacher/learning-jou
 import { upsertClassTemplateWeekAction, updateTaskPlacementAction } from '@/app/dashboard/teacher/learning-journal/actions'
 import type {
   LearningJournalAcademicEvent,
+  LearningJournalAnnualSchedule,
   LearningJournalComment,
   LearningJournalGreeting,
   LearningJournalSubject,
@@ -67,6 +68,7 @@ interface LearningJournalEntryEditorProps {
   weekly: unknown
   greeting: LearningJournalGreeting | null
   academicEvents: LearningJournalAcademicEvent[]
+  annualSchedules?: LearningJournalAnnualSchedule[]
   comments: LearningJournalComment[]
   materials: Record<LearningJournalSubject, MaterialOption[]>
   availablePeriods: PeriodOption[]
@@ -85,6 +87,7 @@ export function LearningJournalEntryEditor({
   weekly,
   greeting,
   academicEvents,
+  annualSchedules,
   comments,
   materials,
   availablePeriods,
@@ -238,6 +241,7 @@ export function LearningJournalEntryEditor({
         header={header}
         greeting={greeting}
         academicEvents={academicEvents}
+        annualSchedules={annualSchedules}
         summary={summary}
         weekly={weekly}
         comments={comments}
