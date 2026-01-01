@@ -65,11 +65,14 @@ export function PeriodRowForm({ period }: PeriodRowFormProps) {
           {period.students.map((student) => {
             const isPublished = student.status === 'published'
             const hasEntry = !!student.entryId
+            const hasShareToken = !!student.shareToken
 
-            // 학습일지가 있으면 해당 학습일지 상세 페이지로 이동
-            const href = hasEntry
-              ? `/dashboard/teacher/learning-journal/entries/${student.entryId}`
-              : undefined
+            // 공유 토큰이 있으면 학부모용 페이지로, 없으면 교사용 페이지로
+            const href = hasShareToken
+              ? `/learning-journal/share/${student.shareToken}`
+              : hasEntry
+                ? `/dashboard/teacher/learning-journal/entries/${student.entryId}`
+                : undefined
 
             const buttonContent = (
               <span
@@ -85,9 +88,9 @@ export function PeriodRowForm({ period }: PeriodRowFormProps) {
               </span>
             )
 
-            if (hasEntry && href) {
+            if (href) {
               return (
-                <Link key={student.studentId} href={href}>
+                <Link key={student.studentId} href={href} target={hasShareToken ? '_blank' : undefined}>
                   {buttonContent}
                 </Link>
               )

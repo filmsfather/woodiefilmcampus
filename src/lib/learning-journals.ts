@@ -671,7 +671,12 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
        created_at,
        updated_at,
        classes:classes!learning_journal_periods_class_id_fkey(id, name),
-       learning_journal_entries(id, student_id, status)
+       learning_journal_entries(
+         id,
+         student_id,
+         status,
+         learning_journal_share_tokens(token, revoked_at, expires_at)
+       )
       `
     )
     .order('start_date', { ascending: false })
@@ -682,7 +687,16 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
   }
 
   const rows = (periodRows ?? []) as (LearningJournalPeriodRow & {
-    learning_journal_entries?: Array<{ id: string; student_id: string; status: string }> | null
+    learning_journal_entries?: Array<{
+      id: string
+      student_id: string
+      status: string
+      learning_journal_share_tokens?: Array<{
+        token: string
+        revoked_at: string | null
+        expires_at: string | null
+      }> | null
+    }> | null
   })[]
   const classIds = Array.from(new Set(rows.map((row) => row.class_id)))
   const periodIds = rows.map((row) => row.id)
@@ -723,12 +737,26 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
   }
 
   // 주기별 entry 정보를 맵으로 구성
-  const periodEntriesMap = new Map<string, Map<string, { entryId: string; status: string }>>()
+  const periodEntriesMap = new Map<string, Map<string, { entryId: string; status: string; shareToken: string | null }>>()
+  const now = DateUtil.nowUTC()
+
   for (const row of rows) {
     const entries = row.learning_journal_entries ?? []
-    const entryMap = new Map<string, { entryId: string; status: string }>()
+    const entryMap = new Map<string, { entryId: string; status: string; shareToken: string | null }>()
     for (const entry of entries) {
-      entryMap.set(entry.student_id, { entryId: entry.id, status: entry.status })
+      // 유효한 share token 찾기 (revoked 되지 않고 만료되지 않은 것)
+      const shareTokens = entry.learning_journal_share_tokens ?? []
+      const validToken = shareTokens.find((t) => {
+        if (t.revoked_at) return false
+        if (t.expires_at && new Date(t.expires_at) < now) return false
+        return true
+      })
+
+      entryMap.set(entry.student_id, {
+        entryId: entry.id,
+        status: entry.status,
+        shareToken: validToken?.token ?? null,
+      })
     }
     periodEntriesMap.set(row.id, entryMap)
   }
@@ -746,6 +774,7 @@ export async function fetchLearningJournalPeriodsForManager(): Promise<LearningJ
           name: student.name,
           entryId: entryInfo?.entryId ?? null,
           status: (entryInfo?.status as LearningJournalPeriodWithClass['students'][number]['status']) ?? null,
+          shareToken: entryInfo?.shareToken ?? null,
         }
       })
       .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'))

@@ -167,6 +167,7 @@ export interface LearningJournalPeriodStudent {
   name: string
   entryId: string | null
   status: LearningJournalEntryStatus | null
+  shareToken: string | null
 }
 
 export interface LearningJournalPeriodWithClass extends LearningJournalPeriod {
