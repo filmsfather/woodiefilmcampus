@@ -3,100 +3,23 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { getAuthContext } from '@/lib/auth'
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import type { AssignedClass } from '@/lib/dashboard-data'
 import { StudentInfoDialog } from '@/components/dashboard/teacher/StudentInfoDialog'
 
-export async function AssignedClassesList() {
-    const { profile } = await getAuthContext()
+interface AssignedClassesListProps {
+    data: AssignedClass[]
+}
 
-    if (!profile || !['teacher', 'manager', 'principal'].includes(profile.role)) {
+export function AssignedClassesList({ data }: AssignedClassesListProps) {
+    if (data.length === 0) {
         return null
     }
-
-    const supabase = await createServerSupabase()
-
-    // 1. Fetch classes where user is homeroom teacher
-    const { data: homeroomClasses } = await supabase
-        .from('classes')
-        .select('id, name')
-        .eq('homeroom_teacher_id', profile.id)
-
-    // 2. Fetch classes where user is a subject teacher
-    const { data: subjectClassesRel } = await supabase
-        .from('class_teachers')
-        .select('class_id, classes(id, name)')
-        .eq('teacher_id', profile.id)
-
-    // Merge and deduplicate classes
-    const classMap = new Map<string, { id: string; name: string; isHomeroom: boolean }>()
-
-    homeroomClasses?.forEach((c) => {
-        classMap.set(c.id, { id: c.id, name: c.name, isHomeroom: true })
-    })
-
-    subjectClassesRel?.forEach((rel) => {
-        const c = Array.isArray(rel.classes) ? rel.classes[0] : rel.classes
-        if (c && !classMap.has(c.id)) {
-            classMap.set(c.id, { id: c.id, name: c.name, isHomeroom: false })
-        }
-    })
-
-    const classes = Array.from(classMap.values())
-
-    if (classes.length === 0) {
-        return null
-    }
-
-    // 3. Fetch students for each class
-    // 3. Fetch students for each class using class_students table
-    const classIds = classes.map((c) => c.id)
-    const { data: classStudentsData } = await supabase
-        .from('class_students')
-        .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name, email, student_phone, parent_phone, academic_record)')
-        .in('class_id', classIds)
-
-    const studentsByClass = new Map<string, Array<{
-        id: string
-        name: string
-        email: string
-        student_phone?: string | null
-        parent_phone?: string | null
-        academic_record?: string | null
-    }>>()
-
-    classStudentsData?.forEach((row) => {
-        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
-        if (profile && profile.name) {
-            const list = studentsByClass.get(row.class_id) || []
-            list.push({
-                id: profile.id,
-                name: profile.name,
-                email: profile.email,
-                student_phone: profile.student_phone,
-                parent_phone: profile.parent_phone,
-                academic_record: profile.academic_record,
-            })
-            studentsByClass.set(row.class_id, list)
-        }
-    })
-
-    const classesWithStudents = classes.map((c) => {
-        const students = studentsByClass.get(c.id) || []
-        students.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
-        return {
-            ...c,
-            students,
-        }
-    })
-
-    classesWithStudents.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 
     return (
         <section className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">내 반 정보</h2>
             <div className="grid gap-4 md:grid-cols-2">
-                {classesWithStudents.map((c) => (
+                {data.map((c) => (
                     <Card key={c.id} className="border-slate-200 shadow-sm">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-lg font-medium text-slate-900">

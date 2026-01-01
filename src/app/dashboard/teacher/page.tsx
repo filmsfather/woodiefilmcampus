@@ -1,14 +1,15 @@
 import Link from 'next/link'
 
 import { requireAuthForDashboard } from '@/lib/auth'
+import { fetchTeacherDashboardData } from '@/lib/dashboard-data'
+import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBanner'
-import { AssignedClassesList } from '@/components/dashboard/teacher/AssignedClassesList'
 import { AnnualScheduleSummaryCard } from '@/components/dashboard/teacher/AnnualScheduleSummaryCard'
 import { NoticeSummaryCard } from '@/components/dashboard/teacher/NoticeSummaryCard'
 import { TimetableSummaryCard } from '@/components/dashboard/teacher/TimetableSummaryCard'
 import { WorkJournalSummaryCard } from '@/components/dashboard/teacher/WorkJournalSummaryCard'
+import { AssignedClassesList } from '@/components/dashboard/teacher/AssignedClassesList'
 
 type TeacherDashboardAction = {
   label: string
@@ -79,6 +80,10 @@ export default async function TeacherDashboardPage() {
   const hubTitle = isManager ? '교사·실장 허브' : '교사용 허브'
   const greetingName = profile?.name ?? profile?.email ?? (isManager ? '실장님' : '선생님')
 
+  // 모든 대시보드 데이터를 병렬로 fetch
+  const supabase = await createServerSupabase()
+  const dashboardData = await fetchTeacherDashboardData(supabase, profile!.id)
+
   return (
     <section className="mx-auto flex max-w-4xl flex-col gap-6">
       <header className="space-y-2 text-center">
@@ -89,13 +94,13 @@ export default async function TeacherDashboardPage() {
       </header>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <AnnualScheduleSummaryCard />
-        <NoticeSummaryCard />
-        <TimetableSummaryCard />
-        <WorkJournalSummaryCard />
+        <AnnualScheduleSummaryCard data={dashboardData.annualSchedule} />
+        <NoticeSummaryCard data={dashboardData.notices} />
+        <TimetableSummaryCard data={dashboardData.timetable} />
+        <WorkJournalSummaryCard data={dashboardData.workJournal} />
       </div>
 
-      <AssignedClassesList />
+      <AssignedClassesList data={dashboardData.assignedClasses} />
 
       <div className="grid gap-4 md:grid-cols-2">
         {TEACHER_SECTIONS.map((section) => (

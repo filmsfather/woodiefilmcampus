@@ -2,30 +2,14 @@ import Link from 'next/link'
 import { Clock } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getAuthContext } from '@/lib/auth'
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { resolveMonthRange } from '@/lib/work-logs'
-import DateUtil from '@/lib/date-util'
+import type { WorkJournalData } from '@/lib/dashboard-data'
 
-export async function WorkJournalSummaryCard() {
-    const { profile } = await getAuthContext()
+interface WorkJournalSummaryCardProps {
+    data: WorkJournalData
+}
 
-    if (!profile) {
-        return null
-    }
-
-    DateUtil.initServerClock()
-    const monthRange = resolveMonthRange(null) // Defaults to current month
-    const supabase = await createServerSupabase()
-
-    const { data: entries } = await supabase
-        .from('work_log_entries')
-        .select('work_hours')
-        .eq('teacher_id', profile.id)
-        .gte('work_date', monthRange.startDate)
-        .lt('work_date', monthRange.endExclusiveDate)
-
-    const totalHours = (entries ?? []).reduce((sum, entry) => sum + (entry.work_hours ?? 0), 0)
+export function WorkJournalSummaryCard({ data }: WorkJournalSummaryCardProps) {
+    const { totalHours, monthLabel } = data
 
     return (
         <Link href="/dashboard/teacher/work-journal" className="block transition hover:-translate-y-1">
@@ -37,7 +21,7 @@ export async function WorkJournalSummaryCard() {
                             <CardTitle className="text-lg text-slate-900">근무일지</CardTitle>
                         </div>
                         <span className="text-xs font-medium text-slate-500 bg-white px-2 py-1 rounded-full border border-slate-200">
-                            {monthRange.label}
+                            {monthLabel}
                         </span>
                     </div>
                 </CardHeader>

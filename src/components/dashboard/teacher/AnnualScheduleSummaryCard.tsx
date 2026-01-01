@@ -2,26 +2,15 @@ import Link from 'next/link'
 import { CalendarDays } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import type { AnnualScheduleData } from '@/lib/dashboard-data'
 import DateUtil from '@/lib/date-util'
 
-export async function AnnualScheduleSummaryCard() {
-    const supabase = await createServerSupabase()
+interface AnnualScheduleSummaryCardProps {
+    data: AnnualScheduleData
+}
 
-    DateUtil.initServerClock()
-    const today = DateUtil.nowUTC().toISOString().split('T')[0]
-
-    const { data: schedules } = await supabase
-        .from('learning_journal_annual_schedules')
-        .select('*')
-        .lte('start_date', today)
-        .gte('end_date', today)
-        .order('start_date', { ascending: true })
-
-    const activeSchedules = schedules || []
-
-    const regularSchedule = activeSchedules.find(s => s.category === 'annual')
-    const specialSchedule = activeSchedules.find(s => s.category === 'film_production')
+export function AnnualScheduleSummaryCard({ data }: AnnualScheduleSummaryCardProps) {
+    const { regularSchedule, specialSchedule } = data
 
     return (
         <Link href="/dashboard/learning-journal/annual-schedule" className="block transition hover:-translate-y-1">

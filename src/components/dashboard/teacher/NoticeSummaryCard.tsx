@@ -1,23 +1,17 @@
 import Link from 'next/link'
-import { Bell, ClipboardList } from 'lucide-react'
+import { Bell } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getAuthContext } from '@/lib/auth'
-import { fetchUnreadNotices } from '@/lib/notice-board'
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import type { NoticeSummaryItem } from '@/lib/notice-board'
 
-export async function NoticeSummaryCard() {
-    const { profile } = await getAuthContext()
+interface NoticeSummaryCardProps {
+    data: NoticeSummaryItem[]
+}
 
-    if (!profile) {
-        return null
-    }
-
-    const supabase = await createServerSupabase()
-    const notices = await fetchUnreadNotices(supabase, profile.id)
-    const unreadCount = notices.length
-    const recentNotices = notices.slice(0, 3)
+export function NoticeSummaryCard({ data }: NoticeSummaryCardProps) {
+    const unreadCount = data.length
+    const recentNotices = data.slice(0, 3)
 
     return (
         <Link href="/dashboard/teacher/notices" className="block transition hover:-translate-y-1">
