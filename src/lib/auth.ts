@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 
@@ -26,7 +27,11 @@ export function resolveDashboardPath(role: UserRole) {
   return `/dashboard/${role}`
 }
 
-export async function getAuthContext(): Promise<AuthContext> {
+/**
+ * 인증 컨텍스트를 가져옵니다.
+ * React cache()로 감싸서 같은 요청 내에서 중복 호출을 방지합니다.
+ */
+export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const supabase = await createServerSupabase()
 
   const { data: userData, error: userError } = await supabase.auth.getUser()
@@ -67,7 +72,7 @@ export async function getAuthContext(): Promise<AuthContext> {
     session,
     profile: { ...profile, role: profile.role },
   }
-}
+})
 
 export async function requireAuthForDashboard(targetRole?: UserRole | UserRole[]) {
   const { session, profile } = await getAuthContext()
