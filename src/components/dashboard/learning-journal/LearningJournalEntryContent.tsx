@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
   type LearningJournalAcademicEvent,
+  type LearningJournalAnnualSchedule,
   type LearningJournalComment,
   type LearningJournalGreeting,
   type LearningJournalSubject,
@@ -14,6 +15,7 @@ import {
   type LearningJournalWeeklySubjectData,
   type LearningJournalWeekAssignmentItem,
 } from '@/types/learning-journal'
+import DateUtil from '@/lib/date-util'
 
 interface StudentEntry {
   id: string
@@ -45,12 +47,15 @@ interface LearningJournalEntryContentProps {
   weekly: unknown
   greeting?: LearningJournalGreeting | null
   academicEvents?: LearningJournalAcademicEvent[]
+  annualSchedules?: LearningJournalAnnualSchedule[]
   comments: LearningJournalComment[]
   emptyGreetingMessage?: string
   emptyEventsMessage?: string
   emptySummaryMessage?: string
   emptyWeeklyMessage?: string
   actionPanel?: ReactNode
+  /** 헤더 바로 아래에 렌더링할 콘텐츠 슬롯 */
+  afterHeader?: ReactNode
   // 편집 모드 관련 props
   editable?: boolean
   className?: string
@@ -186,6 +191,7 @@ export function LearningJournalEntryContent({
   header,
   greeting,
   academicEvents = [],
+  annualSchedules = [],
   summary,
   weekly,
   comments,
@@ -194,6 +200,7 @@ export function LearningJournalEntryContent({
   emptySummaryMessage = '아직 요약 정보가 준비되지 않았습니다.',
   emptyWeeklyMessage = '주차별 콘텐츠가 아직 등록되지 않았습니다.',
   actionPanel,
+  afterHeader,
   editable = false,
   className,
   onEditWeeklyMaterial,
@@ -262,6 +269,8 @@ export function LearningJournalEntryContent({
         ) : null}
       </header>
 
+      {afterHeader}
+
       {/* 편집 모드(선생님 화면)에서는 비어있으면 숨김 */}
       {greeting || !editable ? (
         <Card className="border-slate-200">
@@ -284,7 +293,7 @@ export function LearningJournalEntryContent({
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">주요 학사 일정</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             {academicEvents.length > 0 ? (
               <ul className="space-y-3 text-sm text-slate-600">
                 {academicEvents.map((event) => (
@@ -300,6 +309,89 @@ export function LearningJournalEntryContent({
             ) : (
               <p className="text-sm text-slate-500">{emptyEventsMessage}</p>
             )}
+
+            {annualSchedules.length > 0 ? (
+              <details className="overflow-hidden rounded-md border border-slate-200">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                  연간 일정 펼쳐보기
+                </summary>
+                <div className="space-y-2 px-3 pb-3 pt-2 text-sm text-slate-600">
+                  <div className="hidden grid-cols-4 gap-2 text-xs font-semibold text-slate-500 sm:grid">
+                    <span>기간명</span>
+                    <span>기간(날짜)</span>
+                    <span>수업료</span>
+                    <span>비고</span>
+                  </div>
+                  <div className="divide-y divide-slate-200">
+                    {annualSchedules.map((schedule) => {
+                      const formatDateRange = (start: string, end: string) =>
+                        `${DateUtil.formatForDisplay(start, {
+                          locale: 'ko-KR',
+                          timeZone: 'Asia/Seoul',
+                          month: 'numeric',
+                          day: 'numeric',
+                        })} ~ ${DateUtil.formatForDisplay(end, {
+                          locale: 'ko-KR',
+                          timeZone: 'Asia/Seoul',
+                          month: 'numeric',
+                          day: 'numeric',
+                        })}`
+
+                      const formatTuition = (dueDate: string | null, amount: number | null) => {
+                        const dueLabel = dueDate
+                          ? `납부일 ${DateUtil.formatForDisplay(dueDate, {
+                              locale: 'ko-KR',
+                              timeZone: 'Asia/Seoul',
+                              month: 'numeric',
+                              day: 'numeric',
+                            })}`
+                          : null
+                        const amountLabel =
+                          typeof amount === 'number' && Number.isFinite(amount)
+                            ? `${amount.toLocaleString('ko-KR')}원`
+                            : null
+                        if (dueLabel && amountLabel) return `${dueLabel} / ${amountLabel}`
+                        return dueLabel ?? amountLabel ?? '-'
+                      }
+
+                      return (
+                        <div
+                          key={schedule.id}
+                          className={cn(
+                            'grid gap-3 rounded-md px-2 py-3 sm:grid-cols-4 sm:items-start',
+                            schedule.category === 'annual' ? 'bg-primary/10' : undefined
+                          )}
+                        >
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 sm:hidden">기간명</p>
+                            <p
+                              className={cn(
+                                'text-slate-900',
+                                schedule.category === 'annual' ? 'font-semibold' : 'font-medium'
+                              )}
+                            >
+                              {schedule.periodLabel}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 sm:hidden">기간(날짜)</p>
+                            <p>{formatDateRange(schedule.startDate, schedule.endDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 sm:hidden">수업료</p>
+                            <p>{formatTuition(schedule.tuitionDueDate, schedule.tuitionAmount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-slate-500 sm:hidden">비고</p>
+                            <p className="text-slate-500">{schedule.memo ?? '-'}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </details>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}
