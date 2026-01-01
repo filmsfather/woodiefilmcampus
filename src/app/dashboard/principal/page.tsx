@@ -45,6 +45,17 @@ export default async function PrincipalDashboardPage() {
             </Button>
           </CardContent>
         </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">과제 관리</CardTitle>
+            <CardDescription>전체 과제 현황을 확인하고 학생별 제출 상태를 관리하세요.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/assignments">과제 현황 보기</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">

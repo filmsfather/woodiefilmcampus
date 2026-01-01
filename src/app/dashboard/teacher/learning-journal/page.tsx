@@ -69,6 +69,8 @@ export default async function TeacherLearningJournalPage(props: {
 
   const selectedParam = typeof searchParams?.period === 'string' ? searchParams.period : null
   const classIdParam = typeof searchParams?.classId === 'string' ? searchParams.classId : null
+  const weekParam = typeof searchParams?.week === 'string' ? Number.parseInt(searchParams.week, 10) : null
+  const subjectParam = typeof searchParams?.subject === 'string' ? searchParams.subject : null
 
   let selectedPeriod = null
 
@@ -81,6 +83,12 @@ export default async function TeacherLearningJournalPage(props: {
   if (!selectedPeriod) {
     selectedPeriod = periods[0] ?? null
   }
+
+  // 유효한 주차 및 과목 파라미터 검증
+  const validWeek = weekParam && weekParam >= 1 && weekParam <= 4 ? weekParam : null
+  const validSubject = subjectParam && LEARNING_JOURNAL_SUBJECTS.includes(subjectParam as LearningJournalSubject)
+    ? (subjectParam as LearningJournalSubject)
+    : null
 
   const stats = await statsPromise
   const studentSnapshotsByPeriod =

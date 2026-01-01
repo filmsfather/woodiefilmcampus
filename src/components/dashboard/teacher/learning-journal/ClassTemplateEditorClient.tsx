@@ -26,9 +26,11 @@ interface ClassTemplateEditorClientProps {
   periodId: string
   template: ClassLearningJournalTemplate
   materials: Record<LearningJournalSubject, MaterialOption[]>
+  initialWeek?: number | null
+  initialSubject?: LearningJournalSubject | null
 }
 
-export function ClassTemplateEditorClient({ classId, periodId, template, materials }: ClassTemplateEditorClientProps) {
+export function ClassTemplateEditorClient({ classId, periodId, template, materials, initialWeek, initialSubject }: ClassTemplateEditorClientProps) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -36,7 +38,11 @@ export function ClassTemplateEditorClient({ classId, periodId, template, materia
     open: boolean
     weekIndex: number
     subject: LearningJournalSubject
-  }>({ open: false, weekIndex: 1, subject: 'directing' })
+  }>(() => ({
+    open: Boolean(initialWeek && initialSubject),
+    weekIndex: initialWeek ?? 1,
+    subject: initialSubject ?? 'directing',
+  }))
 
   const activeConfig = useMemo(() => {
     const target = template.weeks.find((week) => week.weekIndex === dialogState.weekIndex)
