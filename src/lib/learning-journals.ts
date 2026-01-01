@@ -368,7 +368,6 @@ export interface StudentLearningJournalSnapshot {
 export interface LearningJournalPeriodStats {
   periodId: string
   totalEntries: number
-  submittedCount: number
   publishedCount: number
 }
 
@@ -1764,7 +1763,7 @@ export async function fetchLearningJournalEntriesForPeriod(
 
 
 export async function fetchLearningJournalEntriesForReview(params: {
-  status?: 'submitted' | 'published' | 'draft' | 'all'
+  status?: 'published' | 'draft' | 'all'
   classId?: string | null
   periodId?: string | null
 }): Promise<ReviewEntrySummary[]> {
@@ -1791,7 +1790,7 @@ export async function fetchLearningJournalEntriesForReview(params: {
        )`
     )
 
-  const statusFilter = params.status ?? 'submitted'
+  const statusFilter = params.status ?? 'draft'
 
   if (statusFilter !== 'all') {
     query = query.eq('status', statusFilter)
@@ -1846,14 +1845,10 @@ export async function fetchLearningJournalPeriodStats(
     const existing = stats.get(row.period_id) ?? {
       periodId: row.period_id,
       totalEntries: 0,
-      submittedCount: 0,
       publishedCount: 0,
     }
 
     existing.totalEntries += 1
-    if (row.status === 'submitted') {
-      existing.submittedCount += 1
-    }
     if (row.status === 'published') {
       existing.publishedCount += 1
     }

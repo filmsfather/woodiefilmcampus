@@ -19,11 +19,10 @@ export interface LearningJournalPeriod {
   updatedAt: string
 }
 
-export type LearningJournalEntryStatus = 'draft' | 'submitted' | 'published' | 'archived'
+export type LearningJournalEntryStatus = 'draft' | 'published' | 'archived'
 
 export const LEARNING_JOURNAL_ENTRY_STATUSES: LearningJournalEntryStatus[] = [
   'draft',
-  'submitted',
   'published',
   'archived',
 ]

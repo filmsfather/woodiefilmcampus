@@ -30,8 +30,6 @@ function toProgressLabel(submitted: number, total: number) {
 
 function resolveStatusLabel(status: string) {
   switch (status) {
-    case 'submitted':
-      return '제출 완료'
     case 'published':
       return '공개 완료'
     case 'draft':
@@ -197,13 +195,12 @@ export default async function TeacherLearningJournalPage(props: {
                       학습 현황
                     </h2>
                     <p className="text-sm text-slate-500">
-                      학생별 학습일지를 작성하고 제출 상태를 업데이트하세요.
+                      학생별 학습일지를 작성하고 공개 상태를 확인하세요.
                     </p>
                   </div>
                   {selectedStats ? (
                     <div className="flex gap-2 text-sm text-slate-600">
                       <Badge variant="outline">총 {selectedStats.totalEntries}명</Badge>
-                      <Badge variant="outline">제출 {selectedStats.submittedCount}</Badge>
                       <Badge variant="outline">공개 {selectedStats.publishedCount}</Badge>
                       <RegeneratePeriodButton periodId={selectedPeriod.id} />
                     </div>
@@ -222,7 +219,6 @@ export default async function TeacherLearningJournalPage(props: {
                           <TableHead>학생</TableHead>
                           <TableHead className="hidden md:table-cell">상태</TableHead>
                           <TableHead className="hidden md:table-cell">완료율</TableHead>
-                          <TableHead className="hidden lg:table-cell">제출일</TableHead>
                           <TableHead className="hidden lg:table-cell">공개일</TableHead>
                           <TableHead className="text-right">작업</TableHead>
                         </TableRow>
@@ -243,18 +239,6 @@ export default async function TeacherLearningJournalPage(props: {
                               </TableCell>
                               <TableCell className="hidden md:table-cell text-sm text-slate-600">
                                 {Math.round(completionRate)}%
-                              </TableCell>
-                              <TableCell className="hidden lg:table-cell text-xs text-slate-500">
-                                {snapshot.submittedAt
-                                  ? DateUtil.formatForDisplay(snapshot.submittedAt, {
-                                    locale: 'ko-KR',
-                                    timeZone: 'Asia/Seoul',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
-                                  : '-'}
                               </TableCell>
                               <TableCell className="hidden lg:table-cell text-xs text-slate-500">
                                 {snapshot.publishedAt

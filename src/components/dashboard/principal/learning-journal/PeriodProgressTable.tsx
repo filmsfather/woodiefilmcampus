@@ -28,7 +28,6 @@ export function PeriodProgressTable({ periods, stats }: PeriodProgressTableProps
             <TableHead>반</TableHead>
             <TableHead>주기</TableHead>
             <TableHead className="text-right">학생 수</TableHead>
-            <TableHead className="text-right">제출</TableHead>
             <TableHead className="text-right">공개 완료</TableHead>
           </TableRow>
         </TableHeader>
@@ -37,7 +36,6 @@ export function PeriodProgressTable({ periods, stats }: PeriodProgressTableProps
             const stat = stats.get(period.id) ?? {
               periodId: period.id,
               totalEntries: period.studentCount,
-              submittedCount: 0,
               publishedCount: 0,
             }
             return (
@@ -47,9 +45,6 @@ export function PeriodProgressTable({ periods, stats }: PeriodProgressTableProps
                 </TableCell>
                 <TableCell>{formatLabel(period)}</TableCell>
                 <TableCell className="text-right">{period.studentCount}</TableCell>
-                <TableCell className="text-right">
-                  {stat.submittedCount} / {stat.totalEntries}
-                </TableCell>
                 <TableCell className="text-right">
                   {stat.publishedCount} / {stat.totalEntries}
                 </TableCell>

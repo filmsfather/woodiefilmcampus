@@ -367,7 +367,7 @@ export async function updateEntryStatusByPrincipalAction(formData: FormData) {
   const entryId = formData.get('entryId')?.toString() ?? ''
   const status = formData.get('status')?.toString() ?? ''
 
-  if (!entryId || !['published', 'draft', 'submitted'].includes(status)) {
+  if (!entryId || !['published', 'draft'].includes(status)) {
     return { error: '유효한 상태가 아닙니다.' }
   }
 
@@ -393,15 +393,10 @@ export async function updateEntryStatusByPrincipalAction(formData: FormData) {
 
   if (status === 'published') {
     updatePayload.published_at = nowIso
-    updatePayload.submitted_at = current.submitted_at ?? nowIso
   }
 
   if (status === 'draft') {
     updatePayload.published_at = null
-  }
-
-  if (status === 'submitted' && !current.submitted_at) {
-    updatePayload.submitted_at = nowIso
   }
 
   const { error: updateError } = await admin

@@ -56,6 +56,8 @@ interface LearningJournalEntryContentProps {
   actionPanel?: ReactNode
   /** 헤더 바로 아래에 렌더링할 콘텐츠 슬롯 */
   afterHeader?: ReactNode
+  /** 코멘트 카드 대신 렌더링할 커스텀 슬롯 (편집 모드용) */
+  commentSlot?: ReactNode
   // 편집 모드 관련 props
   editable?: boolean
   className?: string
@@ -201,6 +203,7 @@ export function LearningJournalEntryContent({
   emptyWeeklyMessage = '주차별 콘텐츠가 아직 등록되지 않았습니다.',
   actionPanel,
   afterHeader,
+  commentSlot,
   editable = false,
   className,
   onEditWeeklyMaterial,
@@ -288,7 +291,7 @@ export function LearningJournalEntryContent({
       ) : null}
 
       {/* 편집 모드(선생님 화면)에서는 비어있으면 숨김 */}
-      {academicEvents.length > 0 || !editable ? (
+      {academicEvents.length > 0 || annualSchedules.length > 0 || !editable ? (
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">주요 학사 일정</CardTitle>
@@ -485,7 +488,9 @@ export function LearningJournalEntryContent({
         </CardContent>
       </Card>
 
-      {hasAnyComment ? (
+      {commentSlot ? (
+        commentSlot
+      ) : hasAnyComment ? (
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">코멘트</CardTitle>

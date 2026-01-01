@@ -2,13 +2,7 @@
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus, MoreVertical } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import { Plus } from 'lucide-react'
 import type { LearningJournalWeeklyData, LearningJournalWeeklySubjectData, LearningJournalSubject, LearningJournalWeekAssignmentItem } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
@@ -206,24 +200,14 @@ export function WeeklyOverview({ weeks, className, editable = false, onEdit, onE
                                     </Badge>
                                   ) : null}
                                   {editable && onEditTaskPlacement ? (
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-5 w-5 p-0 text-slate-400 hover:text-slate-600"
-                                        >
-                                          <MoreVertical className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="end">
-                                        <DropdownMenuItem
-                                          onClick={() => handleTaskPlacementClick(assignment, week.weekIndex)}
-                                        >
-                                          배치 변경
-                                        </DropdownMenuItem>
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 px-2 text-xs text-slate-500 hover:text-slate-700"
+                                      onClick={() => handleTaskPlacementClick(assignment, week.weekIndex)}
+                                    >
+                                      이동
+                                    </Button>
                                   ) : null}
                                 </div>
                               </div>

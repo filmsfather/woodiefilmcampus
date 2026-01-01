@@ -6,8 +6,7 @@ import { fetchLearningJournalEntryByShareToken } from '@/lib/learning-journals'
 
 export const dynamic = 'force-dynamic'
 
-const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', string> = {
-  submitted: '승인 대기',
+const STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
   draft: '작성 중',
   published: '공개 완료',
   archived: '보관',

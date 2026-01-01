@@ -49,7 +49,7 @@ export default async function PrincipalLearningJournalPage({
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold text-slate-900">학습일지 현황</h1>
           <p className="text-sm text-slate-600">
-            월별 인사말을 관리하고 반별 학습일지 제출 현황을 확인하세요.
+            월별 인사말을 관리하고 반별 학습일지 공개 현황을 확인하세요.
           </p>
         </div>
       </div>
@@ -70,8 +70,8 @@ export default async function PrincipalLearningJournalPage({
 
       <div className="space-y-4">
         <div className="flex flex-col gap-1">
-          <h2 className="text-xl font-semibold text-slate-900">반별 제출 현황</h2>
-          <p className="text-sm text-slate-500">담임과 과목 교사들이 제출을 완료했는지 살펴보고 필요 시 안내하세요.</p>
+          <h2 className="text-xl font-semibold text-slate-900">반별 공개 현황</h2>
+          <p className="text-sm text-slate-500">학습일지 공개 상태를 확인하고 승인이 필요한 경우 처리하세요.</p>
         </div>
         <PeriodProgressTable periods={periods} stats={stats} />
       </div>

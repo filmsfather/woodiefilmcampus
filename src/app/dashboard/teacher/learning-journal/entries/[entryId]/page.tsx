@@ -25,8 +25,7 @@ interface PageParams {
   entryId: string
 }
 
-const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', string> = {
-  submitted: '승인 대기',
+const STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
   draft: '작성 중',
   published: '공개 완료',
   archived: '보관',
@@ -280,45 +279,41 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
             entries={periodEntries}
             availableClasses={availableClasses}
             currentClassId={periodRow.class_id}
+            commentSlot={
+              <section className="space-y-4">
+                <CommentEditor
+                  entryId={entry.id}
+                  roleScope="homeroom"
+                  label="담임 코멘트"
+                  description="학생의 전반적인 학습 태도와 전달 사항을 작성하세요."
+                  defaultValue={commentLookup.get('homeroom') ?? ''}
+                />
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  {LEARNING_JOURNAL_SUBJECT_OPTIONS.map((option) => {
+                    const key = `subject:${option.value}`
+                    return (
+                      <CommentEditor
+                        key={option.value}
+                        entryId={entry.id}
+                        roleScope="subject"
+                        subject={option.value}
+                        label={`${option.label} 코멘트`}
+                        description="수업 참여도, 과제 피드백 등을 기록하세요."
+                        defaultValue={commentLookup.get(key) ?? ''}
+                      />
+                    )
+                  })}
+                </div>
+              </section>
+            }
           />
 
           <RegenerateWeeklyButton entryId={entry.id} />
-
-          <section className="space-y-4">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-slate-900">코멘트 작성</h2>
-              <p className="text-sm text-slate-500">수정 후 저장하면 위 미리보기가 즉시 갱신됩니다.</p>
-            </div>
-
-            <CommentEditor
-              entryId={entry.id}
-              roleScope="homeroom"
-              label="담임 코멘트"
-              description="학생의 전반적인 학습 태도와 전달 사항을 작성하세요."
-              defaultValue={commentLookup.get('homeroom') ?? ''}
-            />
-
-            <div className="grid gap-4 md:grid-cols-2">
-              {LEARNING_JOURNAL_SUBJECT_OPTIONS.map((option) => {
-                const key = `subject:${option.value}`
-                return (
-                  <CommentEditor
-                    key={option.value}
-                    entryId={entry.id}
-                    roleScope="subject"
-                    subject={option.value}
-                    label={`${option.label} 코멘트`}
-                    description="수업 참여도, 과제 피드백 등을 기록하세요."
-                    defaultValue={commentLookup.get(key) ?? ''}
-                  />
-                )
-              })}
-            </div>
-          </section>
         </div>
 
         <div className="space-y-6">
-          <EntryStatusPanel entryId={entry.id} status={entry.status} />
+          <EntryStatusPanel status={entry.status} />
 
           <Card className="border-slate-200">
             <CardHeader>

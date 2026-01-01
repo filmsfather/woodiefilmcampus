@@ -250,7 +250,6 @@ export async function updateLearningJournalEntryStatusAction(
       .from('learning_journal_entries')
       .update({
         status: nextStatus,
-        submitted_at: nextStatus === 'submitted' ? DateUtil.toISOString(new Date()) : current?.submitted_at ?? null,
         published_at: nextStatus === 'published' ? DateUtil.toISOString(new Date()) : current?.published_at ?? null,
       })
       .eq('id', parsed.data.entryId)

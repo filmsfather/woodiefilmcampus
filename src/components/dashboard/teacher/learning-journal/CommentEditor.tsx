@@ -1,9 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useRef, useEffect, useState, useCallback } from 'react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { saveLearningJournalCommentAction } from '@/app/dashboard/teacher/learning-journal/actions'
@@ -22,10 +21,32 @@ interface CommentEditorProps {
 }
 
 export function CommentEditor({ entryId, roleScope, subject, label, description, defaultValue }: CommentEditorProps) {
+  const formRef = useRef<HTMLFormElement>(null)
+  const lastSavedRef = useRef(defaultValue)
+  const [showSuccess, setShowSuccess] = useState(false)
+
   const [state, formAction, isPending] = useActionState<ActionState, FormData>(
     saveLearningJournalCommentAction,
     initialActionState
   )
+
+  // 성공 시 임시 메시지 표시
+  useEffect(() => {
+    if (state.status === 'success') {
+      setShowSuccess(true)
+      const timer = setTimeout(() => setShowSuccess(false), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [state])
+
+  const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+    const currentValue = e.target.value
+    // 값이 변경되었을 때만 저장
+    if (currentValue !== lastSavedRef.current && formRef.current) {
+      lastSavedRef.current = currentValue
+      formRef.current.requestSubmit()
+    }
+  }, [])
 
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
@@ -39,13 +60,11 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
           <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       ) : null}
-      {state.status === 'success' && state.message ? (
-        <Alert>
-          <AlertDescription>{state.message}</AlertDescription>
-        </Alert>
+      {showSuccess ? (
+        <p className="text-sm text-green-600">코멘트가 저장되었습니다.</p>
       ) : null}
 
-      <form action={formAction} className="space-y-3">
+      <form ref={formRef} action={formAction}>
         <input type="hidden" name="entryId" value={entryId} />
         <input type="hidden" name="roleScope" value={roleScope} />
         {subject ? <input type="hidden" name="subject" value={subject} /> : null}
@@ -56,12 +75,9 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
           placeholder="코멘트를 입력하세요. (비워두면 삭제됩니다)"
           disabled={isPending}
           maxLength={4000}
+          onBlur={handleBlur}
+          className={isPending ? 'opacity-50' : ''}
         />
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isPending} className="sm:w-32">
-            {isPending ? '저장 중...' : '코멘트 저장'}
-          </Button>
-        </div>
       </form>
     </div>
   )

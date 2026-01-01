@@ -26,8 +26,7 @@ import {
 } from '@/lib/learning-journals'
 import { RegenerateWeeklyButton } from '@/components/dashboard/teacher/learning-journal/RegenerateWeeklyButton'
 
-const STATUS_LABEL: Record<'submitted' | 'draft' | 'published' | 'archived', string> = {
-  submitted: '승인 대기',
+const STATUS_LABEL: Record<'draft' | 'published' | 'archived', string> = {
   draft: '작성 중',
   published: '공개 완료',
   archived: '보관',
@@ -69,7 +68,7 @@ export default async function PrincipalLearningJournalReviewPage({
 
   const entryIdParam = typeof resolvedSearchParams?.entry === 'string' ? resolvedSearchParams.entry : null
 
-  const pendingEntries = await fetchLearningJournalEntriesForReview({ status: 'submitted' })
+  const pendingEntries = await fetchLearningJournalEntriesForReview({ status: 'draft' })
 
   const filteredEntries = classParam
     ? await fetchLearningJournalEntriesForReview({
@@ -217,7 +216,7 @@ export default async function PrincipalLearningJournalReviewPage({
     await updateEntryStatusByPrincipalAction(formData)
   }
 
-  const renderStatusBadge = (status: 'submitted' | 'draft' | 'published' | 'archived') =>
+  const renderStatusBadge = (status: 'draft' | 'published' | 'archived') =>
     STATUS_LABEL[status] ?? status
 
   const smsEnvStatus = [

@@ -75,6 +75,8 @@ interface LearningJournalEntryEditorProps {
   entries?: StudentEntry[]
   availableClasses?: ClassOption[]
   currentClassId?: string
+  /** 코멘트 카드 대신 렌더링할 커스텀 슬롯 (편집 모드용) */
+  commentSlot?: React.ReactNode
 }
 
 export function LearningJournalEntryEditor({
@@ -94,6 +96,7 @@ export function LearningJournalEntryEditor({
   entries,
   availableClasses,
   currentClassId,
+  commentSlot,
 }: LearningJournalEntryEditorProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -245,6 +248,7 @@ export function LearningJournalEntryEditor({
         summary={summary}
         weekly={weekly}
         comments={comments}
+        commentSlot={commentSlot}
         editable={true}
         className={className}
         onEditWeeklyMaterial={handleEdit}
