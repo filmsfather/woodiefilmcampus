@@ -68,7 +68,7 @@ interface LearningJournalEntryContentProps {
   editable?: boolean
   className?: string
   onEditWeeklyMaterial?: (weekIndex: number, subject: LearningJournalSubject) => void
-  onEditTaskPlacement?: (task: LearningJournalWeekAssignmentItem, weekIndex: number) => void
+  onEditPublishedAt?: (task: LearningJournalWeekAssignmentItem) => void
   // 학생 네비게이션 props
   entries?: StudentEntry[]
   currentEntryId?: string
@@ -215,7 +215,7 @@ export function LearningJournalEntryContent({
   editable = false,
   className,
   onEditWeeklyMaterial,
-  onEditTaskPlacement,
+  onEditPublishedAt,
   entries,
   currentEntryId,
   availableClasses,
@@ -542,7 +542,7 @@ export function LearningJournalEntryContent({
               className={className}
               editable={editable}
               onEdit={onEditWeeklyMaterial}
-              onEditTaskPlacement={onEditTaskPlacement}
+              onEditPublishedAt={onEditPublishedAt}
             />
           ) : renderedWeekly ? (
             <pre className="max-h-72 overflow-auto rounded-md bg-slate-50 p-3 text-xs text-slate-600">

@@ -474,66 +474,69 @@ export async function deleteClassTemplateWeekAction(formData: FormData) {
   return { success: true } as const
 }
 
-// 과제 배치 오버라이드 액션
-export async function updateTaskPlacementAction(formData: FormData) {
+/**
+ * 과제의 출제일/마감일을 수정하는 액션
+ */
+export async function updateAssignmentDatesAction(formData: FormData) {
   const { profile } = await getAuthContext()
 
   if (!profile || !canManageLearningJournal(profile.role)) {
-    return { error: '과제 배치를 변경할 권한이 없습니다.' }
+    return { error: '과제를 수정할 권한이 없습니다.' }
   }
 
-  const taskId = formData.get('taskId')?.toString()
-  const weekOverrideRaw = formData.get('weekOverride')?.toString()
-  const periodOverrideRaw = formData.get('periodOverride')?.toString()
+  const assignmentId = formData.get('assignmentId')?.toString()
+  const publishedAtRaw = formData.get('publishedAt')?.toString()
+  const dueAtRaw = formData.get('dueAt')?.toString()
   const entryId = formData.get('entryId')?.toString()
 
-  // taskId 검증 강화 - "undefined" 문자열도 체크
-  if (!taskId || taskId === 'undefined') {
-    console.error('[learning-journal] task placement - invalid taskId:', taskId)
-    return { error: '과제 정보를 확인하지 못했습니다. (taskId가 없음)' }
+  if (!assignmentId) {
+    return { error: '과제 정보가 없습니다.' }
   }
 
-  // weekOverride: "1"-"4" 또는 "auto"(null로 설정)
-  const weekOverride = (() => {
-    if (!weekOverrideRaw || weekOverrideRaw === 'auto') {
-      return null
-    }
-    const parsed = parseInt(weekOverrideRaw, 10)
-    if (isNaN(parsed) || parsed < 1 || parsed > 4) {
-      return null
-    }
-    return parsed
-  })()
-
-  // periodOverride: UUID 또는 "auto"(null로 설정)
-  const periodOverride = (() => {
-    if (!periodOverrideRaw || periodOverrideRaw === 'auto') {
-      return null
-    }
-    return periodOverrideRaw
-  })()
+  const publishedAt = publishedAtRaw && publishedAtRaw !== 'null' ? publishedAtRaw : null
+  const dueAt = dueAtRaw && dueAtRaw !== 'null' ? dueAtRaw : null
 
   const supabase = await createServerSupabase()
 
   try {
+    // 1. assignments 테이블 업데이트
     const { error: updateError } = await supabase
-      .from('student_tasks')
+      .from('assignments')
       .update({
-        week_override: weekOverride,
-        period_override: periodOverride,
+        published_at: publishedAt,
+        due_at: dueAt,
       })
-      .eq('id', taskId)
+      .eq('id', assignmentId)
 
     if (updateError) {
-      console.error('[learning-journal] task placement update error', updateError)
-      return { error: '과제 배치를 저장하지 못했습니다.' }
+      console.error('[learning-journal] assignment dates update error', updateError)
+      return { error: '출제일을 저장하지 못했습니다.' }
     }
 
-    // 저장 후 자동으로 weekly 데이터 재생성
-    if (entryId) {
-      const weeklyData = await refreshLearningJournalWeeklyData(entryId)
-      if (!weeklyData) {
-        console.warn('[learning-journal] task placement - weekly regeneration failed for entry:', entryId)
+    // 2. 해당 과제가 할당된 모든 학생의 entry 재생성
+    // student_tasks에서 해당 과제가 할당된 모든 학생 조회
+    const { data: affectedTasks } = await supabase
+      .from('student_tasks')
+      .select('student_id')
+      .eq('assignment_id', assignmentId)
+
+    if (affectedTasks && affectedTasks.length > 0) {
+      const studentIds = [...new Set(affectedTasks.map((t) => t.student_id))]
+      
+      // 해당 학생들의 모든 학습일지 entry 조회
+      const { data: entries } = await supabase
+        .from('learning_journal_entries')
+        .select('id')
+        .in('student_id', studentIds)
+
+      // 각 entry의 weekly 데이터 재생성
+      if (entries) {
+        for (const entry of entries) {
+          const weeklyData = await refreshLearningJournalWeeklyData(entry.id)
+          if (!weeklyData) {
+            console.warn('[learning-journal] assignment dates - weekly regeneration failed for entry:', entry.id)
+          }
+        }
       }
     }
 
@@ -544,7 +547,7 @@ export async function updateTaskPlacementAction(formData: FormData) {
 
     return { success: true }
   } catch (error) {
-    console.error('[learning-journal] task placement unexpected error', error)
-    return { error: '과제 배치를 변경하는 중 문제가 발생했습니다.' }
+    console.error('[learning-journal] assignment dates unexpected error', error)
+    return { error: '출제일을 변경하는 중 문제가 발생했습니다.' }
   }
 }

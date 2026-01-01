@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 
 import { LearningJournalEntryContent } from '@/components/dashboard/learning-journal/LearningJournalEntryContent'
 import { ClassTemplateMaterialDialog } from '@/components/dashboard/teacher/learning-journal/ClassTemplateMaterialDialog'
-import { TaskPlacementDialog } from '@/components/dashboard/teacher/learning-journal/TaskPlacementDialog'
-import { upsertClassTemplateWeekAction, updateTaskPlacementAction } from '@/app/dashboard/teacher/learning-journal/actions'
+import { PublishedAtDialog } from '@/components/dashboard/teacher/learning-journal/PublishedAtDialog'
+import { upsertClassTemplateWeekAction, updateAssignmentDatesAction } from '@/app/dashboard/teacher/learning-journal/actions'
 import type {
   LearningJournalAcademicEvent,
   LearningJournalAnnualSchedule,
@@ -113,12 +113,11 @@ export function LearningJournalEntryEditor({
     subject: LearningJournalSubject
   }>({ open: false, weekIndex: 1, subject: 'directing' })
 
-  // 과제 배치 다이얼로그 상태
-  const [taskPlacementState, setTaskPlacementState] = useState<{
+  // 출제일 수정 다이얼로그 상태
+  const [publishedAtState, setPublishedAtState] = useState<{
     open: boolean
     task: LearningJournalWeekAssignmentItem | null
-    weekIndex: number
-  }>({ open: false, task: null, weekIndex: 1 })
+  }>({ open: false, task: null })
 
   // weekly 데이터를 LearningJournalWeeklyData[]로 파싱
   const weeklyData = useMemo(() => {
@@ -200,32 +199,32 @@ export function LearningJournalEntryEditor({
     }))
   }, [activeConfig.materialIds, activeConfig.materialTitles])
 
-  // 과제 배치 변경 핸들러
-  const handleEditTaskPlacement = (task: LearningJournalWeekAssignmentItem, weekIndex: number) => {
-    setTaskPlacementState({ open: true, task, weekIndex })
+  // 출제일 수정 핸들러
+  const handleEditPublishedAt = (task: LearningJournalWeekAssignmentItem) => {
+    setPublishedAtState({ open: true, task })
   }
 
-  const handleTaskPlacementClose = () => {
-    setTaskPlacementState((prev) => ({ ...prev, open: false }))
+  const handlePublishedAtClose = () => {
+    setPublishedAtState((prev) => ({ ...prev, open: false }))
   }
 
-  const handleTaskPlacementSubmit = (taskId: string, weekOverride: number | null, periodOverride: string | null) => {
+  const handlePublishedAtSubmit = (assignmentId: string, publishedAt: string | null, dueAt: string | null) => {
     const formData = new FormData()
-    formData.set('taskId', taskId)
+    formData.set('assignmentId', assignmentId)
+    formData.set('publishedAt', publishedAt ?? 'null')
+    formData.set('dueAt', dueAt ?? 'null')
     formData.set('entryId', entryId)
-    formData.set('weekOverride', weekOverride !== null ? String(weekOverride) : 'auto')
-    formData.set('periodOverride', periodOverride ?? 'auto')
 
     startTransition(async () => {
-      const result = await updateTaskPlacementAction(formData)
+      const result = await updateAssignmentDatesAction(formData)
 
       if (result?.error) {
         setFeedback({ type: 'error', message: result.error })
         return
       }
 
-      setFeedback({ type: 'success', message: '과제 배치가 변경되었습니다.' })
-      handleTaskPlacementClose()
+      setFeedback({ type: 'success', message: '출제일이 변경되었습니다.' })
+      handlePublishedAtClose()
       router.refresh()
 
       setTimeout(() => setFeedback(null), 3000)
@@ -260,7 +259,7 @@ export function LearningJournalEntryEditor({
         editable={true}
         className={className}
         onEditWeeklyMaterial={handleEdit}
-        onEditTaskPlacement={handleEditTaskPlacement}
+        onEditPublishedAt={handleEditPublishedAt}
         entries={entries}
         currentEntryId={entryId}
         availableClasses={availableClasses}
@@ -280,20 +279,18 @@ export function LearningJournalEntryEditor({
         />
       ) : null}
 
-      {taskPlacementState.open && taskPlacementState.task ? (
-        <TaskPlacementDialog
-          open={taskPlacementState.open}
-          onClose={handleTaskPlacementClose}
+      {publishedAtState.open && publishedAtState.task ? (
+        <PublishedAtDialog
+          open={publishedAtState.open}
+          onClose={handlePublishedAtClose}
           task={{
-            taskId: taskPlacementState.task.taskId,
-            title: taskPlacementState.task.title,
-            weekOverride: taskPlacementState.task.weekOverride,
-            periodOverride: taskPlacementState.task.periodOverride,
+            taskId: publishedAtState.task.taskId,
+            assignmentId: publishedAtState.task.id,
+            title: publishedAtState.task.title,
+            publishedAt: publishedAtState.task.publishedAt ?? null,
+            dueAt: publishedAtState.task.dueAt ?? null,
           }}
-          currentPeriodId={periodId}
-          currentWeekIndex={taskPlacementState.weekIndex}
-          availablePeriods={availablePeriods}
-          onSubmit={handleTaskPlacementSubmit}
+          onSubmit={handlePublishedAtSubmit}
           isSubmitting={isPending}
         />
       ) : null}

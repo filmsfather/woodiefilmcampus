@@ -229,17 +229,17 @@ export interface LearningJournalWeekMaterialItem {
 }
 
 export interface LearningJournalWeekAssignmentItem {
-  id: string
-  taskId: string  // student_tasks.id - 배치 업데이트용
+  id: string  // assignments.id
+  taskId: string  // student_tasks.id
   title: string
   status: 'completed' | 'in_progress' | 'not_started' | 'pending'
-  dueDate: string | null
+  publishedAt: string | null  // 출제일
+  dueAt: string | null  // 마감일
+  dueDate: string | null  // legacy - dueAt과 동일
   submittedAt: string | null
   submittedLate: boolean
   score: number | null
   note: string | null
-  weekOverride: number | null  // 수동 주차 지정 (1-4)
-  periodOverride: string | null  // 수동 period 지정 (UUID)
 }
 
 export interface SharedLearningJournalSnapshot {

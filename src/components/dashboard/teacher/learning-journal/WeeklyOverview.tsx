@@ -18,24 +18,24 @@ interface WeeklyOverviewProps {
   className?: string
   editable?: boolean
   onEdit?: (weekIndex: number, subject: LearningJournalSubject) => void
-  onEditTaskPlacement?: (task: LearningJournalWeekAssignmentItem, weekIndex: number) => void
+  onEditPublishedAt?: (task: LearningJournalWeekAssignmentItem) => void
 }
 
-export function WeeklyOverview({ weeks, className, editable = false, onEdit, onEditTaskPlacement }: WeeklyOverviewProps) {
+export function WeeklyOverview({ weeks, className, editable = false, onEdit, onEditPublishedAt }: WeeklyOverviewProps) {
   const handleMaterialClick = (weekIndex: number, subject: LearningJournalSubject) => {
     if (editable && onEdit) {
       onEdit(weekIndex, subject)
     }
   }
 
-  const handleTaskPlacementClick = (task: LearningJournalWeekAssignmentItem, weekIndex: number) => {
-    if (editable && onEditTaskPlacement) {
+  const handlePublishedAtClick = (task: LearningJournalWeekAssignmentItem) => {
+    if (editable && onEditPublishedAt) {
       // taskId가 없으면 id를 fallback으로 사용 (기존 데이터 호환성)
       const normalizedTask = {
         ...task,
         taskId: task.taskId ?? task.id,
       }
-      onEditTaskPlacement(normalizedTask, weekIndex)
+      onEditPublishedAt(normalizedTask)
     }
   }
 
@@ -171,48 +171,37 @@ export function WeeklyOverview({ weeks, className, editable = false, onEdit, onE
                       {hasAssignments ? (
                         <div className="space-y-1 pl-3 text-xs">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">과제</p>
-                          {data.assignments.map((assignment) => {
-                            const hasPlacementOverride = assignment.weekOverride !== null || assignment.periodOverride !== null
-
-                            return (
-                              <div
-                                key={assignment.id}
-                                className="flex items-center justify-between gap-2 text-slate-600"
-                              >
-                                <div className="flex items-center gap-1.5">
-                                  <span>{assignment.title}</span>
-                                  {editable && hasPlacementOverride ? (
-                                    <Badge variant="secondary" className="text-[9px] px-1">
-                                      수동
-                                    </Badge>
-                                  ) : null}
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Badge
-                                    variant={assignment.status === 'completed' ? 'default' : 'outline'}
-                                    className="text-[10px]"
-                                  >
-                                    {STATUS_LABEL[assignment.status] ?? assignment.status}
+                          {data.assignments.map((assignment) => (
+                            <div
+                              key={assignment.id}
+                              className="flex items-center justify-between gap-2 text-slate-600"
+                            >
+                              <span>{assignment.title}</span>
+                              <div className="flex items-center gap-1">
+                                <Badge
+                                  variant={assignment.status === 'completed' ? 'default' : 'outline'}
+                                  className="text-[10px]"
+                                >
+                                  {STATUS_LABEL[assignment.status] ?? assignment.status}
+                                </Badge>
+                                {assignment.submittedLate ? (
+                                  <Badge variant="destructive" className="text-[10px]">
+                                    지각
                                   </Badge>
-                                  {assignment.submittedLate ? (
-                                    <Badge variant="destructive" className="text-[10px]">
-                                      지각
-                                    </Badge>
-                                  ) : null}
-                                  {editable && onEditTaskPlacement ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="h-7 px-2 text-xs text-slate-500 hover:text-slate-700"
-                                      onClick={() => handleTaskPlacementClick(assignment, week.weekIndex)}
-                                    >
-                                      이동
-                                    </Button>
-                                  ) : null}
-                                </div>
+                                ) : null}
+                                {editable && onEditPublishedAt ? (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs text-slate-500 hover:text-slate-700"
+                                    onClick={() => handlePublishedAtClick(assignment)}
+                                  >
+                                    날짜
+                                  </Button>
+                                ) : null}
                               </div>
-                            )
-                          })}
+                            </div>
+                          ))}
                         </div>
                       ) : null}
                     </div>

@@ -1350,8 +1350,6 @@ interface StudentTaskWeeklyRow {
   submitted_late?: boolean | null
   completion_at: string | null
   progress_meta: Record<string, unknown> | null
-  week_override?: number | null
-  period_override?: string | null
   assignments?:
   | {
     id: string
@@ -1527,8 +1525,6 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
        submitted_late,
        completion_at,
        progress_meta,
-       week_override,
-       period_override,
        assignments:assignments!student_tasks_assignment_id_fkey(
          id,
          due_at,
@@ -1594,24 +1590,14 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
       }
     }
 
-    // period 필터링: period_override가 이 period이거나, override가 없고 날짜 기준으로 이 period에 속하는 경우
-    // 출제일(published_at) 기준으로 주차 결정, 없으면 마감일(due_at) 사용
-    const weekIndexFromPublishedAt = deriveWeekIndexFromDate(assignmentRelation.published_at, weeklyRanges)
-    const weekIndexFromDueAt = deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
-    const autoWeekIndex = weekIndexFromPublishedAt ?? weekIndexFromDueAt
+    // 출제일(published_at) 기준으로 주차 결정
+    // published_at이 있으면 반드시 그것을 사용, 없는 경우에만 due_at 사용
+    const hasPublishedAt = assignmentRelation.published_at !== null
+    const weekIndex = hasPublishedAt
+      ? deriveWeekIndexFromDate(assignmentRelation.published_at, weeklyRanges)
+      : deriveWeekIndexFromDate(assignmentRelation.due_at, weeklyRanges)
 
-    const hasPeriodOverride = row.period_override !== null && row.period_override !== undefined
-    const matchesThisPeriod = hasPeriodOverride
-      ? row.period_override === period.id
-      : autoWeekIndex !== null  // 날짜 기준으로 이 period의 주차 범위에 속함
-
-    if (!matchesThisPeriod) {
-      continue
-    }
-
-    // 주차 결정: week_override 우선, 없으면 자동 계산
-    const weekIndex = row.week_override ?? autoWeekIndex
-
+    // 날짜 기준으로 이 period의 주차 범위에 속하지 않으면 스킵
     if (!weekIndex || weekIndex < 1 || weekIndex > 4) {
       continue
     }
@@ -1630,17 +1616,17 @@ export async function generateLearningJournalWeeklyData(entryId: string): Promis
     const progressMeta = (row.progress_meta ?? null) as Record<string, unknown> | null
 
     subjectAssignments.push({
-      id: row.id,
-      taskId: row.id,  // student_tasks.id - 배치 업데이트용
+      id: assignmentRelation.id,  // assignments.id - 출제일 수정용
+      taskId: row.id,  // student_tasks.id
       title: workbook?.title ?? '과제',
       status: normalizeAssignmentStatus(resolvedStatus),
-      dueDate: assignmentRelation.due_at,
+      publishedAt: assignmentRelation.published_at ?? null,
+      dueAt: assignmentRelation.due_at ?? null,
+      dueDate: assignmentRelation.due_at,  // legacy 호환
       submittedAt: row.completion_at,
       submittedLate: Boolean(row.submitted_late),
       score: extractScore(progressMeta),
       note: null,
-      weekOverride: row.week_override ?? null,
-      periodOverride: row.period_override ?? null,
     })
   }
 
