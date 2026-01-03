@@ -524,7 +524,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
             <TableRow>
               <TableHead className="w-48">이름</TableHead>
               <TableHead className="w-20">역할</TableHead>
-              <TableHead>배정 반</TableHead>
+              <TableHead className="w-48">배정 반</TableHead>
               <TableHead className="w-40">학생 번호</TableHead>
               <TableHead className="w-40">부모님 번호</TableHead>
               <TableHead className="w-36">성적</TableHead>
@@ -630,8 +630,13 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                         <Badge variant="outline">{roleLabelMap[member.role]}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="max-w-sm truncate" title={formatAssignments(member.classAssignments, member.role)}>
-                      {formatAssignments(member.classAssignments, member.role)}
+                    <TableCell className="max-w-48">
+                      <div
+                        className="max-w-full overflow-x-auto whitespace-nowrap text-sm"
+                        title={formatAssignments(member.classAssignments, member.role)}
+                      >
+                        {formatAssignments(member.classAssignments, member.role)}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {renderPhoneCell(member.studentPhone, editingValues?.studentPhone ?? '', (value) => updateEditField('studentPhone', value), editing)}
