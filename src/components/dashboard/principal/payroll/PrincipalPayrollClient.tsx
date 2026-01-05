@@ -956,6 +956,19 @@ export function PrincipalPayrollClient({
             </Button>
             <Button
               type="button"
+              size="sm"
+              variant="outline"
+              disabled={isRouting}
+              onClick={() => {
+                startTransition(() => {
+                  router.refresh()
+                })
+              }}
+            >
+              계산 새로고침
+            </Button>
+            <Button
+              type="button"
               variant="outline"
               size="sm"
               disabled={isRouting}
