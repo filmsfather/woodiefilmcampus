@@ -1,3 +1,4 @@
+import DateUtil from '@/lib/date-util'
 import { requiresWorkHours } from '@/lib/work-logs'
 
 import type {
@@ -9,34 +10,6 @@ import type {
 import { FREELANCER_WITHHOLDING_RATE } from './constants'
 
 const WEEKLY_HOLIDAY_STANDARD_DAYS = 5
-
-function parseSeoulDate(dateString: string): Date {
-  return new Date(`${dateString}T00:00:00+09:00`)
-}
-
-function toDateToken(date: Date): string {
-  const year = date.getFullYear()
-  const month = `${date.getMonth() + 1}`.padStart(2, '0')
-  const day = `${date.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function startOfISOWeek(date: Date): Date {
-  const result = new Date(date)
-  const day = result.getDay() === 0 ? 7 : result.getDay()
-  const diff = day - 1
-  result.setDate(result.getDate() - diff)
-  result.setHours(0, 0, 0, 0)
-  return result
-}
-
-function endOfISOWeek(date: Date): Date {
-  const start = startOfISOWeek(date)
-  const end = new Date(start)
-  end.setDate(start.getDate() + 6)
-  end.setHours(23, 59, 59, 999)
-  return end
-}
 
 function roundCurrency(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
@@ -51,29 +24,29 @@ function cloneAdjustment(input: PayrollAdjustmentInput): PayrollAdjustmentInput 
 }
 
 export function calculatePayroll(input: PayrollCalculationInput): PayrollCalculationBreakdown {
-  const periodStart = new Date(input.periodStart)
-  const periodEnd = new Date(input.periodEnd)
+  const periodStart = DateUtil.toUTCDate(input.periodStart)
+  const periodEnd = DateUtil.toUTCDate(input.periodEnd)
   const allowWeeklyHoliday = input.contractType !== 'freelancer'
 
   const weekMap = new Map<string, WeeklyWorkSummary>()
 
   const relevantEntries = input.workLogs.filter((entry) => {
-    const date = parseSeoulDate(entry.workDate)
+    const date = DateUtil.toUTCDate(entry.workDate)
     return date >= periodStart && date <= periodEnd
   })
 
   for (const entry of relevantEntries) {
-    const entryDate = parseSeoulDate(entry.workDate)
-    const weekStart = startOfISOWeek(entryDate)
+    const entryDate = DateUtil.toUTCDate(entry.workDate)
+    const weekStart = DateUtil.startOfWeek(entryDate)
     const weekKey = weekStart.toISOString()
     if (!weekMap.has(weekKey)) {
-      const weekEnd = endOfISOWeek(entryDate)
+      const weekEnd = DateUtil.endOfWeek(entryDate)
       const displayStartDate = weekStart.getTime() < periodStart.getTime() ? new Date(periodStart) : new Date(weekStart)
       const displayEndDate = weekEnd.getTime() > periodEnd.getTime() ? new Date(periodEnd) : new Date(weekEnd)
       weekMap.set(weekKey, {
-        weekNumber: Number.parseInt(toWeekIndex(weekStart), 10),
-        weekStart: toDateToken(displayStartDate),
-        weekEnd: toDateToken(displayEndDate),
+        weekNumber: toWeekIndex(weekStart),
+        weekStart: DateUtil.formatISODate(displayStartDate),
+        weekEnd: DateUtil.formatISODate(displayEndDate),
         totalWorkHours: 0,
         containsTardy: false,
         containsAbsence: false,
@@ -178,12 +151,12 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   }
 }
 
-function toWeekIndex(date: Date): string {
-  const temp = new Date(date.getFullYear(), 0, 1)
-  const firstMondayOffset = ((temp.getDay() + 6) % 7)
+function toWeekIndex(date: Date): number {
+  const temp = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
+  const firstMondayOffset = ((temp.getUTCDay() + 6) % 7)
   const firstWeekStart = new Date(temp)
-  firstWeekStart.setDate(temp.getDate() - firstMondayOffset)
+  firstWeekStart.setUTCDate(temp.getUTCDate() - firstMondayOffset)
   const diff = date.getTime() - firstWeekStart.getTime()
   const week = Math.floor(diff / (7 * 24 * 60 * 60 * 1000)) + 1
-  return `${week}`.padStart(2, '0')
+  return week
 }
