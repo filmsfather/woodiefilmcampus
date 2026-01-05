@@ -112,6 +112,7 @@ function buildIncentiveDrafts(
   adjustments: PayrollAdjustmentInput[]
 ): IncentiveDraft[] {
   const drafts: IncentiveDraft[] = []
+  let index = 0
 
   const incentivesSource = meta && typeof meta === 'object' ? (meta as Record<string, unknown>).incentives : undefined
   if (Array.isArray(incentivesSource)) {
@@ -127,14 +128,24 @@ function buildIncentiveDrafts(
       if (!label || !Number.isFinite(amountValue) || amountValue <= 0) {
         continue
       }
-      drafts.push(createIncentiveDraft(label, amountValue))
+      // Use deterministic ID for initial items to avoid hydration mismatch
+      drafts.push({
+        id: `init-${index++}`,
+        label,
+        amount: amountValue.toString(),
+      })
     }
   }
 
   if (drafts.length === 0) {
     const fallback = adjustments.filter((item) => !item.isDeduction && item.label === '인센티브')
     for (const item of fallback) {
-      drafts.push(createIncentiveDraft(item.label, item.amount))
+      // Use deterministic ID for initial items to avoid hydration mismatch
+      drafts.push({
+        id: `init-${index++}`,
+        label: item.label,
+        amount: typeof item.amount === 'number' && Number.isFinite(item.amount) ? item.amount.toString() : '',
+      })
     }
   }
 
@@ -785,7 +796,7 @@ function TeacherPayrollCard({
             )}
 
             <div className="flex items-center justify-end gap-2">
-              {status.label === '확인 완료' && run?.status === 'confirmed' && (
+              {status.label === '확인 완료' && run && (
                 <Button type="button" variant="outline" onClick={handleCompletePayment} disabled={isPending || isPreviewing}>
                   지급 완료 처리
                 </Button>

@@ -622,7 +622,7 @@ export async function completePayrollPayment(runId: string) {
 
   const admin = createAdminClient()
 
-  // 1. Check current status
+  // 1. Check current status (run + acknowledgement)
   const { data: run, error: fetchError } = await admin
     .from('teacher_payroll_runs')
     .select('status')
@@ -633,7 +633,16 @@ export async function completePayrollPayment(runId: string) {
     return { error: '급여 정산 정보를 찾을 수 없습니다.' }
   }
 
-  if (run.status !== 'confirmed') {
+  // Check acknowledgement status as well
+  const { data: ack } = await admin
+    .from('teacher_payroll_acknowledgements')
+    .select('status')
+    .eq('run_id', runId)
+    .maybeSingle()
+
+  const isConfirmed = run.status === 'confirmed' || ack?.status === 'confirmed'
+
+  if (!isConfirmed) {
     return { error: '확인 완료된 정산만 지급 완료 처리할 수 있습니다.' }
   }
 
