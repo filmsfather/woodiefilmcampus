@@ -1,4 +1,5 @@
 import { requireAuthForDashboard } from '@/lib/auth'
+import DateUtil from '@/lib/date-util'
 import { resolveMonthRange } from '@/lib/work-logs'
 import { fetchTeacherPayrollProfiles } from '@/lib/payroll/config'
 import {
@@ -29,10 +30,6 @@ interface PrincipalPayrollTeacherEntry {
   messagePreview: string
   adjustments: PayrollAdjustmentInput[]
   requestNote: string | null
-}
-
-function toDateFromToken(token: string): Date {
-  return new Date(`${token}T00:00:00+09:00`)
 }
 
 function normalizeAdjustments(value: unknown): PayrollAdjustmentInput[] {
@@ -71,9 +68,8 @@ export default async function PrincipalPayrollPage(props: {
 
   const monthRange = resolveMonthRange(monthTokenParam)
   const monthToken = monthRange.startDate.slice(0, 7)
-  const periodStart = toDateFromToken(monthRange.startDate)
-  const periodEndExclusive = toDateFromToken(monthRange.endExclusiveDate)
-  const periodEnd = new Date(periodEndExclusive.getTime() - 24 * 60 * 60 * 1000)
+  const periodStart = DateUtil.toUTCDate(monthRange.startDate)
+  const periodEnd = DateUtil.addDays(DateUtil.toUTCDate(monthRange.endExclusiveDate), -1)
 
   const teacherDirectory = await fetchTeacherDirectory()
   const payrollProfiles = await fetchTeacherPayrollProfiles()
