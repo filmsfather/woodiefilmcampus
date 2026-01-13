@@ -61,7 +61,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
     .from('workbooks')
     .select(
       `id, teacher_id, author_id, title, subject, type, week_label, tags, description, config,
-       workbook_items(id, position, prompt, explanation, answer_type,
+       workbook_items(id, position, prompt, explanation, answer_type, grading_criteria,
         workbook_item_choices(content, is_correct),
         workbook_item_short_fields(label, answer, position)
       )`
@@ -115,6 +115,10 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
               label: field?.label ?? '',
               answer: field?.answer ?? '',
             }))
+          : undefined,
+      gradingCriteria:
+        workbook.type === 'writing' && item.grading_criteria
+          ? (item.grading_criteria as { high: string; mid: string; low: string })
           : undefined,
     }))
 
@@ -176,6 +180,11 @@ type WorkbookRecord = {
       position?: number | null
     }>
     answer_type?: string | null
+    grading_criteria?: {
+      high: string
+      mid: string
+      low: string
+    } | null
   }>
 }
 
