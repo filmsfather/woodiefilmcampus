@@ -10,6 +10,15 @@ const nextConfig: NextConfig = {
     // 최상위 lockfile 때문에 잘못된 루트를 잡지 않도록 Turbopack에 명시적으로 지정
     root: __dirname,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/**",
+      },
+    ],
+  },
 };
 
 export default nextConfig;
