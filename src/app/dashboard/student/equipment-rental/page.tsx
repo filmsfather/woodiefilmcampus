@@ -15,11 +15,21 @@ interface SearchParams {
   date?: string
 }
 
+interface RentalInfoRaw {
+  id: string
+  student_id: string
+  class_id: string | null
+  status: EquipmentRentalStatus
+  profiles: { name: string }[] | { name: string } | null
+  classes: { name: string }[] | { name: string } | null
+}
+
 interface SlotRow {
   id: string
   slot_date: string
   set_type: EquipmentSetType
   status: EquipmentSlotStatus
+  equipment_rentals: RentalInfoRaw[]
 }
 
 interface SlotInfo {
@@ -54,13 +64,26 @@ export default async function EquipmentRentalPage(props: {
 
   const supabase = await createClient()
 
-  // 오픈된 슬롯만 가져오기
+  // 모든 슬롯(오픈 + 예약됨) 가져오기, 예약 정보 포함
   const { data: slotRows, error: slotError } = await supabase
     .from('equipment_slots')
-    .select('id, slot_date, set_type, status')
+    .select(
+      `id,
+       slot_date,
+       set_type,
+       status,
+       equipment_rentals (
+         id,
+         student_id,
+         class_id,
+         status,
+         profiles:student_id (name),
+         classes:class_id (name)
+       )`
+    )
     .gte('slot_date', start)
     .lte('slot_date', end)
-    .in('status', ['open'])
+    .in('status', ['open', 'reserved'])
     .order('slot_date', { ascending: true })
 
   if (slotError) {
@@ -122,22 +145,62 @@ export default async function EquipmentRentalPage(props: {
     .map((row) => (row.classes as unknown as ClassRow))
     .filter((c): c is ClassRow => c !== null)
 
-  // 슬롯을 날짜별로 그룹화
-  const slotsByDate = new Map<string, { setA: string | null; setB: string | null }>()
+  // 슬롯을 날짜별로 그룹화 (예약 정보 포함)
+  interface SlotEntry {
+    slotId: string | null
+    status: EquipmentSlotStatus
+    rental: {
+      id: string
+      studentName: string
+      className: string | null
+      status: EquipmentRentalStatus
+    } | null
+  }
+
+  const slotsByDate = new Map<string, { setA: SlotEntry | null; setB: SlotEntry | null }>()
   for (const slot of slots) {
     const entry = slotsByDate.get(slot.slot_date) ?? { setA: null, setB: null }
+    const activeRental = slot.equipment_rentals?.find(
+      (r) => r.status === 'pending' || r.status === 'rented'
+    )
+
+    // profiles와 classes가 배열 또는 객체일 수 있음
+    const getProfileName = (profiles: RentalInfoRaw['profiles']) => {
+      if (!profiles) return '알 수 없음'
+      if (Array.isArray(profiles)) return profiles[0]?.name ?? '알 수 없음'
+      return profiles.name
+    }
+    const getClassName = (classes: RentalInfoRaw['classes']) => {
+      if (!classes) return null
+      if (Array.isArray(classes)) return classes[0]?.name ?? null
+      return classes.name
+    }
+
+    const slotEntry: SlotEntry = {
+      slotId: slot.status === 'open' ? slot.id : null,
+      status: slot.status,
+      rental: activeRental
+        ? {
+            id: activeRental.id,
+            studentName: getProfileName(activeRental.profiles),
+            className: getClassName(activeRental.classes),
+            status: activeRental.status,
+          }
+        : null,
+    }
+
     if (slot.set_type === 'set_a') {
-      entry.setA = slot.id
+      entry.setA = slotEntry
     } else if (slot.set_type === 'set_b') {
-      entry.setB = slot.id
+      entry.setB = slotEntry
     }
     slotsByDate.set(slot.slot_date, entry)
   }
 
   const availableSlots = Array.from(slotsByDate.entries()).map(([date, entry]) => ({
     date,
-    setASlotId: entry.setA,
-    setBSlotId: entry.setB,
+    setA: entry.setA,
+    setB: entry.setB,
   }))
 
   return (

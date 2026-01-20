@@ -8,6 +8,9 @@ import {
   buildCalendarCells,
   formatDateToISO,
   formatSetTypeLabel,
+  formatRentalStatusLabel,
+  type EquipmentRentalStatus,
+  type EquipmentSlotStatus,
 } from '@/lib/equipment-rental'
 import { createEquipmentRental } from '@/app/dashboard/student/equipment-rental/actions'
 import { Button } from '@/components/ui/button'
@@ -19,13 +22,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
+interface RentalInfo {
+  id: string
+  studentName: string
+  className: string | null
+  status: EquipmentRentalStatus
+}
+
+interface SlotEntry {
+  slotId: string | null
+  status: EquipmentSlotStatus
+  rental: RentalInfo | null
+}
+
 interface AvailableSlot {
   date: string
-  setASlotId: string | null
-  setBSlotId: string | null
+  setA: SlotEntry | null
+  setB: SlotEntry | null
 }
 
 interface ClassInfo {
@@ -146,7 +163,8 @@ export function EquipmentCalendar({
           <div className="grid grid-cols-7 gap-1 text-sm">
             {calendarCells.map((cell) => {
               const slot = slotMap.get(cell.date)
-              const hasAvailable = slot && (slot.setASlotId || slot.setBSlotId)
+              const hasAvailable = slot && (slot.setA?.slotId || slot.setB?.slotId)
+              const hasReserved = slot && (slot.setA?.rental || slot.setB?.rental)
               const isSelected = cell.date === selectedDate
               const isToday = cell.date === today
               const isPast = cell.date < today
@@ -164,7 +182,9 @@ export function EquipmentCalendar({
                       ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
                       : hasAvailable
                         ? 'border-emerald-200 bg-emerald-50/50 hover:border-emerald-300'
-                        : 'border-slate-200 hover:border-slate-300',
+                        : hasReserved
+                          ? 'border-amber-200 bg-amber-50/50 hover:border-amber-300'
+                          : 'border-slate-200 hover:border-slate-300',
                     isPast ? 'cursor-not-allowed opacity-50' : '',
                   ].join(' ')}
                 >
@@ -174,6 +194,9 @@ export function EquipmentCalendar({
                   </span>
                   {hasAvailable && (
                     <span className="mt-0.5 text-[10px] text-emerald-600">예약가능</span>
+                  )}
+                  {!hasAvailable && hasReserved && (
+                    <span className="mt-0.5 text-[10px] text-amber-600">예약중</span>
                   )}
                 </button>
               )
@@ -225,25 +248,64 @@ export function EquipmentCalendar({
 
           {selectedSlot ? (
             <div className="grid gap-4 sm:grid-cols-2">
-              {selectedSlot.setASlotId ? (
+              {/* A 세트 */}
+              {selectedSlot.setA?.slotId ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-emerald-800">A 세트</span>
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
                       예약 가능
-                    </span>
+                    </Badge>
                   </div>
                   <p className="mt-2 text-sm text-emerald-700">
                     촬영 장비 A세트를 대여할 수 있습니다.
                   </p>
                   <Button
                     className="mt-3 w-full"
-                    onClick={() => handleReserve(selectedSlot.setASlotId!, 'set_a')}
+                    onClick={() => handleReserve(selectedSlot.setA!.slotId!, 'set_a')}
                     disabled={isReserving}
                   >
                     {isReserving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     예약하기
                   </Button>
+                </div>
+              ) : selectedSlot.setA?.rental ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-amber-800">A 세트</span>
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                      예약됨
+                    </Badge>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-600">반</span>
+                      <span className="font-medium text-amber-800">
+                        {selectedSlot.setA.rental.className ?? '-'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-600">이름</span>
+                      <span className="font-medium text-amber-800">
+                        {selectedSlot.setA.rental.studentName}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-600">대여 상태</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          selectedSlot.setA.rental.status === 'rented'
+                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                            : selectedSlot.setA.rental.status === 'returned'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }
+                      >
+                        {formatRentalStatusLabel(selectedSlot.setA.rental.status)}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -252,25 +314,64 @@ export function EquipmentCalendar({
                 </div>
               )}
 
-              {selectedSlot.setBSlotId ? (
+              {/* B 세트 */}
+              {selectedSlot.setB?.slotId ? (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-emerald-800">B 세트</span>
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
                       예약 가능
-                    </span>
+                    </Badge>
                   </div>
                   <p className="mt-2 text-sm text-emerald-700">
                     촬영 장비 B세트를 대여할 수 있습니다.
                   </p>
                   <Button
                     className="mt-3 w-full"
-                    onClick={() => handleReserve(selectedSlot.setBSlotId!, 'set_b')}
+                    onClick={() => handleReserve(selectedSlot.setB!.slotId!, 'set_b')}
                     disabled={isReserving}
                   >
                     {isReserving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     예약하기
                   </Button>
+                </div>
+              ) : selectedSlot.setB?.rental ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-amber-800">B 세트</span>
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-700">
+                      예약됨
+                    </Badge>
+                  </div>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-600">반</span>
+                      <span className="font-medium text-amber-800">
+                        {selectedSlot.setB.rental.className ?? '-'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-600">이름</span>
+                      <span className="font-medium text-amber-800">
+                        {selectedSlot.setB.rental.studentName}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-amber-600">대여 상태</span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          selectedSlot.setB.rental.status === 'rented'
+                            ? 'border-blue-200 bg-blue-50 text-blue-700'
+                            : selectedSlot.setB.rental.status === 'returned'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }
+                      >
+                        {formatRentalStatusLabel(selectedSlot.setB.rental.status)}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -285,7 +386,7 @@ export function EquipmentCalendar({
                 선택한 날짜에 예약 가능한 장비가 없습니다.
               </p>
               <p className="mt-1 text-xs text-slate-400">
-                달력에서 &apos;예약가능&apos; 표시가 있는 날짜를 선택하세요.
+                달력에서 &apos;예약가능&apos; 또는 &apos;예약중&apos; 표시가 있는 날짜를 선택하세요.
               </p>
             </div>
           )}
