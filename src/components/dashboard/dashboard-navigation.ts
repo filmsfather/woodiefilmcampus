@@ -150,6 +150,7 @@ const teacherSections: NavigationSection[] = [
       { label: '수업자료 아카이브', href: '/dashboard/teacher/class-materials' },
       { label: '온라인 강의 관리', href: '/dashboard/teacher/lectures' },
       { label: '입시자료 아카이브', href: '/dashboard/teacher/admission-materials' },
+      { label: '영화제작', href: '/dashboard/teacher/film-production' },
     ],
   },
 ]
@@ -180,6 +181,7 @@ const studentSections: NavigationSection[] = [
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
+      { label: '장비 대여', href: '/dashboard/student/equipment-rental' },
     ],
   },
 ]
