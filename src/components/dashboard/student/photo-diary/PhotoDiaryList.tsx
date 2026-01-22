@@ -14,6 +14,7 @@ type PhotoDiaryEntry = {
   date: string
   subject: string
   prompt: string
+  description: string | null
   images: Array<{
     id: string
     url: string | null
@@ -54,21 +55,21 @@ export function PhotoDiaryList({ entries }: PhotoDiaryListProps) {
     <>
       <div className="space-y-4">
         {entries.map((entry) => (
-          <Card key={entry.id} className="overflow-hidden border-slate-200">
+          <Card key={entry.id} className="overflow-hidden border-0 bg-transparent shadow-none">
             <CardContent className="p-4">
               <div className="space-y-4">
                 {/* Header */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="secondary">{entry.subject}</Badge>
-                  <div className="flex items-center gap-1 text-xs text-slate-500">
-                    <Calendar className="h-3 w-3" />
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-lg font-semibold text-slate-700">
+                    <Calendar className="h-5 w-5 text-slate-400" />
                     <span>{formatDate(entry.date)}</span>
                   </div>
+                  <Badge variant="secondary" className="text-sm px-3 py-1">{entry.subject}</Badge>
                 </div>
 
                 {/* Question/Prompt */}
                 {entry.prompt && (
-                  <div className="rounded-lg bg-slate-50 p-3">
+                  <div className="p-3">
                     <p className="text-xs font-medium text-slate-500">질문</p>
                     <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
                       {entry.prompt}
@@ -76,14 +77,24 @@ export function PhotoDiaryList({ entries }: PhotoDiaryListProps) {
                   </div>
                 )}
 
+                {/* 학생이 작성한 설명 */}
+                {entry.description && (
+                  <div className="p-3">
+                    <p className="text-xs font-medium text-blue-600">내 설명</p>
+                    <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+                      {entry.description}
+                    </p>
+                  </div>
+                )}
+
                 {/* Images - Masonry-like layout with original aspect ratio */}
-                <div className="columns-2 gap-2 sm:columns-3 md:columns-4 lg:columns-5">
+                <div className="columns-1 gap-4 sm:columns-2 md:columns-2 lg:columns-3">
                   {entry.images.map((image) => (
                     image.url && (
                       <button
                         key={image.id}
                         type="button"
-                        className="group relative mb-2 block w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-100 transition-transform hover:scale-[1.02]"
+                        className="group relative mb-4 block w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 transition-transform hover:scale-[1.01]"
                         onClick={() => setSelectedImage(image.url)}
                       >
                         <img

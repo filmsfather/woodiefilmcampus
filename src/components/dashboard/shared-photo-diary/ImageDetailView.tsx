@@ -25,6 +25,7 @@ interface SubmissionInfo {
   submittedAt: string
   prompt: string | null
   subject: string | null
+  description: string | null
 }
 
 interface ImageDetailViewProps {
@@ -139,6 +140,14 @@ export function ImageDetailView({
               <p className="text-xs font-medium text-slate-500">과제 문제</p>
               <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
                 {submission.prompt}
+              </p>
+            </div>
+          )}
+          {submission.description && (
+            <div className="rounded-lg bg-blue-50 p-3">
+              <p className="text-xs font-medium text-blue-600">학생 설명</p>
+              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+                {submission.description}
               </p>
             </div>
           )}

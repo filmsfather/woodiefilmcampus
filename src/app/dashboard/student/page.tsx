@@ -67,6 +67,18 @@ const DONE_ACTIONS: DashboardActionItem[] = [
     variant: 'outline',
   },
   {
+    label: '사진일기',
+    href: '/dashboard/student/photo-diary',
+    description: '이미지 제출형 과제에서 제출한 사진들을 한눈에 확인하세요.',
+    variant: 'default',
+  },
+  {
+    label: '모두의 사진일기',
+    href: '/dashboard/shared-photo-diary',
+    description: '모든 학생이 공유한 사진일기를 함께 감상하고 소통해 보세요.',
+    variant: 'secondary',
+  },
+  {
     label: '우디쌤 인터넷강의 시청',
     href: '/dashboard/student/lectures',
     description: '선생님이 올려주신 인터넷 강의를 시청하며 학습합니다.',

@@ -2124,6 +2124,16 @@ function ImageEvaluationCard({
         </div>
       )}
 
+      {/* 학생이 작성한 이미지 설명 */}
+      {submission?.content && !submission.content.match(/^이미지 \d+장 제출$/) && (
+        <div className="rounded-lg bg-blue-50 p-3">
+          <p className="text-xs font-medium text-blue-600">학생 설명</p>
+          <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
+            {submission.content}
+          </p>
+        </div>
+      )}
+
       {/* 넷째 줄: 평가 + 저장 */}
       <div className="flex items-center gap-2">
         <Select value={score} onValueChange={setScore}>

@@ -26,6 +26,7 @@ interface SubmissionInfo {
   submittedAt: string
   prompt: string | null
   subject: string | null
+  description: string | null // 학생이 작성한 이미지 설명
 }
 
 interface ImageDetail {
@@ -72,6 +73,7 @@ async function fetchImageDetail(assetId: string, userId: string): Promise<ImageD
       task_submission:task_submissions!inner(
         id,
         item_id,
+        content,
         created_at,
         student_task:student_tasks!inner(
           id,
@@ -120,11 +122,16 @@ async function fetchImageDetail(assetId: string, userId: string): Promise<ImageD
         prompt = workbookItem?.prompt ?? null
       }
 
+      // content가 "이미지 X장 제출" 형식이면 null로 처리 (기본값이므로 표시하지 않음)
+      const rawContent = (taskSubmission as { content?: string | null }).content
+      const description = rawContent && !rawContent.match(/^이미지 \d+장 제출$/) ? rawContent : null
+
       submission = {
         studentName: student?.name ?? '익명',
         submittedAt: taskSubmission.created_at ?? submissionAsset.created_at,
         prompt,
         subject: workbook?.subject ?? null,
+        description,
       }
     }
   }

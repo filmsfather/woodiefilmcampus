@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
+import { Textarea } from '@/components/ui/textarea'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
 import { MAX_IMAGE_FILE_SIZE, MAX_IMAGES_PER_QUESTION } from '@/lib/storage/limits'
 import { buildRandomizedFileName, uploadFileToStorageViaClient, type UploadedObjectMeta } from '@/lib/storage-upload'
@@ -39,6 +40,7 @@ type ItemUploadState = {
   isEditing: boolean
   previewImage: { url: string; name: string } | null
   removedAssetIds: string[] // 편집 모드에서 삭제할 기존 asset ID 목록
+  description: string // 이미지 설명
 }
 
 const MAX_DISPLAY_SIZE_MB = Math.round(MAX_IMAGE_FILE_SIZE / (1024 * 1024))
@@ -71,6 +73,8 @@ function ImageItemPanel({
   const router = useRouter()
   const supabase = useMemo(() => createBrowserSupabase(), [])
   const [isPending, startTransition] = useTransition()
+  // 기존 submission의 content를 초기 description으로 사용
+  const existingDescription = item.submission?.content ?? ''
   const [state, setState] = useState<ItemUploadState>({
     pendingUploads: [],
     isUploading: false,
@@ -79,6 +83,7 @@ function ImageItemPanel({
     isEditing: false,
     previewImage: null,
     removedAssetIds: [],
+    description: existingDescription,
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -113,6 +118,7 @@ function ImageItemPanel({
       removedAssetIds: [],
       errorMessage: null,
       successMessage: null,
+      description: existingDescription, // 편집 모드 전환 시 기존 description으로 초기화
     }))
   }
 
@@ -132,6 +138,7 @@ function ImageItemPanel({
       removedAssetIds: [],
       errorMessage: null,
       successMessage: null,
+      description: existingDescription, // 편집 취소 시 기존 description으로 복원
     }))
   }
 
@@ -249,9 +256,12 @@ function ImageItemPanel({
   }
 
   const handleSubmit = () => {
-    // 편집 모드에서는 삭제할 이미지가 있거나 새 이미지가 있어야 함
+    // 설명이 변경되었는지 확인
+    const descriptionChanged = state.description.trim() !== existingDescription.trim()
+
+    // 편집 모드에서는 이미지 변경 또는 설명 변경이 있어야 함
     if (state.isEditing) {
-      if (state.pendingUploads.length === 0 && state.removedAssetIds.length === 0) {
+      if (state.pendingUploads.length === 0 && state.removedAssetIds.length === 0 && !descriptionChanged) {
         setState((prev) => ({
           ...prev,
           errorMessage: '변경 사항이 없습니다.',
@@ -296,12 +306,16 @@ function ImageItemPanel({
 
         if (state.isEditing) {
           // 편집 모드: updateImageSubmission 사용
+          // 설명이 변경되었으면 (지워졌든 새로 작성됐든) 항상 전달
+          // 빈 문자열도 전달해서 기존 설명을 지울 수 있도록 함
+          const descriptionToSend = descriptionChanged ? state.description.trim() : undefined
           response = await updateImageSubmission({
             studentTaskId,
             studentTaskItemId: item.id,
             workbookItemId: item.workbookItem.id,
             uploads,
             removedAssetIds: state.removedAssetIds,
+            description: descriptionToSend,
           })
         } else {
           // 신규 제출: submitImageResponses 사용
@@ -310,6 +324,7 @@ function ImageItemPanel({
             studentTaskItemId: item.id,
             workbookItemId: item.workbookItem.id,
             uploads,
+            description: state.description.trim() || undefined,
           })
         }
 
@@ -334,6 +349,7 @@ function ImageItemPanel({
           isEditing: false,
           previewImage: null,
           removedAssetIds: [],
+          description: state.description, // 저장된 description 유지
         })
 
         onComplete()
@@ -452,6 +468,16 @@ function ImageItemPanel({
           </div>
         )}
 
+        {/* 기존 제출 설명 (완료 상태에서 편집 모드가 아닐 때) */}
+        {isCompleted && !state.isEditing && existingDescription && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-slate-700">설명</p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="whitespace-pre-line text-sm text-slate-600">{existingDescription}</p>
+            </div>
+          </div>
+        )}
+
         {/* Pending uploads */}
         {state.pendingUploads.length > 0 && (
           <div className="space-y-2">
@@ -558,8 +584,8 @@ function ImageItemPanel({
                   isPending ||
                   state.isUploading ||
                   (state.isEditing
-                    ? (state.pendingUploads.length === 0 && state.removedAssetIds.length === 0) ||
-                      (visibleExistingAssets.length + state.pendingUploads.length === 0)
+                    ? ((state.pendingUploads.length === 0 && state.removedAssetIds.length === 0 && state.description.trim() === existingDescription.trim()) ||
+                      (visibleExistingAssets.length + state.pendingUploads.length === 0))
                     : state.pendingUploads.length === 0)
                 }
                 className="min-w-[120px]"
@@ -577,6 +603,27 @@ function ImageItemPanel({
                 )}
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* 이미지 설명 입력 */}
+        {(showUploadArea || state.isEditing) && (
+          <div className="space-y-2">
+            <label htmlFor={`description-${item.id}`} className="text-sm font-medium text-slate-700">
+              이미지 설명 <span className="text-xs font-normal text-slate-400">(선택)</span>
+            </label>
+            <Textarea
+              id={`description-${item.id}`}
+              placeholder="이미지에 대한 설명을 작성해주세요..."
+              value={state.description}
+              onChange={(e) => setState((prev) => ({ ...prev, description: e.target.value }))}
+              disabled={isPending || state.isUploading}
+              className="min-h-[80px] resize-none"
+              maxLength={2000}
+            />
+            <p className="text-right text-xs text-slate-400">
+              {state.description.length} / 2000
+            </p>
           </div>
         )}
 

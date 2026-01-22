@@ -10,6 +10,7 @@ type PhotoDiaryEntry = {
   date: string
   subject: string
   prompt: string
+  description: string | null // 학생이 작성한 이미지 설명
   images: Array<{
     id: string
     url: string | null
@@ -27,6 +28,7 @@ async function fetchPhotoDiaryEntries(studentId: string): Promise<PhotoDiaryEntr
     .select(`
       id,
       item_id,
+      content,
       created_at,
       updated_at,
       student_task:student_tasks!inner(
@@ -144,11 +146,16 @@ async function fetchPhotoDiaryEntries(studentId: string): Promise<PhotoDiaryEntr
 
     if (images.length === 0) continue
 
+    // content가 "이미지 X장 제출" 형식이면 null로 처리 (기본값이므로 표시하지 않음)
+    const rawContent = submission.content
+    const description = rawContent && !rawContent.match(/^이미지 \d+장 제출$/) ? rawContent : null
+
     entries.push({
       id: submission.id,
       date: submission.updated_at ?? submission.created_at,
       subject: workbook?.subject ?? '과목 미정',
       prompt: submission.item_id ? itemPromptMap.get(submission.item_id) ?? '' : '',
+      description,
       images,
     })
   }

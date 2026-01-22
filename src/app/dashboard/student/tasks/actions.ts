@@ -1327,6 +1327,7 @@ const imageResponsesSchema = z.object({
   studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
   workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
   uploads: z.array(imageUploadPayloadSchema).min(1, '최소 1장의 이미지를 업로드해주세요.').max(MAX_IMAGES_PER_QUESTION, `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`),
+  description: z.string().max(2000, '설명은 최대 2000자까지 작성할 수 있습니다.').optional(),
 })
 
 const updateImageSubmissionSchema = z.object({
@@ -1335,6 +1336,7 @@ const updateImageSubmissionSchema = z.object({
   workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
   uploads: z.array(imageUploadPayloadSchema).max(MAX_IMAGES_PER_QUESTION, `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`).default([]),
   removedAssetIds: z.array(z.string().uuid()).default([]),
+  description: z.string().max(2000, '설명은 최대 2000자까지 작성할 수 있습니다.').optional(),
 })
 
 export async function submitImageResponses(input: z.infer<typeof imageResponsesSchema>) {
@@ -1444,6 +1446,7 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
     }
 
     // Create or update submission
+    const submissionContent = payload.description || `이미지 ${payload.uploads.length}장 제출`
     if (!submissionId) {
       const { data: insertedSubmission, error: insertSubmissionError } = await supabase
         .from('task_submissions')
@@ -1451,7 +1454,7 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
           student_task_id: payload.studentTaskId,
           item_id: payload.workbookItemId,
           submission_type: 'image',
-          content: `이미지 ${payload.uploads.length}장 제출`,
+          content: submissionContent,
         })
         .select('id')
         .single()
@@ -1467,7 +1470,7 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
         .from('task_submissions')
         .update({
           submission_type: 'image',
-          content: `이미지 ${payload.uploads.length}장 제출`,
+          content: submissionContent,
           updated_at: now,
         })
         .eq('id', submissionId)
@@ -1576,9 +1579,12 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
 
   const payload = parsed.data
 
-  // 아무 작업도 없으면 에러
-  if (payload.uploads.length === 0 && payload.removedAssetIds.length === 0) {
-    return { success: false as const, error: '추가하거나 삭제할 이미지를 선택해주세요.' }
+  // 아무 작업도 없으면 에러 (이미지 추가/삭제 또는 설명 변경이 있어야 함)
+  const hasImageChanges = payload.uploads.length > 0 || payload.removedAssetIds.length > 0
+  // description이 undefined가 아니면 변경된 것 (빈 문자열도 변경으로 처리)
+  const hasDescriptionChange = 'description' in input && input.description !== undefined
+  if (!hasImageChanges && !hasDescriptionChange) {
+    return { success: false as const, error: '변경 사항이 없습니다.' }
   }
 
   // Validate new uploads
@@ -1671,6 +1677,9 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
       return { success: false as const, error: `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.` }
     }
 
+    // submission content: 사용자 입력 설명 또는 기본값
+    const submissionContent = payload.description || `이미지 ${finalImageCount}장 제출`
+
     // submission이 없으면 생성
     if (!submissionId) {
       const { data: insertedSubmission, error: insertSubmissionError } = await supabase
@@ -1679,7 +1688,7 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
           student_task_id: payload.studentTaskId,
           item_id: payload.workbookItemId,
           submission_type: 'image',
-          content: `이미지 ${finalImageCount}장 제출`,
+          content: submissionContent,
         })
         .select('id')
         .single()
@@ -1748,7 +1757,7 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
     const { error: updateSubmissionError } = await supabase
       .from('task_submissions')
       .update({
-        content: `이미지 ${finalImageCount}장 제출`,
+        content: submissionContent,
         updated_at: now,
       })
       .eq('id', submissionId)
