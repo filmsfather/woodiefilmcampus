@@ -6,7 +6,7 @@ import { Calendar, ImageIcon, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import DateUtil from '@/lib/date-util'
 
 type PhotoDiaryEntry = {
@@ -106,6 +106,7 @@ export function PhotoDiaryList({ entries }: PhotoDiaryListProps) {
       {/* Image preview dialog */}
       <Dialog open={Boolean(selectedImage)} onOpenChange={() => setSelectedImage(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-auto p-0">
+          <DialogTitle className="sr-only">이미지 미리보기</DialogTitle>
           <button
             type="button"
             className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"

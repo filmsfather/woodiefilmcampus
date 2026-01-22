@@ -139,6 +139,7 @@ const teacherSections: NavigationSection[] = [
     title: '과제 관리',
     items: [
       { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
       { label: '출판된 문제집 확인', href: '/dashboard/workbooks' },
     ],
@@ -180,6 +181,7 @@ const studentSections: NavigationSection[] = [
       { label: '지난달 학습 일지', href: '/dashboard/student/learning-journal' },
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
       { label: '사진일기', href: '/dashboard/student/photo-diary' },
+      { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
       { label: '장비 대여', href: '/dashboard/student/equipment-rental' },
