@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
  * Storage 파일을 프록시로 제공하는 API 라우트
@@ -31,7 +31,7 @@ export async function GET(
       )
     }
 
-    const supabase = await createServerSupabase()
+    const supabase = createAdminClient()
 
     // 파일 다운로드
     const { data, error } = await supabase.storage
