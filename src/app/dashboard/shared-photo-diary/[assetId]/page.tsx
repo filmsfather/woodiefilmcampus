@@ -88,6 +88,10 @@ async function fetchImageDetail(assetId: string, userId: string): Promise<ImageD
     .eq('media_asset_id', assetId)
     .single()
 
+  // #region agent log
+  // fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/app/dashboard/shared-photo-diary/[assetId]/page.tsx:88',message:'submissionAsset fetch result',data:{submissionAsset},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+
   if (submissionAsset) {
     const taskSubmission = Array.isArray(submissionAsset.task_submission)
       ? submissionAsset.task_submission[0]
@@ -101,6 +105,10 @@ async function fetchImageDetail(assetId: string, userId: string): Promise<ImageD
       const student = studentTask?.student
         ? (Array.isArray(studentTask.student) ? studentTask.student[0] : studentTask.student)
         : null
+
+      // #region agent log
+      // fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/app/dashboard/shared-photo-diary/[assetId]/page.tsx:103',message:'Parsed student data',data:{taskSubmission, studentTask, student},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
 
       const assignment = studentTask?.assignment
         ? (Array.isArray(studentTask.assignment) ? studentTask.assignment[0] : studentTask.assignment)
@@ -150,8 +158,8 @@ async function fetchImageDetail(assetId: string, userId: string): Promise<ImageD
     .eq('user_id', userId)
     .single()
 
-  // 댓글 조회
-  const { data: commentsData, error: commentsError } = await supabase
+  // 댓글 조회 (RLS 우회를 위해 adminSupabase 사용)
+  const { data: commentsData, error: commentsError } = await adminSupabase
     .from('photo_diary_comments')
     .select(`
       id,
@@ -163,12 +171,19 @@ async function fetchImageDetail(assetId: string, userId: string): Promise<ImageD
     .eq('media_asset_id', assetId)
     .order('created_at', { ascending: true })
 
+  // #region agent log
+  // fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/app/dashboard/shared-photo-diary/[assetId]/page.tsx:160',message:'Comments data fetch',data:{commentsData, commentsError},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+  // #endregion
+
   if (commentsError) {
     console.error('[image-detail] comments fetch error:', commentsError)
   }
 
   const comments: Comment[] = (commentsData ?? []).map((c) => {
     const user = Array.isArray(c.user) ? c.user[0] : c.user
+    // #region agent log
+    // fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'src/app/dashboard/shared-photo-diary/[assetId]/page.tsx:168',message:'Processing comment user',data:{commentId: c.id, userId: c.user_id, userObj: c.user, resolvedUser: user},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     return {
       id: c.id,
       content: c.content,

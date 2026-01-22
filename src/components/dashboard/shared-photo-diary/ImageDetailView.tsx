@@ -101,6 +101,43 @@ export function ImageDetailView({
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
+      {/* 제출 정보 */}
+      {submission && (
+        <div className="space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5 text-lg font-semibold text-slate-700">
+                <Calendar className="h-5 w-5 text-slate-400" />
+                <span>
+                  {DateUtil.formatForDisplay(submission.submittedAt, {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                <User className="h-4 w-4 text-slate-400" />
+                <span className="font-medium">{submission.studentName}</span>
+              </div>
+            </div>
+          </div>
+          
+          {submission.prompt && (
+            <div className="flex items-start gap-2 p-3">
+              {submission.subject && (
+                <Badge variant="secondary" className="shrink-0 mt-0.5">{submission.subject}</Badge>
+              )}
+              <p className="whitespace-pre-line text-sm text-slate-700">
+                {submission.prompt}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* 이미지 */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
         <img
@@ -111,46 +148,12 @@ export function ImageDetailView({
         />
       </div>
 
-      {/* 제출 정보 */}
-      {submission && (
-        <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            {submission.subject && (
-              <Badge variant="secondary">{submission.subject}</Badge>
-            )}
-            <div className="flex items-center gap-1.5 text-sm text-slate-700">
-              <User className="h-4 w-4 text-slate-400" />
-              <span className="font-medium">{submission.studentName}</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-sm text-slate-500">
-              <Calendar className="h-4 w-4 text-slate-400" />
-              <span>
-                {DateUtil.formatForDisplay(submission.submittedAt, {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
-            </div>
-          </div>
-          {submission.prompt && (
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs font-medium text-slate-500">과제 문제</p>
-              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                {submission.prompt}
-              </p>
-            </div>
-          )}
-          {submission.description && (
-            <div className="rounded-lg bg-blue-50 p-3">
-              <p className="text-xs font-medium text-blue-600">학생 설명</p>
-              <p className="mt-1 whitespace-pre-line text-sm text-slate-700">
-                {submission.description}
-              </p>
-            </div>
-          )}
+      {/* 학생 설명 (이미지 아래로 이동) */}
+      {submission?.description && (
+        <div className="px-4">
+          <p className="whitespace-pre-line text-base text-slate-800">
+            {submission.description}
+          </p>
         </div>
       )}
 
