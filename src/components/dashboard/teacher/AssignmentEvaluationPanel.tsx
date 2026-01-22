@@ -10,10 +10,12 @@ import {
   Calendar,
   CheckCircle2,
   Download,
+  ImageIcon,
   Printer,
   RefreshCw,
   RotateCcw,
   XCircle,
+  ZoomIn,
 } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
@@ -39,6 +41,11 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Select,
   SelectContent,
@@ -171,6 +178,7 @@ const TYPE_LABELS: Record<string, string> = {
   writing: '서술형',
   film: '영화 감상',
   lecture: '인터넷 강의',
+  image: '이미지 제출',
 }
 
 const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' | 'destructive'> = {
@@ -394,6 +402,16 @@ export function AssignmentEvaluationPanel({
         <LectureReviewPanel
           assignment={assignment}
           classLookup={classLookup}
+          onDeleteStudentTask={handleDeleteStudentTask}
+          deleteState={deleteState}
+        />
+      )}
+
+      {assignment.type === 'image' && (
+        <ImageReviewPanel
+          assignment={assignment}
+          classLookup={classLookup}
+          focusStudentTaskId={focusStudentTaskId}
           onDeleteStudentTask={handleDeleteStudentTask}
           deleteState={deleteState}
         />
@@ -1934,5 +1952,218 @@ function LectureReviewPanel({
         </Table>
       </CardContent>
     </Card>
+  )
+}
+
+function ImageReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
+  const filteredTasks = useMemo(() => {
+    if (!focusStudentTaskId) return assignment.studentTasks
+    return assignment.studentTasks.filter((task) => task.id === focusStudentTaskId)
+  }, [assignment.studentTasks, focusStudentTaskId])
+
+  if (filteredTasks.length === 0) {
+    return (
+      <Card className="border-slate-200">
+        <CardContent className="py-8 text-center text-sm text-slate-500">
+          학생을 선택해주세요.
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card className="border-slate-200">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-lg text-slate-900">이미지 제출 평가</CardTitle>
+        <p className="text-xs text-slate-500">학생이 제출한 이미지를 확인하고 Pass / Non-pass를 저장하세요.</p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {filteredTasks.map((task) => (
+          <ImageEvaluationCard
+            key={task.id}
+            assignmentId={assignment.id}
+            task={task}
+            className={task.student.classId ? classLookup.get(task.student.classId) ?? '반 정보 없음' : assignment.classes[0]?.name ?? '반 정보 없음'}
+            isFocused={task.id === focusStudentTaskId}
+            onDeleteStudentTask={onDeleteStudentTask}
+            deleteState={deleteState}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
+function ImageEvaluationCard({
+  assignmentId,
+  task,
+  className,
+  isFocused,
+  onDeleteStudentTask,
+  deleteState,
+}: {
+  assignmentId: string
+  task: StudentTaskSummary
+  className: string
+  isFocused: boolean
+  onDeleteStudentTask: (studentTaskId: string, studentName: string) => void
+  deleteState: { pendingId: string | null; isPending: boolean }
+}) {
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
+  const [score, setScore] = useState<string>('')
+  const [message, setMessage] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  // 모든 submission에서 이미지 assets 수집
+  const allImageAssets = useMemo(() => {
+    return task.submissions.flatMap((submission) =>
+      submission.assets.filter((asset) => asset.mimeType?.startsWith('image/'))
+    )
+  }, [task.submissions])
+
+  // 평가할 submission과 taskItem 찾기
+  const submission = task.submissions.find((sub) => sub.assets.length > 0) ?? task.submissions[0] ?? null
+  const taskItem = task.items[0] ?? null
+
+  // 초기 score 설정
+  useEffect(() => {
+    if (submission?.score) {
+      setScore(submission.score)
+    }
+  }, [submission?.score])
+
+  const handleSave = () => {
+    if (!submission || !taskItem) {
+      setMessage('학생 제출물을 찾을 수 없습니다.')
+      return
+    }
+
+    const normalizedScore = score === 'pass' || score === 'nonpass' ? score : 'nonpass'
+    setMessage(null)
+    startTransition(async () => {
+      const result = await evaluateSubmission({
+        assignmentId,
+        studentTaskId: task.id,
+        studentTaskItemId: taskItem.id,
+        submissionId: submission.id,
+        score: normalizedScore,
+        feedback: undefined,
+      })
+
+      if (result?.error) {
+        setMessage(result.error)
+      } else {
+        setMessage('저장 완료')
+        setTimeout(() => setMessage(null), 2000)
+      }
+    })
+  }
+
+  const handleOpenPreview = (asset: { url: string; filename: string }) => {
+    setPreviewImage({ url: asset.url, name: asset.filename })
+  }
+
+  const handleClosePreview = () => {
+    setPreviewImage(null)
+  }
+
+  return (
+    <div className={`rounded-lg border p-3 space-y-3 ${isFocused ? 'border-primary/40 bg-primary/5' : 'border-slate-200 bg-white'}`}>
+      {/* 첫 줄: 이름 + 삭제 */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="font-medium text-slate-900">{task.student.name}</p>
+          <p className="text-xs text-slate-500">{className}</p>
+        </div>
+        <Button
+          size="sm"
+          variant="destructive"
+          disabled={deleteState.isPending && deleteState.pendingId === task.id}
+          onClick={() => onDeleteStudentTask(task.id, task.student.name)}
+          className="shrink-0 h-7 px-2"
+        >
+          {deleteState.isPending && deleteState.pendingId === task.id ? <LoadingSpinner /> : '삭제'}
+        </Button>
+      </div>
+
+      {/* 둘째 줄: 상태 + 이미지 개수 */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <StudentTaskStatusControl assignmentId={assignmentId} task={task} size="sm" />
+        {allImageAssets.length > 0 ? (
+          <Badge variant="secondary" className="inline-flex items-center gap-1">
+            <ImageIcon className="h-3 w-3" />
+            {allImageAssets.length}장
+          </Badge>
+        ) : (
+          <Badge variant="outline">미제출</Badge>
+        )}
+      </div>
+
+      {/* 셋째 줄: 이미지 그리드 */}
+      {allImageAssets.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+          {allImageAssets.map((asset) => (
+            <button
+              key={asset.id}
+              type="button"
+              onClick={() => handleOpenPreview(asset)}
+              className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100 transition-all hover:border-slate-400 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={asset.url}
+                alt={asset.filename}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                <ZoomIn className="h-5 w-5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 넷째 줄: 평가 + 저장 */}
+      <div className="flex items-center gap-2">
+        <Select value={score} onValueChange={setScore}>
+          <SelectTrigger className="w-24 h-8 text-sm">
+            <SelectValue placeholder="평가" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pass">Pass</SelectItem>
+            <SelectItem value="nonpass">Non-pass</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button size="sm" className="h-8" disabled={!submission || isPending || !score} onClick={handleSave}>
+          {isPending ? <LoadingSpinner /> : '저장'}
+        </Button>
+        {message && (
+          <span className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
+            {message}
+          </span>
+        )}
+      </div>
+
+      {/* 이미지 미리보기 모달 */}
+      <Dialog open={previewImage !== null} onOpenChange={(open) => !open && handleClosePreview()}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-auto p-0">
+          <DialogTitle className="sr-only">{previewImage?.name ?? '이미지 미리보기'}</DialogTitle>
+          {previewImage && (
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={previewImage.url}
+                alt={previewImage.name}
+                className="h-auto w-full"
+              />
+              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4">
+                <p className="text-sm font-medium text-white">{previewImage.name}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }

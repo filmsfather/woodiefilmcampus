@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Menu } from 'lucide-react'
 
@@ -19,7 +19,14 @@ interface DashboardShellProps {
 
 export function DashboardShell({ profile, children }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const roleLabel = ROLE_LABELS[profile.role]
+
+  // Radix UI의 ID 생성이 서버/클라이언트에서 다르게 되어 hydration mismatch 발생
+  // 클라이언트 마운트 후에만 Sheet을 렌더링하여 해결
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -36,26 +43,33 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
           <header className="border-b border-slate-200 bg-white">
             <div className="mx-auto flex w-full max-w-full items-center justify-between px-4 py-4 sm:px-6 lg:max-w-5xl">
               <div className="flex items-center gap-3">
-                <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="ghost" size="icon" className="lg:hidden">
-                      <Menu className="size-5" />
-                      <span className="sr-only">메뉴 열기</span>
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="w-72 max-w-[80vw] p-0">
-                    <SheetHeader className="sr-only">
-                      <SheetTitle>메뉴</SheetTitle>
-                      <SheetDescription>모바일 네비게이션 메뉴입니다.</SheetDescription>
-                    </SheetHeader>
-                    <DashboardSidebar
-                      role={profile.role}
-                      profileName={profile.name}
-                      email={profile.email}
-                      onNavigate={() => setMobileNavOpen(false)}
-                    />
-                  </SheetContent>
-                </Sheet>
+                {isMounted ? (
+                  <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                    <SheetTrigger asChild>
+                      <Button variant="ghost" size="icon" className="lg:hidden">
+                        <Menu className="size-5" />
+                        <span className="sr-only">메뉴 열기</span>
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent side="left" className="w-72 max-w-[80vw] p-0">
+                      <SheetHeader className="sr-only">
+                        <SheetTitle>메뉴</SheetTitle>
+                        <SheetDescription>모바일 네비게이션 메뉴입니다.</SheetDescription>
+                      </SheetHeader>
+                      <DashboardSidebar
+                        role={profile.role}
+                        profileName={profile.name}
+                        email={profile.email}
+                        onNavigate={() => setMobileNavOpen(false)}
+                      />
+                    </SheetContent>
+                  </Sheet>
+                ) : (
+                  <Button variant="ghost" size="icon" className="lg:hidden">
+                    <Menu className="size-5" />
+                    <span className="sr-only">메뉴 열기</span>
+                  </Button>
+                )}
                 <Link href="/" className="text-lg font-semibold text-slate-900">
                   Woodie Campus 2.0
                 </Link>

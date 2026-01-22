@@ -115,6 +115,7 @@ const stepFieldMap: Record<(typeof steps)[number]['id'], string[]> = {
     'filmSettings.subgenre',
     'lectureSettings.youtubeUrl',
     'lectureSettings.instructions',
+    'imageSettings.instructions',
   ],
   items: ['items'],
   review: [],
@@ -169,6 +170,9 @@ const defaultValues: WorkbookFormValues = {
   },
   lectureSettings: {
     youtubeUrl: '',
+    instructions: '',
+  },
+  imageSettings: {
     instructions: '',
   },
   items: [createEmptyItem(true)],
@@ -924,6 +928,34 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             />
           </div>
         )
+      case 'image':
+        return (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-slate-900">이미지 제출형 옵션</h3>
+              <p className="text-xs text-slate-500">
+                각 문항에 대해 학생이 사진을 업로드하여 제출합니다. 질문당 최대 5장, 각 3MB까지 업로드 가능합니다.
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name="imageSettings.instructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>제출 안내</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="예: 손글씨로 작성한 내용을 촬영하여 업로드해주세요."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )
       default:
         return null
     }
@@ -989,6 +1021,15 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             )}
           </div>
         )
+      case 'image':
+        return normalizedPreview.config.image?.instructions ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="font-medium text-slate-900">제출 안내</p>
+            <p className="whitespace-pre-line text-sm text-slate-700">
+              {normalizedPreview.config.image.instructions}
+            </p>
+          </div>
+        ) : null
       default:
         return null
     }

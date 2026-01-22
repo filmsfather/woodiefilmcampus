@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { AlertTriangle, Calendar, CheckCircle2, Clock, ListChecks } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import { ImageTaskRunner } from '@/components/dashboard/student/tasks/ImageTaskRunner'
 import { PdfTaskPanel } from '@/components/dashboard/student/tasks/PdfTaskPanel'
 import { SrsTaskRunner } from '@/components/dashboard/student/tasks/SrsTaskRunner'
 import { TextTaskRunner } from '@/components/dashboard/student/tasks/TextTaskRunner'
@@ -239,6 +240,14 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
             attachments={attachmentsByItem}
           />
         </div>
+      )
+      break
+    case 'image':
+      taskContent = (
+        <ImageTaskRunner
+          task={task}
+          instructions={(workbookConfig as { image?: { instructions?: string | null } }).image?.instructions ?? null}
+        />
       )
       break
     default:

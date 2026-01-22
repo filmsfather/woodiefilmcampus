@@ -8,7 +8,7 @@ import { getAuthContext } from '@/lib/auth'
 import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
-import { MAX_PDF_FILE_SIZE } from '@/lib/storage/limits'
+import { MAX_PDF_FILE_SIZE, MAX_IMAGE_FILE_SIZE, MAX_IMAGES_PER_QUESTION } from '@/lib/storage/limits'
 import { evaluateWritingSubmission, GradingCriteria } from '@/lib/gemini'
 
 type UploadedFilePayload = {
@@ -1311,5 +1311,486 @@ async function removeMediaAsset(supabase: AnySupabaseClient, assetId: string | n
 
   if (deleteError) {
     console.error('[student-task-actions] failed to delete media asset row', deleteError)
+  }
+}
+
+const imageUploadPayloadSchema = z.object({
+  bucket: z.string(),
+  path: z.string(),
+  size: z.number(),
+  mimeType: z.string(),
+  originalName: z.string(),
+})
+
+const imageResponsesSchema = z.object({
+  studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
+  workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
+  uploads: z.array(imageUploadPayloadSchema).min(1, '최소 1장의 이미지를 업로드해주세요.').max(MAX_IMAGES_PER_QUESTION, `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`),
+})
+
+const updateImageSubmissionSchema = z.object({
+  studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
+  studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
+  workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
+  uploads: z.array(imageUploadPayloadSchema).max(MAX_IMAGES_PER_QUESTION, `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`).default([]),
+  removedAssetIds: z.array(z.string().uuid()).default([]),
+})
+
+export async function submitImageResponses(input: z.infer<typeof imageResponsesSchema>) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'student') {
+    return { success: false as const, error: '학생 계정으로만 제출할 수 있습니다.' }
+  }
+
+  const parsed = imageResponsesSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { success: false as const, error: firstIssue?.message ?? '입력 값을 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+
+  // Validate file sizes
+  for (const upload of payload.uploads) {
+    if (upload.size > MAX_IMAGE_FILE_SIZE) {
+      const maxMb = Math.round(MAX_IMAGE_FILE_SIZE / (1024 * 1024))
+      return { success: false as const, error: `이미지 파일 크기는 최대 ${maxMb}MB까지 지원합니다.` }
+    }
+
+    if (upload.bucket !== SUBMISSIONS_BUCKET) {
+      return { success: false as const, error: '허용되지 않은 저장소 경로입니다.' }
+    }
+
+    if (!upload.path.startsWith(`student_tasks/${payload.studentTaskId}/`)) {
+      return { success: false as const, error: '파일 경로가 과제 정보와 일치하지 않습니다.' }
+    }
+
+    if (!upload.mimeType.startsWith('image/')) {
+      return { success: false as const, error: '이미지 파일만 업로드할 수 있습니다.' }
+    }
+  }
+
+  const supabase = await createServerSupabase()
+
+  const ownsTask = await ensureStudentOwnsTask(supabase, payload.studentTaskId, profile.id)
+
+  if (!ownsTask) {
+    return { success: false as const, error: '해당 과제에 접근할 수 없습니다.' }
+  }
+
+  const { data: studentTaskItem, error: studentTaskItemError } = await supabase
+    .from('student_task_items')
+    .select('id, student_task_id, item_id')
+    .eq('id', payload.studentTaskItemId)
+    .maybeSingle()
+
+  if (studentTaskItemError) {
+    console.error('[submitImageResponses] failed to load student_task_item', studentTaskItemError)
+    return { success: false as const, error: '문항 정보를 불러오지 못했습니다.' }
+  }
+
+  if (!studentTaskItem || studentTaskItem.student_task_id !== payload.studentTaskId) {
+    return { success: false as const, error: '해당 문항에 접근할 수 없습니다.' }
+  }
+
+  if (studentTaskItem.item_id !== payload.workbookItemId) {
+    return { success: false as const, error: '문항 정보가 올바르지 않습니다.' }
+  }
+
+  const now = new Date().toISOString()
+  const createdMediaAssetIds: string[] = []
+
+  try {
+    // Check for existing submission
+    const { data: existingSubmission, error: existingSubmissionError } = await supabase
+      .from('task_submissions')
+      .select('id, task_submission_assets(id, media_asset_id)')
+      .eq('student_task_id', payload.studentTaskId)
+      .eq('item_id', payload.workbookItemId)
+      .maybeSingle()
+
+    if (existingSubmissionError) {
+      console.error('[submitImageResponses] failed to load existing submission', existingSubmissionError)
+      return { success: false as const, error: '기존 제출 정보를 불러오지 못했습니다.' }
+    }
+
+    let submissionId = existingSubmission?.id ?? null
+
+    // Remove existing assets if any
+    if (existingSubmission) {
+      const existingAssets = (existingSubmission.task_submission_assets ?? []) as Array<{
+        id: string
+        media_asset_id: string | null
+      }>
+
+      for (const asset of existingAssets) {
+        if (asset.media_asset_id) {
+          await removeMediaAsset(supabase, asset.media_asset_id)
+        }
+      }
+
+      // Delete existing submission assets
+      const { error: deleteAssetsError } = await supabase
+        .from('task_submission_assets')
+        .delete()
+        .eq('submission_id', existingSubmission.id)
+
+      if (deleteAssetsError) {
+        console.error('[submitImageResponses] failed to delete existing submission assets', deleteAssetsError)
+      }
+    }
+
+    // Create or update submission
+    if (!submissionId) {
+      const { data: insertedSubmission, error: insertSubmissionError } = await supabase
+        .from('task_submissions')
+        .insert({
+          student_task_id: payload.studentTaskId,
+          item_id: payload.workbookItemId,
+          submission_type: 'image',
+          content: `이미지 ${payload.uploads.length}장 제출`,
+        })
+        .select('id')
+        .single()
+
+      if (insertSubmissionError || !insertedSubmission?.id) {
+        console.error('[submitImageResponses] failed to insert submission', insertSubmissionError)
+        return { success: false as const, error: '제출 정보를 저장하지 못했습니다.' }
+      }
+
+      submissionId = insertedSubmission.id
+    } else {
+      const { error: updateSubmissionError } = await supabase
+        .from('task_submissions')
+        .update({
+          submission_type: 'image',
+          content: `이미지 ${payload.uploads.length}장 제출`,
+          updated_at: now,
+        })
+        .eq('id', submissionId)
+
+      if (updateSubmissionError) {
+        console.error('[submitImageResponses] failed to update submission', updateSubmissionError)
+        return { success: false as const, error: '제출 정보를 업데이트하지 못했습니다.' }
+      }
+    }
+
+    // Create media assets and submission assets
+    for (let index = 0; index < payload.uploads.length; index++) {
+      const upload = payload.uploads[index]
+      const sanitizedName = upload.originalName.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255) || 'image.jpg'
+
+      const { data: mediaAsset, error: mediaAssetError } = await supabase
+        .from('media_assets')
+        .insert({
+          owner_id: profile.id,
+          scope: 'task_submission',
+          bucket: SUBMISSIONS_BUCKET,
+          path: upload.path,
+          mime_type: upload.mimeType,
+          size: upload.size,
+          metadata: { originalName: sanitizedName },
+        })
+        .select('id')
+        .single()
+
+      if (mediaAssetError || !mediaAsset?.id) {
+        console.error('[submitImageResponses] failed to insert media asset', mediaAssetError)
+        throw new Error('이미지 정보를 저장하지 못했습니다.')
+      }
+
+      createdMediaAssetIds.push(mediaAsset.id)
+
+      const { error: submissionAssetError } = await supabase
+        .from('task_submission_assets')
+        .insert({
+          submission_id: submissionId,
+          media_asset_id: mediaAsset.id,
+          order_index: index,
+          created_by: profile.id,
+        })
+
+      if (submissionAssetError) {
+        console.error('[submitImageResponses] failed to insert submission asset', submissionAssetError)
+        throw new Error('제출 파일 정보를 저장하지 못했습니다.')
+      }
+    }
+
+    // Mark item as completed
+    const { error: itemUpdateError } = await supabase
+      .from('student_task_items')
+      .update({
+        completed_at: now,
+        last_result: 'submitted',
+        updated_at: now,
+      })
+      .eq('id', payload.studentTaskItemId)
+
+    if (itemUpdateError) {
+      console.error('[submitImageResponses] failed to update student_task_item', itemUpdateError)
+      return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
+    }
+
+    // Refresh task status
+    await refreshStudentTaskStatus(supabase, payload.studentTaskId)
+
+    revalidatePath('/dashboard/student/tasks')
+    revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
+    revalidatePath('/dashboard/student/photo-diary')
+
+    return { success: true as const }
+  } catch (error) {
+    console.error('[submitImageResponses] unexpected error', error)
+
+    // Cleanup created assets on error
+    for (const mediaAssetId of createdMediaAssetIds) {
+      await removeMediaAsset(supabase, mediaAssetId)
+    }
+
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : '제출 처리 중 오류가 발생했습니다.',
+    }
+  }
+}
+
+/**
+ * 이미지 제출 수정 - 기존 이미지 개별 삭제 및 새 이미지 추가
+ */
+export async function updateImageSubmission(input: z.infer<typeof updateImageSubmissionSchema>) {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'student') {
+    return { success: false as const, error: '학생 계정으로만 수정할 수 있습니다.' }
+  }
+
+  const parsed = updateImageSubmissionSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { success: false as const, error: firstIssue?.message ?? '입력 값을 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+
+  // 아무 작업도 없으면 에러
+  if (payload.uploads.length === 0 && payload.removedAssetIds.length === 0) {
+    return { success: false as const, error: '추가하거나 삭제할 이미지를 선택해주세요.' }
+  }
+
+  // Validate new uploads
+  for (const upload of payload.uploads) {
+    if (upload.size > MAX_IMAGE_FILE_SIZE) {
+      const maxMb = Math.round(MAX_IMAGE_FILE_SIZE / (1024 * 1024))
+      return { success: false as const, error: `이미지 파일 크기는 최대 ${maxMb}MB까지 지원합니다.` }
+    }
+
+    if (upload.bucket !== SUBMISSIONS_BUCKET) {
+      return { success: false as const, error: '허용되지 않은 저장소 경로입니다.' }
+    }
+
+    if (!upload.path.startsWith(`student_tasks/${payload.studentTaskId}/`)) {
+      return { success: false as const, error: '파일 경로가 과제 정보와 일치하지 않습니다.' }
+    }
+
+    if (!upload.mimeType.startsWith('image/')) {
+      return { success: false as const, error: '이미지 파일만 업로드할 수 있습니다.' }
+    }
+  }
+
+  const supabase = await createServerSupabase()
+
+  const ownsTask = await ensureStudentOwnsTask(supabase, payload.studentTaskId, profile.id)
+
+  if (!ownsTask) {
+    return { success: false as const, error: '해당 과제에 접근할 수 없습니다.' }
+  }
+
+  const { data: studentTaskItem, error: studentTaskItemError } = await supabase
+    .from('student_task_items')
+    .select('id, student_task_id, item_id')
+    .eq('id', payload.studentTaskItemId)
+    .maybeSingle()
+
+  if (studentTaskItemError) {
+    console.error('[updateImageSubmission] failed to load student_task_item', studentTaskItemError)
+    return { success: false as const, error: '문항 정보를 불러오지 못했습니다.' }
+  }
+
+  if (!studentTaskItem || studentTaskItem.student_task_id !== payload.studentTaskId) {
+    return { success: false as const, error: '해당 문항에 접근할 수 없습니다.' }
+  }
+
+  if (studentTaskItem.item_id !== payload.workbookItemId) {
+    return { success: false as const, error: '문항 정보가 올바르지 않습니다.' }
+  }
+
+  const now = new Date().toISOString()
+  const createdMediaAssetIds: string[] = []
+
+  try {
+    // 기존 submission 조회
+    const { data: existingSubmission, error: existingSubmissionError } = await supabase
+      .from('task_submissions')
+      .select('id, task_submission_assets(id, media_asset_id, order_index)')
+      .eq('student_task_id', payload.studentTaskId)
+      .eq('item_id', payload.workbookItemId)
+      .maybeSingle()
+
+    if (existingSubmissionError) {
+      console.error('[updateImageSubmission] failed to load existing submission', existingSubmissionError)
+      return { success: false as const, error: '기존 제출 정보를 불러오지 못했습니다.' }
+    }
+
+    let submissionId = existingSubmission?.id ?? null
+    const existingAssets = (existingSubmission?.task_submission_assets ?? []) as Array<{
+      id: string
+      media_asset_id: string | null
+      order_index: number | null
+    }>
+
+    // 삭제 대상 asset 확인
+    const assetsToRemove = existingAssets.filter((asset) =>
+      payload.removedAssetIds.includes(asset.id)
+    )
+    const remainingAssets = existingAssets.filter((asset) =>
+      !payload.removedAssetIds.includes(asset.id)
+    )
+
+    // 최종 이미지 개수 체크
+    const finalImageCount = remainingAssets.length + payload.uploads.length
+
+    if (finalImageCount === 0) {
+      return { success: false as const, error: '최소 1장의 이미지가 필요합니다.' }
+    }
+
+    if (finalImageCount > MAX_IMAGES_PER_QUESTION) {
+      return { success: false as const, error: `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.` }
+    }
+
+    // submission이 없으면 생성
+    if (!submissionId) {
+      const { data: insertedSubmission, error: insertSubmissionError } = await supabase
+        .from('task_submissions')
+        .insert({
+          student_task_id: payload.studentTaskId,
+          item_id: payload.workbookItemId,
+          submission_type: 'image',
+          content: `이미지 ${finalImageCount}장 제출`,
+        })
+        .select('id')
+        .single()
+
+      if (insertSubmissionError || !insertedSubmission?.id) {
+        console.error('[updateImageSubmission] failed to insert submission', insertSubmissionError)
+        return { success: false as const, error: '제출 정보를 저장하지 못했습니다.' }
+      }
+
+      submissionId = insertedSubmission.id
+    }
+
+    // 선택된 asset 삭제
+    for (const asset of assetsToRemove) {
+      if (asset.media_asset_id) {
+        await removeMediaAsset(supabase, asset.media_asset_id)
+      }
+      await supabase.from('task_submission_assets').delete().eq('id', asset.id)
+    }
+
+    // 새 이미지 추가
+    let nextOrderIndex = Math.max(0, ...remainingAssets.map((a) => (a.order_index ?? 0) + 1))
+
+    for (const upload of payload.uploads) {
+      const sanitizedName = upload.originalName.replace(/[\u0000-\u001f\u007f]/g, '').slice(0, 255) || 'image.jpg'
+
+      const { data: mediaAsset, error: mediaAssetError } = await supabase
+        .from('media_assets')
+        .insert({
+          owner_id: profile.id,
+          scope: 'task_submission',
+          bucket: SUBMISSIONS_BUCKET,
+          path: upload.path,
+          mime_type: upload.mimeType,
+          size: upload.size,
+          metadata: { originalName: sanitizedName },
+        })
+        .select('id')
+        .single()
+
+      if (mediaAssetError || !mediaAsset?.id) {
+        console.error('[updateImageSubmission] failed to insert media asset', mediaAssetError)
+        throw new Error('이미지 정보를 저장하지 못했습니다.')
+      }
+
+      createdMediaAssetIds.push(mediaAsset.id)
+
+      const { error: submissionAssetError } = await supabase
+        .from('task_submission_assets')
+        .insert({
+          submission_id: submissionId,
+          media_asset_id: mediaAsset.id,
+          order_index: nextOrderIndex,
+          created_by: profile.id,
+        })
+
+      if (submissionAssetError) {
+        console.error('[updateImageSubmission] failed to insert submission asset', submissionAssetError)
+        throw new Error('제출 파일 정보를 저장하지 못했습니다.')
+      }
+
+      nextOrderIndex += 1
+    }
+
+    // submission content 업데이트
+    const { error: updateSubmissionError } = await supabase
+      .from('task_submissions')
+      .update({
+        content: `이미지 ${finalImageCount}장 제출`,
+        updated_at: now,
+      })
+      .eq('id', submissionId)
+
+    if (updateSubmissionError) {
+      console.error('[updateImageSubmission] failed to update submission', updateSubmissionError)
+    }
+
+    // 문항 상태 업데이트 (완료 유지)
+    const { error: itemUpdateError } = await supabase
+      .from('student_task_items')
+      .update({
+        completed_at: now,
+        last_result: 'submitted',
+        updated_at: now,
+      })
+      .eq('id', payload.studentTaskItemId)
+
+    if (itemUpdateError) {
+      console.error('[updateImageSubmission] failed to update student_task_item', itemUpdateError)
+      return { success: false as const, error: '문항 상태를 업데이트하지 못했습니다.' }
+    }
+
+    // 과제 상태 갱신
+    await refreshStudentTaskStatus(supabase, payload.studentTaskId)
+
+    revalidatePath('/dashboard/student/tasks')
+    revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
+    revalidatePath('/dashboard/student/photo-diary')
+
+    return { success: true as const }
+  } catch (error) {
+    console.error('[updateImageSubmission] unexpected error', error)
+
+    // 에러 발생 시 생성한 asset 정리
+    for (const mediaAssetId of createdMediaAssetIds) {
+      await removeMediaAsset(supabase, mediaAssetId)
+    }
+
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : '수정 처리 중 오류가 발생했습니다.',
+    }
   }
 }
