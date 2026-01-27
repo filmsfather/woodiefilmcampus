@@ -199,3 +199,97 @@ export async function deleteEquipmentSlot(payload: unknown) {
   return { success: true as const }
 }
 
+// 예약 취소 (선생님이 학생 예약 취소)
+const cancelRentalSchema = z.object({
+  rentalId: z.string().uuid('유효한 예약 ID가 아닙니다.'),
+})
+
+export async function cancelEquipmentRental(payload: unknown) {
+  const teacher = await requireTeacherProfile()
+  const parsed = cancelRentalSchema.safeParse(payload)
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return { error: issue?.message ?? '취소할 예약을 확인해주세요.' }
+  }
+
+  const { rentalId } = parsed.data
+  const supabase = createAdminClient()
+
+  // 예약 정보 조회
+  const { data: rental, error: fetchError } = await supabase
+    .from('equipment_rentals')
+    .select('id, slot_id, status')
+    .eq('id', rentalId)
+    .single()
+
+  if (fetchError || !rental) {
+    console.error('[equipment] fetch rental error', fetchError)
+    return { error: '예약 정보를 찾을 수 없습니다.' }
+  }
+
+  // 이미 반납 완료된 예약은 취소 불가
+  if (rental.status === 'returned') {
+    return { error: '이미 반납 완료된 예약은 취소할 수 없습니다.' }
+  }
+
+  // 예약 삭제
+  const { error: deleteError } = await supabase
+    .from('equipment_rentals')
+    .delete()
+    .eq('id', rentalId)
+
+  if (deleteError) {
+    console.error('[equipment] delete rental error', deleteError)
+    return { error: '예약을 취소하지 못했습니다.' }
+  }
+
+  // 슬롯을 다시 'open' 상태로 변경
+  const { error: updateError } = await supabase
+    .from('equipment_slots')
+    .update({ status: 'open' as EquipmentSlotStatus, updated_by: teacher.id })
+    .eq('id', rental.slot_id)
+
+  if (updateError) {
+    console.error('[equipment] update slot status after cancel error', updateError)
+    // 예약은 이미 삭제됨, 슬롯 상태만 실패 - 에러 로그만 남김
+  }
+
+  revalidatePath('/dashboard/teacher/film-production')
+  revalidatePath('/dashboard/student/equipment-rental')
+  return { success: true as const }
+}
+
+// 예약 메모 수정 (선생님이 학생 예약 메모 수정)
+const updateRentalMemoSchema = z.object({
+  rentalId: z.string().uuid('유효한 예약 ID가 아닙니다.'),
+  memo: z.string().max(200, '메모는 200자 이내로 입력해주세요.').nullable(),
+})
+
+export async function updateEquipmentRentalMemo(payload: unknown) {
+  await requireTeacherProfile()
+  const parsed = updateRentalMemoSchema.safeParse(payload)
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return { error: issue?.message ?? '수정할 내용을 확인해주세요.' }
+  }
+
+  const { rentalId, memo } = parsed.data
+  const supabase = createAdminClient()
+
+  const { error } = await supabase
+    .from('equipment_rentals')
+    .update({ memo })
+    .eq('id', rentalId)
+
+  if (error) {
+    console.error('[equipment] update rental memo error', error)
+    return { error: '메모를 수정하지 못했습니다.' }
+  }
+
+  revalidatePath('/dashboard/teacher/film-production')
+  revalidatePath('/dashboard/student/equipment-rental')
+  return { success: true as const }
+}
+

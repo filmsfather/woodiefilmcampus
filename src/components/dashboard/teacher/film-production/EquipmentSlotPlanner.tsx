@@ -21,11 +21,34 @@ import {
   updateEquipmentSlotStatus,
   deleteEquipmentSlot,
   batchOpenEquipmentSlots,
+  cancelEquipmentRental,
+  updateEquipmentRentalMemo,
 } from '@/app/dashboard/teacher/film-production/actions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -97,6 +120,12 @@ export function EquipmentSlotPlanner({
   const [batchSetA, setBatchSetA] = useState(true)
   const [batchSetB, setBatchSetB] = useState(true)
   const [isBatchOpening, setIsBatchOpening] = useState(false)
+
+  // 예약 취소/수정 관련 상태
+  const [cancellingRentalId, setCancellingRentalId] = useState<string | null>(null)
+  const [editingRentalId, setEditingRentalId] = useState<string | null>(null)
+  const [editMemo, setEditMemo] = useState('')
+  const [isSavingMemo, setIsSavingMemo] = useState(false)
 
   const [year, month] = selectedDate
     .split('-')
@@ -254,6 +283,56 @@ export function EquipmentSlotPlanner({
     }
   }
 
+  const handleCancelRental = async (rentalId: string) => {
+    setCancellingRentalId(rentalId)
+    setFeedback(null)
+    try {
+      const result = await cancelEquipmentRental({ rentalId })
+      if (result?.error) {
+        setFeedback({ type: 'error', message: result.error })
+      } else {
+        setFeedback({ type: 'success', message: '예약이 취소되었습니다.' })
+        router.refresh()
+      }
+    } catch (error) {
+      console.error('[equipment] cancel rental client error', error)
+      setFeedback({ type: 'error', message: '예약 취소에 실패했습니다.' })
+    } finally {
+      setCancellingRentalId(null)
+    }
+  }
+
+  const handleOpenEditMemo = (rentalId: string, currentMemo: string | null) => {
+    setEditingRentalId(rentalId)
+    setEditMemo(currentMemo ?? '')
+  }
+
+  const handleSaveMemo = async () => {
+    if (!editingRentalId) return
+
+    setIsSavingMemo(true)
+    setFeedback(null)
+    try {
+      const result = await updateEquipmentRentalMemo({
+        rentalId: editingRentalId,
+        memo: editMemo.trim() || null,
+      })
+      if (result?.error) {
+        setFeedback({ type: 'error', message: result.error })
+      } else {
+        setFeedback({ type: 'success', message: '메모가 수정되었습니다.' })
+        setEditingRentalId(null)
+        setEditMemo('')
+        router.refresh()
+      }
+    } catch (error) {
+      console.error('[equipment] update memo client error', error)
+      setFeedback({ type: 'error', message: '메모 수정에 실패했습니다.' })
+    } finally {
+      setIsSavingMemo(false)
+    }
+  }
+
   const renderSetSlot = (setType: EquipmentSetType) => {
     const slot = slotBySetType.get(setType)
     const isBusy = busySlotId === slot?.id
@@ -326,14 +405,109 @@ export function EquipmentSlotPlanner({
 
         {slot.rental && (
           <div className="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2">
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-semibold text-amber-800">{slot.rental.studentName}</span>
-              {slot.rental.className && (
-                <span className="text-amber-700">({slot.rental.className})</span>
-              )}
-              <Badge className={getRentalStatusBadgeStyle(slot.rental.status)}>
-                {formatRentalStatusLabel(slot.rental.status)}
-              </Badge>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="font-semibold text-amber-800">{slot.rental.studentName}</span>
+                {slot.rental.className && (
+                  <span className="text-amber-700">({slot.rental.className})</span>
+                )}
+                <Badge className={getRentalStatusBadgeStyle(slot.rental.status)}>
+                  {formatRentalStatusLabel(slot.rental.status)}
+                </Badge>
+              </div>
+              <div className="flex items-center gap-1">
+                {/* 메모 수정 다이얼로그 */}
+                <Dialog
+                  open={editingRentalId === slot.rental.id}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setEditingRentalId(null)
+                      setEditMemo('')
+                    }
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs text-amber-700 hover:bg-amber-100"
+                      onClick={() => handleOpenEditMemo(slot.rental!.id, slot.rental!.memo)}
+                    >
+                      메모 수정
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>예약 메모 수정</DialogTitle>
+                      <DialogDescription>
+                        {slot.rental.studentName}님의 예약 메모를 수정합니다.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Textarea
+                      value={editMemo}
+                      onChange={(e) => setEditMemo(e.target.value)}
+                      placeholder="메모를 입력하세요 (최대 200자)"
+                      maxLength={200}
+                      rows={3}
+                    />
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingRentalId(null)
+                          setEditMemo('')
+                        }}
+                      >
+                        취소
+                      </Button>
+                      <Button onClick={handleSaveMemo} disabled={isSavingMemo}>
+                        {isSavingMemo ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : null}
+                        저장
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                {/* 예약 취소 확인 다이얼로그 */}
+                {slot.rental.status !== 'returned' && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                        disabled={cancellingRentalId === slot.rental.id}
+                      >
+                        {cancellingRentalId === slot.rental.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          '취소'
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>예약을 취소하시겠습니까?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {slot.rental.studentName}님의 {formatSetTypeLabel(setType)} 예약을
+                          취소합니다. 이 작업은 되돌릴 수 없습니다.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>돌아가기</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-red-600 hover:bg-red-700"
+                          onClick={() => handleCancelRental(slot.rental!.id)}
+                        >
+                          예약 취소
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+              </div>
             </div>
             {slot.rental.memo && (
               <p className="mt-1 text-xs text-amber-700">{slot.rental.memo}</p>

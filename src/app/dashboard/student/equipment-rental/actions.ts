@@ -242,3 +242,58 @@ export async function completeReturn(payload: unknown) {
   return { success: true as const }
 }
 
+// 예약 취소 (학생 본인이 취소)
+const cancelRentalSchema = z.object({
+  rentalId: z.string().uuid('유효한 대여 ID가 아닙니다.'),
+})
+
+export async function cancelMyRental(payload: unknown) {
+  const student = await requireStudentProfile()
+
+  const parsed = cancelRentalSchema.safeParse(payload)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return { error: issue?.message ?? '취소할 예약을 확인해주세요.' }
+  }
+
+  const { rentalId } = parsed.data
+  const supabase = createAdminClient()
+
+  // 본인 대여인지 확인
+  const { data: rental, error: fetchError } = await supabase
+    .from('equipment_rentals')
+    .select('id, status, slot_id')
+    .eq('id', rentalId)
+    .eq('student_id', student.id)
+    .maybeSingle()
+
+  if (fetchError || !rental) {
+    return { error: '예약 정보를 찾을 수 없습니다.' }
+  }
+
+  // 대여 대기 상태에서만 취소 가능 (이미 대여 중이면 취소 불가)
+  if (rental.status !== 'pending') {
+    return { error: '대여 대기 상태에서만 예약을 취소할 수 있습니다.' }
+  }
+
+  // 예약 삭제
+  const { error: deleteError } = await supabase
+    .from('equipment_rentals')
+    .delete()
+    .eq('id', rentalId)
+    .eq('student_id', student.id)
+
+  if (deleteError) {
+    console.error('[equipment] cancel rental error', deleteError)
+    return { error: '예약을 취소하지 못했습니다.' }
+  }
+
+  // 슬롯을 다시 'open' 상태로 변경
+  await supabase.from('equipment_slots').update({ status: 'open' }).eq('id', rental.slot_id)
+
+  revalidatePath('/dashboard/teacher/film-production')
+  revalidatePath('/dashboard/student/equipment-rental')
+
+  return { success: true as const }
+}
+

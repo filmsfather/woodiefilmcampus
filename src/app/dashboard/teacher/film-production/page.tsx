@@ -2,7 +2,7 @@ import { EquipmentSlotPlanner } from '@/components/dashboard/teacher/film-produc
 import { RentalReviewPanel } from '@/components/dashboard/teacher/film-production/RentalReviewPanel'
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   getMonthRange,
   getTodayISOInKst,
@@ -45,7 +45,7 @@ export default async function FilmProductionPage(props: {
   const month = Number(monthStr)
   const { start, end } = getMonthRange(year, month)
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const { data: slotRows, error } = await supabase
     .from('equipment_slots')
     .select(

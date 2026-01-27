@@ -11,6 +11,7 @@ import {
   type EquipmentSetType,
   type EquipmentRentalStatus,
 } from '@/lib/equipment-rental'
+import { formatForDisplay } from '@/lib/date-util'
 import { EQUIPMENT_RENTAL_BUCKET } from '@/lib/storage/buckets'
 import { createClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
@@ -102,7 +103,7 @@ function PhotoViewer({
           <span className="text-sm font-medium">{label} 사진 보기</span>
           {timestamp && (
             <span className="text-xs text-slate-500">
-              {new Date(timestamp).toLocaleString('ko-KR')}
+              {formatForDisplay(timestamp, { dateStyle: 'short', timeStyle: 'short' })}
             </span>
           )}
         </Button>
@@ -172,7 +173,7 @@ export function RentalReviewPanel({ rentals, selectedDate }: RentalReviewPanelPr
                   )}
                   <div className="flex items-center gap-1 text-xs text-slate-400">
                     <Calendar className="h-3 w-3" />
-                    예약: {new Date(rental.createdAt).toLocaleString('ko-KR')}
+                    예약: {formatForDisplay(rental.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
                   </div>
                 </div>
               </div>
