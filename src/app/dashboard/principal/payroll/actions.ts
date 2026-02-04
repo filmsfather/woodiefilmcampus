@@ -104,7 +104,9 @@ const requestSchema = z.object({
 })
 
 function toDateFromToken(token: string): Date {
-  return new Date(`${token}T00:00:00+09:00`)
+  // UTC 자정으로 생성하여 DateUtil과 일관성 유지
+  const [year, month, day] = token.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day))
 }
 
 function formatDateToken(date: Date): string {
@@ -482,6 +484,7 @@ export async function requestPayrollConfirmation(formData: FormData) {
   const periodStart = toDateFromToken(monthRange.startDate)
   const periodEndExclusive = toDateFromToken(monthRange.endExclusiveDate)
   const periodEnd = new Date(periodEndExclusive.getTime() - 24 * 60 * 60 * 1000)
+
   const teacherDirectory = await fetchTeacherDirectory()
   const teacher = teacherDirectory[input.teacherId]
 

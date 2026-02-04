@@ -205,6 +205,10 @@ export default async function TeacherWorkJournalPage(props: {
         weeklyHolidayAllowanceHours,
         weeklySummaries,
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'teacher/work-journal/page.tsx:208',message:'payrollCard built',data:{totalWorkHours,weeklyHolidayAllowanceHours,weeklySummariesCount:weeklySummaries.length,weeklySummaries:weeklySummaries.map(s=>({weekStart:s.weekStart,weekEnd:s.weekEnd,totalWorkHours:s.totalWorkHours})),netPay},timestamp:Date.now(),sessionId:'debug-session',hypothesisId:'B,C'})}).catch(()=>{});
+      // #endregion
     }
   } catch (error) {
     console.error('[teacher-work-journal] payroll card error', error)
