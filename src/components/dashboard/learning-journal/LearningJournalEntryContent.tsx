@@ -39,6 +39,7 @@ interface HeaderMetaItem {
 
 interface EntryHeaderInfo {
   title: string
+  photoUrl?: string | null
   subtitle?: string | null
   meta?: HeaderMetaItem[]
 }
@@ -263,6 +264,7 @@ export function LearningJournalEntryContent({
             entries={entries}
             availableClasses={availableClasses}
             currentClassId={currentClassId}
+            photoUrl={header.photoUrl}
           />
         ) : (
           <h1 className="text-2xl font-semibold text-slate-900">{header.title}</h1>
@@ -507,7 +509,7 @@ export function LearningJournalEntryContent({
       </Card>
 
       {commentSlot ? (
-        commentSlot
+        <>{commentSlot}</>
       ) : hasAnyComment ? (
         <Card className="border-slate-200">
           <CardHeader>

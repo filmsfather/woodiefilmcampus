@@ -73,7 +73,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
 
   const { data: studentRow, error: studentError } = await supabase
     .from('profiles')
-    .select('id, name, email')
+    .select('id, name, email, photo_url')
     .eq('id', entry.studentId)
     .maybeSingle()
 
@@ -82,6 +82,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
   }
 
   const studentName = studentRow?.name ?? studentRow?.email ?? '학생 정보 없음'
+  const studentPhotoUrl = studentRow?.photo_url ?? null
 
   const comments = await fetchLearningJournalComments(entry.id)
   const commentLookup = new Map(
@@ -236,6 +237,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
             className={classInfo?.name ?? '반 미지정'}
             header={{
               title: studentName,
+              photoUrl: studentPhotoUrl,
               subtitle: `${classInfo?.name ?? '반 미지정'} · ${periodRow.label ?? `${periodRow.start_date} ~ ${periodRow.end_date}`
                 }`,
               meta: [

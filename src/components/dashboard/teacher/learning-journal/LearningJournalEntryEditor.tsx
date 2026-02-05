@@ -34,6 +34,7 @@ interface HeaderMetaItem {
 
 interface EntryHeaderInfo {
   title: string
+  photoUrl?: string | null
   subtitle?: string | null
   meta?: HeaderMetaItem[]
 }

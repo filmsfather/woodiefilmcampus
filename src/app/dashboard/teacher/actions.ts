@@ -1059,3 +1059,148 @@ async function deleteStudentTaskCascade(studentTaskId: string): Promise<DeleteRe
 
   return { success: true as const, message: 'student_tasks:deleted_after_children' }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Student Photo Management
+// ─────────────────────────────────────────────────────────────────────────────
+
+const updatePhotoSchema = z.object({
+  studentId: z.string().uuid('유효한 학생 ID가 아닙니다.'),
+  photoPath: z.string().min(1, '사진 경로가 필요합니다.'),
+})
+
+type UpdatePhotoInput = z.infer<typeof updatePhotoSchema>
+
+export async function updateStudentPhoto(input: UpdatePhotoInput) {
+  const { profile } = await getAuthContext()
+
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 학생 사진을 변경할 수 있습니다.' }
+  }
+
+  const parsed = updatePhotoSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '요청 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  // RLS 정책이 본인 프로필만 수정 허용하므로, admin client 사용
+  const supabase = createAdminClient()
+
+  try {
+    // 학생 프로필 존재 확인
+    const { data: student, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id, role')
+      .eq('id', payload.studentId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[teacher] updateStudentPhoto fetch error', fetchError)
+      return { error: '학생 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!student) {
+      return { error: '학생을 찾을 수 없습니다.' }
+    }
+
+    if (student.role !== 'student') {
+      return { error: '학생 계정에만 사진을 등록할 수 있습니다.' }
+    }
+
+    // photo_url 업데이트
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ photo_url: payload.photoPath })
+      .eq('id', payload.studentId)
+
+    if (updateError) {
+      console.error('[teacher] updateStudentPhoto update error', updateError)
+      return { error: '학생 사진 저장 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath('/dashboard/manager')
+
+    return { success: true as const }
+  } catch (error) {
+    console.error('[teacher] updateStudentPhoto unexpected error', error)
+    return { error: '학생 사진 업데이트 중 문제가 발생했습니다.' }
+  }
+}
+
+const deletePhotoSchema = z.object({
+  studentId: z.string().uuid('유효한 학생 ID가 아닙니다.'),
+})
+
+type DeletePhotoInput = z.infer<typeof deletePhotoSchema>
+
+export async function deleteStudentPhoto(input: DeletePhotoInput) {
+  const { profile } = await getAuthContext()
+
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '교사·실장·원장 계정으로만 학생 사진을 삭제할 수 있습니다.' }
+  }
+
+  const parsed = deletePhotoSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '요청 정보를 확인해주세요.' }
+  }
+
+  const payload = parsed.data
+  // RLS 정책이 본인 프로필만 수정 허용하므로, admin client 사용
+  const supabase = createAdminClient()
+
+  try {
+    // 기존 사진 경로 가져오기
+    const { data: student, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id, photo_url')
+      .eq('id', payload.studentId)
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[teacher] deleteStudentPhoto fetch error', fetchError)
+      return { error: '학생 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!student) {
+      return { error: '학생을 찾을 수 없습니다.' }
+    }
+
+    // 스토리지에서 파일 삭제 (경로가 있는 경우)
+    if (student.photo_url) {
+      const { error: storageError } = await supabase.storage
+        .from('profile-photos')
+        .remove([student.photo_url])
+
+      if (storageError) {
+        console.error('[teacher] deleteStudentPhoto storage error', storageError)
+        // 스토리지 삭제 실패해도 DB는 업데이트 (파일이 이미 없을 수도 있음)
+      }
+    }
+
+    // photo_url을 null로 업데이트
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ photo_url: null })
+      .eq('id', payload.studentId)
+
+    if (updateError) {
+      console.error('[teacher] deleteStudentPhoto update error', updateError)
+      return { error: '학생 사진 삭제 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    revalidatePath('/dashboard/manager')
+
+    return { success: true as const }
+  } catch (error) {
+    console.error('[teacher] deleteStudentPhoto unexpected error', error)
+    return { error: '학생 사진 삭제 중 문제가 발생했습니다.' }
+  }
+}

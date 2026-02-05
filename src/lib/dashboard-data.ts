@@ -54,6 +54,7 @@ export interface AssignedClass {
     student_phone?: string | null
     parent_phone?: string | null
     academic_record?: string | null
+    photo_url?: string | null
   }>
 }
 
@@ -226,7 +227,7 @@ export async function fetchAssignedClasses(
   const classIds = classes.map((c) => c.id)
   const { data: classStudentsData } = await supabase
     .from('class_students')
-    .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name, email, student_phone, parent_phone, academic_record)')
+    .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name, email, student_phone, parent_phone, academic_record, photo_url)')
     .in('class_id', classIds)
 
   const studentsByClass = new Map<string, Array<{
@@ -236,6 +237,7 @@ export async function fetchAssignedClasses(
     student_phone?: string | null
     parent_phone?: string | null
     academic_record?: string | null
+    photo_url?: string | null
   }>>()
 
   classStudentsData?.forEach((row) => {
@@ -249,6 +251,7 @@ export async function fetchAssignedClasses(
         student_phone: profile.student_phone,
         parent_phone: profile.parent_phone,
         academic_record: profile.academic_record,
+        photo_url: profile.photo_url,
       })
       studentsByClass.set(row.class_id, list)
     }
