@@ -45,6 +45,24 @@ const TODO_ACTIONS: DashboardActionItem[] = [
     description: '학원 소식과 알림을 확인하고 지난 공지사항을 찾아봅니다.',
     variant: 'outline',
   },
+  {
+    label: '사진일기',
+    href: '/dashboard/student/photo-diary',
+    description: '이미지 제출형 과제에서 제출한 사진들을 한눈에 확인하세요.',
+    variant: 'default',
+  },
+  {
+    label: '모두의 사진일기',
+    href: '/dashboard/shared-photo-diary',
+    description: '모든 학생이 공유한 사진일기를 함께 감상하고 소통해 보세요.',
+    variant: 'secondary',
+  },
+  {
+    label: 'Culture Picks',
+    href: '/dashboard/culture-picks',
+    description: '선생님이 추천하는 책, 영화, 음악을 함께 감상하고 이야기해요.',
+    variant: 'outline',
+  },
 ]
 
 const DONE_ACTIONS: DashboardActionItem[] = [
@@ -65,18 +83,6 @@ const DONE_ACTIONS: DashboardActionItem[] = [
     href: '/dashboard/student/atelier',
     description: '다른 친구들의 과제를 둘러보고 배울 점을 발견해 보세요.',
     variant: 'outline',
-  },
-  {
-    label: '사진일기',
-    href: '/dashboard/student/photo-diary',
-    description: '이미지 제출형 과제에서 제출한 사진들을 한눈에 확인하세요.',
-    variant: 'default',
-  },
-  {
-    label: '모두의 사진일기',
-    href: '/dashboard/shared-photo-diary',
-    description: '모든 학생이 공유한 사진일기를 함께 감상하고 소통해 보세요.',
-    variant: 'secondary',
   },
   {
     label: '우디쌤 인터넷강의 시청',

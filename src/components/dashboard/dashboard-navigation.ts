@@ -154,6 +154,13 @@ const teacherSections: NavigationSection[] = [
       { label: '영화제작', href: '/dashboard/teacher/film-production' },
     ],
   },
+  {
+    id: 'teacher-communication',
+    title: '소통',
+    items: [
+      { label: 'Culture Picks', href: '/dashboard/culture-picks' },
+    ],
+  },
 ]
 
 const studentSections: NavigationSection[] = [
@@ -172,6 +179,9 @@ const studentSections: NavigationSection[] = [
       { label: '이번달 학습 계획', href: '/dashboard/student/monthly-plan' },
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
       { label: '공지사항 게시판', href: '/dashboard/student/notices' },
+      { label: '사진일기', href: '/dashboard/student/photo-diary' },
+      { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
+      { label: 'Culture Picks', href: '/dashboard/culture-picks' },
     ],
   },
   {
@@ -180,8 +190,6 @@ const studentSections: NavigationSection[] = [
     items: [
       { label: '지난달 학습 일지', href: '/dashboard/student/learning-journal' },
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
-      { label: '사진일기', href: '/dashboard/student/photo-diary' },
-      { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
       { label: '장비 대여', href: '/dashboard/student/equipment-rental' },

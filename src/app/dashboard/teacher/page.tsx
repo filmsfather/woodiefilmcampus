@@ -50,6 +50,17 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
     ],
   },
   {
+    title: '소통',
+    description: '학생들과 책, 영화, 음악에 대해 함께 이야기해요.',
+    actions: [
+      {
+        label: 'Culture Picks',
+        href: '/dashboard/culture-picks',
+        description: '이달의 책/영화/음악을 추천하고 학생들과 소통하세요.',
+      },
+    ],
+  },
+  {
     title: '수업자료',
     description: '수업과 입시에 필요한 자료 아카이브를 한곳에서 확인하세요.',
     actions: [
