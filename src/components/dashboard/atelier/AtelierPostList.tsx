@@ -39,7 +39,26 @@ function formatDateTime(value: string) {
     if (Number.isNaN(date.getTime())) {
       return '-'
     }
-    // Use explicit formatting to avoid hydration mismatch between server/client locales
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = date.getHours()
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const period = hours < 12 ? '오전' : '오후'
+    const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+
+    return `${month}.${day} ${period} ${displayHour}:${minutes}`
+  } catch (error) {
+    console.error('[AtelierPostList] invalid date', error)
+    return '-'
+  }
+}
+
+function formatDateTimeFull(value: string) {
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return undefined
+    }
     const year = date.getFullYear()
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
@@ -49,9 +68,8 @@ function formatDateTime(value: string) {
     const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
 
     return `${year}. ${month}. ${day}. ${period} ${displayHour}:${minutes}`
-  } catch (error) {
-    console.error('[AtelierPostList] invalid date', error)
-    return '-'
+  } catch {
+    return undefined
   }
 }
 
@@ -328,14 +346,14 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[160px] whitespace-nowrap">학생</TableHead>
-              <TableHead className="w-[140px] whitespace-nowrap">반</TableHead>
-              <TableHead className="w-[220px] whitespace-nowrap">문제집</TableHead>
-              <TableHead className="w-[120px] whitespace-nowrap">과목</TableHead>
-              <TableHead className="w-[120px] whitespace-nowrap">주차</TableHead>
-              <TableHead className="w-[160px] whitespace-nowrap">제출일</TableHead>
-              <TableHead className="w-[140px] whitespace-nowrap text-center">상태</TableHead>
-              <TableHead className="w-[240px] whitespace-nowrap">작업</TableHead>
+              <TableHead>학생</TableHead>
+              <TableHead>반</TableHead>
+              <TableHead>문제집</TableHead>
+              <TableHead>과목</TableHead>
+              <TableHead>주차</TableHead>
+              <TableHead>제출일</TableHead>
+              <TableHead className="text-center">상태</TableHead>
+              <TableHead>작업</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -353,26 +371,28 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
 
                 return (
                   <TableRow key={item.id} className={hidden ? 'bg-slate-50' : undefined}>
-                    <TableCell className="flex flex-col gap-1 whitespace-nowrap text-sm text-slate-700">
-                      <span className="font-medium text-slate-900">{item.studentName}</span>
-                      {isOwner ? <Badge variant="outline">내 제출</Badge> : null}
+                    <TableCell className="text-sm text-slate-700">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-slate-900">{item.studentName}</span>
+                        {isOwner ? <Badge variant="outline">내 제출</Badge> : null}
+                      </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                    <TableCell className="text-sm text-slate-600">
                       {item.className ? item.className : <span className="text-slate-400">미지정</span>}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-slate-700">
+                    <TableCell className="whitespace-normal break-words text-sm text-slate-700">
                       {item.workbookTitle ? item.workbookTitle : <span className="text-slate-400">제목 없음</span>}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                    <TableCell className="text-sm text-slate-600">
                       {item.workbookSubject ? item.workbookSubject : <span className="text-slate-400">-</span>}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                    <TableCell className="text-sm text-slate-600">
                       {item.weekLabel ? item.weekLabel : <span className="text-slate-400">-</span>}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-slate-600">
+                    <TableCell className="text-sm text-slate-600" title={formatDateTimeFull(item.submittedAt)}>
                       {formatDateTime(item.submittedAt)}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-center">
+                    <TableCell className="text-center">
                       <div className="flex flex-col items-center gap-1 text-xs">
                         {item.isFeatured ? (
                           isTeacherView ? (
@@ -408,7 +428,7 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap text-sm text-slate-700">
+                    <TableCell className="whitespace-normal text-sm text-slate-700">
                       {renderActions(item)}
                     </TableCell>
                   </TableRow>

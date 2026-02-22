@@ -3,7 +3,6 @@ import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
 type RawPrintRequestItemRow = {
@@ -83,7 +82,6 @@ export default async function ManagerPrintRequestsPage({
 }) {
   const { profile } = await requireAuthForDashboard('manager')
   const supabase = await createClient()
-  const storageAdmin = createAdminClient()
   const resolvedSearchParams = await searchParams
   const weekRange = resolveWeekRange(resolvedSearchParams.week ?? null)
   const desiredDateStart = DateUtil.formatISODate(weekRange.start)
@@ -172,8 +170,10 @@ export default async function ManagerPrintRequestsPage({
     (row) => row.status !== 'canceled'
   )
 
-  const printRequestsUnsorted = await Promise.all(
-    rawPrintRequests.map(async (row) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'07b4df'},body:JSON.stringify({sessionId:'07b4df',location:'print-requests/page.tsx:rawItems',message:'Raw print request items',data:{requests:rawPrintRequests.map(r=>({id:r.id,itemCount:r.print_request_items?.length??0,items:r.print_request_items?.map(i=>({id:i.id,student_task_id:i.student_task_id,asset_filename:i.asset_filename,media_asset_id:i.media_asset_id,media_asset:i.media_asset}))}))},timestamp:Date.now(),hypothesisId:'A,B'})}).catch(()=>{});
+  // #endregion
+  const printRequestsUnsorted = rawPrintRequests.map((row) => {
       const teacherRecord = Array.isArray(row.teacher) ? row.teacher[0] : row.teacher
       const assignmentRecord = Array.isArray(row.assignment) ? row.assignment[0] : row.assignment
       const workbook = assignmentRecord?.workbooks
@@ -189,53 +189,28 @@ export default async function ManagerPrintRequestsPage({
         : null
 
       const rawItems = row.print_request_items ?? []
-      const items = await Promise.all(
-        rawItems.map(async (item) => {
-          const studentTask = Array.isArray(item.student_task) ? item.student_task[0] : item.student_task
-          const itemProfile = studentTask?.profiles
-            ? Array.isArray(studentTask.profiles)
-              ? studentTask.profiles[0]
-              : studentTask.profiles
-            : null
-          const studentId = studentTask?.id ?? item.student_task_id
-          const studentName = itemProfile?.name ?? itemProfile?.email ?? '학생 미확인'
+      const items = rawItems.map((item) => {
+        const studentTask = Array.isArray(item.student_task) ? item.student_task[0] : item.student_task
+        const itemProfile = studentTask?.profiles
+          ? Array.isArray(studentTask.profiles)
+            ? studentTask.profiles[0]
+            : studentTask.profiles
+          : null
+        const studentId = studentTask?.id ?? item.student_task_id
+        const studentName = itemProfile?.name ?? itemProfile?.email ?? '학생 미확인'
 
-          const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
-          let downloadUrl: string | null = null
-          if (mediaAsset?.bucket && mediaAsset.path) {
-            try {
-              const { data: signedData, error: signedError } = await storageAdmin.storage
-                .from(mediaAsset.bucket)
-                .createSignedUrl(mediaAsset.path, 60 * 30)
-              if (signedError) {
-                console.error('[manager-print-requests] signed url error', {
-                  requestId: row.id,
-                  itemId: item.id,
-                  error: signedError,
-                })
-              } else {
-                downloadUrl = signedData?.signedUrl ?? null
-              }
-            } catch (error) {
-              console.error('[manager-print-requests] signed url unexpected error', {
-                requestId: row.id,
-                itemId: item.id,
-                error,
-              })
-            }
-          }
+        const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
+        const fileName = item.asset_filename ?? (mediaAsset?.path ? mediaAsset.path.split('/').pop() ?? mediaAsset.path : '제출물')
 
-          const fileName = item.asset_filename ?? (mediaAsset?.path ? mediaAsset.path.split('/').pop() ?? mediaAsset.path : '제출물')
-
-          return {
-            id: item.id,
-            studentId,
-            studentName,
-            fileName,
-            downloadUrl,
-          }
-        })
-      )
+        return {
+          id: item.id,
+          studentId,
+          studentName,
+          fileName,
+          storageBucket: mediaAsset?.bucket ?? null,
+          storagePath: mediaAsset?.path ?? null,
+        }
+      })
 
       const uniqueStudents = items.length > 0
         ? Array.from(new Map(items.map((item) => [item.studentId, { id: item.studentId, name: item.studentName }])).values())
@@ -280,8 +255,7 @@ export default async function ManagerPrintRequestsPage({
         itemCount: items.length,
         items,
       }
-    })
-  )
+  })
 
   const sortedAssignmentRequests = printRequestsUnsorted.sort((a, b) => {
     const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY
@@ -345,69 +319,54 @@ export default async function ManagerPrintRequestsPage({
       files: request.items.map((item) => ({
         id: item.id,
         label: `${item.studentName} · ${item.fileName}`,
-        downloadUrl: item.downloadUrl,
+        storageBucket: item.storageBucket,
+        storagePath: item.storagePath,
       })),
     }
   })
 
-  const classMaterialRequests: PrintRequestView[] = await Promise.all(
-    ((classMaterialPrintRequestResult.data ?? []) as RawClassMaterialRequestRow[])
-      .filter((row) => row.status !== 'canceled')
-      .map(async (row) => {
-        const requesterRelation = Array.isArray(row.requester) ? row.requester[0] : row.requester
-        const rawItems = Array.isArray(row.items) ? row.items : []
+  const classMaterialRequests: PrintRequestView[] = (
+    (classMaterialPrintRequestResult.data ?? []) as RawClassMaterialRequestRow[]
+  )
+    .filter((row) => row.status !== 'canceled')
+    .map((row) => {
+      const requesterRelation = Array.isArray(row.requester) ? row.requester[0] : row.requester
+      const rawItems = Array.isArray(row.items) ? row.items : []
 
-        const items = await Promise.all(
-          rawItems.map(async (item) => {
-            const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
-            let downloadUrl: string | null = null
-
-            if (mediaAsset?.bucket && mediaAsset.path) {
-              try {
-                const { data: signed, error: signedError } = await storageAdmin.storage
-                  .from(mediaAsset.bucket)
-                  .createSignedUrl(mediaAsset.path, 60 * 60)
-                if (signedError) {
-                  console.error('[manager-print-requests] class material request signed url error', signedError)
-                } else {
-                  downloadUrl = signed?.signedUrl ?? null
-                }
-              } catch (error) {
-                console.error('[manager-print-requests] class material request signed url unexpected error', error)
-              }
-            }
-
-            return {
-              id: item.id,
-              assetType: item.asset_type === 'student_handout' ? ('student_handout' as const) : ('class_material' as const),
-              fileName: item.asset_filename,
-              downloadUrl,
-            }
-          })
-        )
+      const items = rawItems.map((item) => {
+        const mediaAsset = Array.isArray(item.media_asset) ? item.media_asset[0] : item.media_asset
 
         return {
-          id: row.id,
-          source: 'class_material' as const,
-          status: (row.status ?? 'requested') as 'requested' | 'done' | 'canceled',
-          desiredDate: row.desired_date,
-          desiredPeriod: row.desired_period,
-          copies: row.copies ?? 1,
-          colorMode: row.color_mode ?? 'bw',
-          notes: row.notes ?? null,
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-          teacherName: requesterRelation?.name ?? requesterRelation?.email ?? '교사 미확인',
-          studentLabel: '(수업자료)',
-          studentNames: ['(수업자료)'],
-          files: items.map((item) => ({
-            id: item.id,
-            label: `${item.assetType === 'class_material' ? '수업자료' : '학생 유인물'} · ${item.fileName ?? '파일'}`,
-            downloadUrl: item.downloadUrl,
-          })),
+          id: item.id,
+          assetType: item.asset_type === 'student_handout' ? ('student_handout' as const) : ('class_material' as const),
+          fileName: item.asset_filename,
+          storageBucket: mediaAsset?.bucket ?? null,
+          storagePath: mediaAsset?.path ?? null,
         }
       })
-  )
+
+      return {
+        id: row.id,
+        source: 'class_material' as const,
+        status: (row.status ?? 'requested') as 'requested' | 'done' | 'canceled',
+        desiredDate: row.desired_date,
+        desiredPeriod: row.desired_period,
+        copies: row.copies ?? 1,
+        colorMode: row.color_mode ?? 'bw',
+        notes: row.notes ?? null,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        teacherName: requesterRelation?.name ?? requesterRelation?.email ?? '교사 미확인',
+        studentLabel: '(수업자료)',
+        studentNames: ['(수업자료)'],
+        files: items.map((item) => ({
+          id: item.id,
+          label: `${item.assetType === 'class_material' ? '수업자료' : '학생 유인물'} · ${item.fileName ?? '파일'}`,
+          storageBucket: item.storageBucket,
+          storagePath: item.storagePath,
+        })),
+      }
+    })
 
   classMaterialRequests.sort((a, b) => {
     const dateA = a.desiredDate ? new Date(a.desiredDate).getTime() : Number.POSITIVE_INFINITY

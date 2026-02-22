@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
-import { AlertCircle, Download } from 'lucide-react'
+import { AlertCircle, Download, Loader2 } from 'lucide-react'
 
 import DateUtil from '@/lib/date-util'
 import {
+  getSignedDownloadUrl,
   updateClassMaterialPrintRequestStatus,
   updatePrintRequestStatus,
 } from '@/app/dashboard/manager/actions'
@@ -17,7 +18,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 interface UnifiedPrintRequestFile {
   id: string
   label: string
-  downloadUrl: string | null
+  storageBucket: string | null
+  storagePath: string | null
 }
 
 export interface PrintRequestView {
@@ -216,21 +218,17 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
                         <div className="flex flex-col gap-1">
                           {request.files.map((file) => {
                             const [studentName, fileName] = file.label.split(' · ')
+                            const hasFile = !!(file.storageBucket && file.storagePath)
 
                             return (
-                              <Button
+                              <DownloadFileButton
                                 key={file.id}
-                                asChild
-                                size="sm"
-                                variant={file.downloadUrl ? 'outline' : 'ghost'}
-                                className="justify-start text-xs"
-                                disabled={!file.downloadUrl}
-                                title={fileName ?? file.label}
-                              >
-                                <a href={file.downloadUrl ?? '#'} target="_blank" rel="noreferrer">
-                                  <Download className="mr-1 inline h-3 w-3" /> {studentName}
-                                </a>
-                              </Button>
+                                storageBucket={file.storageBucket}
+                                storagePath={file.storagePath}
+                                studentName={studentName ?? file.label}
+                                fileName={fileName ?? file.label}
+                                hasFile={hasFile}
+                              />
                             )
                           })}
                         </div>
@@ -283,5 +281,50 @@ export function PrintRequestAdminPanel({ requests }: { requests: PrintRequestVie
         </Table>
       </CardContent>
     </Card>
+  )
+}
+
+function DownloadFileButton({
+  storageBucket,
+  storagePath,
+  studentName,
+  fileName,
+  hasFile,
+}: {
+  storageBucket: string | null
+  storagePath: string | null
+  studentName: string
+  fileName: string
+  hasFile: boolean
+}) {
+  const [loading, setLoading] = useState(false)
+
+  const handleClick = async () => {
+    if (!storageBucket || !storagePath) return
+    setLoading(true)
+    try {
+      const result = await getSignedDownloadUrl({ bucket: storageBucket, path: storagePath })
+      if (result.url) {
+        window.open(result.url, '_blank')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant={hasFile ? 'outline' : 'ghost'}
+      className="justify-start text-xs"
+      disabled={!hasFile || loading}
+      title={fileName}
+      onClick={handleClick}
+    >
+      {loading
+        ? <><Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> {studentName}</>
+        : <><Download className="mr-1 inline h-3 w-3" /> {studentName}</>
+      }
+    </Button>
   )
 }

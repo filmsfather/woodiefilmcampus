@@ -58,6 +58,7 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
   const page = parsePage(searchParams.page)
   const weekLabel = parseFilterValue(searchParams.week, FILTER_VALUE.WEEK_NONE)
   const classId = parseFilterValue(searchParams.class, FILTER_VALUE.CLASS_NONE)
+  const subject = parseFilterValue(searchParams.subject, FILTER_VALUE.SUBJECT_NONE)
   const featuredOnly = isFeatured(searchParams.featured)
   const studentName = parseSearchText(searchParams.student)
 
@@ -68,6 +69,7 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
     perPage: 50,
     weekLabel,
     classId,
+    subject,
     featuredOnly,
     studentName,
   })
@@ -86,6 +88,7 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
         filters={data.filters}
         currentWeekLabel={weekLabel}
         currentClassId={classId}
+        currentSubject={subject}
         featuredOnly={featuredOnly}
         currentStudentName={studentName}
       />

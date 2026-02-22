@@ -332,9 +332,11 @@ export interface AtelierPostListItem {
 
 export interface AtelierFilters {
   weekLabels: string[]
+  subjects: string[]
   classes: Array<{ id: string; name: string }>
   includesUnassignedClass: boolean
   hasWeeklessWeekLabel: boolean
+  hasSubjectless: boolean
 }
 
 export interface FetchAtelierOptions {
@@ -344,6 +346,7 @@ export interface FetchAtelierOptions {
   perPage?: number
   weekLabel?: string | null
   classId?: string | null
+  subject?: string | null
   featuredOnly?: boolean
   studentName?: string | null
 }
@@ -364,6 +367,7 @@ export async function fetchAtelierPosts({
   perPage = 50,
   weekLabel,
   classId,
+  subject,
   featuredOnly,
   studentName,
 }: FetchAtelierOptions): Promise<AtelierListResult> {
@@ -444,6 +448,12 @@ export async function fetchAtelierPosts({
     query = query.is('workbooks.week_label', null)
   }
 
+  if (typeof subject === 'string' && subject.length > 0) {
+    query = query.eq('workbooks.subject', subject)
+  } else if (subject === '') {
+    query = query.is('workbooks.subject', null)
+  }
+
   if (viewerRole === 'student') {
     const orFilter = `hidden_by_student.eq.false,student_id.eq.${viewerId}`
     query = query.or(orFilter)
@@ -463,7 +473,7 @@ export async function fetchAtelierPosts({
   ])
 
   const { data, error, count } = queryResult
-  const { filters, includesUnassigned, hasWeekless } = filtersResult
+  const { filters, includesUnassigned, hasWeekless, hasSubjectless } = filtersResult
 
   if (error) {
     console.error('[atelier] failed to fetch posts', error)
@@ -473,7 +483,7 @@ export async function fetchAtelierPosts({
       totalPages: 0,
       page: safePage,
       perPage: safePerPage,
-      filters: { weekLabels: [], classes: [], includesUnassignedClass: false, hasWeeklessWeekLabel: false },
+      filters: { weekLabels: [], subjects: [], classes: [], includesUnassignedClass: false, hasWeeklessWeekLabel: false, hasSubjectless: false },
     }
   }
 
@@ -643,9 +653,11 @@ export async function fetchAtelierPosts({
     perPage: safePerPage,
     filters: {
       weekLabels: filters.weekLabels,
+      subjects: filters.subjects,
       classes: filters.classes,
       includesUnassignedClass: includesUnassigned,
       hasWeeklessWeekLabel: hasWeekless,
+      hasSubjectless,
     },
   }
 }
@@ -696,7 +708,7 @@ async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
     workbookIds.length > 0
       ? admin
           .from('workbooks')
-          .select('id, week_label')
+          .select('id, week_label, subject')
           .in('id', workbookIds)
       : Promise.resolve({ data: [], error: null }),
     classIdSet.size > 0
@@ -708,12 +720,15 @@ async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
   ])
 
   let weekLabels: string[] = []
+  let subjects: string[] = []
   let hasWeekless = false
+  let hasSubjectless = false
 
   if (workbooksResult.error) {
     console.error('[atelier] failed to load workbook week labels', workbooksResult.error)
   } else {
     const labelSet = new Set<string>()
+    const subjectSet = new Set<string>()
 
     for (const row of workbooksResult.data ?? []) {
       const label = (row?.week_label as string | null) ?? null
@@ -722,9 +737,17 @@ async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
       } else {
         hasWeekless = true
       }
+
+      const subjectValue = (row?.subject as string | null) ?? null
+      if (typeof subjectValue === 'string' && subjectValue.trim().length > 0) {
+        subjectSet.add(subjectValue.trim())
+      } else {
+        hasSubjectless = true
+      }
     }
 
     weekLabels = Array.from(labelSet).sort((a, b) => a.localeCompare(b, 'ko'))
+    subjects = Array.from(subjectSet).sort((a, b) => a.localeCompare(b, 'ko'))
   }
 
   let classes: Array<{ id: string; name: string }> = []
@@ -743,10 +766,12 @@ async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
   return {
     filters: {
       weekLabels,
+      subjects,
       classes,
     },
     includesUnassigned: hasUnassigned,
     hasWeekless,
+    hasSubjectless,
   }
 }
 

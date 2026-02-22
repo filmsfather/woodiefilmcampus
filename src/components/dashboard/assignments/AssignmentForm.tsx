@@ -25,7 +25,7 @@ import type {
 
 const assignmentFormSchema = z
   .object({
-    workbookId: z.string().min(1, { message: '문제집을 선택해주세요.' }),
+    workbookIds: z.array(z.string()).min(1, { message: '문제집을 최소 1개 이상 선택해주세요.' }),
     targetClassIds: z.array(z.string()).default([]),
     targetStudentIds: z.array(z.string()).default([]),
     publishedAt: z.string().optional(),
@@ -172,7 +172,7 @@ export function AssignmentForm({
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentFormSchema) as Resolver<AssignmentFormValues>,
     defaultValues: {
-      workbookId: '',
+      workbookIds: [],
       targetClassIds: [],
       targetStudentIds: [],
       publishedAt: '',
@@ -183,7 +183,7 @@ export function AssignmentForm({
 
   const selectedClassIds = form.watch('targetClassIds')
   const selectedStudentIds = form.watch('targetStudentIds')
-  const selectedWorkbookId = form.watch('workbookId')
+  const selectedWorkbookIds = form.watch('workbookIds')
 
   const classesById = useMemo(() => new Map(classes.map((classItem) => [classItem.id, classItem])), [classes])
 
@@ -227,6 +227,16 @@ export function AssignmentForm({
     return students.filter((student) => student.classId === studentClassFilter)
   }, [studentClassFilter, students])
 
+  const handleToggleWorkbook = (workbookId: string) => {
+    form.setValue(
+      'workbookIds',
+      selectedWorkbookIds.includes(workbookId)
+        ? selectedWorkbookIds.filter((id) => id !== workbookId)
+        : [...selectedWorkbookIds, workbookId],
+      { shouldDirty: true, shouldValidate: true }
+    )
+  }
+
   const handleToggleClass = (classId: string) => {
     form.setValue(
       'targetClassIds',
@@ -255,25 +265,29 @@ export function AssignmentForm({
     const payloadDueAt = values.dueAt ? new Date(values.dueAt).toISOString() : null
 
     startTransition(async () => {
-      const result = await createAssignment({
-        workbookId: values.workbookId,
-        publishedAt: payloadPublishedAt,
-        dueAt: payloadDueAt,
-        targetClassIds: values.targetClassIds,
-        targetStudentIds: values.targetStudentIds,
-      })
+      const results = await Promise.all(
+        values.workbookIds.map((workbookId) =>
+          createAssignment({
+            workbookId,
+            publishedAt: payloadPublishedAt,
+            dueAt: payloadDueAt,
+            targetClassIds: values.targetClassIds,
+            targetStudentIds: values.targetStudentIds,
+          })
+        )
+      )
 
-      if (result?.error) {
-        setServerError(result.error)
+      const failed = results.find((r) => r?.error)
+      if (failed?.error) {
+        setServerError(failed.error)
         setSubmitState('error')
         return
       }
 
-      // 예약 출제인지 즉시 출제인지 구분
       const isScheduled = payloadPublishedAt && new Date(payloadPublishedAt).getTime() > Date.now()
       setSubmitState(isScheduled ? 'scheduled' : 'success')
       form.reset({
-        workbookId: '',
+        workbookIds: [],
         targetClassIds: [],
         targetStudentIds: [],
         publishedAt: '',
@@ -287,9 +301,9 @@ export function AssignmentForm({
     })
   }
 
-  const selectedWorkbook = selectedWorkbookId
-    ? workbooks.find((workbook) => workbook.id === selectedWorkbookId)
-    : null
+  const selectedWorkbooks = selectedWorkbookIds
+    .map((id) => workbooks.find((workbook) => workbook.id === id))
+    .filter((wb): wb is AssignmentWorkbookSummary => wb !== undefined)
 
   const totalSelectedStudents = aggregatedStudentIds.size
 
@@ -370,67 +384,88 @@ export function AssignmentForm({
               ) : (
                 <FormField
                   control={form.control}
-                  name="workbookId"
-                  render={({ field }) => (
+                  name="workbookIds"
+                  render={() => (
                     <FormItem>
                       <FormLabel className="sr-only">워크북</FormLabel>
                       <FormControl>
                         <div className="space-y-3">
                           <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
+                            value=""
+                            onValueChange={(value) => {
+                              if (value && !selectedWorkbookIds.includes(value)) {
+                                handleToggleWorkbook(value)
+                              }
+                            }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="워크북을 선택하세요" />
+                              <SelectValue placeholder="워크북을 선택하세요 (복수 선택 가능)" />
                             </SelectTrigger>
                             <SelectContent>
-                              {filteredWorkbooks.map((workbook) => (
-                                <SelectItem key={workbook.id} value={workbook.id}>
-                                  {workbook.title} ({workbook.itemCount}문항)
-                                  {workbook.weekLabel && ` · ${workbook.weekLabel}`}
-                                </SelectItem>
-                              ))}
-                              {filteredWorkbooks.length === 0 && (
+                              {filteredWorkbooks
+                                .filter((workbook) => !selectedWorkbookIds.includes(workbook.id))
+                                .map((workbook) => (
+                                  <SelectItem key={workbook.id} value={workbook.id}>
+                                    {workbook.title} ({workbook.itemCount}문항)
+                                    {workbook.weekLabel && ` · ${workbook.weekLabel}`}
+                                  </SelectItem>
+                                ))}
+                              {filteredWorkbooks.filter((wb) => !selectedWorkbookIds.includes(wb.id)).length === 0 && (
                                 <div className="px-2 py-1.5 text-sm text-slate-500">
-                                  조건에 맞는 워크북이 없습니다
+                                  {filteredWorkbooks.length === 0
+                                    ? '조건에 맞는 워크북이 없습니다'
+                                    : '모든 워크북이 선택되었습니다'}
                                 </div>
                               )}
                             </SelectContent>
                           </Select>
 
-                          {/* 선택된 워크북 상세 정보 */}
-                          {selectedWorkbook && (
-                            <div className="rounded-lg border border-primary bg-primary/5 p-4">
-                              <div className="flex items-start justify-between gap-2">
-                                <div>
-                                  <p className="text-base font-semibold text-slate-900">{selectedWorkbook.title}</p>
-                                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                                    <Badge variant="secondary">{selectedWorkbook.subject}</Badge>
-                                    <Badge variant="outline">{selectedWorkbook.type.toUpperCase()}</Badge>
-                                    {selectedWorkbook.weekLabel && <Badge variant="outline">{selectedWorkbook.weekLabel}</Badge>}
-                                    {selectedWorkbook.authorName && (
-                                      <Badge variant="outline" className="bg-slate-100">
-                                        {selectedWorkbook.authorName}
-                                      </Badge>
-                                    )}
+                          {selectedWorkbooks.length > 0 && (
+                            <div className="space-y-2">
+                              {selectedWorkbooks.map((workbook) => (
+                                <div
+                                  key={workbook.id}
+                                  className="flex items-start justify-between gap-2 rounded-lg border border-primary bg-primary/5 p-3"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-slate-900">{workbook.title}</p>
+                                    <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+                                      <Badge variant="secondary">{workbook.subject}</Badge>
+                                      <Badge variant="outline">{workbook.type.toUpperCase()}</Badge>
+                                      {workbook.weekLabel && <Badge variant="outline">{workbook.weekLabel}</Badge>}
+                                      {workbook.authorName && (
+                                        <Badge variant="outline" className="bg-slate-100">
+                                          {workbook.authorName}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="mt-1.5 text-xs text-slate-500">
+                                      문항 {workbook.itemCount}개 · 수정일{' '}
+                                      {DateUtil.formatForDisplay(workbook.updatedAt, {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                      })}
+                                    </p>
                                   </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 shrink-0 p-0 text-slate-400 hover:text-slate-600"
+                                    onClick={() => handleToggleWorkbook(workbook.id)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                    <span className="sr-only">제거</span>
+                                  </Button>
                                 </div>
-                                <Check className="size-5 text-primary" />
-                              </div>
-                              <p className="mt-3 text-xs text-slate-500">
-                                문항 {selectedWorkbook.itemCount}개 · 수정일{' '}
-                                {DateUtil.formatForDisplay(selectedWorkbook.updatedAt, {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                })}
-                              </p>
+                              ))}
                             </div>
                           )}
 
-                          {!selectedWorkbook && filteredWorkbooks.length > 0 && (
+                          {selectedWorkbooks.length === 0 && filteredWorkbooks.length > 0 && (
                             <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-                              워크북을 선택하면 상세 정보가 표시됩니다.
+                              워크북을 선택하면 상세 정보가 표시됩니다. 여러 개를 선택할 수 있습니다.
                             </p>
                           )}
                         </div>
@@ -878,8 +913,13 @@ export function AssignmentForm({
               <div>
                 <p>
                   선택한 워크북:{' '}
-                  {selectedWorkbook ? (
-                    <span className="font-semibold text-slate-900">{selectedWorkbook.title}</span>
+                  {selectedWorkbooks.length > 0 ? (
+                    <span className="font-semibold text-slate-900">
+                      {selectedWorkbooks.length}개
+                      {selectedWorkbooks.length <= 3 && (
+                        <> ({selectedWorkbooks.map((wb) => wb.title).join(', ')})</>
+                      )}
+                    </span>
                   ) : (
                     <span className="text-slate-500">미선택</span>
                   )}
@@ -889,7 +929,7 @@ export function AssignmentForm({
                 </p>
               </div>
               <Button type="submit" disabled={isPending}>
-                {isPending ? '배정 중...' : '과제 배정하기'}
+                {isPending ? '배정 중...' : `과제 배정하기${selectedWorkbooks.length > 1 ? ` (${selectedWorkbooks.length}건)` : ''}`}
               </Button>
             </div>
           </form>

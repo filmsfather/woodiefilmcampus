@@ -154,6 +154,40 @@ export async function updatePrintRequestStatus(input: UpdatePrintRequestInput) {
   }
 }
 
+const getSignedDownloadUrlSchema = z.object({
+  bucket: z.string().min(1),
+  path: z.string().min(1),
+})
+
+export async function getSignedDownloadUrl(input: { bucket: string; path: string }) {
+  const managerProfile = await ensureManagerProfile()
+  if (!managerProfile) {
+    return { error: '다운로드 권한이 없습니다.' }
+  }
+
+  const parsed = getSignedDownloadUrlSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: '잘못된 파일 정보입니다.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase.storage
+      .from(parsed.data.bucket)
+      .createSignedUrl(parsed.data.path, 60 * 30)
+
+    if (error) {
+      console.error('[manager] getSignedDownloadUrl error', error)
+      return { error: '다운로드 URL 생성에 실패했습니다.' }
+    }
+
+    return { url: data.signedUrl }
+  } catch (error) {
+    console.error('[manager] getSignedDownloadUrl unexpected error', error)
+    return { error: '다운로드 처리 중 오류가 발생했습니다.' }
+  }
+}
+
 const updateClassMaterialPrintRequestSchema = z.object({
   requestId: z.string().uuid('유효한 요청 ID가 아닙니다.'),
   status: z.enum(['done', 'canceled']),
