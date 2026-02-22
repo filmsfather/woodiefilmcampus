@@ -46,9 +46,15 @@ export function RichTextEditor({ value, onChange, disabled, placeholder, classNa
 
   const sanitizedValue = useMemo(() => sanitizeRichTextInput(value ?? ''), [value])
 
+  const lastReportedRef = useRef<string | null>(null)
+
   useEffect(() => {
     const element = editorRef.current
     if (!element) {
+      return
+    }
+
+    if (sanitizedValue === lastReportedRef.current) {
       return
     }
 
@@ -64,6 +70,7 @@ export function RichTextEditor({ value, onChange, disabled, placeholder, classNa
     }
 
     const innerHtml = sanitizeRichTextInput(element.innerHTML)
+    lastReportedRef.current = innerHtml
     onChange(innerHtml)
   }, [onChange])
 

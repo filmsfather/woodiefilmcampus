@@ -232,8 +232,8 @@ export async function createNotice(formData: FormData): Promise<ActionResult> {
   let totalSize = 0
   for (const attachment of uploadedAttachments) {
     totalSize += attachment.size
-    if (!attachment.mimeType || !attachment.mimeType.startsWith('image/')) {
-      return { error: '이미지 파일만 첨부할 수 있습니다.' }
+    if (!attachment.mimeType || (!attachment.mimeType.startsWith('image/') && attachment.mimeType !== 'application/pdf')) {
+      return { error: '이미지 또는 PDF 파일만 첨부할 수 있습니다.' }
     }
   }
 
@@ -483,8 +483,8 @@ export async function updateNotice(formData: FormData): Promise<ActionResult> {
   let totalSize = 0
   for (const attachment of uploadedAttachments) {
     totalSize += attachment.size
-    if (!attachment.mimeType || !attachment.mimeType.startsWith('image/')) {
-      return { error: '이미지 파일만 첨부할 수 있습니다.' }
+    if (!attachment.mimeType || (!attachment.mimeType.startsWith('image/') && attachment.mimeType !== 'application/pdf')) {
+      return { error: '이미지 또는 PDF 파일만 첨부할 수 있습니다.' }
     }
   }
 

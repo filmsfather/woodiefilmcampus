@@ -103,26 +103,48 @@ export async function NoticeDetailView({ notice, viewerId, viewerRole, backLink,
 
                     {notice.attachments.length > 0 ? (
                         <div className="space-y-3">
-                            <h2 className="text-sm font-medium text-slate-800">첨부 이미지</h2>
+                            <h2 className="text-sm font-medium text-slate-800">첨부 파일</h2>
                             <div className="grid gap-4 md:grid-cols-2">
-                                {notice.attachments.map((attachment) => (
-                                    <figure key={attachment.id} className="space-y-2">
-                                        {attachment.signedUrl ? (
-                                            <img
-                                                src={attachment.signedUrl}
-                                                alt={attachment.originalName ?? '공지 첨부 이미지'}
-                                                className="w-full rounded-md border border-slate-200 object-cover"
-                                            />
-                                        ) : (
-                                            <div className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
-                                                첨부 이미지를 불러오지 못했습니다.
-                                            </div>
-                                        )}
-                                        {attachment.originalName ? (
-                                            <figcaption className="text-xs text-slate-500">{attachment.originalName}</figcaption>
-                                        ) : null}
-                                    </figure>
-                                ))}
+                                {notice.attachments.map((attachment) => {
+                                    const isPdf = attachment.mimeType === 'application/pdf'
+                                    return (
+                                        <figure key={attachment.id} className="space-y-2">
+                                            {attachment.signedUrl ? (
+                                                isPdf ? (
+                                                    <a
+                                                        href={attachment.signedUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-100"
+                                                    >
+                                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 shrink-0 text-red-500">
+                                                            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                                                            <polyline points="14 2 14 8 20 8" />
+                                                            <path d="M10 12l-2 4h4l-2 4" />
+                                                        </svg>
+                                                        <span className="min-w-0 flex-1 truncate font-medium">
+                                                            {attachment.originalName ?? 'PDF 파일'}
+                                                        </span>
+                                                        <span className="shrink-0 text-xs text-slate-500">열기 ↗</span>
+                                                    </a>
+                                                ) : (
+                                                    <img
+                                                        src={attachment.signedUrl}
+                                                        alt={attachment.originalName ?? '공지 첨부 이미지'}
+                                                        className="w-full rounded-md border border-slate-200 object-cover"
+                                                    />
+                                                )
+                                            ) : (
+                                                <div className="rounded-md border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+                                                    첨부 파일을 불러오지 못했습니다.
+                                                </div>
+                                            )}
+                                            {!isPdf && attachment.originalName ? (
+                                                <figcaption className="text-xs text-slate-500">{attachment.originalName}</figcaption>
+                                            ) : null}
+                                        </figure>
+                                    )
+                                })}
                             </div>
                         </div>
                     ) : null}
