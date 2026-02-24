@@ -457,8 +457,6 @@ export async function fetchAtelierPosts({
   if (viewerRole === 'student') {
     const orFilter = `hidden_by_student.eq.false,student_id.eq.${viewerId}`
     query = query.or(orFilter)
-  } else {
-    query = query.eq('hidden_by_student', false)
   }
 
   if (trimmedStudentName) {
