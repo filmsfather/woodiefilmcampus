@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { completePayrollPayment, requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
+import { generatePayrollPdf } from '@/lib/payroll/pdf'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExternalSubstituteModal } from '@/components/dashboard/principal/payroll/ExternalSubstituteModal'
@@ -62,6 +63,7 @@ interface IncentiveDraft {
 interface PayrollSummaryRow {
   id: string
   name: string
+  insuranceEnrolled: boolean
   totalWorkHours: number
   baseSalaryTotal: number
   hourlyRate: number
@@ -407,7 +409,17 @@ function PayrollSummaryTable({ rows, sortField, sortDirection, onSort }: {
         <TableBody>
           {rows.map((row) => (
             <TableRow key={row.id}>
-              <TableCell className="font-medium text-slate-900">{row.name}</TableCell>
+              <TableCell className="font-medium text-slate-900">
+                <div className="flex items-center gap-2">
+                  {row.name}
+                  <Badge
+                    variant={row.insuranceEnrolled ? "default" : "outline"}
+                    className="shrink-0 px-1.5 py-0 text-[10px]"
+                  >
+                    {row.insuranceEnrolled ? "4대보험" : "3.3%"}
+                  </Badge>
+                </div>
+              </TableCell>
               <TableCell className="text-right text-slate-900">{formatHours(row.totalWorkHours)}</TableCell>
               <TableCell className="text-right text-slate-900">{formatCurrency(row.baseSalaryTotal)}</TableCell>
               <TableCell className="text-right text-slate-900">{formatCurrency(row.hourlyRate)}</TableCell>
@@ -831,6 +843,7 @@ export function PrincipalPayrollClient({
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [isExternalModalOpen, setExternalModalOpen] = useState(false)
   const [activeTeacherTab, setActiveTeacherTab] = useState<string | null>(null)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
 
   // 정렬된 순서에 맞게 탭도 정렬
   const sortedTeachers = useMemo(() => {
@@ -870,6 +883,7 @@ export function PrincipalPayrollClient({
     const unsorted = teachers.map((entry) => ({
       id: entry.teacher.id,
       name: entry.teacher.name ?? entry.teacher.email ?? '이름 미등록',
+      insuranceEnrolled: entry.payrollProfile.insuranceEnrolled,
       totalWorkHours: entry.breakdown.totalWorkHours,
       baseSalaryTotal: entry.breakdown.baseSalaryTotal,
       hourlyRate: entry.payrollProfile.hourlyRate,
@@ -926,6 +940,20 @@ export function PrincipalPayrollClient({
       setSortDirection('asc')
       return field
     })
+  }
+
+  const handleDownloadPdf = async () => {
+    setIsGeneratingPdf(true)
+    try {
+      const pdfEntries = teachers.map((entry) => ({
+        name: entry.teacher.name ?? entry.teacher.email ?? "이름 미등록",
+        payrollProfile: entry.payrollProfile,
+        breakdown: entry.breakdown,
+      }))
+      await generatePayrollPdf(monthLabel, pdfEntries)
+    } finally {
+      setIsGeneratingPdf(false)
+    }
   }
 
   return (
@@ -1007,7 +1035,18 @@ export function PrincipalPayrollClient({
 
         {summaryRows.length > 0 && (
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <h2 className="mb-3 text-sm font-medium text-slate-900">정산 요약</h2>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-medium text-slate-900">정산 요약</h2>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isGeneratingPdf}
+                onClick={handleDownloadPdf}
+              >
+                {isGeneratingPdf ? "생성 중…" : "PDF 다운로드"}
+              </Button>
+            </div>
             <PayrollSummaryTable rows={summaryRows} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
           </section>
         )}
