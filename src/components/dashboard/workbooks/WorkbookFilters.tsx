@@ -21,6 +21,9 @@ interface WorkbookFiltersProps {
   activeSubjects: string[]
   authors: Author[]
   activeAuthors: string[]
+  types: readonly string[]
+  typeLabels: Record<string, string>
+  activeTypes: string[]
   searchQuery: string
 }
 
@@ -29,6 +32,9 @@ export default function WorkbookFilters({
   activeSubjects,
   authors,
   activeAuthors,
+  types,
+  typeLabels,
+  activeTypes,
   searchQuery,
 }: WorkbookFiltersProps) {
   const router = useRouter()
@@ -36,19 +42,22 @@ export default function WorkbookFilters({
 
   const [subjectState, setSubjectState] = useState(new Set(activeSubjects))
   const [authorState, setAuthorState] = useState(new Set(activeAuthors))
+  const [typeState, setTypeState] = useState(new Set(activeTypes))
   const [query, setQuery] = useState(searchQuery)
 
-  const hasFilters = subjectState.size > 0 || authorState.size > 0 || query.trim().length > 0
+  const hasFilters = subjectState.size > 0 || authorState.size > 0 || typeState.size > 0 || query.trim().length > 0
 
-  const applyFilters = (nextSubjects: Set<string>, nextAuthors: Set<string>, nextQuery: string) => {
+  const applyFilters = (nextSubjects: Set<string>, nextAuthors: Set<string>, nextTypes: Set<string>, nextQuery: string) => {
     const params = new URLSearchParams(searchParams.toString())
 
     params.delete('subject')
     params.delete('author')
+    params.delete('type')
     params.delete('q')
 
     nextSubjects.forEach((value) => params.append('subject', value))
     nextAuthors.forEach((value) => params.append('author', value))
+    nextTypes.forEach((value) => params.append('type', value))
 
     if (nextQuery.trim()) {
       params.set('q', nextQuery.trim())
@@ -60,8 +69,9 @@ export default function WorkbookFilters({
   const clearFilters = () => {
     setSubjectState(new Set())
     setAuthorState(new Set())
+    setTypeState(new Set())
     setQuery('')
-    applyFilters(new Set(), new Set(), '')
+    applyFilters(new Set(), new Set(), new Set(), '')
   }
 
   const authorNameMap = useMemo(
@@ -76,6 +86,15 @@ export default function WorkbookFilters({
       </Badge>
     )),
     [subjectState]
+  )
+
+  const selectedTypeBadges = useMemo(
+    () => Array.from(typeState).map((type) => (
+      <Badge key={type} variant="secondary" className="text-xs">
+        {typeLabels[type] ?? type}
+      </Badge>
+    )),
+    [typeState, typeLabels]
   )
 
   const selectedAuthorBadges = useMemo(
@@ -94,6 +113,7 @@ export default function WorkbookFilters({
           <p className="text-sm font-medium text-slate-800">필터</p>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
             {selectedSubjectBadges}
+            {selectedTypeBadges}
             {selectedAuthorBadges}
             {query && <Badge variant="outline">검색: {query}</Badge>}
             {!hasFilters && <span>현재 적용된 필터가 없습니다.</span>}
@@ -110,73 +130,49 @@ export default function WorkbookFilters({
         )}
       </div>
 
-      <div className="space-y-2">
-        <p className="text-xs font-semibold uppercase text-slate-500">과목</p>
-        <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
-          {subjects.map((subject) => (
-            <label key={subject} className="flex items-center gap-2 text-sm text-slate-600">
-              <Checkbox
-                checked={subjectState.has(subject)}
-                onChange={() => {
-                  const next = new Set(subjectState)
-                  if (next.has(subject)) {
-                    next.delete(subject)
-                  } else {
-                    next.add(subject)
-                  }
-                  setSubjectState(next)
-                  applyFilters(next, authorState, query)
-                }}
-              />
-              {subject}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {authors.length > 0 && (
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-3">
-          <p className="shrink-0 text-xs font-semibold uppercase text-slate-500">작성자</p>
+          <p className="shrink-0 text-xs font-semibold uppercase text-slate-500">과목</p>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-1.5 font-normal">
-                {authorState.size > 0
-                  ? `${authorState.size}명 선택됨`
-                  : "전체 작성자"}
+                {subjectState.size > 0
+                  ? `${subjectState.size}개 선택됨`
+                  : "전체 과목"}
                 <ChevronDown className="size-3.5 text-slate-400" />
               </Button>
             </PopoverTrigger>
             <PopoverContent align="start" className="w-56 p-2">
               <div className="max-h-60 space-y-1 overflow-y-auto">
-                {authors.map((author) => (
+                {subjects.map((subject) => (
                   <label
-                    key={author.id}
+                    key={subject}
                     className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
                   >
                     <Checkbox
-                      checked={authorState.has(author.id)}
+                      checked={subjectState.has(subject)}
                       onChange={() => {
-                        const next = new Set(authorState)
-                        if (next.has(author.id)) {
-                          next.delete(author.id)
+                        const next = new Set(subjectState)
+                        if (next.has(subject)) {
+                          next.delete(subject)
                         } else {
-                          next.add(author.id)
+                          next.add(subject)
                         }
-                        setAuthorState(next)
-                        applyFilters(subjectState, next, query)
+                        setSubjectState(next)
+                        applyFilters(next, authorState, typeState, query)
                       }}
                     />
-                    {author.name}
+                    {subject}
                   </label>
                 ))}
               </div>
-              {authorState.size > 0 && (
+              {subjectState.size > 0 && (
                 <button
                   type="button"
                   className="mt-1 flex w-full items-center justify-center gap-1 rounded-md border-t border-slate-100 pt-2 text-xs text-slate-500 hover:text-slate-700"
                   onClick={() => {
-                    setAuthorState(new Set())
-                    applyFilters(subjectState, new Set(), query)
+                    setSubjectState(new Set())
+                    applyFilters(new Set(), authorState, typeState, query)
                   }}
                 >
                   <X className="size-3" />
@@ -185,38 +181,184 @@ export default function WorkbookFilters({
               )}
             </PopoverContent>
           </Popover>
-          {authorState.size > 0 && (
+          {subjectState.size > 0 && (
             <div className="flex flex-wrap gap-1">
-              {Array.from(authorState).map((id) => (
+              {Array.from(subjectState).map((subject) => (
                 <Badge
-                  key={id}
+                  key={subject}
                   variant="secondary"
                   className="cursor-pointer gap-1 text-xs"
                   onClick={() => {
-                    const next = new Set(authorState)
-                    next.delete(id)
-                    setAuthorState(next)
-                    applyFilters(subjectState, next, query)
+                    const next = new Set(subjectState)
+                    next.delete(subject)
+                    setSubjectState(next)
+                    applyFilters(next, authorState, typeState, query)
                   }}
                 >
-                  {authorNameMap.get(id) ?? id}
+                  {subject}
                   <X className="size-3" />
                 </Badge>
               ))}
             </div>
           )}
         </div>
-      )}
+
+        <div className="flex items-center gap-3">
+          <p className="shrink-0 text-xs font-semibold uppercase text-slate-500">유형</p>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5 font-normal">
+                {typeState.size > 0
+                  ? `${typeState.size}개 선택됨`
+                  : "전체 유형"}
+                <ChevronDown className="size-3.5 text-slate-400" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-56 p-2">
+              <div className="max-h-60 space-y-1 overflow-y-auto">
+                {types.map((type) => (
+                  <label
+                    key={type}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                  >
+                    <Checkbox
+                      checked={typeState.has(type)}
+                      onChange={() => {
+                        const next = new Set(typeState)
+                        if (next.has(type)) {
+                          next.delete(type)
+                        } else {
+                          next.add(type)
+                        }
+                        setTypeState(next)
+                        applyFilters(subjectState, authorState, next, query)
+                      }}
+                    />
+                    {typeLabels[type] ?? type}
+                  </label>
+                ))}
+              </div>
+              {typeState.size > 0 && (
+                <button
+                  type="button"
+                  className="mt-1 flex w-full items-center justify-center gap-1 rounded-md border-t border-slate-100 pt-2 text-xs text-slate-500 hover:text-slate-700"
+                  onClick={() => {
+                    setTypeState(new Set())
+                    applyFilters(subjectState, authorState, new Set(), query)
+                  }}
+                >
+                  <X className="size-3" />
+                  선택 초기화
+                </button>
+              )}
+            </PopoverContent>
+          </Popover>
+          {typeState.size > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {Array.from(typeState).map((type) => (
+                <Badge
+                  key={type}
+                  variant="secondary"
+                  className="cursor-pointer gap-1 text-xs"
+                  onClick={() => {
+                    const next = new Set(typeState)
+                    next.delete(type)
+                    setTypeState(next)
+                    applyFilters(subjectState, authorState, next, query)
+                  }}
+                >
+                  {typeLabels[type] ?? type}
+                  <X className="size-3" />
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {authors.length > 0 && (
+          <div className="flex items-center gap-3">
+            <p className="shrink-0 text-xs font-semibold uppercase text-slate-500">작성자</p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-1.5 font-normal">
+                  {authorState.size > 0
+                    ? `${authorState.size}명 선택됨`
+                    : "전체 작성자"}
+                  <ChevronDown className="size-3.5 text-slate-400" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-56 p-2">
+                <div className="max-h-60 space-y-1 overflow-y-auto">
+                  {authors.map((author) => (
+                    <label
+                      key={author.id}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100"
+                    >
+                      <Checkbox
+                        checked={authorState.has(author.id)}
+                        onChange={() => {
+                          const next = new Set(authorState)
+                          if (next.has(author.id)) {
+                            next.delete(author.id)
+                          } else {
+                            next.add(author.id)
+                          }
+                          setAuthorState(next)
+                          applyFilters(subjectState, next, typeState, query)
+                        }}
+                      />
+                      {author.name}
+                    </label>
+                  ))}
+                </div>
+                {authorState.size > 0 && (
+                  <button
+                    type="button"
+                    className="mt-1 flex w-full items-center justify-center gap-1 rounded-md border-t border-slate-100 pt-2 text-xs text-slate-500 hover:text-slate-700"
+                    onClick={() => {
+                      setAuthorState(new Set())
+                      applyFilters(subjectState, new Set(), typeState, query)
+                    }}
+                  >
+                    <X className="size-3" />
+                    선택 초기화
+                  </button>
+                )}
+              </PopoverContent>
+            </Popover>
+            {authorState.size > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {Array.from(authorState).map((id) => (
+                  <Badge
+                    key={id}
+                    variant="secondary"
+                    className="cursor-pointer gap-1 text-xs"
+                    onClick={() => {
+                      const next = new Set(authorState)
+                      next.delete(id)
+                      setAuthorState(next)
+                      applyFilters(subjectState, next, typeState, query)
+                    }}
+                  >
+                    {authorNameMap.get(id) ?? id}
+                    <X className="size-3" />
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div className="flex-1">
           <Input
-            placeholder="제목, 태그, 주차를 검색..."
+            placeholder="제목, 태그를 검색..."
             value={query}
             onChange={(event) => {
               const nextQuery = event.target.value
               setQuery(nextQuery)
-              applyFilters(subjectState, authorState, nextQuery)
+              applyFilters(subjectState, authorState, typeState, nextQuery)
             }}
           />
         </div>
