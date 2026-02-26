@@ -1995,6 +1995,44 @@ export async function fetchLearningJournalComments(entryId: string): Promise<Lea
   }))
 }
 
+export async function fetchPreviousPeriodComments(
+  classId: string,
+  currentStartDate: string,
+  studentId: string
+): Promise<LearningJournalComment[]> {
+  if (!classId || !currentStartDate || !studentId) {
+    return []
+  }
+
+  const supabase = await createServerSupabase()
+
+  const { data: prevPeriod, error: periodError } = await supabase
+    .from('learning_journal_periods')
+    .select('id')
+    .eq('class_id', classId)
+    .lt('start_date', currentStartDate)
+    .order('start_date', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (periodError || !prevPeriod) {
+    return []
+  }
+
+  const { data: prevEntry, error: entryError } = await supabase
+    .from('learning_journal_entries')
+    .select('id')
+    .eq('period_id', prevPeriod.id)
+    .eq('student_id', studentId)
+    .maybeSingle()
+
+  if (entryError || !prevEntry) {
+    return []
+  }
+
+  return fetchLearningJournalComments(prevEntry.id)
+}
+
 export async function fetchLearningJournalEntryLogs(entryId: string): Promise<LearningJournalEntryLog[]> {
   if (!entryId) {
     return []

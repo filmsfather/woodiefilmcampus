@@ -18,9 +18,33 @@ interface CommentEditorProps {
   label: string
   description?: string
   defaultValue: string
+  previousComment?: string | null
 }
 
-export function CommentEditor({ entryId, roleScope, subject, label, description, defaultValue }: CommentEditorProps) {
+function PreviousCommentHint({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = text.length > 80
+
+  return (
+    <button
+      type="button"
+      onClick={() => setExpanded((prev) => !prev)}
+      className="w-full rounded border border-slate-100 bg-slate-50 px-3 py-2 text-left"
+    >
+      <span className="text-xs font-medium text-slate-400">지난 코멘트</span>
+      <p className={`mt-0.5 text-xs text-slate-500 whitespace-pre-wrap ${!expanded && isLong ? 'line-clamp-2' : ''}`}>
+        {text}
+      </p>
+      {isLong ? (
+        <span className="mt-1 inline-block text-xs text-slate-400">
+          {expanded ? '접기' : '더보기'}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
+export function CommentEditor({ entryId, roleScope, subject, label, description, defaultValue, previousComment }: CommentEditorProps) {
   const formRef = useRef<HTMLFormElement>(null)
   const lastSavedRef = useRef(defaultValue)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -30,7 +54,6 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
     initialActionState
   )
 
-  // 성공 시 임시 메시지 표시
   useEffect(() => {
     if (state.status === 'success') {
       setShowSuccess(true)
@@ -41,7 +64,6 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
 
   const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
     const currentValue = e.target.value
-    // 값이 변경되었을 때만 저장
     if (currentValue !== lastSavedRef.current && formRef.current) {
       lastSavedRef.current = currentValue
       formRef.current.requestSubmit()
@@ -53,6 +75,7 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
       <div className="space-y-1">
         <Label className="text-base font-semibold text-slate-900">{label}</Label>
         {description ? <p className="text-sm text-slate-500">{description}</p> : null}
+        {previousComment ? <PreviousCommentHint text={previousComment} /> : null}
       </div>
 
       {state.status === 'error' && state.message ? (

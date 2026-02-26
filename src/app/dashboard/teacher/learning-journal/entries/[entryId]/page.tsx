@@ -11,6 +11,7 @@ import {
   fetchLearningJournalEntriesForPeriod,
   fetchLearningJournalEntryDetail,
   fetchLearningJournalGreeting,
+  fetchPreviousPeriodComments,
   refreshLearningJournalWeeklyData,
   LEARNING_JOURNAL_SUBJECT_OPTIONS,
 } from '@/lib/learning-journals'
@@ -35,7 +36,6 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const params = await props.params
 
-  // 페이지 로드 시 항상 주차별 데이터를 최신 상태로 갱신
   await refreshLearningJournalWeeklyData(params.entryId)
 
   const entry = await fetchLearningJournalEntryDetail(params.entryId)
@@ -46,45 +46,59 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
 
   const supabase = await createServerSupabase()
 
-  const { data: periodRow, error: periodError } = await supabase
-    .from('learning_journal_periods')
-    .select(
-      `id,
-       class_id,
-       start_date,
-       end_date,
-       label,
-       status,
-       classes:classes!learning_journal_periods_class_id_fkey(id, name)
-      `
-    )
-    .eq('id', entry.periodId)
-    .maybeSingle()
+  // --- 병렬 그룹 1: entry 데이터만 필요한 독립 쿼리들 ---
+  const [periodResult, studentResult, comments, periodEntriesRaw, materialResult] = await Promise.all([
+    supabase
+      .from('learning_journal_periods')
+      .select(
+        `id,
+         class_id,
+         start_date,
+         end_date,
+         label,
+         status,
+         classes:classes!learning_journal_periods_class_id_fkey(id, name)
+        `
+      )
+      .eq('id', entry.periodId)
+      .maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('id, name, email, photo_url')
+      .eq('id', entry.studentId)
+      .maybeSingle(),
+    fetchLearningJournalComments(entry.id),
+    fetchLearningJournalEntriesForPeriod(entry.periodId),
+    supabase
+      .from('class_material_posts')
+      .select('id, subject, title, description, week_label')
+      .in('subject', LEARNING_JOURNAL_SUBJECTS)
+      .order('created_at', { ascending: false })
+      .limit(120),
+  ])
 
+  const { data: periodRow, error: periodError } = periodResult
   if (periodError) {
     console.error('[learning-journal] entry period fetch error', periodError)
   }
-
   if (!periodRow) {
     notFound()
   }
 
-  const classInfo = Array.isArray(periodRow.classes) ? periodRow.classes[0] : periodRow.classes
-
-  const { data: studentRow, error: studentError } = await supabase
-    .from('profiles')
-    .select('id, name, email, photo_url')
-    .eq('id', entry.studentId)
-    .maybeSingle()
-
+  const { data: studentRow, error: studentError } = studentResult
   if (studentError) {
     console.error('[learning-journal] entry student fetch error', studentError)
   }
 
+  const { data: materialRows, error: materialError } = materialResult
+  if (materialError) {
+    console.error('[learning-journal] material fetch error', materialError)
+  }
+
+  const classInfo = Array.isArray(periodRow.classes) ? periodRow.classes[0] : periodRow.classes
   const studentName = studentRow?.name ?? studentRow?.email ?? '학생 정보 없음'
   const studentPhotoUrl = studentRow?.photo_url ?? null
 
-  const comments = await fetchLearningJournalComments(entry.id)
   const commentLookup = new Map(
     comments.map((comment) => {
       const key = comment.roleScope === 'homeroom' ? 'homeroom' : `subject:${comment.subject}`
@@ -92,22 +106,76 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
     })
   )
 
+  const periodEntries = periodEntriesRaw.sort((a, b) =>
+    a.studentName.localeCompare(b.studentName, 'ko')
+  )
+
+  // --- 병렬 그룹 2: period 데이터가 필요한 독립 쿼리들 ---
   const monthTokens = deriveMonthTokensForRange(periodRow.start_date, periodRow.end_date)
   const primaryMonth = monthTokens[0]
-  const greeting = primaryMonth ? await fetchLearningJournalGreeting(primaryMonth) : null
-  const academicEvents = monthTokens.length > 0 ? await fetchLearningJournalAcademicEvents(monthTokens) : []
 
-  // 과목별 수업 자료 가져오기
-  const { data: materialRows, error: materialError } = await supabase
-    .from('class_material_posts')
-    .select('id, subject, title, description, week_label')
-    .in('subject', LEARNING_JOURNAL_SUBJECTS)
-    .order('created_at', { ascending: false })
-    .limit(120)
+  const [greeting, academicEvents, samePeriodResult, availablePeriodsResult, previousComments] = await Promise.all([
+    primaryMonth ? fetchLearningJournalGreeting(primaryMonth) : Promise.resolve(null),
+    monthTokens.length > 0 ? fetchLearningJournalAcademicEvents(monthTokens) : Promise.resolve([]),
+    supabase
+      .from('learning_journal_periods')
+      .select(`
+        id,
+        class_id,
+        classes:classes!learning_journal_periods_class_id_fkey(id, name),
+        entries:learning_journal_entries(
+          id,
+          student:profiles!learning_journal_entries_student_id_fkey(id, name)
+        )
+      `)
+      .eq('start_date', periodRow.start_date)
+      .eq('end_date', periodRow.end_date)
+      .order('class_id'),
+    supabase
+      .from('learning_journal_periods')
+      .select('id, label, start_date, end_date')
+      .eq('class_id', periodRow.class_id)
+      .order('start_date', { ascending: false })
+      .limit(6),
+    fetchPreviousPeriodComments(periodRow.class_id, periodRow.start_date, entry.studentId),
+  ])
 
-  if (materialError) {
-    console.error('[learning-journal] material fetch error', materialError)
-  }
+  const { data: samePeriodClasses } = samePeriodResult
+
+  const availableClasses = (samePeriodClasses ?? [])
+    .map((p) => {
+      const cls = Array.isArray(p.classes) ? p.classes[0] : p.classes
+      const entries = (p.entries ?? []) as Array<{ id: string; student: { id: string; name: string | null } | { id: string; name: string | null }[] | null }>
+
+      const sortedEntries = entries
+        .map((e) => {
+          const student = Array.isArray(e.student) ? e.student[0] : e.student
+          return {
+            entryId: e.id,
+            studentName: student?.name ?? '',
+          }
+        })
+        .filter((e) => e.studentName)
+        .sort((a, b) => a.studentName.localeCompare(b.studentName, 'ko'))
+
+      const firstEntry = sortedEntries[0]
+
+      return {
+        periodId: p.id,
+        classId: p.class_id,
+        className: cls?.name ?? '반 미지정',
+        firstEntryId: firstEntry?.entryId ?? null,
+      }
+    })
+    .filter((c) => c.className !== '반 미지정' && c.firstEntryId)
+    .sort((a, b) => a.className.localeCompare(b.className, 'ko'))
+
+  const availablePeriods = (availablePeriodsResult.data ?? []).map((p) => ({
+    id: p.id,
+    label: p.label ?? `${p.start_date} ~ ${p.end_date}`,
+    startDate: p.start_date,
+    endDate: p.end_date,
+  }))
 
   const materials: Record<LearningJournalSubject, Array<{
     id: string
@@ -149,76 +217,18 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
     })
   }
 
+  const previousCommentLookup = new Map(
+    previousComments.map((comment) => {
+      const key = comment.roleScope === 'homeroom' ? 'homeroom' : `subject:${comment.subject}`
+      return [key, comment.body ?? ''] as const
+    })
+  )
+
   const fallbackHref = profile?.role === 'principal'
     ? '/dashboard/principal/learning-journal/review'
     : profile?.role === 'manager'
       ? '/dashboard/manager/learning-journal'
       : `/dashboard/teacher/learning-journal?period=${periodRow.id}`
-
-  const periodEntriesRaw = await fetchLearningJournalEntriesForPeriod(entry.periodId)
-  const periodEntries = periodEntriesRaw.sort((a, b) => 
-    a.studentName.localeCompare(b.studentName, 'ko')
-  )
-
-  // 같은 기간에 다른 반의 period 가져오기 (반 전환용)
-  const { data: samePeriodClasses } = await supabase
-    .from('learning_journal_periods')
-    .select(`
-      id,
-      class_id,
-      classes:classes!learning_journal_periods_class_id_fkey(id, name),
-      entries:learning_journal_entries(
-        id,
-        student:profiles!learning_journal_entries_student_id_fkey(id, name)
-      )
-    `)
-    .eq('start_date', periodRow.start_date)
-    .eq('end_date', periodRow.end_date)
-    .order('class_id')
-
-  const availableClasses = (samePeriodClasses ?? [])
-    .map((p) => {
-      const cls = Array.isArray(p.classes) ? p.classes[0] : p.classes
-      const entries = (p.entries ?? []) as Array<{ id: string; student: { id: string; name: string | null } | { id: string; name: string | null }[] | null }>
-      
-      // 첫 번째 학생 엔트리 찾기 (이름순 정렬)
-      const sortedEntries = entries
-        .map((e) => {
-          const student = Array.isArray(e.student) ? e.student[0] : e.student
-          return {
-            entryId: e.id,
-            studentName: student?.name ?? '',
-          }
-        })
-        .filter((e) => e.studentName)
-        .sort((a, b) => a.studentName.localeCompare(b.studentName, 'ko'))
-      
-      const firstEntry = sortedEntries[0]
-
-      return {
-        periodId: p.id,
-        classId: p.class_id,
-        className: cls?.name ?? '반 미지정',
-        firstEntryId: firstEntry?.entryId ?? null,
-      }
-    })
-    .filter((c) => c.className !== '반 미지정' && c.firstEntryId)
-    .sort((a, b) => a.className.localeCompare(b.className, 'ko'))
-
-  // 과제 배치 변경을 위한 available periods 가져오기 (최근 6개월)
-  const { data: availablePeriodsData } = await supabase
-    .from('learning_journal_periods')
-    .select('id, label, start_date, end_date')
-    .eq('class_id', periodRow.class_id)
-    .order('start_date', { ascending: false })
-    .limit(6)
-
-  const availablePeriods = (availablePeriodsData ?? []).map((p) => ({
-    id: p.id,
-    label: p.label ?? `${p.start_date} ~ ${p.end_date}`,
-    startDate: p.start_date,
-    endDate: p.end_date,
-  }))
 
   return (
     <section className="space-y-6">
@@ -289,6 +299,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
                   label="담임 코멘트"
                   description="학생의 전반적인 학습 태도와 전달 사항을 작성하세요."
                   defaultValue={commentLookup.get('homeroom') ?? ''}
+                  previousComment={previousCommentLookup.get('homeroom') || null}
                 />
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -303,6 +314,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
                         label={`${option.label} 코멘트`}
                         description="수업 참여도, 과제 피드백 등을 기록하세요."
                         defaultValue={commentLookup.get(key) ?? ''}
+                        previousComment={previousCommentLookup.get(key) || null}
                       />
                     )
                   })}
