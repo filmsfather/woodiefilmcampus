@@ -15,8 +15,6 @@ import {
   type RawAssignmentRow,
   type MediaAssetRecord,
 } from '@/lib/assignment-evaluation'
-import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
-import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
 
 interface RawClassRow {
   class_id: string
@@ -37,6 +35,7 @@ interface ClassAssignmentSummary {
   subject: string
   type: string
   weekLabel: string | null
+  publishedAt: string | null
   dueAt: string | null
   totalStudents: number
   completedStudents: number
@@ -60,6 +59,7 @@ interface ClassSummary {
 }
 
 const UPCOMING_WINDOW_DAYS = 3
+const RECENT_DAYS = 30
 
 interface RawPrincipalClassRow {
   id: string
@@ -83,7 +83,6 @@ export default async function TeacherClassReviewPage({
   const resolvedSearchParams = await searchParams
   const supabase = await createServerSupabase()
   const isPrincipal = profile.role === 'principal'
-  const weekRange = resolveWeekRange(resolvedSearchParams.week ?? null)
 
   let classRows: RawPrincipalClassRow[] | RawClassRow[] | null = null
 
@@ -147,10 +146,12 @@ export default async function TeacherClassReviewPage({
     notFound()
   }
 
+  const thirtyDaysAgo = DateUtil.addDays(DateUtil.nowUTC(), -RECENT_DAYS)
+
   const assignmentQuery = supabase
     .from('assignments')
     .select(
-      `id, due_at, created_at, target_scope,
+      `id, due_at, published_at, created_at, target_scope,
        assigned_by,
        assigned_teacher:profiles!assignments_assigned_by_fkey(id, name, email),
        workbooks(id, title, subject, type, week_label, config),
@@ -217,11 +218,8 @@ export default async function TeacherClassReviewPage({
        )
       `
     )
-    .order('due_at', { ascending: true })
-
-  assignmentQuery
-    .gte('due_at', DateUtil.toISOString(weekRange.start))
-    .lt('due_at', DateUtil.toISOString(weekRange.endExclusive))
+    .order('due_at', { ascending: false })
+    .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
 
   if (!isPrincipal) {
     assignmentQuery.eq('assigned_by', profile.id)
@@ -297,29 +295,10 @@ export default async function TeacherClassReviewPage({
     : null
 
   const initialAssignmentId = typeof resolvedSearchParams.assignment === 'string' ? resolvedSearchParams.assignment : null
-  const previousWeekHref = buildWeekHref(
-    `/dashboard/teacher/review/${classInfo.id}`,
-    resolvedSearchParams,
-    weekRange.previousStart
-  )
-  const nextWeekHref = buildWeekHref(
-    `/dashboard/teacher/review/${classInfo.id}`,
-    resolvedSearchParams,
-    weekRange.nextStart
-  )
 
   return (
     <div className="space-y-4">
       <DashboardBackLink fallbackHref="/dashboard/teacher/review" label="반 개요로 돌아가기" />
-      <div className="flex justify-center md:justify-start">
-        <WeekNavigator
-          label={weekRange.label}
-          previousHref={previousWeekHref}
-          nextHref={nextWeekHref}
-          currentWeekStart={weekRange.start}
-          className="w-full max-w-xs md:w-auto"
-        />
-      </div>
       <ClassDashboard
         classId={classInfo.id}
         className={classInfo.name}
@@ -341,6 +320,7 @@ function mapAssignmentForClass(assignment: AssignmentDetail): ClassAssignmentSum
     subject: assignment.subject,
     type: assignment.type,
     weekLabel: assignment.weekLabel,
+    publishedAt: assignment.publishedAt,
     dueAt: assignment.dueAt,
     totalStudents: summary.totalStudents,
     completedStudents: summary.completedStudents,

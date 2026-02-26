@@ -1,9 +1,19 @@
 import Link from 'next/link'
-import { AlarmClock, AlertTriangle, ArrowRight, CalendarClock, Printer } from 'lucide-react'
+import { AlarmClock, AlertTriangle, CalendarClock, FileText, Printer } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ClassAssignmentExpandable } from '@/components/dashboard/teacher/ClassAssignmentList'
+
+export interface ClassAssignmentListItem {
+  id: string
+  title: string
+  subject: string | null
+  type: string | null
+  dueAt: string | null
+  dueAtLabel: string | null
+  publishedAtLabel: string | null
+}
 
 export interface ClassOverviewItem {
   id: string
@@ -12,7 +22,8 @@ export interface ClassOverviewItem {
   overdueAssignments: number
   pendingPrintRequests: number
   upcomingAssignments: number
-  nextDueAtLabel: string | null
+  latestAssignment: ClassAssignmentListItem | null
+  recentAssignments: ClassAssignmentListItem[]
 }
 
 export interface ClassOverviewSummary {
@@ -107,24 +118,39 @@ export function ClassOverviewGrid({
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="text-sm text-slate-600">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-medium text-slate-500">다음 마감</span>
-                      <span>{item.nextDueAtLabel ?? '마감 일정 없음'}</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="mt-auto flex flex-wrap gap-2">
-                  <Button asChild size="sm" className="flex-1">
-                    <Link href={`/dashboard/teacher/review/${item.id}`}>
-                      과제 관리 <ArrowRight className="ml-1 h-4 w-4" />
+                <CardContent className="space-y-0 px-0 text-sm text-slate-600">
+                  {item.latestAssignment ? (
+                    <Link
+                      href={`/dashboard/teacher/review/${item.id}?assignment=${item.latestAssignment.id}`}
+                      className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50 sm:px-6"
+                    >
+                      <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-slate-700">
+                          {item.latestAssignment.title}
+                        </p>
+                        {item.latestAssignment.subject && (
+                          <p className="truncate text-xs text-slate-500">
+                            {item.latestAssignment.subject}
+                          </p>
+                        )}
+                      </div>
+                      <div className="shrink-0 text-right text-xs text-slate-500">
+                        <p>출제 {item.latestAssignment.publishedAtLabel ?? '-'}</p>
+                        <p>마감 {item.latestAssignment.dueAtLabel ?? '없음'}</p>
+                      </div>
                     </Link>
-                  </Button>
-                  <Button asChild size="sm" variant="outline" className="flex-1">
-                    <Link href={`/dashboard/teacher/review/${item.id}#print-requests`}>인쇄 현황</Link>
-                  </Button>
-                </CardFooter>
+                  ) : (
+                    <div className="px-4 py-2.5 text-xs text-slate-400 sm:px-6">
+                      등록된 과제가 없습니다.
+                    </div>
+                  )}
+
+                  <ClassAssignmentExpandable
+                    classId={item.id}
+                    recentAssignments={item.recentAssignments}
+                  />
+                </CardContent>
               </Card>
             )
           })}

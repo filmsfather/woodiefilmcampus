@@ -134,6 +134,7 @@ interface RawStudentTask {
 export interface RawAssignmentRow {
   id: string
   due_at: string | null
+  published_at?: string | null
   created_at: string
   target_scope: string | null
   assigned_by: string | null
@@ -229,6 +230,7 @@ export interface PrintRequestSummary {
 export interface AssignmentDetail {
   id: string
   dueAt: string | null
+  publishedAt: string | null
   createdAt: string
   targetScope: string | null
   title: string
@@ -451,6 +453,7 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
   const assignment: AssignmentDetail = {
     id: row.id,
     dueAt: row.due_at,
+    publishedAt: row.published_at ?? row.created_at,
     createdAt: row.created_at,
     targetScope: row.target_scope,
     title: workbook?.title ?? '제목 미정',

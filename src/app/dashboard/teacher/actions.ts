@@ -4,9 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
+import DateUtil from '@/lib/date-util'
 import type { UserProfile } from '@/lib/supabase'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { ClassAssignmentListItem } from '@/components/dashboard/teacher/ClassOverview'
 
 type DeleteResult = {
   success?: true
@@ -1204,4 +1206,135 @@ export async function deleteStudentPhoto(input: DeletePhotoInput) {
     console.error('[teacher] deleteStudentPhoto unexpected error', error)
     return { error: '학생 사진 삭제 중 문제가 발생했습니다.' }
   }
+}
+
+const updateDatesSchema = z.object({
+  assignmentId: z.string().uuid(),
+  publishedAt: z.string().nullable().optional(),
+  dueAt: z.string().nullable().optional(),
+})
+
+export async function updateAssignmentDates(
+  input: z.infer<typeof updateDatesSchema>
+): Promise<{ success?: true; error?: string }> {
+  const parsed = updateDatesSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: '잘못된 입력입니다.' }
+  }
+
+  const { profile } = await getAuthContext()
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const supabase = await createServerSupabase()
+
+  const { data: assignment } = await supabase
+    .from('assignments')
+    .select('id, assigned_by')
+    .eq('id', parsed.data.assignmentId)
+    .single()
+
+  if (!assignment) {
+    return { error: '과제를 찾을 수 없습니다.' }
+  }
+
+  if (!canManageAssignment(profile, assignment.assigned_by)) {
+    return { error: '이 과제를 수정할 권한이 없습니다.' }
+  }
+
+  const updates: Record<string, string | null> = {}
+  if (parsed.data.publishedAt !== undefined) {
+    updates.published_at = parsed.data.publishedAt
+  }
+  if (parsed.data.dueAt !== undefined) {
+    updates.due_at = parsed.data.dueAt
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { success: true }
+  }
+
+  const { error } = await supabase
+    .from('assignments')
+    .update(updates)
+    .eq('id', parsed.data.assignmentId)
+
+  if (error) {
+    console.error('[teacher] updateAssignmentDates error', error)
+    return { error: '날짜 수정 중 문제가 발생했습니다.' }
+  }
+
+  revalidatePath('/dashboard/teacher/review')
+  return { success: true }
+}
+
+interface RawOverviewAssignmentRow {
+  id: string
+  due_at: string | null
+  published_at: string | null
+  created_at: string
+  workbooks?:
+    | { id: string; title: string | null; subject: string | null; type: string | null }
+    | Array<{ id: string; title: string | null; subject: string | null; type: string | null }>
+  assignment_targets?: Array<{ class_id: string | null }>
+}
+
+export async function fetchAllAssignmentsForClass(
+  classId: string
+): Promise<ClassAssignmentListItem[]> {
+  const { profile } = await getAuthContext()
+  if (!isTeacherManagerOrPrincipal(profile)) {
+    return []
+  }
+
+  const canSeeAll = profile.role === 'principal' || profile.role === 'manager'
+  const supabase = await createServerSupabase()
+
+  const query = supabase
+    .from('assignments')
+    .select(
+      `id, due_at, published_at, created_at,
+       workbooks(id, title, subject, type),
+       assignment_targets!inner(class_id)`
+    )
+    .eq('assignment_targets.class_id', classId)
+    .order('due_at', { ascending: false })
+
+  if (!canSeeAll) {
+    query.eq('assigned_by', profile.id)
+  }
+
+  const { data, error } = await query.returns<RawOverviewAssignmentRow[]>()
+
+  if (error) {
+    console.error('[teacher] fetchAllAssignmentsForClass error', error)
+    return []
+  }
+
+  return (data ?? []).map((row) => {
+    const workbook = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
+    const publishedAt = row.published_at ?? row.created_at
+    return {
+      id: row.id,
+      title: workbook?.title ?? '제목 없음',
+      subject: workbook?.subject ?? null,
+      type: workbook?.type ?? null,
+      dueAt: row.due_at,
+      dueAtLabel: row.due_at
+        ? DateUtil.formatForDisplay(row.due_at, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : null,
+      publishedAtLabel: publishedAt
+        ? DateUtil.formatForDisplay(publishedAt, {
+            month: 'short',
+            day: 'numeric',
+          })
+        : null,
+    }
+  })
 }

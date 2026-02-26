@@ -2,9 +2,12 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { ClassOverviewGrid, ClassOverviewItem, ClassOverviewSummary } from '@/components/dashboard/teacher/ClassOverview'
-import { WeekNavigator } from '@/components/dashboard/WeekNavigator'
-import { buildWeekHref, resolveWeekRange } from '@/lib/week-range'
+import {
+  ClassOverviewGrid,
+  type ClassOverviewItem,
+  type ClassOverviewSummary,
+  type ClassAssignmentListItem,
+} from '@/components/dashboard/teacher/ClassOverview'
 
 interface RawTeacherClassRow {
   classes?:
@@ -91,6 +94,10 @@ interface RawAssignmentRow {
 
 interface AssignmentSummary {
   id: string
+  title: string
+  subject: string | null
+  type: string | null
+  publishedAt: string | null
   dueAt: string | null
   classes: Array<{ id: string; name: string }>
   studentTasks: Array<{
@@ -115,15 +122,12 @@ interface ManagedClass {
 }
 
 const UPCOMING_WINDOW_DAYS = 3
+const RECENT_DAYS = 30
 
-export default async function TeacherReviewOverviewPage(props: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>
-}) {
+export default async function TeacherReviewOverviewPage() {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = await createServerSupabase()
   const canSeeAllClasses = profile.role === 'principal' || profile.role === 'manager'
-  const searchParams = await props.searchParams
-  const weekRange = resolveWeekRange(searchParams?.week ?? null)
 
   const classQuery = canSeeAllClasses
     ? supabase
@@ -135,10 +139,13 @@ export default async function TeacherReviewOverviewPage(props: {
       .select('classes(id, name)')
       .eq('teacher_id', profile.id)
 
+  const thirtyDaysAgo = DateUtil.addDays(DateUtil.nowUTC(), -RECENT_DAYS)
+
   const assignmentQuery = supabase
     .from('assignments')
     .select(
       `id, due_at, published_at, created_at, target_scope,
+       workbooks(id, title, subject, type, week_label),
        assignment_targets(class_id, classes(id, name)),
       student_tasks(
        id,
@@ -160,11 +167,8 @@ export default async function TeacherReviewOverviewPage(props: {
        )
       `
     )
-    .order('due_at', { ascending: true })
-
-  assignmentQuery
-    .gte('due_at', DateUtil.toISOString(weekRange.start))
-    .lt('due_at', DateUtil.toISOString(weekRange.endExclusive))
+    .order('due_at', { ascending: false })
+    .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
 
   if (!canSeeAllClasses) {
     assignmentQuery.eq('assigned_by', profile.id)
@@ -206,6 +210,8 @@ export default async function TeacherReviewOverviewPage(props: {
       .filter((value): value is ManagedClass => Boolean(value)) ?? [])
 
   const assignments: AssignmentSummary[] = (assignmentRows as RawAssignmentRow[] | null | undefined)?.map((row) => {
+    const workbook = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
+
     const classes = (row.assignment_targets ?? [])
       .map((target) => {
         const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
@@ -265,6 +271,10 @@ export default async function TeacherReviewOverviewPage(props: {
 
     return {
       id: row.id,
+      title: workbook?.title ?? '제목 없음',
+      subject: workbook?.subject ?? null,
+      type: workbook?.type ?? null,
+      publishedAt: row.published_at ?? row.created_at,
       dueAt: row.due_at,
       classes,
       studentTasks,
@@ -281,7 +291,7 @@ export default async function TeacherReviewOverviewPage(props: {
     let overdueAssignments = 0
     let upcomingAssignments = 0
     let pendingPrintRequests = 0
-    let nextDueAt: string | null = null
+    const classAssignments: ClassAssignmentListItem[] = []
 
     assignments.forEach((assignment) => {
       const targetIds = new Set(assignment.targetClassIds)
@@ -292,6 +302,28 @@ export default async function TeacherReviewOverviewPage(props: {
       if (!belongsToClass) {
         return
       }
+
+      classAssignments.push({
+        id: assignment.id,
+        title: assignment.title,
+        subject: assignment.subject,
+        type: assignment.type,
+        dueAt: assignment.dueAt,
+        dueAtLabel: assignment.dueAt
+          ? DateUtil.formatForDisplay(assignment.dueAt, {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+          : null,
+        publishedAtLabel: assignment.publishedAt
+          ? DateUtil.formatForDisplay(assignment.publishedAt, {
+            month: 'short',
+            day: 'numeric',
+          })
+          : null,
+      })
 
       const classTasks = assignment.studentTasks.filter((task) => {
         if (task.classId) {
@@ -322,12 +354,6 @@ export default async function TeacherReviewOverviewPage(props: {
         if (isUpcoming) {
           upcomingAssignments += 1
         }
-
-        if (hasOutstanding) {
-          if (!nextDueAt || dueTime < new Date(nextDueAt).getTime()) {
-            nextDueAt = assignment.dueAt
-          }
-        }
       }
 
       if (assignment.printRequests.length > 0) {
@@ -350,14 +376,12 @@ export default async function TeacherReviewOverviewPage(props: {
       }
     })
 
-    const nextDueAtLabel = nextDueAt
-      ? DateUtil.formatForDisplay(nextDueAt, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-      : null
+    classAssignments.sort((a, b) => {
+      if (!a.dueAt && !b.dueAt) return 0
+      if (!a.dueAt) return 1
+      if (!b.dueAt) return -1
+      return new Date(b.dueAt).getTime() - new Date(a.dueAt).getTime()
+    })
 
     return {
       id: managedClass.id,
@@ -366,7 +390,8 @@ export default async function TeacherReviewOverviewPage(props: {
       overdueAssignments,
       pendingPrintRequests,
       upcomingAssignments,
-      nextDueAtLabel,
+      latestAssignment: classAssignments[0] ?? null,
+      recentAssignments: classAssignments.slice(1),
     }
   })
 
@@ -386,21 +411,9 @@ export default async function TeacherReviewOverviewPage(props: {
     }
   )
 
-  const previousWeekHref = buildWeekHref('/dashboard/teacher/review', searchParams, weekRange.previousStart)
-  const nextWeekHref = buildWeekHref('/dashboard/teacher/review', searchParams, weekRange.nextStart)
-
   return (
     <div className="space-y-6">
       <DashboardBackLink fallbackHref="/dashboard/teacher" label="교사용 허브로 돌아가기" />
-      <div className="flex justify-center md:justify-start">
-        <WeekNavigator
-          label={weekRange.label}
-          previousHref={previousWeekHref}
-          nextHref={nextWeekHref}
-          currentWeekStart={weekRange.start}
-          className="w-full max-w-xs md:w-auto"
-        />
-      </div>
       <ClassOverviewGrid summary={overviewSummary} items={overviewItems} />
     </div>
   )
