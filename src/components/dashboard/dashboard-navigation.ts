@@ -30,7 +30,10 @@ const principalCoreSections: NavigationSection[] = [
   {
     id: 'principal-students',
     title: '학생 관리',
-    items: [{ label: '퇴원생 관리', href: '/dashboard/principal/withdrawn-students' }],
+    items: [
+      { label: '이름외우기', href: '/dashboard/principal/name-quiz' },
+      { label: '퇴원생 관리', href: '/dashboard/principal/withdrawn-students' },
+    ],
   },
   {
     id: 'principal-work',

@@ -56,6 +56,17 @@ export default async function PrincipalDashboardPage() {
             </Button>
           </CardContent>
         </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">학생 이름외우기</CardTitle>
+            <CardDescription>반별 학생 얼굴 사진을 보고 이름을 맞혀보세요.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/name-quiz">이름외우기 시작</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">
