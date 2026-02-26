@@ -72,7 +72,8 @@ function compareClasses(a: AssignmentClassSummary, b: AssignmentClassSummary) {
   return a.name.localeCompare(b.name, 'ko')
 }
 
-export default async function AssignmentCreatePage() {
+export default async function AssignmentCreatePage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const searchParams = await props.searchParams
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const supabase = await createServerSupabase()
 
@@ -95,6 +96,9 @@ export default async function AssignmentCreatePage() {
   if (workbookError) {
     console.error('[assignments/new] failed to load workbooks', workbookError)
   }
+
+  const _rawWorkbookId = searchParams.workbookId
+  const _preselectedWorkbookId = typeof _rawWorkbookId === 'string' ? _rawWorkbookId : Array.isArray(_rawWorkbookId) ? _rawWorkbookId[0] : null
 
   const workbookRows = (workbookData ?? []) as WorkbookRow[]
   const workbookSummaries: AssignmentWorkbookSummary[] = workbookRows.map((row) => ({
@@ -242,6 +246,10 @@ export default async function AssignmentCreatePage() {
 
   const students = Array.from(studentMap.values()).sort(compareStudents)
 
+  const preselectedWorkbookIds = _preselectedWorkbookId && workbookSummaries.some((w) => w.id === _preselectedWorkbookId)
+    ? [_preselectedWorkbookId]
+    : []
+
   const teacherName = profile.name ?? profile.email ?? null
   const showWorkbookHint = workbookSummaries.length === 0
 
@@ -269,6 +277,7 @@ export default async function AssignmentCreatePage() {
         classes={classSummaries}
         students={students}
         serverNowIso={serverNowIso}
+        initialWorkbookIds={preselectedWorkbookIds}
       />
     </section>
   )

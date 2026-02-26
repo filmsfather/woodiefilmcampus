@@ -384,6 +384,7 @@ export async function updateStudentTaskReviewState(input: UpdateReviewStateInput
     revalidatePath('/dashboard/student', 'layout')
     revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
+    revalidatePath('/dashboard/teacher/learning-journal', 'layout')
 
     return { success: true as const }
   } catch (error) {

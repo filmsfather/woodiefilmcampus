@@ -88,6 +88,7 @@ interface AssignmentFormProps {
   classes: AssignmentClassSummary[]
   students: AssignmentStudentSummary[]
   serverNowIso: string
+  initialWorkbookIds?: string[]
 }
 
 function normalizeSearchTerm(term: string) {
@@ -158,9 +159,16 @@ export function AssignmentForm({
   classes,
   students,
   serverNowIso,
+  initialWorkbookIds = [],
 }: AssignmentFormProps) {
   const defaultDueAt = toDateInputValue(serverNowIso)
-  const [workbookSubjectFilter, setWorkbookSubjectFilter] = useState<'' | string>('')
+  const [workbookSubjectFilter, setWorkbookSubjectFilter] = useState<'' | string>(() => {
+    if (initialWorkbookIds.length > 0) {
+      const wb = workbooks.find((w) => w.id === initialWorkbookIds[0])
+      return wb?.subject ?? ''
+    }
+    return ''
+  })
   const [workbookTypeFilter, setWorkbookTypeFilter] = useState<'all' | string>('all')
   const [workbookAuthorFilter, setWorkbookAuthorFilter] = useState<'all' | string>('all')
   const [workbookQuery, setWorkbookQuery] = useState('')
@@ -173,7 +181,7 @@ export function AssignmentForm({
   const form = useForm<AssignmentFormValues>({
     resolver: zodResolver(assignmentFormSchema) as Resolver<AssignmentFormValues>,
     defaultValues: {
-      workbookIds: [],
+      workbookIds: initialWorkbookIds,
       targetClassIds: [],
       targetStudentIds: [],
       publishedAt: '',

@@ -7,6 +7,7 @@ import { LearningJournalEntryContent } from '@/components/dashboard/learning-jou
 import { ClassTemplateMaterialDialog } from '@/components/dashboard/teacher/learning-journal/ClassTemplateMaterialDialog'
 import { PublishedAtDialog } from '@/components/dashboard/teacher/learning-journal/PublishedAtDialog'
 import { upsertClassTemplateWeekAction, updateAssignmentDatesAction } from '@/app/dashboard/teacher/learning-journal/actions'
+import { updateStudentTaskReviewState } from '@/app/dashboard/teacher/actions'
 import type {
   LearningJournalAcademicEvent,
   LearningJournalAnnualSchedule,
@@ -232,6 +233,28 @@ export function LearningJournalEntryEditor({
     })
   }
 
+  const handleChangeStatus = (task: LearningJournalWeekAssignmentItem, newStatus: string) => {
+    const normalizedTaskId = task.taskId ?? task.id
+
+    startTransition(async () => {
+      const result = await updateStudentTaskReviewState({
+        assignmentId: task.id,
+        studentTaskId: normalizedTaskId,
+        statusOverride: newStatus as 'pending' | 'not_started' | 'in_progress' | 'completed' | 'canceled',
+        submittedLate: task.submittedLate,
+      })
+
+      if (result?.error) {
+        setFeedback({ type: 'error', message: result.error })
+        return
+      }
+
+      setFeedback({ type: 'success', message: '과제 상태가 변경되었습니다.' })
+      router.refresh()
+      setTimeout(() => setFeedback(null), 3000)
+    })
+  }
+
   return (
     <>
       {feedback ? (
@@ -261,6 +284,7 @@ export function LearningJournalEntryEditor({
         className={className}
         onEditWeeklyMaterial={handleEdit}
         onEditPublishedAt={handleEditPublishedAt}
+        onChangeStatus={handleChangeStatus}
         entries={entries}
         currentEntryId={entryId}
         availableClasses={availableClasses}

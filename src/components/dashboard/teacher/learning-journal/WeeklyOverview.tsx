@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
+
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Check, Plus } from 'lucide-react'
 import type { LearningJournalWeeklyData, LearningJournalWeeklySubjectData, LearningJournalSubject, LearningJournalWeekAssignmentItem } from '@/types/learning-journal'
 import { LEARNING_JOURNAL_SUBJECTS, LEARNING_JOURNAL_SUBJECT_INFO } from '@/types/learning-journal'
 
@@ -13,15 +16,23 @@ const STATUS_LABEL: Record<string, string> = {
   pending: '대기',
 }
 
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: 'completed', label: '완료' },
+  { value: 'in_progress', label: '진행 중' },
+  { value: 'not_started', label: '미시작' },
+  { value: 'pending', label: '대기' },
+]
+
 interface WeeklyOverviewProps {
   weeks: LearningJournalWeeklyData[]
   className?: string
   editable?: boolean
   onEdit?: (weekIndex: number, subject: LearningJournalSubject) => void
   onEditPublishedAt?: (task: LearningJournalWeekAssignmentItem) => void
+  onChangeStatus?: (task: LearningJournalWeekAssignmentItem, newStatus: string) => void
 }
 
-export function WeeklyOverview({ weeks, className, editable = false, onEdit, onEditPublishedAt }: WeeklyOverviewProps) {
+export function WeeklyOverview({ weeks, className, editable = false, onEdit, onEditPublishedAt, onChangeStatus }: WeeklyOverviewProps) {
   const handleMaterialClick = (weekIndex: number, subject: LearningJournalSubject) => {
     if (editable && onEdit) {
       onEdit(weekIndex, subject)
@@ -178,12 +189,19 @@ export function WeeklyOverview({ weeks, className, editable = false, onEdit, onE
                             >
                               <span>{assignment.title}</span>
                               <div className="flex items-center gap-1">
-                                <Badge
-                                  variant={assignment.status === 'completed' ? 'default' : 'outline'}
-                                  className="text-[10px]"
-                                >
-                                  {STATUS_LABEL[assignment.status] ?? assignment.status}
-                                </Badge>
+                                {editable && onChangeStatus ? (
+                                  <StatusBadgePopover
+                                    status={assignment.status}
+                                    onSelect={(newStatus) => onChangeStatus(assignment, newStatus)}
+                                  />
+                                ) : (
+                                  <Badge
+                                    variant={assignment.status === 'completed' ? 'default' : 'outline'}
+                                    className="text-[10px]"
+                                  >
+                                    {STATUS_LABEL[assignment.status] ?? assignment.status}
+                                  </Badge>
+                                )}
                                 {assignment.submittedLate ? (
                                   <Badge variant="destructive" className="text-[10px]">
                                     지각
@@ -213,5 +231,49 @@ export function WeeklyOverview({ weeks, className, editable = false, onEdit, onE
         )
       })}
     </div>
+  )
+}
+
+function StatusBadgePopover({
+  status,
+  onSelect,
+}: {
+  status: string
+  onSelect: (newStatus: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="cursor-pointer rounded-md outline-none transition-opacity hover:opacity-80"
+        >
+          <Badge
+            variant={status === 'completed' ? 'default' : 'outline'}
+            className="text-[10px]"
+          >
+            {STATUS_LABEL[status] ?? status}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-32 p-1">
+        {STATUS_OPTIONS.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className="flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+            onClick={() => {
+              onSelect(option.value)
+              setOpen(false)
+            }}
+          >
+            {option.label}
+            {status === option.value && <Check className="size-3 text-slate-500" />}
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   )
 }
