@@ -1,10 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
+import { Camera, ChevronDown, Loader2, Maximize2 } from 'lucide-react'
 
-import { updateMemberProfile, updateMemberClassAssignments, transitionMemberToInactive, updateMemberRole } from '@/app/dashboard/manager/members/actions'
+import { updateMemberProfile, updateMemberClassAssignments, transitionMemberToInactive, updateMemberRole, updateMemberPhoto } from '@/app/dashboard/manager/members/actions'
+import { compressImageFile, isImageFile } from '@/lib/image-compress'
+import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
+import { createClient } from '@/lib/supabase/client'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -55,6 +66,7 @@ type ManagerMemberSummary = {
   studentPhone: string | null
   parentPhone: string | null
   academicRecord: string | null
+  photoUrl: string | null
   approvedAt: string
   updatedAt: string
   classAssignments: ClassAssignmentSummary[]
@@ -158,8 +170,22 @@ function sanitizePhone(value: string) {
   return value.replace(/\D/g, '')
 }
 
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024
+const COMPRESS_TARGET_SIZE = 500 * 1024
+
+function buildProfilePhotoPath(memberId: string) {
+  return `students/${memberId}/${Date.now()}.jpg`
+}
+
 export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClientProps) {
   const router = useRouter()
+  const supabase = createClient()
+  const photoInputRef = useRef<HTMLInputElement>(null)
+  const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
+  const [photoUploading, startPhotoUploadTransition] = useTransition()
+  const [photoPreviewMap, setPhotoPreviewMap] = useState<Record<string, string>>({})
+  const [photoViewUrl, setPhotoViewUrl] = useState<string | null>(null)
+  const [photoViewName, setPhotoViewName] = useState<string>('')
   const [statusMessage, setStatusMessage] = useState<StatusMessage | null>(null)
   const [filter, setFilter] = useState<MembersFilter>('all')
   const [search, setSearch] = useState('')
@@ -441,8 +467,75 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
   }
 
   const canChangeRole = (member: ManagerMemberSummary) => {
-    // manager, principal은 역할 변경 불가
     return member.role === 'student' || member.role === 'teacher'
+  }
+
+  const handleAvatarClick = (memberId: string) => {
+    setPhotoTargetId(memberId)
+    setTimeout(() => photoInputRef.current?.click(), 0)
+  }
+
+  const handlePhotoFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file || !photoTargetId) return
+
+    if (!isImageFile(file)) {
+      setStatusMessage({ type: 'error', text: '이미지 파일만 업로드할 수 있습니다.' })
+      return
+    }
+
+    if (file.size > MAX_PHOTO_SIZE) {
+      setStatusMessage({ type: 'error', text: '사진 크기는 5MB 이하로 업로드해주세요.' })
+      return
+    }
+
+    setStatusMessage(null)
+    const memberId = photoTargetId
+    const objectUrl = URL.createObjectURL(file)
+    setPhotoPreviewMap((prev) => ({ ...prev, [memberId]: objectUrl }))
+
+    startPhotoUploadTransition(async () => {
+      try {
+        const { file: compressedFile } = await compressImageFile(file, COMPRESS_TARGET_SIZE)
+        const path = buildProfilePhotoPath(memberId)
+
+        const { error: uploadError } = await supabase.storage
+          .from(PROFILE_PHOTOS_BUCKET)
+          .upload(path, compressedFile, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: 'image/jpeg',
+          })
+
+        if (uploadError) throw uploadError
+
+        const result = await updateMemberPhoto({ memberId, photoPath: path })
+
+        if (result.error) {
+          await supabase.storage.from(PROFILE_PHOTOS_BUCKET).remove([path])
+          setStatusMessage({ type: 'error', text: result.error })
+          setPhotoPreviewMap((prev) => {
+            const next = { ...prev }
+            delete next[memberId]
+            return next
+          })
+        } else {
+          setStatusMessage({ type: 'success', text: '사진이 등록되었습니다.' })
+          router.refresh()
+        }
+      } catch (error) {
+        console.error('[ManagerMembers] photo upload error', error)
+        setStatusMessage({ type: 'error', text: '사진 업로드에 실패했습니다.' })
+        setPhotoPreviewMap((prev) => {
+          const next = { ...prev }
+          delete next[memberId]
+          return next
+        })
+      } finally {
+        if (photoInputRef.current) photoInputRef.current.value = ''
+        setPhotoTargetId(null)
+      }
+    })
   }
 
   const renderPhoneCell = (value: string | null, editingValue: string, onChange: (value: string) => void, isEditable: boolean) => {
@@ -452,12 +545,12 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
           value={editingValue}
           onChange={(event) => onChange(event.target.value)}
           placeholder="미입력"
-          className="h-9 w-40"
+          className="h-8 w-32 text-sm"
         />
       )
     }
 
-    return value && value.trim().length > 0 ? value : '미입력'
+    return <span className="text-sm">{value && value.trim().length > 0 ? value : '미입력'}</span>
   }
 
   const renderAcademicCell = (value: string | null, editingValue: string, onChange: (value: string) => void, isEditable: boolean) => {
@@ -467,16 +560,24 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
           value={editingValue}
           onChange={(event) => onChange(event.target.value)}
           placeholder="예: 3.5 / 검정고시"
-          className="h-9 w-44"
+          className="h-8 w-32 text-sm"
         />
       )
     }
 
-    return value && value.trim().length > 0 ? value : '-'
+    return <span className="text-sm">{value && value.trim().length > 0 ? value : '-'}</span>
   }
 
   return (
     <div className="space-y-6">
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+        capture="environment"
+        className="hidden"
+        onChange={handlePhotoFileSelect}
+      />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           {roleFilterOptions.map((option) => (
@@ -522,13 +623,13 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-48">이름</TableHead>
-              <TableHead className="w-20">역할</TableHead>
-              <TableHead className="w-48">배정 반</TableHead>
-              <TableHead className="w-40">학생 번호</TableHead>
-              <TableHead className="w-40">부모님 번호</TableHead>
-              <TableHead className="w-36">성적</TableHead>
-              <TableHead className="w-64 text-right">액션</TableHead>
+              <TableHead>이름</TableHead>
+              <TableHead>역할</TableHead>
+              <TableHead>배정 반</TableHead>
+              <TableHead>학생 번호</TableHead>
+              <TableHead>부모님 번호</TableHead>
+              <TableHead>성적</TableHead>
+              <TableHead className="text-right">액션</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -553,20 +654,60 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                 return (
                   <TableRow key={member.id} data-state={editing ? 'selected' : undefined}>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {editing ? (
-                          <Input
-                            value={editingValues?.name ?? ''}
-                            onChange={(event) => updateEditField('name', event.target.value)}
-                            className="h-9"
-                          />
-                        ) : (
-                          <span className="font-medium text-slate-900">{member.name ?? '이름 미등록'}</span>
-                        )}
-                        <span className="text-xs text-slate-500">{member.email}</span>
-                        <span className="text-xs text-slate-400">
-                          승인일 {formatDate(member.approvedAt)} · 업데이트 {formatDate(member.updatedAt)}
-                        </span>
+                      <div className="flex items-start gap-3">
+                        {(() => {
+                          const isProcessing = photoUploading && photoTargetId === member.id
+                          const displayUrl = photoPreviewMap[member.id] || member.photoUrl
+                          return (
+                            <button
+                              type="button"
+                              className="group relative shrink-0"
+                              onClick={displayUrl
+                                ? () => { setPhotoViewUrl(displayUrl); setPhotoViewName(member.name ?? member.email) }
+                                : () => handleAvatarClick(member.id)
+                              }
+                              disabled={isProcessing}
+                              title={displayUrl ? '크게보기' : '사진 추가'}
+                            >
+                              <Avatar className="size-10">
+                                {displayUrl && (
+                                  <AvatarImage src={displayUrl} alt={member.name ?? ''} />
+                                )}
+                                <AvatarFallback className="text-sm">
+                                  {member.name ? member.name.charAt(0) : '?'}
+                                </AvatarFallback>
+                              </Avatar>
+                              {isProcessing ? (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40">
+                                  <Loader2 className="size-4 animate-spin text-white" />
+                                </div>
+                              ) : displayUrl ? (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 transition-colors group-hover:bg-black/30">
+                                  <Maximize2 className="size-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center rounded-full bg-black/0 transition-colors group-hover:bg-black/30">
+                                  <Camera className="size-4 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                </div>
+                              )}
+                            </button>
+                          )
+                        })()}
+                        <div className="flex flex-col gap-1">
+                          {editing ? (
+                            <Input
+                              value={editingValues?.name ?? ''}
+                              onChange={(event) => updateEditField('name', event.target.value)}
+                              className="h-8 w-28 text-sm"
+                            />
+                          ) : (
+                            <span className="text-sm font-medium text-slate-900">{member.name ?? '이름 미등록'}</span>
+                          )}
+                          <span className="text-xs text-slate-500 truncate max-w-[140px]">{member.email}</span>
+                          <span className="text-xs text-slate-400">
+                            승인일 {formatDate(member.approvedAt)} · 업데이트 {formatDate(member.updatedAt)}
+                          </span>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -630,13 +771,39 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                         <Badge variant="outline">{roleLabelMap[member.role]}</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="max-w-48">
-                      <div
-                        className="max-w-full overflow-x-auto whitespace-nowrap text-sm"
-                        title={formatAssignments(member.classAssignments, member.role)}
-                      >
-                        {formatAssignments(member.classAssignments, member.role)}
-                      </div>
+                    <TableCell>
+                      {member.classAssignments.length === 0 ? (
+                        <span className="text-sm text-slate-400">
+                          {member.role === 'student' ? '배정된 반 없음' : member.role === 'teacher' ? '담당 반 없음' : '-'}
+                        </span>
+                      ) : member.classAssignments.length <= 2 ? (
+                        <div className="flex flex-col gap-0.5">
+                          {member.classAssignments.map((a) => (
+                            <span key={a.id} className="text-sm">
+                              {a.isHomeroom ? `${a.name} (담임)` : a.name}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button type="button" className="flex items-center gap-1 text-sm hover:text-slate-700">
+                              <span>{member.classAssignments[0].isHomeroom ? `${member.classAssignments[0].name} (담임)` : member.classAssignments[0].name}</span>
+                              <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+                                +{member.classAssignments.length - 1}
+                              </Badge>
+                              <ChevronDown className="size-3 text-slate-400" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="max-h-60 overflow-y-auto">
+                            {member.classAssignments.map((a) => (
+                              <DropdownMenuItem key={a.id} className="text-sm" onSelect={(e) => e.preventDefault()}>
+                                {a.isHomeroom ? `${a.name} (담임)` : a.name}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
                     </TableCell>
                     <TableCell>
                       {renderPhoneCell(member.studentPhone, editingValues?.studentPhone ?? '', (value) => updateEditField('studentPhone', value), editing)}
@@ -854,6 +1021,38 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
           )}
         </SheetContent>
       </Sheet>
+
+      <Dialog open={!!photoViewUrl} onOpenChange={(open) => !open && setPhotoViewUrl(null)}>
+        <DialogContent className="max-w-sm p-2">
+          <DialogTitle className="sr-only">{photoViewName} 사진</DialogTitle>
+          {photoViewUrl && (
+            <div className="space-y-3">
+              <div className="relative aspect-square w-full overflow-hidden rounded-lg">
+                <Image
+                  src={photoViewUrl}
+                  alt={`${photoViewName} 사진`}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="flex justify-center">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPhotoViewUrl(null)
+                    const member = members.find((m) => (m.name ?? m.email) === photoViewName)
+                    if (member) handleAvatarClick(member.id)
+                  }}
+                >
+                  <Camera className="mr-1.5 size-4" />
+                  사진 변경
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

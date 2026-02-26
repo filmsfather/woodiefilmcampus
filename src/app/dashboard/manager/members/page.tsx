@@ -1,6 +1,7 @@
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ManagerMembersPageClient } from '@/components/dashboard/manager/members/ManagerMembersPageClient'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { createClient } from '@/lib/supabase/server'
 import type { UserRole } from '@/lib/supabase'
 
@@ -18,6 +19,7 @@ interface ManagerMemberSummary {
   studentPhone: string | null
   parentPhone: string | null
   academicRecord: string | null
+  photoUrl: string | null
   approvedAt: string
   updatedAt: string
   classAssignments: ClassAssignmentSummary[]
@@ -60,7 +62,7 @@ export default async function ManagerMembersPage() {
   const [{ data: profileRows, error: profileError }, { data: classRows, error: classError }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, email, role, name, student_phone, parent_phone, academic_record, created_at, updated_at, status')
+      .select('id, email, role, name, student_phone, parent_phone, academic_record, photo_url, created_at, updated_at, status')
       .eq('status', 'approved')
       .order('name', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true }),
@@ -139,6 +141,12 @@ export default async function ManagerMembersPage() {
           })
           : []
 
+    let photoUrl: string | null = null
+    if (row.photo_url) {
+      const { data } = supabase.storage.from(PROFILE_PHOTOS_BUCKET).getPublicUrl(row.photo_url)
+      photoUrl = data.publicUrl
+    }
+
     return {
       id: row.id,
       name: row.name ?? null,
@@ -147,6 +155,7 @@ export default async function ManagerMembersPage() {
       studentPhone: row.student_phone ?? null,
       parentPhone: row.parent_phone ?? null,
       academicRecord: row.academic_record ?? null,
+      photoUrl,
       approvedAt: row.created_at,
       updatedAt: row.updated_at,
       classAssignments: assignments,

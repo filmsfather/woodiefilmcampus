@@ -426,6 +426,129 @@ export async function updateMemberRole(input: UpdateMemberRoleInput) {
   }
 }
 
+const updateMemberPhotoSchema = z.object({
+  memberId: z.string().uuid('유효한 사용자 ID가 아닙니다.'),
+  photoPath: z.string().min(1, '사진 경로가 필요합니다.'),
+})
+
+export async function updateMemberPhoto(input: z.infer<typeof updateMemberPhotoSchema>) {
+  const parsed = updateMemberPhotoSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '요청 정보를 확인해주세요.' }
+  }
+
+  const managerProfile = await ensureManagerProfile()
+  if (!managerProfile) {
+    return { error: '사진을 변경할 권한이 없습니다.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+
+    const { data: member, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', parsed.data.memberId)
+      .eq('status', 'approved')
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[manager] updateMemberPhoto fetch error', fetchError)
+      return { error: '구성원 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!member) {
+      return { error: '구성원을 찾을 수 없습니다.' }
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ photo_url: parsed.data.photoPath, updated_at: new Date().toISOString() })
+      .eq('id', parsed.data.memberId)
+
+    if (updateError) {
+      console.error('[manager] updateMemberPhoto update error', updateError)
+      return { error: '사진 저장 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/manager/members')
+    revalidatePath('/dashboard/manager')
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    return { success: true as const }
+  } catch (error) {
+    console.error('[manager] updateMemberPhoto unexpected', error)
+    return { error: '사진 업데이트 중 문제가 발생했습니다.' }
+  }
+}
+
+const deleteMemberPhotoSchema = z.object({
+  memberId: z.string().uuid('유효한 사용자 ID가 아닙니다.'),
+})
+
+export async function deleteMemberPhoto(input: z.infer<typeof deleteMemberPhotoSchema>) {
+  const parsed = deleteMemberPhotoSchema.safeParse(input)
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { error: firstIssue?.message ?? '요청 정보를 확인해주세요.' }
+  }
+
+  const managerProfile = await ensureManagerProfile()
+  if (!managerProfile) {
+    return { error: '사진을 삭제할 권한이 없습니다.' }
+  }
+
+  try {
+    const supabase = createAdminClient()
+
+    const { data: member, error: fetchError } = await supabase
+      .from('profiles')
+      .select('id, photo_url')
+      .eq('id', parsed.data.memberId)
+      .eq('status', 'approved')
+      .maybeSingle()
+
+    if (fetchError) {
+      console.error('[manager] deleteMemberPhoto fetch error', fetchError)
+      return { error: '구성원 정보를 불러오지 못했습니다.' }
+    }
+
+    if (!member) {
+      return { error: '구성원을 찾을 수 없습니다.' }
+    }
+
+    if (member.photo_url) {
+      const { error: storageError } = await supabase.storage
+        .from('profile-photos')
+        .remove([member.photo_url])
+
+      if (storageError) {
+        console.error('[manager] deleteMemberPhoto storage error', storageError)
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from('profiles')
+      .update({ photo_url: null, updated_at: new Date().toISOString() })
+      .eq('id', parsed.data.memberId)
+
+    if (updateError) {
+      console.error('[manager] deleteMemberPhoto update error', updateError)
+      return { error: '사진 삭제 중 오류가 발생했습니다.' }
+    }
+
+    revalidatePath('/dashboard/manager/members')
+    revalidatePath('/dashboard/manager')
+    revalidatePath('/dashboard/teacher')
+    revalidatePath('/dashboard/principal')
+    return { success: true as const }
+  } catch (error) {
+    console.error('[manager] deleteMemberPhoto unexpected', error)
+    return { error: '사진 삭제 중 문제가 발생했습니다.' }
+  }
+}
+
 const updateManagerMemoSchema = z.object({
   memberId: z.string().uuid(),
   memo: z.string().nullable(),
