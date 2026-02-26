@@ -15,6 +15,7 @@ const uuidSchema = z
 const optionalDateTransform = (fieldName: string, errorMessage: string) =>
   z
     .string()
+    .nullable()
     .optional()
     .transform((value, ctx) => {
       if (!value) {
@@ -44,7 +45,7 @@ const createAssignmentInputSchema = z
     workbookId: uuidSchema,
     dueAt: optionalDateTransform('dueAt', '유효한 마감일이 아닙니다.'),
     publishedAt: optionalDateTransform('publishedAt', '유효한 출제일이 아닙니다.'),
-    comment: z.string().max(500).optional().transform((value) => value?.trim() || null),
+    comment: z.string().max(500).nullable().optional().transform((value) => value?.trim() || null),
     targetClassIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
     targetStudentIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
   })
