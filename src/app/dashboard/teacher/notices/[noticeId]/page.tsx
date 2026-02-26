@@ -6,7 +6,7 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 export default async function NoticeDetailPage({ params }: { params: Promise<{ noticeId: string }> }) {
-  const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
+  const { profile } = await requireAuthForDashboard(['teacher', 'manager', 'principal'])
 
   if (!profile) {
     return null

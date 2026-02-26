@@ -23,7 +23,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
         notFound()
     }
 
-    const canManage = profile.role === 'manager' || profile.role === 'principal' || notice.author.id === profile.id
+    const canManage = profile.role === 'manager' || profile.role === 'principal' || profile.role === 'teacher'
     if (!canManage) {
         return <div className="p-8 text-center text-slate-600">접근 권한이 없습니다.</div>
     }

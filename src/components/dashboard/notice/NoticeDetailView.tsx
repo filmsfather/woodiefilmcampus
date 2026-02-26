@@ -67,18 +67,16 @@ export async function NoticeDetailView({ notice, viewerId, viewerRole, backLink,
                         <h1 className="text-2xl font-semibold text-slate-900">{notice.title}</h1>
                         <div className="flex items-center gap-2">
                             <Badge variant={acknowledgementVariant}>{acknowledgementLabel}</Badge>
-                            {canManageNotice ? (
-                                <>
-                                    <Button asChild variant="outline" size="sm">
-                                        <Link href={`/dashboard/teacher/notices/${notice.id}/edit`}>공지 수정</Link>
-                                    </Button>
-                                    {notice.isApplicationRequired && (
-                                        <Button asChild variant="default" size="sm">
-                                            <Link href={`/dashboard/teacher/notices/${notice.id}/applications`}>신청 현황</Link>
-                                        </Button>
-                                    )}
-                                </>
-                            ) : null}
+                            {canManageNotice && (
+                                <Button asChild variant="outline" size="sm">
+                                    <Link href={`/dashboard/teacher/notices/${notice.id}/edit`}>공지 수정</Link>
+                                </Button>
+                            )}
+                            {(viewerRole === 'teacher' || viewerRole === 'manager' || viewerRole === 'principal') && notice.isApplicationRequired && (
+                                <Button asChild variant="default" size="sm">
+                                    <Link href={`/dashboard/teacher/notices/${notice.id}/applications`}>신청 현황</Link>
+                                </Button>
+                            )}
                         </div>
                     </div>
                     <p className="text-sm text-slate-600">
