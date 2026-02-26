@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, Camera, GraduationCap, Loader2, Phone, Trash2, User } from 'lucide-react'
+import { CalendarDays, Camera, GraduationCap, Loader2, Phone, Trash2, User, X, ZoomIn } from 'lucide-react'
 
 import { compressImageFile, isImageFile } from '@/lib/image-compress'
 import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
@@ -52,6 +52,7 @@ export function StudentInfoDialog({ student, children }: StudentInfoDialogProps)
     const [isDeleting, startDeleteTransition] = useTransition()
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+    const [isPhotoExpanded, setIsPhotoExpanded] = useState(false)
 
     const supabase = createClient()
 
@@ -163,14 +164,24 @@ export function StudentInfoDialog({ student, children }: StudentInfoDialogProps)
                     <div className="flex items-start gap-4">
                         {/* 프로필 사진 영역 */}
                         <div className="flex flex-col items-center gap-2">
-                            <div className="relative h-20 w-20 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100">
+                            <button
+                                type="button"
+                                className="group relative h-20 w-20 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100"
+                                disabled={!displayPhotoUrl || isProcessing}
+                                onClick={() => displayPhotoUrl && setIsPhotoExpanded(true)}
+                            >
                                 {displayPhotoUrl ? (
-                                    <Image
-                                        src={displayPhotoUrl}
-                                        alt={`${student.name} 사진`}
-                                        fill
-                                        className="object-cover"
-                                    />
+                                    <>
+                                        <Image
+                                            src={displayPhotoUrl}
+                                            alt={`${student.name} 사진`}
+                                            fill
+                                            className="object-cover"
+                                        />
+                                        <span className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                                            <ZoomIn className="h-5 w-5 text-white opacity-0 transition-opacity group-hover:opacity-100" />
+                                        </span>
+                                    </>
                                 ) : (
                                     <div className="flex h-full w-full items-center justify-center">
                                         <User className="h-10 w-10 text-slate-400" />
@@ -181,7 +192,7 @@ export function StudentInfoDialog({ student, children }: StudentInfoDialogProps)
                                         <Loader2 className="h-6 w-6 animate-spin text-white" />
                                     </div>
                                 )}
-                            </div>
+                            </button>
 
                             {/* 사진 업로드/삭제 버튼 */}
                             <input
@@ -277,6 +288,33 @@ export function StudentInfoDialog({ student, children }: StudentInfoDialogProps)
                     </Button>
                 </DialogFooter>
             </DialogContent>
+
+            {isPhotoExpanded && displayPhotoUrl && (
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-6 animate-in fade-in duration-150"
+                    onClick={() => setIsPhotoExpanded(false)}
+                >
+                    <button
+                        type="button"
+                        className="absolute right-4 top-4 rounded-full bg-white/20 p-2 text-white transition-colors hover:bg-white/40"
+                        onClick={() => setIsPhotoExpanded(false)}
+                    >
+                        <X className="h-5 w-5" />
+                    </button>
+                    <div className="relative h-[70vmin] w-[70vmin] max-h-[480px] max-w-[480px] overflow-hidden rounded-2xl">
+                        <Image
+                            src={displayPhotoUrl}
+                            alt={`${student.name} 사진`}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 480px) 70vmin, 480px"
+                        />
+                    </div>
+                    <p className="absolute bottom-6 text-sm font-medium text-white/80">
+                        {student.name}
+                    </p>
+                </div>
+            )}
         </Dialog>
     )
 }

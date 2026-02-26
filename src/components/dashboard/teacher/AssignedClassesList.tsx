@@ -1,10 +1,17 @@
+import Image from 'next/image'
 import Link from 'next/link'
+import { User } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import type { AssignedClass } from '@/lib/dashboard-data'
+import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { StudentInfoDialog } from '@/components/dashboard/teacher/StudentInfoDialog'
+
+function getPhotoPublicUrl(path: string) {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${PROFILE_PHOTOS_BUCKET}/${path}`
+}
 
 interface AssignedClassesListProps {
     data: AssignedClass[]
@@ -37,15 +44,32 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                                     구성원 ({c.students.length}명)
                                 </p>
                                 {c.students.length > 0 ? (
-                                    <div className="flex flex-wrap gap-1.5">
+                                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
                                         {c.students.map((student) => (
                                             <StudentInfoDialog key={student.id} student={student}>
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="cursor-pointer hover:bg-slate-200 transition-colors"
+                                                <button
+                                                    type="button"
+                                                    className="group flex flex-col items-center gap-2 rounded-lg p-2 transition-colors hover:bg-slate-100"
                                                 >
-                                                    {student.name}
-                                                </Badge>
+                                                    <span className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 transition-shadow group-hover:border-indigo-300 group-hover:shadow-sm">
+                                                        {student.photo_url ? (
+                                                            <Image
+                                                                src={getPhotoPublicUrl(student.photo_url)}
+                                                                alt={`${student.name} 사진`}
+                                                                width={72}
+                                                                height={72}
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <span className="flex h-full w-full items-center justify-center">
+                                                                <User className="h-8 w-8 text-slate-400" />
+                                                            </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="max-w-full truncate text-sm font-medium text-slate-700">
+                                                        {student.name}
+                                                    </span>
+                                                </button>
                                             </StudentInfoDialog>
                                         ))}
                                     </div>
