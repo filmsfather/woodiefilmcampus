@@ -39,11 +39,24 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
   const supabase = await createServerSupabase()
 
   const subjectFilter = ensureArray(searchParams.subject)
+  const authorFilter = ensureArray(searchParams.author)
   const query = typeof searchParams.q === 'string' ? searchParams.q.trim() : ''
   const weekSortParam =
     typeof searchParams.weekSort === 'string' && (searchParams.weekSort === 'asc' || searchParams.weekSort === 'desc')
       ? (searchParams.weekSort as 'asc' | 'desc')
       : null
+
+  const { data: authorRows } = await supabase
+    .from('workbooks')
+    .select('teacher:profiles!workbooks_teacher_id_fkey(id, name)')
+
+  const authorMap = new Map<string, string>()
+  for (const row of authorRows ?? []) {
+    const t = Array.isArray(row.teacher) ? row.teacher[0] : row.teacher
+    if (t?.id && t?.name) authorMap.set(t.id, t.name)
+  }
+  const authors = Array.from(authorMap.entries()).map(([id, name]) => ({ id, name }))
+  authors.sort((a, b) => a.name.localeCompare(b.name))
 
   let queryBuilder = supabase
     .from('workbooks')
@@ -55,6 +68,10 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
 
   if (subjectFilter.length > 0) {
     queryBuilder = queryBuilder.in('subject', subjectFilter)
+  }
+
+  if (authorFilter.length > 0) {
+    queryBuilder = queryBuilder.in('teacher_id', authorFilter)
   }
 
   if (query) {
@@ -96,7 +113,7 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
         </div>
       </div>
 
-      <WorkbookFilters subjects={WORKBOOK_SUBJECTS} activeSubjects={subjectFilter} searchQuery={query} />
+      <WorkbookFilters subjects={WORKBOOK_SUBJECTS} activeSubjects={subjectFilter} authors={authors} activeAuthors={authorFilter} searchQuery={query} />
 
       {workbooks.length === 0 ? (
         <Card className="border-dashed border-slate-200 bg-slate-50">
