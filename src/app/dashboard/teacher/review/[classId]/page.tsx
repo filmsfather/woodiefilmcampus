@@ -233,19 +233,36 @@ export default async function TeacherClassReviewPage({
 
   const transformResults = (rawAssignmentRows ?? []).map(transformAssignmentRow)
 
+  const filteredTransforms = transformResults
+    .map(({ assignment, mediaAssets }) => {
+      const filtered = filterAssignmentForClass(assignment, classInfo.id)
+      return filtered ? { assignment: filtered, mediaAssets } : null
+    })
+    .filter((r): r is { assignment: AssignmentDetail; mediaAssets: Map<string, MediaAssetRecord> } => Boolean(r))
+
+  const neededAssetIds = new Set<string>()
+  filteredTransforms.forEach(({ assignment }) => {
+    assignment.studentTasks.forEach((task) => {
+      task.submissions.forEach((sub) => {
+        if (sub.mediaAssetId) neededAssetIds.add(sub.mediaAssetId)
+        sub._tempAssetIds?.forEach((id) => neededAssetIds.add(id))
+      })
+    })
+  })
+
   const combinedAssets = new Map<string, MediaAssetRecord>()
-  transformResults.forEach(({ mediaAssets }) => {
+  filteredTransforms.forEach(({ mediaAssets }) => {
     mediaAssets.forEach((value, key) => {
-      combinedAssets.set(key, value)
+      if (neededAssetIds.has(key)) {
+        combinedAssets.set(key, value)
+      }
     })
   })
 
   const signedMap = combinedAssets.size > 0 ? await createAssetSignedUrlMap(combinedAssets) : new Map()
 
-  const detailedAssignments: AssignmentDetail[] = transformResults
+  const detailedAssignments: AssignmentDetail[] = filteredTransforms
     .map(({ assignment }) => applySignedAssetUrls(assignment, signedMap))
-    .map((assignment) => filterAssignmentForClass(assignment, classInfo.id))
-    .filter((assignment): assignment is AssignmentDetail => Boolean(assignment))
 
   const assignments: ClassAssignmentSummary[] = detailedAssignments.map(mapAssignmentForClass)
 
