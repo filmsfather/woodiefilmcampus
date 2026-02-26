@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescri
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { SignOutButton } from '@/components/dashboard/SignOutButton'
+import { NavigationProgress } from '@/components/dashboard/NavigationProgress'
 
 interface DashboardShellProps {
   profile: UserProfile
@@ -30,6 +31,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <NavigationProgress />
       <div className="flex min-h-screen">
         <aside className="hidden w-72 border-r border-slate-200 lg:block">
           <DashboardSidebar
