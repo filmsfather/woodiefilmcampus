@@ -127,6 +127,7 @@ export function QuickAssignmentDialog({
         workbookId: selectedWorkbookId,
         targetClassIds: Array.from(selectedClassIds),
         targetStudentIds: [],
+        comment: null,
         publishedAt: publishDate ? publishDate.toISOString() : new Date().toISOString(),
         dueAt: dueDate ? dueDate.toISOString() : null,
       })

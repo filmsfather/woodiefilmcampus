@@ -14,6 +14,7 @@ import { ko } from 'date-fns/locale'
 import { Calendar } from '@/components/ui/calendar'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import DateUtil from '@/lib/date-util'
@@ -29,6 +30,7 @@ const assignmentFormSchema = z
     workbookIds: z.array(z.string()).min(1, { message: '문제집을 최소 1개 이상 선택해주세요.' }),
     targetClassIds: z.array(z.string()).default([]),
     targetStudentIds: z.array(z.string()).default([]),
+    comment: z.string().max(500, { message: '코멘트는 500자 이내로 입력해주세요.' }).optional(),
     publishedAt: z.string().optional(),
     dueAt: z.string().optional(),
   })
@@ -280,6 +282,7 @@ export function AssignmentForm({
             workbookId,
             publishedAt: payloadPublishedAt,
             dueAt: payloadDueAt,
+            comment: values.comment ?? null,
             targetClassIds: values.targetClassIds,
             targetStudentIds: values.targetStudentIds,
           })
@@ -299,6 +302,7 @@ export function AssignmentForm({
         workbookIds: [],
         targetClassIds: [],
         targetStudentIds: [],
+        comment: '',
         publishedAt: '',
         dueAt: defaultDueAt,
       })
@@ -708,7 +712,35 @@ export function AssignmentForm({
 
             <section className="space-y-4">
               <header className="space-y-1">
-                <h2 className="text-lg font-semibold text-slate-900">3. 일정 설정</h2>
+                <h2 className="text-lg font-semibold text-slate-900">3. 과제 코멘트</h2>
+                <p className="text-sm text-slate-500">학생에게 전달할 안내사항이나 참고 메시지를 작성할 수 있습니다. (선택)</p>
+              </header>
+
+              <FormField
+                control={form.control}
+                name="comment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        placeholder="예: 이번주 수업시간에 배운 z축 활용을 꼭 참고해주세요!"
+                        className="min-h-[80px] resize-y"
+                        maxLength={500}
+                      />
+                    </FormControl>
+                    <div className="flex items-center justify-between">
+                      <FormMessage />
+                      <p className="text-xs text-slate-400">{field.value?.length ?? 0}/500</p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </section>
+
+            <section className="space-y-4">
+              <header className="space-y-1">
+                <h2 className="text-lg font-semibold text-slate-900">4. 일정 설정</h2>
                 <p className="text-sm text-slate-500">출제일을 설정하면 해당 시점에 학생에게 과제가 공개됩니다.</p>
               </header>
 

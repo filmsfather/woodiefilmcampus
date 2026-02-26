@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, Calendar, CheckCircle2, Clock, ListChecks } from 'lucide-react'
+import { AlertTriangle, Calendar, CheckCircle2, Clock, ListChecks, MessageSquareText } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ImageTaskRunner } from '@/components/dashboard/student/tasks/ImageTaskRunner'
@@ -319,6 +319,20 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
           </div>
         </CardContent>
       </Card>
+
+      {task.assignment?.comment && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-blue-800">
+              <MessageSquareText className="h-4 w-4" />
+              선생님 코멘트
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="whitespace-pre-wrap text-sm text-blue-700">
+            {task.assignment.comment}
+          </CardContent>
+        </Card>
+      )}
 
       {taskContent}
     </section>

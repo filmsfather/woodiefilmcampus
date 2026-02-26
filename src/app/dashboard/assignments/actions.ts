@@ -44,6 +44,7 @@ const createAssignmentInputSchema = z
     workbookId: uuidSchema,
     dueAt: optionalDateTransform('dueAt', '유효한 마감일이 아닙니다.'),
     publishedAt: optionalDateTransform('publishedAt', '유효한 출제일이 아닙니다.'),
+    comment: z.string().max(500).optional().transform((value) => value?.trim() || null),
     targetClassIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
     targetStudentIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
   })
@@ -107,7 +108,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
     return { error: '입력 값을 확인해주세요.' }
   }
 
-  const { workbookId, dueAt, publishedAt, targetClassIds = [], targetStudentIds = [] } = parsedInput
+  const { workbookId, dueAt, publishedAt, comment, targetClassIds = [], targetStudentIds = [] } = parsedInput
 
   const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
@@ -279,6 +280,7 @@ export async function createAssignment(input: CreateAssignmentInput) {
         assigned_by: profile.id,
         due_at: dueAt,
         published_at: publishedAt,
+        comment,
         target_scope: targetScope,
       })
       .select('id')

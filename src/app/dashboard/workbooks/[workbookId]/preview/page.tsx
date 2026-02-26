@@ -212,6 +212,7 @@ export default async function WorkbookPreviewPage(props: WorkbookPreviewPageProp
             publishedAt: null,
             createdAt: new Date().toISOString(),
             targetScope: 'class',
+            comment: null,
             workbook: {
                 id: workbook.id,
                 title: workbook.title,

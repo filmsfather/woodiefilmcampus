@@ -127,6 +127,7 @@ type AssignmentRow = {
   published_at: string | null
   created_at: string
   target_scope: string
+  comment: string | null
   workbook_id: string | null
 }
 
@@ -208,6 +209,7 @@ function toAssignmentSummary(
     publishedAt: row.published_at,
     createdAt: row.created_at,
     targetScope: row.target_scope,
+    comment: row.comment ?? null,
     workbook: getWorkbookSummary(row.workbook_id, lookup),
   }
 }
@@ -480,7 +482,7 @@ async function loadAssignmentSummaries(
 
   const { data, error } = await adminClient
     .from('assignments')
-    .select('id, due_at, published_at, created_at, target_scope, workbook_id')
+    .select('id, due_at, published_at, created_at, target_scope, comment, workbook_id')
     .in('id', assignmentIds)
 
   if (error) {

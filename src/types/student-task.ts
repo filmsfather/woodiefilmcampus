@@ -17,6 +17,7 @@ export interface StudentTaskAssignmentSummary {
   publishedAt: string | null
   createdAt: string
   targetScope: string
+  comment: string | null
   workbook: StudentTaskWorkbookSummary
 }
 
