@@ -500,3 +500,102 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
         return { error: 'AI 서버 연결에 실패했습니다.' }
     }
 }
+
+export interface GenerateLearningJournalCommentResult {
+    comment: string
+}
+
+/**
+ * 선생님이 제공한 키워드/메모를 기반으로 학습일지 코멘트를 생성합니다.
+ */
+export async function generateLearningJournalComment(params: {
+    studentName: string
+    subject: string
+    teacherContext: string
+    previousComment?: string
+}): Promise<GenerateLearningJournalCommentResult | { error: string }> {
+    if (!GEMINI_API_KEY) {
+        console.error('GEMINI_API_KEY is not set')
+        return { error: 'AI 설정이 완료되지 않았습니다. 관리자에게 문의하세요.' }
+    }
+
+    const previousSection = params.previousComment?.trim()
+        ? `\n**지난 기간 코멘트 (참고용 — 성장 변화를 반영하세요):**\n${params.previousComment}\n`
+        : ''
+
+    const aiPrompt = `
+You are a warm yet honest teacher at a film education academy writing a learning journal comment for a student.
+Write a comment for the following student based on the teacher's notes.
+
+**학생 이름:** ${params.studentName}
+**과목/역할:** ${params.subject}
+
+**선생님이 제공한 키워드/메모:**
+${params.teacherContext}
+${previousSection}
+**작성 규칙:**
+1. 반드시 개선이 필요한 점(단점)을 먼저, 잘하고 있는 점(강점)을 나중에 서술하세요.
+2. 단점을 언급할 때는 학생이 외면하지 않고 극복할 수 있도록 구체적인 방향을 제시하며 격려하세요.
+3. 강점을 언급할 때는 학생이 자신의 장점을 인지하고 더 발전시킬 수 있도록 구체적으로 칭찬하세요.
+4. 학생 이름(${params.studentName})을 자연스럽게 포함하세요 (예: "${params.studentName} 학생은...").
+5. 선생님과 학생 사이의 라포(신뢰 관계)를 쌓을 수 있는 따뜻하면서도 진솔한 톤을 유지하세요.
+6. 지난 코멘트가 있다면 이전 피드백 대비 변화나 성장을 자연스럽게 반영하세요.
+7. 합니다체를 사용하세요.
+8. 3~5문장으로 작성하세요. 너무 길지 않게 핵심만 담으세요.
+9. 선생님이 제공한 키워드/메모의 내용만 활용하고, 없는 사실을 지어내지 마세요.
+
+**Output Format:**
+Return a JSON object with the following structure:
+{
+  "comment": "생성된 코멘트..."
+}
+Do not include any markdown formatting (like \`\`\`json). Just the raw JSON string.
+`
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [{ text: aiPrompt }],
+                        },
+                    ],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        )
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Gemini] API error', response.status, errorText)
+            return { error: 'AI 코멘트 생성 중 오류가 발생했습니다.' }
+        }
+
+        const data = await response.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+        if (!text) {
+            console.error('[Gemini] No content in response', data)
+            return { error: 'AI 응답을 분석할 수 없습니다.' }
+        }
+
+        try {
+            const result = JSON.parse(text) as GenerateLearningJournalCommentResult
+            return result
+        } catch (parseError) {
+            console.error('[Gemini] JSON parse error', parseError, text)
+            return { error: 'AI 응답 형식이 올바르지 않습니다.' }
+        }
+    } catch (error) {
+        console.error('[Gemini] Network or unexpected error', error)
+        return { error: 'AI 코멘트 서버 연결에 실패했습니다.' }
+    }
+}

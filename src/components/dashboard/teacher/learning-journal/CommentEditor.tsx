@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useRef, useEffect, useState, useCallback } from 'react'
+import { Sparkles, Loader2 } from 'lucide-react'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Label } from '@/components/ui/label'
@@ -19,6 +20,7 @@ interface CommentEditorProps {
   description?: string
   defaultValue: string
   previousComment?: string | null
+  studentName: string
 }
 
 function PreviousCommentHint({ text }: { text: string }) {
@@ -44,10 +46,13 @@ function PreviousCommentHint({ text }: { text: string }) {
   )
 }
 
-export function CommentEditor({ entryId, roleScope, subject, label, description, defaultValue, previousComment }: CommentEditorProps) {
+export function CommentEditor({ entryId, roleScope, subject, label, description, defaultValue, previousComment, studentName }: CommentEditorProps) {
   const formRef = useRef<HTMLFormElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lastSavedRef = useRef(defaultValue)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const [state, formAction, isPending] = useActionState<ActionState, FormData>(
     saveLearningJournalCommentAction,
@@ -70,6 +75,51 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
     }
   }, [])
 
+  const handleAIGenerate = useCallback(async () => {
+    const teacherContext = textareaRef.current?.value?.trim()
+    if (!teacherContext) {
+      setAiError('AI 작성을 위해 키워드나 메모를 먼저 입력해주세요.')
+      return
+    }
+
+    setIsGenerating(true)
+    setAiError(null)
+
+    try {
+      const res = await fetch('/api/learning-journal/generate-comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName,
+          subject: label.replace(' 코멘트', ''),
+          teacherContext,
+          previousComment: previousComment ?? undefined,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        setAiError(data.error ?? 'AI 코멘트 생성에 실패했습니다.')
+        return
+      }
+
+      if (textareaRef.current && data.comment) {
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype, 'value'
+        )?.set
+        nativeSetter?.call(textareaRef.current, data.comment)
+        textareaRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    } catch {
+      setAiError('AI 서버 연결에 실패했습니다.')
+    } finally {
+      setIsGenerating(false)
+    }
+  }, [studentName, label, previousComment])
+
+  const busy = isPending || isGenerating
+
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="space-y-1">
@@ -83,6 +133,11 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
           <AlertDescription>{state.message}</AlertDescription>
         </Alert>
       ) : null}
+      {aiError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{aiError}</AlertDescription>
+        </Alert>
+      ) : null}
       {showSuccess ? (
         <p className="text-sm text-green-600">코멘트가 저장되었습니다.</p>
       ) : null}
@@ -92,15 +147,29 @@ export function CommentEditor({ entryId, roleScope, subject, label, description,
         <input type="hidden" name="roleScope" value={roleScope} />
         {subject ? <input type="hidden" name="subject" value={subject} /> : null}
         <Textarea
+          ref={textareaRef}
           name="body"
           defaultValue={defaultValue}
           rows={6}
           placeholder="코멘트를 입력하세요. (비워두면 삭제됩니다)"
-          disabled={isPending}
+          disabled={busy}
           maxLength={4000}
           onBlur={handleBlur}
-          className={isPending ? 'opacity-50' : ''}
+          className={busy ? 'opacity-50' : ''}
         />
+        <button
+          type="button"
+          onClick={handleAIGenerate}
+          disabled={busy}
+          className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-medium text-violet-700 transition-colors hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {isGenerating ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <Sparkles className="h-3.5 w-3.5" />
+          )}
+          {isGenerating ? 'AI 작성 중...' : 'AI 작성'}
+        </button>
       </form>
     </div>
   )

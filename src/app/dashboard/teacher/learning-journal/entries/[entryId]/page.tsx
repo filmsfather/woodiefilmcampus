@@ -300,6 +300,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
                   description="학생의 전반적인 학습 태도와 전달 사항을 작성하세요."
                   defaultValue={commentLookup.get('homeroom') ?? ''}
                   previousComment={previousCommentLookup.get('homeroom') || null}
+                  studentName={studentName}
                 />
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -315,6 +316,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
                         description="수업 참여도, 과제 피드백 등을 기록하세요."
                         defaultValue={commentLookup.get(key) ?? ''}
                         previousComment={previousCommentLookup.get(key) || null}
+                        studentName={studentName}
                       />
                     )
                   })}
