@@ -22,6 +22,7 @@ import type {
   AssignmentStudentSummary,
   AssignmentWorkbookSummary,
 } from '@/types/assignment'
+import { WORKBOOK_TITLES } from '@/lib/validation/workbook'
 
 const assignmentFormSchema = z
   .object({
@@ -360,7 +361,7 @@ export function AssignmentForm({
                     <SelectItem value="all">전체 유형</SelectItem>
                     {[...new Set(workbooks.map((workbook) => workbook.type))].map((type) => (
                       <SelectItem key={type} value={type}>
-                        {type.toUpperCase()}
+                        {WORKBOOK_TITLES[type as keyof typeof WORKBOOK_TITLES] ?? type}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -431,7 +432,7 @@ export function AssignmentForm({
                                     <p className="text-sm font-semibold text-slate-900">{workbook.title}</p>
                                     <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
                                       <Badge variant="secondary">{workbook.subject}</Badge>
-                                      <Badge variant="outline">{workbook.type.toUpperCase()}</Badge>
+                                      <Badge variant="outline">{WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}</Badge>
                                       {workbook.weekLabel && <Badge variant="outline">{workbook.weekLabel}</Badge>}
                                       {workbook.authorName && (
                                         <Badge variant="outline" className="bg-slate-100">
