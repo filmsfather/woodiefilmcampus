@@ -4,6 +4,15 @@ import { FileText } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ClassAssignmentExpandable } from '@/components/dashboard/teacher/ClassAssignmentList'
 
+const TYPE_LABELS: Record<string, string> = {
+  srs: 'SRS',
+  pdf: 'PDF',
+  writing: '서술형',
+  film: '영화감상',
+  lecture: '강의',
+  image: '이미지',
+}
+
 export interface ClassAssignmentListItem {
   id: string
   title: string
@@ -70,9 +79,9 @@ export function ClassOverviewGrid({
                         <p className="truncate text-sm font-medium text-slate-700">
                           {item.latestAssignment.title}
                         </p>
-                        {item.latestAssignment.subject && (
+                        {(item.latestAssignment.subject || item.latestAssignment.type) && (
                           <p className="truncate text-xs text-slate-500">
-                            {item.latestAssignment.subject}
+                            {[item.latestAssignment.subject, item.latestAssignment.type ? TYPE_LABELS[item.latestAssignment.type] ?? item.latestAssignment.type : null].filter(Boolean).join(' · ')}
                           </p>
                         )}
                       </div>

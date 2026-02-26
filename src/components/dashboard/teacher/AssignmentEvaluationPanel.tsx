@@ -1194,38 +1194,6 @@ function PdfEvaluationCard({
   const taskItem = submission && submission.itemId
     ? task.items.find((item) => item.itemId === submission.itemId) ?? task.items[0] ?? null
     : task.items[0] ?? null
-  const initialScore = submission?.score ?? ''
-  const [score, setScore] = useState<string>(initialScore)
-  const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  const handleSave = () => {
-    if (!submission || !taskItem) {
-      setMessage('학생 제출물을 찾을 수 없습니다.')
-      return
-    }
-
-    const normalizedScore = score === 'pass' || score === 'nonpass' ? score : 'nonpass'
-    setMessage(null)
-    startTransition(async () => {
-      const result = await evaluateSubmission({
-        assignmentId,
-        studentTaskId: task.id,
-        studentTaskItemId: taskItem.id,
-        submissionId: submission.id,
-        score: normalizedScore,
-        feedback: undefined,
-      })
-
-      if (result?.error) {
-        setMessage(result.error)
-      } else {
-        setMessage('저장 완료')
-        setTimeout(() => setMessage(null), 2000)
-      }
-    })
-  }
-
   return (
     <div className={`rounded-lg border p-3 space-y-3 ${isFocused ? 'border-primary/40 bg-primary/5' : 'border-slate-200 bg-white'}`}>
       {/* 첫 줄: 이름 + 삭제 */}
@@ -1261,26 +1229,6 @@ function PdfEvaluationCard({
           )
         ) : (
           <Badge variant="outline">미제출</Badge>
-        )}
-      </div>
-      {/* 셋째 줄: 평가 + 저장 */}
-      <div className="flex items-center gap-2">
-        <Select value={score} onValueChange={setScore}>
-          <SelectTrigger className="w-24 h-8 text-sm">
-            <SelectValue placeholder="평가" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pass">Pass</SelectItem>
-            <SelectItem value="nonpass">Non-pass</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button size="sm" className="h-8" disabled={!submission || isPending || !score} onClick={handleSave}>
-          {isPending ? <LoadingSpinner /> : '저장'}
-        </Button>
-        {message && (
-          <span className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
-            {message}
-          </span>
         )}
       </div>
     </div>
@@ -2010,10 +1958,6 @@ function ImageEvaluationCard({
   deleteState: { pendingId: string | null; isPending: boolean }
 }) {
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null)
-  const [score, setScore] = useState<string>('')
-  const [message, setMessage] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-
   // 모든 submission에서 이미지 assets 수집
   const allImageAssets = useMemo(() => {
     return task.submissions.flatMap((submission) =>
@@ -2021,43 +1965,7 @@ function ImageEvaluationCard({
     )
   }, [task.submissions])
 
-  // 평가할 submission과 taskItem 찾기
   const submission = task.submissions.find((sub) => sub.assets.length > 0) ?? task.submissions[0] ?? null
-  const taskItem = task.items[0] ?? null
-
-  // 초기 score 설정
-  useEffect(() => {
-    if (submission?.score) {
-      setScore(submission.score)
-    }
-  }, [submission?.score])
-
-  const handleSave = () => {
-    if (!submission || !taskItem) {
-      setMessage('학생 제출물을 찾을 수 없습니다.')
-      return
-    }
-
-    const normalizedScore = score === 'pass' || score === 'nonpass' ? score : 'nonpass'
-    setMessage(null)
-    startTransition(async () => {
-      const result = await evaluateSubmission({
-        assignmentId,
-        studentTaskId: task.id,
-        studentTaskItemId: taskItem.id,
-        submissionId: submission.id,
-        score: normalizedScore,
-        feedback: undefined,
-      })
-
-      if (result?.error) {
-        setMessage(result.error)
-      } else {
-        setMessage('저장 완료')
-        setTimeout(() => setMessage(null), 2000)
-      }
-    })
-  }
 
   const handleOpenPreview = (asset: { url: string; filename: string }) => {
     setPreviewImage({ url: asset.url, name: asset.filename })
@@ -2133,27 +2041,6 @@ function ImageEvaluationCard({
           </p>
         </div>
       )}
-
-      {/* 넷째 줄: 평가 + 저장 */}
-      <div className="flex items-center gap-2">
-        <Select value={score} onValueChange={setScore}>
-          <SelectTrigger className="w-24 h-8 text-sm">
-            <SelectValue placeholder="평가" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pass">Pass</SelectItem>
-            <SelectItem value="nonpass">Non-pass</SelectItem>
-          </SelectContent>
-        </Select>
-        <Button size="sm" className="h-8" disabled={!submission || isPending || !score} onClick={handleSave}>
-          {isPending ? <LoadingSpinner /> : '저장'}
-        </Button>
-        {message && (
-          <span className={`text-xs ${message.includes('오류') ? 'text-destructive' : 'text-emerald-600'}`}>
-            {message}
-          </span>
-        )}
-      </div>
 
       {/* 이미지 미리보기 모달 */}
       <Dialog open={previewImage !== null} onOpenChange={(open) => !open && handleClosePreview()}>

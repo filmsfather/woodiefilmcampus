@@ -8,6 +8,15 @@ import { Button } from '@/components/ui/button'
 import { fetchAllAssignmentsForClass } from '@/app/dashboard/teacher/actions'
 import type { ClassAssignmentListItem } from '@/components/dashboard/teacher/ClassOverview'
 
+const TYPE_LABELS: Record<string, string> = {
+  srs: 'SRS',
+  pdf: 'PDF',
+  writing: '서술형',
+  film: '영화감상',
+  lecture: '강의',
+  image: '이미지',
+}
+
 type ExpandState = 'collapsed' | 'expanded' | 'all'
 
 function AssignmentRow({
@@ -25,8 +34,10 @@ function AssignmentRow({
       <FileText className="h-4 w-4 shrink-0 text-slate-400" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-slate-700">{item.title}</p>
-        {item.subject && (
-          <p className="truncate text-xs text-slate-500">{item.subject}</p>
+        {(item.subject || item.type) && (
+          <p className="truncate text-xs text-slate-500">
+            {[item.subject, item.type ? TYPE_LABELS[item.type] ?? item.type : null].filter(Boolean).join(' · ')}
+          </p>
         )}
       </div>
       <div className="shrink-0 text-right text-xs text-slate-500">
