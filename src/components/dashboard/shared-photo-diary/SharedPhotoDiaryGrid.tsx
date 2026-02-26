@@ -1,8 +1,9 @@
 'use client'
 /* eslint-disable @next/next/no-img-element */
 
-import { useMemo, useState } from 'react'
+import { useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Filter, X } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -39,9 +40,25 @@ interface SharedPhotoDiaryGridProps {
 }
 
 export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridProps) {
-  const [selectedClass, setSelectedClass] = useState<string | null>(null)
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null)
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null)
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const selectedClass = searchParams.get('class')
+  const selectedStudent = searchParams.get('student')
+  const selectedSubject = searchParams.get('subject')
+
+  const updateFilters = useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) {
+        params.set(key, value)
+      } else {
+        params.delete(key)
+      }
+    }
+    const qs = params.toString()
+    router.push(`/dashboard/shared-photo-diary${qs ? `?${qs}` : ''}`)
+  }, [router, searchParams])
 
   const filteredPhotos = useMemo(() => {
     return photos.filter((photo) => {
@@ -55,9 +72,7 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
   const hasActiveFilters = selectedClass || selectedStudent || selectedSubject
 
   const handleClearFilters = () => {
-    setSelectedClass(null)
-    setSelectedStudent(null)
-    setSelectedSubject(null)
+    updateFilters({ class: null, student: null, subject: null })
   }
 
   // 선택된 반에 따라 학생 필터링
@@ -82,11 +97,11 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
           <Select
             value={selectedClass ?? 'all'}
             onValueChange={(value) => {
-              setSelectedClass(value === 'all' ? null : value)
-              // 반이 바뀌면 학생 선택 초기화
-              if (value !== selectedClass) {
-                setSelectedStudent(null)
-              }
+              const nextClass = value === 'all' ? null : value
+              updateFilters({
+                class: nextClass,
+                student: nextClass !== selectedClass ? null : selectedStudent,
+              })
             }}
           >
             <SelectTrigger className="h-8 w-[120px] text-xs">
@@ -107,7 +122,7 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
         {filteredStudents.length > 0 && (
           <Select
             value={selectedStudent ?? 'all'}
-            onValueChange={(value) => setSelectedStudent(value === 'all' ? null : value)}
+            onValueChange={(value) => updateFilters({ student: value === 'all' ? null : value })}
           >
             <SelectTrigger className="h-8 w-[120px] text-xs">
               <SelectValue placeholder="학생" />
@@ -127,7 +142,7 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
         {filters.subjects.length > 0 && (
           <Select
             value={selectedSubject ?? 'all'}
-            onValueChange={(value) => setSelectedSubject(value === 'all' ? null : value)}
+            onValueChange={(value) => updateFilters({ subject: value === 'all' ? null : value })}
           >
             <SelectTrigger className="h-8 w-[120px] text-xs">
               <SelectValue placeholder="과목" />
@@ -170,10 +185,7 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
               {filters.classes.find((c) => c.id === selectedClass)?.name}
               <button
                 type="button"
-                onClick={() => {
-                  setSelectedClass(null)
-                  setSelectedStudent(null)
-                }}
+                onClick={() => updateFilters({ class: null, student: null })}
                 className="ml-1 hover:text-destructive"
               >
                 <X className="h-3 w-3" />
@@ -185,7 +197,7 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
               {filters.students.find((s) => s.id === selectedStudent)?.name}
               <button
                 type="button"
-                onClick={() => setSelectedStudent(null)}
+                onClick={() => updateFilters({ student: null })}
                 className="ml-1 hover:text-destructive"
               >
                 <X className="h-3 w-3" />
@@ -197,7 +209,7 @@ export function SharedPhotoDiaryGrid({ photos, filters }: SharedPhotoDiaryGridPr
               {selectedSubject}
               <button
                 type="button"
-                onClick={() => setSelectedSubject(null)}
+                onClick={() => updateFilters({ subject: null })}
                 className="ml-1 hover:text-destructive"
               >
                 <X className="h-3 w-3" />
