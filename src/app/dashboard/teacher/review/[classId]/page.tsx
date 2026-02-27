@@ -148,56 +148,20 @@ export default async function TeacherClassReviewPage({
 
   const thirtyDaysAgo = DateUtil.addDays(DateUtil.nowUTC(), -RECENT_DAYS)
 
-  const assignmentQuery = supabase
+  // Query 1: 과제 메타 + workbook_items (한 번만 로드)
+  const assignmentMetaQuery = supabase
     .from('assignments')
     .select(
       `id, due_at, published_at, created_at, target_scope,
        assigned_by,
        assigned_teacher:profiles!assignments_assigned_by_fkey(id, name, email),
-       workbooks(id, title, subject, type, week_label, config),
-       assignment_targets(class_id, classes(id, name)),
-       student_tasks(
-       id,
-       status,
-        status_override,
-        submitted_late,
-        completion_at,
-        updated_at,
-        student_id,
-          class_id,
-         profiles!student_tasks_student_id_fkey(id, name, email, class_id),
-         student_task_items(
-           id,
-           item_id,
-           streak,
-           next_review_at,
-           completed_at,
-           last_result,
-           workbook_items(
-             id,
-             position,
-             prompt,
-             answer_type,
-             explanation,
-             workbook_item_short_fields(id, label, answer, position),
-             workbook_item_choices(id, label, content, is_correct)
-           )
-         ),
-           task_submissions(
-            id,
-            item_id,
-            submission_type,
-            content,
-            media_asset_id,
-            score,
-            feedback,
-            created_at,
-            updated_at,
-            task_submission_assets(
-              media_asset:media_assets(id, bucket, path, mime_type, metadata)
-            )
-          )
+       workbooks(id, title, subject, type, week_label, config,
+         workbook_items(id, position, prompt, answer_type, explanation,
+           workbook_item_short_fields(id, label, answer, position),
+           workbook_item_choices(id, label, content, is_correct)
+         )
        ),
+       assignment_targets!inner(class_id, classes(id, name)),
        print_requests(
          id,
          status,
@@ -218,17 +182,119 @@ export default async function TeacherClassReviewPage({
        )
       `
     )
+    .eq('assignment_targets.class_id', classId)
     .order('due_at', { ascending: false })
     .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
 
-  // RLS(can_view_assignment)가 교사 반 기반 접근 제어를 처리하므로
-  // 추가 assigned_by 필터 불필요
+  const { data: assignmentMetaRows, error: assignmentMetaError } = await assignmentMetaQuery
 
-  const { data: rawAssignmentRows, error: assignmentError } = await assignmentQuery.returns<RawAssignmentRow[]>()
-
-  if (assignmentError) {
-    console.error('[teacher] class assignment fetch error', assignmentError)
+  if (assignmentMetaError) {
+    console.error('[teacher] class assignment meta fetch error', assignmentMetaError)
   }
+
+  const assignmentIds = (assignmentMetaRows ?? []).map((r: { id: string }) => r.id)
+
+  // workbook_items 룩업 맵 구축 (item_id → workbook_item)
+  type WbItem = Record<string, unknown>
+  const workbookItemMap = new Map<string, WbItem>()
+  for (const row of (assignmentMetaRows ?? []) as Array<Record<string, unknown>>) {
+    const wb = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
+    if (wb && typeof wb === 'object' && 'workbook_items' in (wb as Record<string, unknown>)) {
+      const items = ((wb as Record<string, unknown>).workbook_items ?? []) as WbItem[]
+      for (const item of items) {
+        if (item.id) workbookItemMap.set(item.id as string, item)
+      }
+    }
+  }
+
+  // Query 2a/2b: student_tasks를 두 병렬 쿼리로 분할
+  let studentTaskRows: Array<Record<string, unknown>> = []
+  let taskError: { message: string; code: string } | null = null
+
+  if (assignmentIds.length > 0) {
+    const baseFilter = { assignmentIds, classId }
+
+    // Q2a: 과제 상태 + 아이템 (제출물 제외)
+    const q2a = supabase
+      .from('student_tasks')
+      .select(
+        `id, assignment_id, status, status_override, submitted_late,
+         completion_at, updated_at, student_id, class_id,
+         profiles!student_tasks_student_id_fkey(id, name, email, class_id),
+         student_task_items(id, item_id, streak, next_review_at, completed_at, last_result)`
+      )
+      .in('assignment_id', baseFilter.assignmentIds)
+      .eq('class_id', baseFilter.classId)
+
+    // Q2b: 제출물 + 에셋 (상태/아이템 제외)
+    const q2b = supabase
+      .from('student_tasks')
+      .select(
+        `id,
+         task_submissions(
+           id, item_id, submission_type, content, media_asset_id,
+           score, feedback, created_at, updated_at,
+           task_submission_assets(
+             media_asset:media_assets(id, bucket, path, mime_type, metadata)
+           )
+         )`
+      )
+      .in('assignment_id', baseFilter.assignmentIds)
+      .eq('class_id', baseFilter.classId)
+
+    const [result2a, result2b] = await Promise.all([q2a, q2b])
+
+    if (result2a.error) {
+      taskError = result2a.error as { message: string; code: string }
+    }
+    if (result2b.error) {
+      taskError = taskError ?? (result2b.error as { message: string; code: string })
+    }
+
+    // Q2b 결과를 task id → submissions 맵으로 변환
+    const submissionsByTaskId = new Map<string, unknown[]>()
+    for (const row of (result2b.data ?? []) as Array<Record<string, unknown>>) {
+      if (row.id && row.task_submissions) {
+        submissionsByTaskId.set(row.id as string, row.task_submissions as unknown[])
+      }
+    }
+
+    // Q2a + Q2b 병합
+    studentTaskRows = ((result2a.data ?? []) as Array<Record<string, unknown>>).map((task) => ({
+      ...task,
+      task_submissions: submissionsByTaskId.get(task.id as string) ?? [],
+    }))
+  }
+
+  if (taskError) {
+    console.error('[teacher] student tasks fetch error', taskError)
+  }
+
+  // student_task_items에 workbook_items 주입 (Q1에서 가져온 데이터)
+  for (const task of studentTaskRows) {
+    const items = (task.student_task_items ?? []) as Array<Record<string, unknown>>
+    for (const item of items) {
+      const wbItem = workbookItemMap.get(item.item_id as string)
+      if (wbItem) item.workbook_items = wbItem
+    }
+  }
+
+  // 쿼리 결과를 RawAssignmentRow 형태로 병합
+  const tasksByAssignment = new Map<string, Array<Record<string, unknown>>>()
+  for (const task of studentTaskRows) {
+    const aId = task.assignment_id as string
+    if (!tasksByAssignment.has(aId)) tasksByAssignment.set(aId, [])
+    tasksByAssignment.get(aId)!.push(task)
+  }
+
+  const rawAssignmentRows: RawAssignmentRow[] = (assignmentMetaRows ?? []).map(
+    (row: Record<string, unknown>) => ({
+      ...row,
+      student_tasks: tasksByAssignment.get(row.id as string) ?? [],
+    })
+  ) as unknown as RawAssignmentRow[]
+
+  const assignmentError = assignmentMetaError || taskError
 
   const transformResults = (rawAssignmentRows ?? []).map(transformAssignmentRow)
 
