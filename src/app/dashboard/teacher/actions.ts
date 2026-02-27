@@ -1301,9 +1301,8 @@ export async function fetchAllAssignmentsForClass(
     .eq('assignment_targets.class_id', classId)
     .order('due_at', { ascending: false })
 
-  if (!canSeeAll) {
-    query.eq('assigned_by', profile.id)
-  }
+  // RLS(can_view_assignment)가 교사 반 기반 접근 제어를 처리하므로
+  // 추가 assigned_by 필터 불필요
 
   const { data, error } = await query.returns<RawOverviewAssignmentRow[]>()
 

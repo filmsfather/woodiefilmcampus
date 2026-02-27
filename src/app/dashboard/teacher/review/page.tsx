@@ -170,9 +170,8 @@ export default async function TeacherReviewOverviewPage() {
     .order('due_at', { ascending: false })
     .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
 
-  if (!canSeeAllClasses) {
-    assignmentQuery.eq('assigned_by', profile.id)
-  }
+  // RLS(can_view_assignment)가 교사 반 기반 접근 제어를 처리하므로
+  // 추가 assigned_by 필터 불필요
 
   const [{ data: classRows, error: classError }, { data: assignmentRows, error: assignmentError }] = await Promise.all([
     classQuery,

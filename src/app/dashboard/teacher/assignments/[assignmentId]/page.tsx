@@ -86,7 +86,6 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
       `
     )
     .eq('id', assignmentId)
-    .eq('assigned_by', profile.id)
     .maybeSingle<RawAssignmentRow>()
 
   if (error) {

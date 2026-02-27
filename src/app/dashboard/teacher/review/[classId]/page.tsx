@@ -82,18 +82,18 @@ export default async function TeacherClassReviewPage({
   const { classId } = await params
   const resolvedSearchParams = await searchParams
   const supabase = await createServerSupabase()
-  const isPrincipal = profile.role === 'principal'
+  const canSeeAllClasses = profile.role === 'principal' || profile.role === 'manager'
 
   let classRows: RawPrincipalClassRow[] | RawClassRow[] | null = null
 
-  if (isPrincipal) {
+  if (canSeeAllClasses) {
     const { data, error } = await supabase
       .from('classes')
       .select('id, name')
       .order('name', { ascending: true })
 
     if (error) {
-      console.error('[principal] class review fetch error', error)
+      console.error('[principal/manager] class review fetch error', error)
     }
 
     classRows = data ?? null
@@ -115,7 +115,7 @@ export default async function TeacherClassReviewPage({
       return []
     }
 
-    if (isPrincipal) {
+    if (canSeeAllClasses) {
       return (classRows as RawPrincipalClassRow[]).reduce<ManagedClass[]>((acc, row) => {
         if (!row.id) {
           return acc
@@ -221,9 +221,8 @@ export default async function TeacherClassReviewPage({
     .order('due_at', { ascending: false })
     .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
 
-  if (!isPrincipal) {
-    assignmentQuery.eq('assigned_by', profile.id)
-  }
+  // RLS(can_view_assignment)가 교사 반 기반 접근 제어를 처리하므로
+  // 추가 assigned_by 필터 불필요
 
   const { data: rawAssignmentRows, error: assignmentError } = await assignmentQuery.returns<RawAssignmentRow[]>()
 
