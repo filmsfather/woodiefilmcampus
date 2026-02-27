@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { LinkIcon } from 'lucide-react'
+import { KeyRound, LinkIcon } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils'
 import type { UserRole } from '@/lib/supabase'
 import { createClient } from '@/lib/supabase/client'
 import { SignOutButton } from '@/components/dashboard/SignOutButton'
+import { ChangePasswordDialog } from '@/components/dashboard/ChangePasswordDialog'
 import {
   getNavigationSections,
   getSectionsByViewRole,
@@ -65,17 +66,21 @@ export function DashboardSidebar({
     : getNavigationSections(role)
 
   const [hasLinkedSocial, setHasLinkedSocial] = useState<boolean | null>(null)
+  const [hasEmailProvider, setHasEmailProvider] = useState(false)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
   const [isLinking, setIsLinking] = useState(false)
 
   useEffect(() => {
     async function checkLinkedAccounts() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user?.identities) {
-        // email(비밀번호) 외에 다른 provider가 있는지 확인
         const socialProviders = user.identities.filter(
           (identity) => identity.provider !== 'email'
         )
         setHasLinkedSocial(socialProviders.length > 0)
+        setHasEmailProvider(
+          user.identities.some((identity) => identity.provider === 'email')
+        )
       }
     }
     checkLinkedAccounts()
@@ -111,7 +116,19 @@ export function DashboardSidebar({
         <div className="space-y-2">
           <div className="space-y-1">
             <p className="text-sm font-medium text-slate-900">{displayName}</p>
-            <Badge variant="secondary">{roleLabel}</Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="secondary">{roleLabel}</Badge>
+              {hasEmailProvider && (
+                <button
+                  type="button"
+                  onClick={() => setPasswordDialogOpen(true)}
+                  className="rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                  title="비밀번호 변경"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* 소셜 계정 연결 안내 */}
@@ -200,6 +217,11 @@ export function DashboardSidebar({
       <div className="border-t px-4 py-4">
         <SignOutButton className="w-full justify-center" />
       </div>
+
+      <ChangePasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+      />
     </div>
   )
 }
