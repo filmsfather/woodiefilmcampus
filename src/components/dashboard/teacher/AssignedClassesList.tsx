@@ -18,6 +18,29 @@ interface AssignedClassesListProps {
 }
 
 export function AssignedClassesList({ data }: AssignedClassesListProps) {
+    // #region agent log
+    const _clientPayload = {
+        sessionId: 'ec8ae8',
+        runId: 'client',
+        hypothesisId: 'H4',
+        location: 'AssignedClassesList.tsx:render',
+        message: 'client received assignedClasses',
+        data: {
+            classCount: data.length,
+            classes: data.map((c) => ({ id: c.id, name: c.name, studentCount: c.students.length, studentNames: c.students.map((s) => s.name) })),
+        },
+        timestamp: Date.now(),
+    }
+    if (typeof fetch !== 'undefined') {
+        fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'ec8ae8' },
+            body: JSON.stringify(_clientPayload),
+        }).catch(() => {})
+    }
+    if (typeof console !== 'undefined') console.log('[DEBUG AssignedClassesList]', JSON.stringify(_clientPayload))
+    // #endregion
+
     if (data.length === 0) {
         return null
     }

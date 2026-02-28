@@ -230,6 +230,37 @@ export async function fetchAssignedClasses(
     .select('class_id, student_id, profiles!class_students_student_id_fkey(id, name, email, student_phone, parent_phone, academic_record, photo_url)')
     .in('class_id', classIds)
 
+  // #region agent log
+  const _logPayload = {
+    sessionId: 'ec8ae8',
+    runId: 'fetch',
+    hypothesisId: 'H1-H3',
+    location: 'dashboard-data.ts:fetchAssignedClasses',
+    message: 'class_students raw result',
+    data: {
+      classIds,
+      rowCount: classStudentsData?.length ?? 0,
+      rows: (classStudentsData ?? []).map((row: Record<string, unknown>) => {
+        const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
+        return {
+          class_id: row.class_id,
+          student_id: row.student_id,
+          hasProfile: !!profile,
+          profileName: profile && typeof profile === 'object' && 'name' in profile ? (profile as { name: unknown }).name : null,
+        }
+      }),
+    },
+    timestamp: Date.now(),
+  }
+  try {
+    const fs = require('node:fs')
+    const path = require('node:path')
+    const logPath = path.join(process.cwd(), '.cursor', 'debug-ec8ae8.log')
+    fs.appendFileSync(logPath, JSON.stringify(_logPayload) + '\n')
+  } catch (_) {}
+  if (typeof console !== 'undefined') console.log('[DEBUG fetchAssignedClasses]', JSON.stringify(_logPayload))
+  // #endregion
+
   const studentsByClass = new Map<string, Array<{
     id: string
     name: string
@@ -265,6 +296,25 @@ export async function fetchAssignedClasses(
       students,
     }
   })
+
+  // #region agent log
+  const _finalPayload = {
+    sessionId: 'ec8ae8',
+    runId: 'fetch',
+    hypothesisId: 'H2-H5',
+    location: 'dashboard-data.ts:fetchAssignedClasses:result',
+    message: 'final students per class',
+    data: classesWithStudents.map((c) => ({ id: c.id, name: c.name, studentCount: c.students.length, studentNames: c.students.map((s) => s.name) })),
+    timestamp: Date.now(),
+  }
+  try {
+    const fs = require('node:fs')
+    const path = require('node:path')
+    const logPath = path.join(process.cwd(), '.cursor', 'debug-ec8ae8.log')
+    fs.appendFileSync(logPath, JSON.stringify(_finalPayload) + '\n')
+  } catch (_) {}
+  if (typeof console !== 'undefined') console.log('[DEBUG fetchAssignedClasses result]', JSON.stringify(_finalPayload))
+  // #endregion
 
   classesWithStudents.sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 
