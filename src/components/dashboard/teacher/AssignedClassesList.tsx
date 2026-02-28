@@ -8,6 +8,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import type { AssignedClass } from '@/lib/dashboard-data'
 import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { StudentInfoDialog } from '@/components/dashboard/teacher/StudentInfoDialog'
+import { AssignedClassesListDOMCount } from '@/components/dashboard/teacher/AssignedClassesListDOMCount'
 
 function getPhotoPublicUrl(path: string) {
     return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${PROFILE_PHOTOS_BUCKET}/${path}`
@@ -27,7 +28,14 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
         message: 'client received assignedClasses',
         data: {
             classCount: data.length,
-            classes: data.map((c) => ({ id: c.id, name: c.name, studentCount: c.students.length, studentNames: c.students.map((s) => s.name) })),
+            classes: data.map((c) => ({
+                id: c.id,
+                name: c.name,
+                studentCount: c.students.length,
+                studentNames: c.students.map((s) => s.name),
+                studentIds: c.students.map((s) => s.id),
+                uniqueIds: new Set(c.students.map((s) => s.id)).size,
+            })),
         },
         timestamp: Date.now(),
     }
@@ -67,7 +75,11 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                                     구성원 ({c.students.length}명)
                                 </p>
                                 {c.students.length > 0 ? (
-                                    <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+                                    <div
+                                        className="grid grid-cols-3 gap-3 sm:grid-cols-4"
+                                        data-debug-class-id={c.id}
+                                        data-debug-expected-count={c.students.length}
+                                    >
                                         {c.students.map((student) => (
                                             <StudentInfoDialog key={student.id} student={student}>
                                                 <button
@@ -124,6 +136,7 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                     </Card>
                 ))}
             </div>
+            <AssignedClassesListDOMCount />
         </section>
     )
 }
