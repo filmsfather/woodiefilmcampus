@@ -2,12 +2,34 @@ import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { resolveMonthRange } from '@/lib/work-logs'
 import { fetchTeacherPayrollProfiles } from '@/lib/payroll/config'
-import { fetchApprovedWorkLogsByTeacher, fetchTeacherDirectory } from '@/lib/payroll/queries'
+import {
+  fetchApprovedWorkLogsByTeacher,
+  fetchTeacherDirectory,
+  loadPayrollRuns,
+} from '@/lib/payroll/queries'
 import { calculatePayroll } from '@/lib/payroll/calculate'
+import type { PayrollAdjustmentInput } from '@/lib/payroll/types'
 import {
   BusinessJournalClient,
   type PayrollSummaryEntry,
 } from '@/components/dashboard/principal/business-journal/BusinessJournalClient'
+
+function normalizeAdjustments(value: unknown): PayrollAdjustmentInput[] {
+  if (!Array.isArray(value)) return []
+  const results: PayrollAdjustmentInput[] = []
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue
+    const record = entry as Record<string, unknown>
+    const label = typeof record.label === 'string' ? record.label : null
+    if (!label) continue
+    const rawAmount = record.amount
+    const amount = typeof rawAmount === 'number' ? rawAmount : Number.parseFloat(String(rawAmount))
+    if (Number.isNaN(amount)) continue
+    const isDeduction = Boolean(record.isDeduction)
+    results.push({ label, amount, isDeduction })
+  }
+  return results
+}
 
 export default async function BusinessJournalPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -31,6 +53,10 @@ export default async function BusinessJournalPage(props: {
     ? await fetchApprovedWorkLogsByTeacher(monthRange.startDate, monthRange.endExclusiveDate, teacherIds)
     : {}
 
+  const payrollRuns = teacherIds.length
+    ? await loadPayrollRuns(monthRange.startDate, monthRange.endExclusiveDate, teacherIds)
+    : []
+
   const entries: PayrollSummaryEntry[] = []
 
   for (const teacherId of teacherIds) {
@@ -39,6 +65,14 @@ export default async function BusinessJournalPage(props: {
     if (!teacher || !profile) continue
 
     const workLogs = workLogsByTeacher[teacherId] ?? []
+
+    const matchingRuns = payrollRuns
+      .filter((run) => run.teacherId === teacherId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    const latestRun = matchingRuns[0] ?? null
+
+    const runMeta = latestRun?.meta as Record<string, unknown> | undefined
+    const adjustments = normalizeAdjustments(runMeta ? runMeta['adjustments'] : undefined)
 
     const breakdown = calculatePayroll({
       teacherId,
@@ -50,7 +84,7 @@ export default async function BusinessJournalPage(props: {
       contractType: profile.contractType,
       insuranceEnrolled: profile.insuranceEnrolled,
       workLogs,
-      adjustments: [],
+      adjustments,
     })
 
     entries.push({
@@ -63,7 +97,6 @@ export default async function BusinessJournalPage(props: {
       grossPay: breakdown.grossPay,
       deductionsTotal: breakdown.deductionsTotal,
       netPay: breakdown.netPay,
-      role: undefined,
     })
   }
 
