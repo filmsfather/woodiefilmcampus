@@ -13,6 +13,7 @@ import {
   BusinessJournalClient,
   type PayrollSummaryEntry,
 } from '@/components/dashboard/principal/business-journal/BusinessJournalClient'
+import { loadLedgerEntries } from './actions'
 
 function normalizeAdjustments(value: unknown): PayrollAdjustmentInput[] {
   if (!Array.isArray(value)) return []
@@ -100,11 +101,14 @@ export default async function BusinessJournalPage(props: {
     })
   }
 
+  const savedLedgerEntries = await loadLedgerEntries(monthToken)
+
   return (
     <BusinessJournalClient
       monthToken={monthToken}
       monthLabel={monthRange.label}
       entries={entries}
+      savedLedgerEntries={savedLedgerEntries}
     />
   )
 }
