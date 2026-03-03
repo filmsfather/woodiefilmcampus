@@ -8,9 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { Textarea } from '@/components/ui/textarea'
 import {
   upsertLedgerEntry,
   deleteLedgerEntry,
+  saveJournalMemo,
   type LedgerEntryRow,
 } from '@/app/dashboard/principal/business-journal/actions'
 
@@ -69,6 +71,7 @@ interface BusinessJournalClientProps {
   monthLabel: string
   entries: PayrollSummaryEntry[]
   savedLedgerEntries: LedgerEntryRow[]
+  savedMemo: string
 }
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR', {
@@ -189,7 +192,7 @@ function formatAmountForInput(amount: number | null): string {
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLedgerEntries }: BusinessJournalClientProps) {
+export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLedgerEntries, savedMemo }: BusinessJournalClientProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -238,7 +241,33 @@ export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLe
     buildInitialItems(savedLedgerEntries, 'expense', payrollTotals)
   )
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [memoContent, setMemoContent] = useState(savedMemo)
+  const [memoSaveStatus, setMemoSaveStatus] = useState<SaveStatus>('idle')
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const memoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleMemoChange = useCallback(
+    (value: string) => {
+      setMemoContent(value)
+      if (memoTimer.current) clearTimeout(memoTimer.current)
+      setMemoSaveStatus('saving')
+      memoTimer.current = setTimeout(async () => {
+        try {
+          const result = await saveJournalMemo({ monthToken, content: value })
+          setMemoSaveStatus(result.success ? 'saved' : 'error')
+        } catch {
+          setMemoSaveStatus('error')
+        }
+      }, 800)
+    },
+    [monthToken],
+  )
+
+  useEffect(() => {
+    return () => {
+      if (memoTimer.current) clearTimeout(memoTimer.current)
+    }
+  }, [])
 
   useEffect(() => {
     setExpenseItems((prev) =>
@@ -713,6 +742,31 @@ export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLe
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-slate-900">경영일기</h2>
+          <span
+            className={cn(
+              'text-xs transition-opacity',
+              memoSaveStatus === 'saving' && 'text-amber-600',
+              memoSaveStatus === 'saved' && 'text-green-600',
+              memoSaveStatus === 'error' && 'text-red-600',
+              memoSaveStatus === 'idle' && 'opacity-0',
+            )}
+          >
+            {memoSaveStatus === 'saving' && '저장 중...'}
+            {memoSaveStatus === 'saved' && '저장됨'}
+            {memoSaveStatus === 'error' && '저장 실패'}
+          </span>
+        </div>
+        <Textarea
+          value={memoContent}
+          onChange={(e) => handleMemoChange(e.target.value)}
+          placeholder={`${monthLabel} 경영일기를 작성하세요...`}
+          className="min-h-[160px] resize-y text-sm"
+        />
       </section>
     </section>
   )

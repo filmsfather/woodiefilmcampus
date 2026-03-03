@@ -88,6 +88,52 @@ export async function upsertLedgerEntry(input: {
   return { success: true, id: data?.id }
 }
 
+export async function loadJournalMemo(monthToken: string): Promise<string> {
+  const profile = await ensurePrincipalProfile()
+  if (!profile) return ''
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('business_journal_memo')
+    .select('content')
+    .eq('month_token', monthToken)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[loadJournalMemo]', error.message)
+    return ''
+  }
+
+  return data?.content ?? ''
+}
+
+export async function saveJournalMemo(input: {
+  monthToken: string
+  content: string
+}): Promise<{ success: boolean; error?: string }> {
+  const profile = await ensurePrincipalProfile()
+  if (!profile) return { success: false, error: '권한이 없습니다.' }
+
+  const supabase = createAdminClient()
+  const { error } = await supabase
+    .from('business_journal_memo')
+    .upsert(
+      {
+        month_token: input.monthToken,
+        content: input.content,
+        created_by: profile.id,
+      },
+      { onConflict: 'month_token,created_by' },
+    )
+
+  if (error) {
+    console.error('[saveJournalMemo]', error.message)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
 export async function deleteLedgerEntry(
   id: string
 ): Promise<{ success: boolean; error?: string }> {
