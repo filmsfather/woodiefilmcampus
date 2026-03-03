@@ -26,8 +26,11 @@ export default async function PrincipalDashboardPage() {
             <Button asChild variant="outline" size="sm">
               <Link href="/dashboard/principal/work-logs">근무일지 관리</Link>
             </Button>
-            <Button asChild size="sm">
+            <Button asChild variant="outline" size="sm">
               <Link href="/dashboard/principal/payroll">임금관리</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/business-journal">경영일지</Link>
             </Button>
           </CardContent>
         </Card>

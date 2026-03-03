@@ -41,6 +41,7 @@ const principalCoreSections: NavigationSection[] = [
     items: [
       { label: '근무일지 관리', href: '/dashboard/principal/work-logs' },
       { label: '임금관리', href: '/dashboard/principal/payroll' },
+      { label: '경영일지', href: '/dashboard/principal/business-journal' },
     ],
   },
   {
