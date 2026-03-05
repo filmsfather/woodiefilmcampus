@@ -9,6 +9,7 @@ export interface NameQuizClass {
     id: string
     name: string
     photo_url: string | null
+    academicRecord: string | null
   }>
 }
 
@@ -35,13 +36,13 @@ export default async function NameQuizPage() {
   const { data: classStudentsData } = await supabase
     .from("class_students")
     .select(
-      "class_id, student_id, profiles!class_students_student_id_fkey(id, name, photo_url)"
+      "class_id, student_id, profiles!class_students_student_id_fkey(id, name, photo_url, academic_record)"
     )
     .in("class_id", classIds)
 
   const studentsByClass = new Map<
     string,
-    Array<{ id: string; name: string; photo_url: string | null }>
+    Array<{ id: string; name: string; photo_url: string | null; academicRecord: string | null }>
   >()
 
   classStudentsData?.forEach((row) => {
@@ -52,6 +53,7 @@ export default async function NameQuizPage() {
         id: profile.id,
         name: profile.name,
         photo_url: profile.photo_url ?? null,
+        academicRecord: (profile as Record<string, unknown>).academic_record as string | null,
       })
       studentsByClass.set(row.class_id, list)
     }

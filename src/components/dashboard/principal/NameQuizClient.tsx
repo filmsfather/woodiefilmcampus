@@ -36,7 +36,7 @@ export function NameQuizClient({ classes }: NameQuizClientProps) {
   const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(new Set())
   const [phase, setPhase] = useState<Phase>("select")
   const [quizStudents, setQuizStudents] = useState<
-    Array<{ id: string; name: string; photo_url: string | null; className: string }>
+    Array<{ id: string; name: string; photo_url: string | null; className: string; academicRecord: string | null }>
   >([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [showName, setShowName] = useState(false)
@@ -232,7 +232,14 @@ export function NameQuizClient({ classes }: NameQuizClientProps) {
           <CardTitle className="text-lg text-slate-900">이 학생의 이름은?</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-6 pb-8">
-          <p className="text-sm font-medium text-indigo-600">{student.className}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-indigo-600">{student.className}</p>
+            {student.academicRecord && student.academicRecord.trim().length > 0 && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                {student.academicRecord}
+              </span>
+            )}
+          </div>
           <div className="relative h-48 w-48 overflow-hidden rounded-full border-4 border-slate-200 bg-slate-100">
             {student.photo_url ? (
               <Image

@@ -1,54 +1,16 @@
-import Image from 'next/image'
 import Link from 'next/link'
-import { User } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import type { AssignedClass } from '@/lib/dashboard-data'
-import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
-import { StudentInfoDialog } from '@/components/dashboard/teacher/StudentInfoDialog'
-import { AssignedClassesListDOMCount } from '@/components/dashboard/teacher/AssignedClassesListDOMCount'
-
-function getPhotoPublicUrl(path: string) {
-    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${PROFILE_PHOTOS_BUCKET}/${path}`
-}
+import { StudentGridClient } from '@/components/dashboard/teacher/StudentGridClient'
 
 interface AssignedClassesListProps {
     data: AssignedClass[]
 }
 
 export function AssignedClassesList({ data }: AssignedClassesListProps) {
-    // #region agent log
-    const _clientPayload = {
-        sessionId: 'ec8ae8',
-        runId: 'client',
-        hypothesisId: 'H4',
-        location: 'AssignedClassesList.tsx:render',
-        message: 'client received assignedClasses',
-        data: {
-            classCount: data.length,
-            classes: data.map((c) => ({
-                id: c.id,
-                name: c.name,
-                studentCount: c.students.length,
-                studentNames: c.students.map((s) => s.name),
-                studentIds: c.students.map((s) => s.id),
-                uniqueIds: new Set(c.students.map((s) => s.id)).size,
-            })),
-        },
-        timestamp: Date.now(),
-    }
-    if (typeof fetch !== 'undefined') {
-        fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'ec8ae8' },
-            body: JSON.stringify(_clientPayload),
-        }).catch(() => {})
-    }
-    if (typeof console !== 'undefined') console.log('[DEBUG AssignedClassesList]', JSON.stringify(_clientPayload))
-    // #endregion
-
     if (data.length === 0) {
         return null
     }
@@ -75,39 +37,7 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                                     구성원 ({c.students.length}명)
                                 </p>
                                 {c.students.length > 0 ? (
-                                    <div
-                                        className="grid grid-cols-3 gap-3 sm:grid-cols-4"
-                                        data-debug-class-id={c.id}
-                                        data-debug-expected-count={c.students.length}
-                                    >
-                                        {c.students.map((student) => (
-                                            <StudentInfoDialog key={student.id} student={student}>
-                                                <button
-                                                    type="button"
-                                                    className="group flex flex-col items-center gap-2 rounded-lg p-2 transition-colors hover:bg-slate-100"
-                                                >
-                                                    <span className="relative h-[4.5rem] w-[4.5rem] shrink-0 overflow-hidden rounded-full border-2 border-slate-200 bg-slate-100 transition-shadow group-hover:border-indigo-300 group-hover:shadow-sm">
-                                                        {student.photo_url ? (
-                                                            <Image
-                                                                src={getPhotoPublicUrl(student.photo_url)}
-                                                                alt={`${student.name} 사진`}
-                                                                width={72}
-                                                                height={72}
-                                                                className="h-full w-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <span className="flex h-full w-full items-center justify-center">
-                                                                <User className="h-8 w-8 text-slate-400" />
-                                                            </span>
-                                                        )}
-                                                    </span>
-                                                    <span className="max-w-full truncate text-sm font-medium text-slate-700">
-                                                        {student.name}
-                                                    </span>
-                                                </button>
-                                            </StudentInfoDialog>
-                                        ))}
-                                    </div>
+                                    <StudentGridClient students={c.students} />
                                 ) : (
                                     <p className="text-sm text-slate-400">등록된 학생이 없습니다.</p>
                                 )}
@@ -136,7 +66,6 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                     </Card>
                 ))}
             </div>
-            <AssignedClassesListDOMCount />
         </section>
     )
 }
