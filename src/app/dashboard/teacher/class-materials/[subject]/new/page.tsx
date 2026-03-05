@@ -5,6 +5,7 @@ import { ClassMaterialPostForm } from '@/components/dashboard/class-materials/Cl
 import { createClassMaterialPost } from '@/app/dashboard/teacher/class-materials/actions'
 import { getClassMaterialSubjectLabel, isClassMaterialSubject } from '@/lib/class-materials'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 export default async function NewClassMaterialPage({ params }: { params: Promise<{ subject: string }> }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
@@ -13,6 +14,18 @@ export default async function NewClassMaterialPage({ params }: { params: Promise
     notFound()
   }
   const title = getClassMaterialSubjectLabel(subject)
+
+  const supabase = await createServerSupabase()
+  const { data: teacherRows } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .eq('role', 'teacher')
+    .order('name', { ascending: true })
+  const teachers = (teacherRows ?? []).map((row) => ({
+    id: String(row.id),
+    name: (row.name ?? null) as string | null,
+    email: (row.email ?? null) as string | null,
+  }))
 
   return (
     <section className="space-y-6">
@@ -30,6 +43,7 @@ export default async function NewClassMaterialPage({ params }: { params: Promise
         submitLabel="자료 업로드"
         onSubmit={createClassMaterialPost}
         currentUserId={profile.id}
+        teachers={teachers}
       />
     </section>
   )

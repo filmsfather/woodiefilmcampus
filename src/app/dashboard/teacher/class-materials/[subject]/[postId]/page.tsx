@@ -111,7 +111,8 @@ export default async function ClassMaterialDetailPage({
        description,
        created_at,
        updated_at,
-       author:profiles!class_material_posts_created_by_fkey(id, name, email),
+       uploader:profiles!class_material_posts_created_by_fkey(id, name, email),
+       designated_author:profiles!class_material_posts_author_id_fkey(id, name, email),
        attachments:class_material_post_assets!class_material_post_assets_post_id_fkey(
          id,
          kind,
@@ -151,7 +152,9 @@ export default async function ClassMaterialDetailPage({
     notFound()
   }
 
-  const authorRelation = Array.isArray(data.author) ? data.author[0] : data.author
+  const designatedAuthor = Array.isArray(data.designated_author) ? data.designated_author[0] : data.designated_author
+  const uploaderRelation = Array.isArray(data.uploader) ? data.uploader[0] : data.uploader
+  const authorRelation = designatedAuthor ?? uploaderRelation
 
   const attachmentRows = Array.isArray(data.attachments) ? data.attachments : []
   const normalizedAttachments: PostAttachmentSummary[] = await Promise.all(

@@ -34,6 +34,7 @@ export default async function EditClassMaterialPage({
        week_label,
        title,
        description,
+       author_id,
        attachments:class_material_post_assets!class_material_post_assets_post_id_fkey(
          id,
          kind,
@@ -74,8 +75,20 @@ export default async function EditClassMaterialPage({
     weekLabel: data.week_label as string | null,
     title: data.title as string,
     description: data.description as string | null,
+    authorId: (data.author_id ?? null) as string | null,
     attachments: attachmentDefaults,
   }
+
+  const { data: teacherRows } = await supabase
+    .from('profiles')
+    .select('id, name, email')
+    .eq('role', 'teacher')
+    .order('name', { ascending: true })
+  const teachers = (teacherRows ?? []).map((row) => ({
+    id: String(row.id),
+    name: (row.name ?? null) as string | null,
+    email: (row.email ?? null) as string | null,
+  }))
 
   const title = getClassMaterialSubjectLabel(subject)
 
@@ -97,6 +110,7 @@ export default async function EditClassMaterialPage({
         onSubmit={updateClassMaterialPost}
         onDelete={deleteClassMaterialPost.bind(null, postId)}
         currentUserId={profile.id}
+        teachers={teachers}
       />
     </section>
   )

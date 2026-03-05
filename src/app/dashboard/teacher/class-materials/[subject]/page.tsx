@@ -15,6 +15,7 @@ import {
   isClassMaterialSubject,
 } from '@/lib/class-materials'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { ClassMaterialAuthorFilter } from '@/components/dashboard/class-materials/ClassMaterialAuthorFilter'
 
 interface ClassMaterialPostRow {
   id: string
@@ -58,8 +59,40 @@ export default async function ClassMaterialSubjectPage({
 
   const resolvedSearchParams = await searchParams
   const query = typeof resolvedSearchParams?.q === 'string' ? resolvedSearchParams?.q.trim() : ''
+  const authorFilter = typeof resolvedSearchParams?.author === 'string' ? resolvedSearchParams.author.trim() : ''
 
   const supabase = await createServerSupabase()
+
+  const { data: allPostsForAuthors } = await supabase
+    .from('class_material_posts')
+    .select(
+      `author_id,
+       created_by,
+       uploader:profiles!class_material_posts_created_by_fkey(id, name, email),
+       designated_author:profiles!class_material_posts_author_id_fkey(id, name, email)
+      `
+    )
+    .eq('subject', subject)
+
+  const authorMap = new Map<string, { id: string; name: string | null; email: string | null }>()
+  for (const row of allPostsForAuthors ?? []) {
+    const da = Array.isArray(row.designated_author) ? row.designated_author[0] : row.designated_author
+    const up = Array.isArray(row.uploader) ? row.uploader[0] : row.uploader
+    const resolved = da ?? up
+    if (resolved?.id && !authorMap.has(String(resolved.id))) {
+      authorMap.set(String(resolved.id), {
+        id: String(resolved.id),
+        name: (resolved.name ?? null) as string | null,
+        email: (resolved.email ?? null) as string | null,
+      })
+    }
+  }
+  const teachers = Array.from(authorMap.values()).sort((a, b) => {
+    const nameA = a.name ?? a.email ?? ''
+    const nameB = b.name ?? b.email ?? ''
+    return nameA.localeCompare(nameB, 'ko')
+  })
+
   let postQuery = supabase
     .from('class_material_posts')
     .select(
@@ -70,7 +103,8 @@ export default async function ClassMaterialSubjectPage({
        description,
        created_at,
        updated_at,
-       profiles:profiles!class_material_posts_created_by_fkey(name),
+       uploader:profiles!class_material_posts_created_by_fkey(name),
+       designated_author:profiles!class_material_posts_author_id_fkey(name),
        class_material_asset:media_assets!class_material_posts_class_material_asset_id_fkey(id, bucket, path, mime_type),
        student_handout_asset:media_assets!class_material_posts_student_handout_asset_id_fkey(id, bucket, path, mime_type)
       `
@@ -80,6 +114,12 @@ export default async function ClassMaterialSubjectPage({
   if (query) {
     postQuery = postQuery.or(
       `title.ilike.%${query}%,week_label.ilike.%${query}%,description.ilike.%${query}%`
+    )
+  }
+
+  if (authorFilter) {
+    postQuery = postQuery.or(
+      `author_id.eq.${authorFilter},and(author_id.is.null,created_by.eq.${authorFilter})`
     )
   }
 
@@ -94,7 +134,9 @@ export default async function ClassMaterialSubjectPage({
   }
 
   const normalizedPosts: ClassMaterialPostRow[] = (data ?? []).map((row) => {
-    const authorRelation = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles
+    const designatedAuthor = Array.isArray(row.designated_author) ? row.designated_author[0] : row.designated_author
+    const uploaderRelation = Array.isArray(row.uploader) ? row.uploader[0] : row.uploader
+    const authorRelation = designatedAuthor ?? uploaderRelation
     const classMaterialRelation = Array.isArray(row.class_material_asset)
       ? row.class_material_asset[0]
       : row.class_material_asset
@@ -195,25 +237,37 @@ export default async function ClassMaterialSubjectPage({
         </div>
       </div>
 
-      <form className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
-        <label className="flex flex-col gap-1 text-sm text-slate-500 sm:flex-1">
-          <span className="font-medium text-slate-700">검색</span>
-          <Input
-            name="q"
-            placeholder="주차, 제목 또는 설명으로 검색"
-            defaultValue={query}
-            className="w-full"
-          />
-        </label>
-        <div className="flex gap-2">
-          <Button type="submit" variant="secondary">
-            검색
-          </Button>
-          {query ? (
-            <Button type="button" variant="ghost" asChild>
-              <Link href={`/dashboard/teacher/class-materials/${subject}`}>초기화</Link>
-            </Button>
+      <form className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <label className="flex flex-col gap-1 text-sm text-slate-500 sm:flex-1">
+            <span className="font-medium text-slate-700">검색</span>
+            <Input
+              name="q"
+              placeholder="주차, 제목 또는 설명으로 검색"
+              defaultValue={query}
+              className="w-full"
+            />
+          </label>
+          {teachers.length > 0 ? (
+            <div className="flex flex-col gap-1 text-sm sm:w-52">
+              <span className="font-medium text-slate-700">작성자</span>
+              <ClassMaterialAuthorFilter
+                teachers={teachers}
+                currentValue={authorFilter}
+                subject={subject}
+              />
+            </div>
           ) : null}
+          <div className="flex gap-2 sm:pb-0">
+            <Button type="submit" variant="secondary">
+              검색
+            </Button>
+            {query || authorFilter ? (
+              <Button type="button" variant="ghost" asChild>
+                <Link href={`/dashboard/teacher/class-materials/${subject}`}>초기화</Link>
+              </Button>
+            ) : null}
+          </div>
         </div>
       </form>
 
@@ -229,11 +283,12 @@ export default async function ClassMaterialSubjectPage({
       ) : (
         <Card className="border-slate-200">
           <CardContent className="overflow-x-auto p-0">
-            <Table className="min-w-[960px]">
+            <Table className="min-w-[960px] table-fixed">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-24">주차</TableHead>
-                  <TableHead className="w-64">제목</TableHead>
+                  <TableHead className="w-48">제목</TableHead>
+                  <TableHead className="w-28">작성자</TableHead>
                   <TableHead className="w-56">수업자료</TableHead>
                   <TableHead className="w-56">학생 유인물</TableHead>
                   <TableHead>수업 설명</TableHead>
@@ -248,15 +303,16 @@ export default async function ClassMaterialSubjectPage({
                       {post.week_label ? post.week_label : <span className="text-slate-300">-</span>}
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <Link
-                          href={`/dashboard/teacher/class-materials/${subject}/${post.id}`}
-                          className="text-sm font-medium text-slate-900 hover:underline"
-                        >
-                          {post.title}
-                        </Link>
-                        <span className="text-xs text-slate-500">작성자 {post.author_name ?? '미상'}</span>
-                      </div>
+                      <Link
+                        href={`/dashboard/teacher/class-materials/${subject}/${post.id}`}
+                        className="block truncate text-sm font-medium text-slate-900 hover:underline"
+                        title={post.title}
+                      >
+                        {post.title}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-700">
+                      {post.author_name ?? <span className="text-slate-400">미상</span>}
                     </TableCell>
                     <TableCell>
                       {post.classMaterialUrl ? (

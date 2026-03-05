@@ -459,8 +459,10 @@ export async function createClassMaterialPost(formData: FormData): Promise<Actio
   const title = titleValue.trim()
   const weekLabelValue = formData.get('weekLabel')
   const descriptionValue = formData.get('description')
+  const authorIdValue = formData.get('authorId')
   const weekLabel = typeof weekLabelValue === 'string' ? weekLabelValue.trim() : ''
   const description = typeof descriptionValue === 'string' ? descriptionValue.trim() : ''
+  const authorId = typeof authorIdValue === 'string' && authorIdValue.trim().length > 0 ? authorIdValue.trim() : null
   const uploadedAttachmentsValue = formData.get('uploadedAttachments')
 
   let uploadedAttachments: UploadedClassMaterialAttachment[] = []
@@ -483,6 +485,7 @@ export async function createClassMaterialPost(formData: FormData): Promise<Actio
       class_material_asset_id: null,
       student_handout_asset_id: null,
       created_by: profile.id,
+      author_id: authorId,
     })
 
     if (insertError) {
@@ -557,8 +560,10 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
   const title = titleValue.trim()
   const weekLabelValue = formData.get('weekLabel')
   const descriptionValue = formData.get('description')
+  const authorIdValue = formData.get('authorId')
   const weekLabel = typeof weekLabelValue === 'string' ? weekLabelValue.trim() : ''
   const description = typeof descriptionValue === 'string' ? descriptionValue.trim() : ''
+  const authorId = typeof authorIdValue === 'string' && authorIdValue.trim().length > 0 ? authorIdValue.trim() : null
   const uploadedAttachmentsValue = formData.get('uploadedAttachments')
   const removedAttachmentValues = formData.getAll('removedAttachmentIds')
 
@@ -644,6 +649,7 @@ export async function updateClassMaterialPost(formData: FormData): Promise<Actio
         week_label: weekLabel || null,
         title,
         description: description || null,
+        author_id: authorId,
       })
       .eq('id', postId)
 

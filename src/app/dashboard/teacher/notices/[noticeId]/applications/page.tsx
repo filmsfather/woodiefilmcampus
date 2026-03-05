@@ -31,6 +31,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
     const applications = await fetchNoticeApplications(supabase, noticeId)
     const config = notice.applicationConfig
 
+
     return (
         <section className="space-y-6">
             <DashboardBackLink fallbackHref={`/dashboard/teacher/notices/${notice.id}`} label="공지 상세로 돌아가기" />

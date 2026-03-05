@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   CLASS_MATERIALS_BUCKET,
@@ -63,11 +64,18 @@ type PendingAttachmentSummary = {
   meta: UploadedObjectMeta
 }
 
+export type TeacherOption = {
+  id: string
+  name: string | null
+  email: string | null
+}
+
 export interface ClassMaterialPostFormDefaults {
   postId?: string
   weekLabel?: string | null
   title?: string
   description?: string | null
+  authorId?: string | null
   attachments?: Array<{ id: string; kind: ClassMaterialAssetType; name: string }>
 }
 
@@ -78,6 +86,7 @@ interface ClassMaterialPostFormProps {
   onSubmit: (formData: FormData) => Promise<FormResult>
   onDelete?: (() => Promise<DeleteResult>) | null
   currentUserId: string
+  teachers?: TeacherOption[]
 }
 
 const formatFileSize = (bytes: number) => {
@@ -101,6 +110,7 @@ export function ClassMaterialPostForm({
   onSubmit,
   onDelete,
   currentUserId,
+  teachers = [],
 }: ClassMaterialPostFormProps) {
   const router = useRouter()
   const supabase = useMemo(() => createBrowserSupabase(), [])
@@ -127,6 +137,7 @@ export function ClassMaterialPostForm({
     student_handout: [],
   })
   const [removedAttachmentIds, setRemovedAttachmentIds] = useState<Set<string>>(new Set())
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string>(defaults?.authorId ?? '')
 
   const maxSizeLabel = useMemo(() => `${Math.round(MAX_UPLOAD_SIZE / (1024 * 1024))}MB`, [])
 
@@ -413,6 +424,31 @@ export function ClassMaterialPostForm({
               disabled={isPending}
             />
           </div>
+
+          {teachers.length > 0 ? (
+            <div className="grid gap-2">
+              <Label htmlFor="authorId">작성자 (선택)</Label>
+              <input type="hidden" name="authorId" value={selectedAuthorId} />
+              <Select
+                value={selectedAuthorId}
+                onValueChange={(value) => setSelectedAuthorId(value === '__self__' ? '' : value)}
+                disabled={isPending}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="본인 (업로드한 사람)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__self__">본인 (업로드한 사람)</SelectItem>
+                  {teachers.map((teacher) => (
+                    <SelectItem key={teacher.id} value={teacher.id}>
+                      {teacher.name ?? teacher.email ?? '이름 없음'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">자료의 실제 작성자를 지정할 수 있습니다. 미선택 시 업로드한 본인이 작성자가 됩니다.</p>
+            </div>
+          ) : null}
 
           <div className="grid gap-2">
             <Label htmlFor="description">수업 설명 (선택)</Label>
