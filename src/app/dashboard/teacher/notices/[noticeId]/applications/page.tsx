@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import ApplicationMemoCell from '@/components/dashboard/notice/ApplicationMemoCell'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -54,6 +55,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
                                         </TableHead>
                                     ))}
                                     <TableHead className="w-[100px]">상태</TableHead>
+                                    <TableHead className="min-w-[160px]">메모</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -83,11 +85,14 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
                                                 {app.status === 'applied' ? '신청완료' : app.status}
                                             </Badge>
                                         </TableCell>
+                                        <TableCell>
+                                            <ApplicationMemoCell applicationId={app.id} initialMemo={app.memo} />
+                                        </TableCell>
                                     </TableRow>
                                 ))}
                                 {applications.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={2 + (config?.fields.length ?? 0) + 1} className="h-24 text-center text-slate-500">
+                                        <TableCell colSpan={2 + (config?.fields.length ?? 0) + 2} className="h-24 text-center text-slate-500">
                                             신청 내역이 없습니다.
                                         </TableCell>
                                     </TableRow>

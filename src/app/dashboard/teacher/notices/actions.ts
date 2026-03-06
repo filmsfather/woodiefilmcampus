@@ -745,6 +745,39 @@ export async function applyNotice(noticeId: string, formData: ApplicationFormDat
   return { success: true }
 }
 
+export async function updateApplicationMemo(applicationId: string, memo: string): Promise<ActionResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.role || !['teacher', 'manager', 'principal'].includes(profile.role)) {
+    return { error: '메모를 수정할 권한이 없습니다.' }
+  }
+
+  const supabase = await createServerSupabase()
+
+  const { data: app, error: fetchError } = await supabase
+    .from('notice_applications')
+    .select('notice_id')
+    .eq('id', applicationId)
+    .maybeSingle()
+
+  if (fetchError || !app) {
+    return { error: '신청 정보를 찾을 수 없습니다.' }
+  }
+
+  const { error: updateError } = await supabase
+    .from('notice_applications')
+    .update({ memo: memo.trim() || null })
+    .eq('id', applicationId)
+
+  if (updateError) {
+    console.error('[notice-board] failed to update application memo', updateError)
+    return { error: '메모 저장에 실패했습니다.' }
+  }
+
+  revalidateNoticePaths(app.notice_id)
+  return { success: true }
+}
+
 export async function cancelApplication(noticeId: string): Promise<ActionResult> {
   const { profile } = await getAuthContext()
 

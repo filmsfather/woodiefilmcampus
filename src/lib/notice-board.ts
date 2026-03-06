@@ -360,6 +360,7 @@ export async function fetchNoticeApplications(
       `id,
        status,
        form_data,
+       memo,
        created_at,
        applicant:profiles!notice_applications_applicant_id_fkey(id, name, email, role)
       `
@@ -377,6 +378,7 @@ export async function fetchNoticeApplications(
     id: row.id,
     status: row.status,
     formData: row.form_data as ApplicationFormData,
+    memo: (row.memo as string) ?? null,
     createdAt: row.created_at,
     applicant: {
       id: Array.isArray(row.applicant) ? row.applicant[0]?.id : row.applicant?.id,
