@@ -15,12 +15,24 @@ export default function ApplicationMemoCell({ applicationId, initialMemo }: Appl
   const [memo, setMemo] = useState(initialMemo ?? "")
   const [saved, setSaved] = useState(initialMemo ?? "")
   const [isPending, startTransition] = useTransition()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   function startEditing() {
     if (isPending) return
     setEditing(true)
-    setTimeout(() => inputRef.current?.focus(), 0)
+    setTimeout(() => {
+      const ta = textareaRef.current
+      if (ta) {
+        ta.focus()
+        ta.selectionStart = ta.value.length
+        resizeTextarea(ta)
+      }
+    }, 0)
+  }
+
+  function resizeTextarea(el: HTMLTextAreaElement) {
+    el.style.height = "auto"
+    el.style.height = `${el.scrollHeight}px`
   }
 
   function save() {
@@ -42,9 +54,9 @@ export default function ApplicationMemoCell({ applicationId, initialMemo }: Appl
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
-      inputRef.current?.blur()
+      textareaRef.current?.blur()
     }
     if (e.key === "Escape") {
       setMemo(saved)
@@ -54,15 +66,18 @@ export default function ApplicationMemoCell({ applicationId, initialMemo }: Appl
 
   if (editing) {
     return (
-      <input
-        ref={inputRef}
-        type="text"
+      <textarea
+        ref={textareaRef}
+        rows={1}
         value={memo}
-        onChange={(e) => setMemo(e.target.value)}
+        onChange={(e) => {
+          setMemo(e.target.value)
+          resizeTextarea(e.target)
+        }}
         onBlur={save}
         onKeyDown={handleKeyDown}
-        className="h-7 w-full min-w-[120px] rounded border border-slate-300 bg-white px-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-        maxLength={200}
+        className="w-full min-w-[120px] resize-none rounded border border-slate-300 bg-white px-2 py-1 text-sm leading-snug outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+        maxLength={500}
       />
     )
   }
@@ -73,7 +88,7 @@ export default function ApplicationMemoCell({ applicationId, initialMemo }: Appl
       onClick={startEditing}
       disabled={isPending}
       className={cn(
-        "block w-full min-w-[120px] cursor-text truncate rounded px-1 py-0.5 text-left text-sm hover:bg-slate-100",
+        "block w-full min-w-[120px] cursor-text whitespace-pre-wrap break-words rounded px-1 py-0.5 text-left text-sm hover:bg-slate-100",
         isPending && "opacity-50",
         !saved && "text-slate-400"
       )}
