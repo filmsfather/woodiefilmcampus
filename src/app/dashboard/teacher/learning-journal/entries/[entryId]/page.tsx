@@ -74,7 +74,7 @@ export default async function TeacherLearningJournalEntryPage(props: { params: P
       .select('id, subject, title, description, week_label')
       .in('subject', LEARNING_JOURNAL_SUBJECTS)
       .order('created_at', { ascending: false })
-      .limit(120),
+      .limit(500),
   ])
 
   const { data: periodRow, error: periodError } = periodResult

@@ -149,7 +149,7 @@ export default async function PrincipalLearningJournalReviewPage({
       .select('id, subject, title, description, week_label')
       .in('subject', LEARNING_JOURNAL_SUBJECTS)
       .order('created_at', { ascending: false })
-      .limit(120)
+      .limit(500)
 
     for (const row of materialRows ?? []) {
       const subject = row.subject as LearningJournalSubject

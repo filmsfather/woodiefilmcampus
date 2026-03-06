@@ -140,7 +140,7 @@ export default async function TeacherLearningJournalPage(props: {
       .select('id, subject, title, description, week_label')
       .in('subject', LEARNING_JOURNAL_SUBJECTS)
       .order('created_at', { ascending: false })
-      .limit(120)
+      .limit(500)
 
     if (materialError) {
       console.error('[learning-journal] template material fetch error', materialError)
