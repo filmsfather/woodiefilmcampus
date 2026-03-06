@@ -63,6 +63,13 @@ const STATUS_LABEL: Record<string, string> = {
   archived: "보관",
 }
 
+const STATUS_COLOR: Record<string, string> = {
+  submitted: "bg-amber-100 text-amber-700",
+  draft: "bg-slate-100 text-slate-600",
+  published: "bg-emerald-100 text-emerald-700",
+  archived: "bg-gray-100 text-gray-500",
+}
+
 export function ClassPeriodSelector({
   classes,
   periods,
@@ -77,8 +84,7 @@ export function ClassPeriodSelector({
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null)
 
-  // 승인 대기 중인 학생들
-  const pendingStudents = students.filter((s) => s.status === "submitted")
+  const draftStudents = students.filter((s) => s.status !== "published")
 
   const handleClassChange = (classId: string) => {
     const params = new URLSearchParams()
@@ -107,10 +113,10 @@ export function ClassPeriodSelector({
   }
 
   const handleBulkPublish = () => {
-    if (!onBulkPublish || pendingStudents.length === 0) return
+    if (!onBulkPublish || draftStudents.length === 0) return
 
     startTransition(async () => {
-      const entryIds = pendingStudents.map((s) => s.id)
+      const entryIds = draftStudents.map((s) => s.id)
       const result = await onBulkPublish(entryIds)
 
       if (result.error) {
@@ -168,70 +174,76 @@ export function ClassPeriodSelector({
           </Select>
         </div>
 
-        {selectedClassId && students.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">학생</span>
-            <Select
-              value={selectedEntryId ?? undefined}
-              onValueChange={handleStudentChange}
-            >
-              <SelectTrigger className="w-[200px]">
-                <SelectValue placeholder="학생 선택" />
-              </SelectTrigger>
-              <SelectContent>
-                {students.map((entry) => (
-                  <SelectItem key={entry.id} value={entry.id}>
-                    <span className="flex items-center gap-2">
-                      <span>{entry.studentName ?? entry.studentEmail ?? "학생 정보 없음"}</span>
-                      <span className="text-xs text-slate-400">
-                        ({STATUS_LABEL[entry.status] ?? entry.status})
-                      </span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
-        {onBulkPublish && pendingStudents.length > 0 && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button
-                size="sm"
-                variant="default"
-                disabled={isPending}
-                className="gap-1.5"
-              >
-                <CheckCircle className="h-4 w-4" />
-                {isPending ? "승인 중..." : `일괄 승인 (${pendingStudents.length}명)`}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>일괄 승인 확인</AlertDialogTitle>
-                <AlertDialogDescription>
-                  승인 대기 중인 {pendingStudents.length}명의 학습일지를 모두 승인하시겠습니까?
-                  <br />
-                  승인 시 학부모에게 문자가 발송됩니다.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={handleBulkPublish}>
-                  일괄 승인
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        )}
-
         {selectedClassId && periods.length === 0 && (
           <p className="text-xs text-slate-500">
             선택한 반에는 등록된 학습일지 주기가 없습니다.
           </p>
         )}
       </div>
+
+      {selectedClassId && students.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-600">
+              학생 목록 ({students.length}명)
+            </span>
+            {onBulkPublish && draftStudents.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    disabled={isPending}
+                    className="gap-1.5"
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    {isPending ? "승인 중..." : `일괄 공개 승인 (${draftStudents.length}명)`}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>일괄 공개 승인</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      미공개 상태인 {draftStudents.length}명의 학습일지를 모두 공개 승인하시겠습니까?
+                      <br />
+                      승인 시 학부모에게 문자가 발송됩니다.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleBulkPublish}>
+                      일괄 공개 승인
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {students.map((entry) => {
+              const isSelected = selectedEntryId === entry.id
+              const statusColor = STATUS_COLOR[entry.status] ?? "bg-slate-100 text-slate-600"
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  onClick={() => handleStudentChange(entry.id)}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    isSelected
+                      ? "border-blue-400 bg-blue-50 font-medium text-blue-700"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <span>{entry.studentName ?? entry.studentEmail ?? "학생 정보 없음"}</span>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor}`}>
+                    {STATUS_LABEL[entry.status] ?? entry.status}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {feedback && (
         <div
