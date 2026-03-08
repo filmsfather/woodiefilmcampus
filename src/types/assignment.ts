@@ -27,6 +27,14 @@ export interface AssignmentClassSummary {
   students: AssignmentStudentSummary[]
 }
 
+export interface RecentAssignmentSummary {
+  id: string
+  workbookTitle: string
+  workbookSubject: string | null
+  createdAt: string
+  targetClassIds: string[]
+}
+
 export interface AssignmentFormBootstrapData {
   teacherId: string
   serverNowIso: string

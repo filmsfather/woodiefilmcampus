@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertCircle, CalendarIcon, Check, Search, Users, X } from 'lucide-react'
+import { AlertCircle, CalendarIcon, Check, Users, X } from 'lucide-react'
 import { useForm, type Resolver, type SubmitHandler } from 'react-hook-form'
 import { z } from 'zod'
 
@@ -22,6 +22,7 @@ import type {
   AssignmentClassSummary,
   AssignmentStudentSummary,
   AssignmentWorkbookSummary,
+  RecentAssignmentSummary,
 } from '@/types/assignment'
 import { WORKBOOK_TITLES } from '@/lib/validation/workbook'
 
@@ -91,6 +92,7 @@ interface AssignmentFormProps {
   students: AssignmentStudentSummary[]
   serverNowIso: string
   initialWorkbookIds?: string[]
+  recentAssignments?: RecentAssignmentSummary[]
 }
 
 function normalizeSearchTerm(term: string) {
@@ -162,6 +164,7 @@ export function AssignmentForm({
   students,
   serverNowIso,
   initialWorkbookIds = [],
+  recentAssignments = [],
 }: AssignmentFormProps) {
   const defaultDueAt = toDateInputValue(serverNowIso)
   const [workbookSubjectFilter, setWorkbookSubjectFilter] = useState<'' | string>(() => {
@@ -173,7 +176,6 @@ export function AssignmentForm({
   })
   const [workbookTypeFilter, setWorkbookTypeFilter] = useState<'all' | string>('all')
   const [workbookAuthorFilter, setWorkbookAuthorFilter] = useState<'all' | string>('all')
-  const [workbookQuery, setWorkbookQuery] = useState('')
   const [studentClassFilter, setStudentClassFilter] = useState<string>('')
   const [targetMode, setTargetMode] = useState<'class' | 'student'>('class')
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'scheduled' | 'error'>('idle')
@@ -215,8 +217,8 @@ export function AssignmentForm({
   }, [studentsFromSelectedClasses, selectedStudentIds])
 
   const filteredWorkbooks = useMemo(
-    () => filterWorkbooks(workbooks, workbookSubjectFilter, workbookTypeFilter, workbookAuthorFilter, workbookQuery),
-    [workbooks, workbookSubjectFilter, workbookTypeFilter, workbookAuthorFilter, workbookQuery]
+    () => filterWorkbooks(workbooks, workbookSubjectFilter, workbookTypeFilter, workbookAuthorFilter, ''),
+    [workbooks, workbookSubjectFilter, workbookTypeFilter, workbookAuthorFilter]
   )
 
   // 작성자 목록 추출 (중복 제거)
@@ -306,7 +308,6 @@ export function AssignmentForm({
         publishedAt: '',
         dueAt: defaultDueAt,
       })
-      setWorkbookQuery('')
       setStudentClassFilter('')
       setWorkbookSubjectFilter('')
       setWorkbookTypeFilter('all')
@@ -333,166 +334,7 @@ export function AssignmentForm({
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <section className="space-y-4">
               <header className="space-y-1">
-                <h2 className="text-lg font-semibold text-slate-900">1. 워크북 선택</h2>
-                <p className="text-sm text-slate-500">과목, 유형, 검색어로 원하는 워크북을 골라주세요.</p>
-              </header>
-
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <Select value={workbookSubjectFilter} onValueChange={(value) => setWorkbookSubjectFilter(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="과목 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[...new Set(workbooks.map((workbook) => workbook.subject))].map((subject) => (
-                      <SelectItem key={subject} value={subject}>
-                        {subject}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={workbookAuthorFilter} onValueChange={(value) => setWorkbookAuthorFilter(value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="작성자 필터" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체 작성자</SelectItem>
-                    {authorOptions.map((author) => (
-                      <SelectItem key={author.id} value={author.id}>
-                        {author.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select value={workbookTypeFilter} onValueChange={(value) => setWorkbookTypeFilter(value as typeof workbookTypeFilter)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="유형 필터" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체 유형</SelectItem>
-                    {[...new Set(workbooks.map((workbook) => workbook.type))].map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {WORKBOOK_TITLES[type as keyof typeof WORKBOOK_TITLES] ?? type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    placeholder="제목, 태그, 주차로 검색"
-                    value={workbookQuery}
-                    onChange={(event) => setWorkbookQuery(event.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </div>
-
-              {!workbookSubjectFilter ? (
-                <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                  과목을 선택하면 워크북 목록이 표시됩니다.
-                </div>
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="workbookIds"
-                  render={() => (
-                    <FormItem>
-                      <FormLabel className="sr-only">워크북</FormLabel>
-                      <FormControl>
-                        <div className="space-y-3">
-                          <Select
-                            value=""
-                            onValueChange={(value) => {
-                              if (value && !selectedWorkbookIds.includes(value)) {
-                                handleToggleWorkbook(value)
-                              }
-                            }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="워크북을 선택하세요 (복수 선택 가능)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {filteredWorkbooks
-                                .filter((workbook) => !selectedWorkbookIds.includes(workbook.id))
-                                .map((workbook) => (
-                                  <SelectItem key={workbook.id} value={workbook.id}>
-                                    {workbook.title} ({workbook.itemCount}문항)
-                                    {workbook.weekLabel && ` · ${workbook.weekLabel}`}
-                                  </SelectItem>
-                                ))}
-                              {filteredWorkbooks.filter((wb) => !selectedWorkbookIds.includes(wb.id)).length === 0 && (
-                                <div className="px-2 py-1.5 text-sm text-slate-500">
-                                  {filteredWorkbooks.length === 0
-                                    ? '조건에 맞는 워크북이 없습니다'
-                                    : '모든 워크북이 선택되었습니다'}
-                                </div>
-                              )}
-                            </SelectContent>
-                          </Select>
-
-                          {selectedWorkbooks.length > 0 && (
-                            <div className="space-y-2">
-                              {selectedWorkbooks.map((workbook) => (
-                                <div
-                                  key={workbook.id}
-                                  className="flex items-start justify-between gap-2 rounded-lg border border-primary bg-primary/5 p-3"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-sm font-semibold text-slate-900">{workbook.title}</p>
-                                    <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
-                                      <Badge variant="secondary">{workbook.subject}</Badge>
-                                      <Badge variant="outline">{WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}</Badge>
-                                      {workbook.weekLabel && <Badge variant="outline">{workbook.weekLabel}</Badge>}
-                                      {workbook.authorName && (
-                                        <Badge variant="outline" className="bg-slate-100">
-                                          {workbook.authorName}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <p className="mt-1.5 text-xs text-slate-500">
-                                      문항 {workbook.itemCount}개 · 수정일{' '}
-                                      {DateUtil.formatForDisplay(workbook.updatedAt, {
-                                        year: 'numeric',
-                                        month: 'short',
-                                        day: 'numeric',
-                                      })}
-                                    </p>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 shrink-0 p-0 text-slate-400 hover:text-slate-600"
-                                    onClick={() => handleToggleWorkbook(workbook.id)}
-                                  >
-                                    <X className="h-4 w-4" />
-                                    <span className="sr-only">제거</span>
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {selectedWorkbooks.length === 0 && filteredWorkbooks.length > 0 && (
-                            <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-                              워크북을 선택하면 상세 정보가 표시됩니다. 여러 개를 선택할 수 있습니다.
-                            </p>
-                          )}
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
-            </section>
-
-            <section className="space-y-4">
-              <header className="space-y-1">
-                <h2 className="text-lg font-semibold text-slate-900">2. 대상 선택</h2>
+                <h2 className="text-lg font-semibold text-slate-900">1. 대상 선택</h2>
                 <p className="text-sm text-slate-500">
                   반 단위로 출제하거나, 개별 학생을 선택해서 출제할 수 있습니다.
                 </p>
@@ -708,6 +550,195 @@ export function AssignmentForm({
                   총 <span className="font-semibold text-slate-900">{totalSelectedStudents}</span>명의 학생에게 과제가 배정됩니다.
                 </p>
               </div>
+            </section>
+
+            <section className="space-y-4">
+              <header className="space-y-1">
+                <h2 className="text-lg font-semibold text-slate-900">2. 워크북 선택</h2>
+                <p className="text-sm text-slate-500">과목, 유형, 검색어로 원하는 워크북을 골라주세요.</p>
+              </header>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <Select value={workbookSubjectFilter} onValueChange={(value) => setWorkbookSubjectFilter(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="과목 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[...new Set(workbooks.map((workbook) => workbook.subject))].map((subject) => (
+                      <SelectItem key={subject} value={subject}>
+                        {subject}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={workbookAuthorFilter} onValueChange={(value) => setWorkbookAuthorFilter(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="작성자 필터" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체 작성자</SelectItem>
+                    {authorOptions.map((author) => (
+                      <SelectItem key={author.id} value={author.id}>
+                        {author.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={workbookTypeFilter} onValueChange={(value) => setWorkbookTypeFilter(value as typeof workbookTypeFilter)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="유형 필터" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">전체 유형</SelectItem>
+                    {[...new Set(workbooks.map((workbook) => workbook.type))].map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {WORKBOOK_TITLES[type as keyof typeof WORKBOOK_TITLES] ?? type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {!workbookSubjectFilter ? (
+                <div className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+                  과목을 선택하면 워크북 목록이 표시됩니다.
+                </div>
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="workbookIds"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel className="sr-only">워크북</FormLabel>
+                      <FormControl>
+                        <div className="space-y-3">
+                          <Select
+                            value=""
+                            onValueChange={(value) => {
+                              if (value && !selectedWorkbookIds.includes(value)) {
+                                handleToggleWorkbook(value)
+                              }
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="워크북을 선택하세요 (복수 선택 가능)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {filteredWorkbooks
+                                .filter((workbook) => !selectedWorkbookIds.includes(workbook.id))
+                                .map((workbook) => (
+                                  <SelectItem key={workbook.id} value={workbook.id}>
+                                    {workbook.title} ({workbook.itemCount}문항)
+                                    {workbook.weekLabel && ` · ${workbook.weekLabel}`}
+                                  </SelectItem>
+                                ))}
+                              {filteredWorkbooks.filter((wb) => !selectedWorkbookIds.includes(wb.id)).length === 0 && (
+                                <div className="px-2 py-1.5 text-sm text-slate-500">
+                                  {filteredWorkbooks.length === 0
+                                    ? '조건에 맞는 워크북이 없습니다'
+                                    : '모든 워크북이 선택되었습니다'}
+                                </div>
+                              )}
+                            </SelectContent>
+                          </Select>
+
+                          {selectedWorkbooks.length > 0 && (
+                            <div className="space-y-2">
+                              {selectedWorkbooks.map((workbook) => (
+                                <div
+                                  key={workbook.id}
+                                  className="flex items-start justify-between gap-2 rounded-lg border border-primary bg-primary/5 p-3"
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-slate-900">{workbook.title}</p>
+                                    <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+                                      <Badge variant="secondary">{workbook.subject}</Badge>
+                                      <Badge variant="outline">{WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}</Badge>
+                                      {workbook.weekLabel && <Badge variant="outline">{workbook.weekLabel}</Badge>}
+                                      {workbook.authorName && (
+                                        <Badge variant="outline" className="bg-slate-100">
+                                          {workbook.authorName}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="mt-1.5 text-xs text-slate-500">
+                                      문항 {workbook.itemCount}개 · 수정일{' '}
+                                      {DateUtil.formatForDisplay(workbook.updatedAt, {
+                                        year: 'numeric',
+                                        month: 'short',
+                                        day: 'numeric',
+                                      })}
+                                    </p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 shrink-0 p-0 text-slate-400 hover:text-slate-600"
+                                    onClick={() => handleToggleWorkbook(workbook.id)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                    <span className="sr-only">제거</span>
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {selectedWorkbooks.length === 0 && filteredWorkbooks.length > 0 && (
+                            <p className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                              워크북을 선택하면 상세 정보가 표시됩니다. 여러 개를 선택할 수 있습니다.
+                            </p>
+                          )}
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {(() => {
+                const filtered = selectedClassIds.length > 0
+                  ? recentAssignments
+                      .filter((a) => a.targetClassIds.some((cid) => selectedClassIds.includes(cid)))
+                      .slice(0, 3)
+                  : []
+
+                if (filtered.length === 0) return null
+
+                return (
+                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                    <p className="mb-3 text-sm font-medium text-slate-700">선택한 반에 최근 출제한 과제</p>
+                    <div className="space-y-2">
+                      {filtered.map((assignment) => {
+                        const daysAgo = Math.floor(
+                          (Date.now() - new Date(assignment.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+                        )
+                        const relativeLabel =
+                          daysAgo === 0 ? '오늘' : daysAgo === 1 ? '어제' : daysAgo < 7 ? `${daysAgo}일 전` : daysAgo < 30 ? `${Math.floor(daysAgo / 7)}주 전` : `${Math.floor(daysAgo / 30)}개월 전`
+
+                        return (
+                          <div
+                            key={assignment.id}
+                            className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm"
+                          >
+                            <span className="text-slate-700">
+                              {assignment.workbookSubject && (
+                                <span className="mr-1.5 text-slate-400">[{assignment.workbookSubject}]</span>
+                              )}
+                              {assignment.workbookTitle}
+                            </span>
+                            <span className="shrink-0 text-xs text-slate-400">{relativeLabel}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
             </section>
 
             <section className="space-y-4">

@@ -9,6 +9,7 @@ import type {
   AssignmentClassSummary,
   AssignmentStudentSummary,
   AssignmentWorkbookSummary,
+  RecentAssignmentSummary,
 } from '@/types/assignment'
 
 export const metadata: Metadata = {
@@ -62,6 +63,16 @@ type ClassStudentRow = {
   | null
 }
 
+type RecentAssignmentRow = {
+  id: string
+  created_at: string
+  workbooks:
+    | { title: string | null; subject: string | null }
+    | Array<{ title: string | null; subject: string | null }>
+    | null
+  assignment_targets?: Array<{ class_id: string | null }> | null
+}
+
 function compareStudents(a: AssignmentStudentSummary, b: AssignmentStudentSummary) {
   const left = (a.name ?? a.email ?? '').toLowerCase()
   const right = (b.name ?? b.email ?? '').toLowerCase()
@@ -96,6 +107,32 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
   if (workbookError) {
     console.error('[assignments/new] failed to load workbooks', workbookError)
   }
+
+  const { data: recentAssignmentData, error: recentError } = await supabase
+    .from('assignments')
+    .select('id, created_at, workbooks(title, subject), assignment_targets(class_id)')
+    .eq('assigned_by', teacherId)
+    .order('created_at', { ascending: false })
+    .limit(20)
+
+  if (recentError) {
+    console.error('[assignments/new] failed to load recent assignments', recentError)
+  }
+
+  const recentAssignmentRows = (recentAssignmentData ?? []) as RecentAssignmentRow[]
+  const recentAssignments: RecentAssignmentSummary[] = recentAssignmentRows.map((row) => {
+    const wb = Array.isArray(row.workbooks) ? row.workbooks[0] : row.workbooks
+    const classIds = (row.assignment_targets ?? [])
+      .map((t) => t.class_id)
+      .filter((id): id is string => id !== null)
+    return {
+      id: row.id,
+      workbookTitle: wb?.title ?? '제목 없음',
+      workbookSubject: wb?.subject ?? null,
+      createdAt: row.created_at,
+      targetClassIds: classIds,
+    }
+  })
 
   const _rawWorkbookId = searchParams.workbookId
   const _preselectedWorkbookId = typeof _rawWorkbookId === 'string' ? _rawWorkbookId : Array.isArray(_rawWorkbookId) ? _rawWorkbookId[0] : null
@@ -278,6 +315,7 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
         students={students}
         serverNowIso={serverNowIso}
         initialWorkbookIds={preselectedWorkbookIds}
+        recentAssignments={recentAssignments}
       />
     </section>
   )
