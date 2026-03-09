@@ -345,7 +345,9 @@ export async function computeTeacherPayroll(
     periodStart: startDate,
     periodEnd: endDate,
     hourlyRate: payrollProfile.hourlyRate,
+    weeklyHolidayRate: payrollProfile.weeklyHolidayRate,
     baseSalaryAmount: payrollProfile.baseSalaryAmount,
+    nationalPensionAmount: payrollProfile.nationalPensionAmount,
     contractType: payrollProfile.contractType,
     insuranceEnrolled: payrollProfile.insuranceEnrolled,
     workLogs,
@@ -358,7 +360,8 @@ export async function computeTeacherPayroll(
       teacher.name ?? teacher.email ?? null,
       periodLabel,
       payrollProfile.contractType,
-      breakdown
+      breakdown,
+      { hourlyRate: payrollProfile.hourlyRate, weeklyHolidayRate: payrollProfile.weeklyHolidayRate }
     )
   )
 

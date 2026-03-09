@@ -23,7 +23,6 @@ interface TeacherPayrollCardData {
   acknowledgementNote: string | null
   requestNote: string | null
   totalWorkHours: number | null
-  weeklyHolidayAllowanceHours: number | null
   weeklySummaries: WeeklyWorkSummary[]
 }
 
@@ -112,14 +111,10 @@ export function TeacherPayrollCard({ monthLabel, data }: TeacherPayrollCardProps
             <p className="mt-1 whitespace-pre-wrap">{data.requestNote}</p>
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
             <p className="text-xs uppercase tracking-wide text-slate-500">근무 시간</p>
             <p className="mt-1 text-base font-medium text-slate-900">{formatHours(data.totalWorkHours)}</p>
-          </div>
-          <div className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
-            <p className="text-xs uppercase tracking-wide text-slate-500">주휴수당 시간</p>
-            <p className="mt-1 text-base font-medium text-slate-900">{formatHours(data.weeklyHolidayAllowanceHours)}</p>
           </div>
           <div className="rounded-lg border border-slate-200 p-3 text-sm text-slate-600">
             <p className="text-xs uppercase tracking-wide text-slate-500">요청 시간</p>
@@ -140,9 +135,7 @@ export function TeacherPayrollCard({ monthLabel, data }: TeacherPayrollCardProps
                     </p>
                     <p>근무 {formatHours(week.totalWorkHours)}</p>
                   </div>
-                  <p className="mt-1">
-                    주휴수당 조건: {week.eligibleForWeeklyHolidayAllowance ? '충족' : '미충족'}
-                  </p>
+                  <p className="mt-1">근무 항목: {week.entries.length}건</p>
                 </div>
               ))}
             </div>

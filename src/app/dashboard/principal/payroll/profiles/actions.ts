@@ -18,6 +18,7 @@ const profileSchema = z
       .transform((value) => (value && value.length > 0 ? value : null)),
     teacherId: z.string().uuid('선생님을 선택해주세요.'),
     hourlyRate: z.coerce.number().min(0, '시급은 0 이상으로 입력해주세요.'),
+    weeklyHolidayRate: z.coerce.number().min(0, '주휴수당은 0 이상으로 입력해주세요.'),
     baseSalaryAmount: z
       .string()
       .optional()
@@ -28,6 +29,7 @@ const profileSchema = z
         const parsed = Number.parseFloat(value)
         return Number.isNaN(parsed) ? Number.NaN : parsed
       }),
+    nationalPensionAmount: z.coerce.number().min(0, '국민연금은 0 이상으로 입력해주세요.'),
     contractType: z.enum(['employee', 'freelancer', 'none'] as const),
     insuranceEnrolled: z
       .enum(['true', 'false'] as const)
@@ -90,10 +92,12 @@ function toSaveInput(parsed: z.infer<typeof profileSchema>): SavePayrollProfileI
     profileId: parsed.profileId,
     teacherId: parsed.teacherId,
     hourlyRate: parsed.hourlyRate,
+    weeklyHolidayRate: parsed.weeklyHolidayRate,
     baseSalaryAmount:
       typeof parsed.baseSalaryAmount === 'number' && !Number.isNaN(parsed.baseSalaryAmount)
         ? parsed.baseSalaryAmount
         : null,
+    nationalPensionAmount: parsed.nationalPensionAmount,
     contractType: parsed.contractType,
     insuranceEnrolled: parsed.insuranceEnrolled,
     effectiveFrom: parsed.effectiveFrom,

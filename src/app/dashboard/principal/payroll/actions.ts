@@ -151,12 +151,7 @@ function buildRunItems(runId: string, result: PayrollComputationResult): Teacher
     })
   }
 
-  pushItem('earning', '근무급', result.breakdown.hourlyTotal)
-  if (result.breakdown.weeklyHolidayAllowance > 0) {
-    pushItem('earning', '주휴수당', result.breakdown.weeklyHolidayAllowance, {
-      weeklyHolidayAllowanceHours: result.breakdown.weeklyHolidayAllowanceHours,
-    })
-  }
+  pushItem('earning', '근무급 (주휴수당 포함)', result.breakdown.hourlyTotal + result.breakdown.weeklyHolidayAllowance)
   if (result.breakdown.baseSalaryTotal > 0) {
     pushItem('earning', '기본급', result.breakdown.baseSalaryTotal)
   }
@@ -359,7 +354,6 @@ export async function savePayrollDraft(formData: FormData) {
     messagePreview,
     meta: {
       totalWorkHours: computation.breakdown.totalWorkHours,
-      weeklyHolidayAllowanceHours: computation.breakdown.weeklyHolidayAllowanceHours,
       weeklySummaries: computation.breakdown.weeklySummaries,
       requestNote: input.requestNote ?? null,
       adjustments: computation.breakdown.adjustments,
@@ -569,7 +563,6 @@ export async function requestPayrollConfirmation(formData: FormData) {
     messagePreview,
     meta: {
       totalWorkHours: computation.breakdown.totalWorkHours,
-      weeklyHolidayAllowanceHours: computation.breakdown.weeklyHolidayAllowanceHours,
       weeklySummaries: computation.breakdown.weeklySummaries,
       requestNote: input.requestNote ?? null,
       adjustments: computation.breakdown.adjustments,

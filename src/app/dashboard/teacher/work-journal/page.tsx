@@ -12,7 +12,6 @@ import {
 } from '@/lib/work-logs'
 import type { TeacherContractType, WeeklyWorkSummary } from '@/lib/payroll/types'
 import { sanitizePayrollMessage } from '@/lib/payroll/messages'
-import { FREELANCER_WITHHOLDING_RATE } from '@/lib/payroll/constants'
 import { TeacherPayrollCard } from '@/components/dashboard/teacher/work-journal/TeacherPayrollCard'
 import { WorkJournalClient } from '@/components/dashboard/teacher/work-journal/WorkJournalClient'
 
@@ -29,7 +28,6 @@ interface TeacherPayrollCardData {
   acknowledgementNote: string | null
   requestNote: string | null
   totalWorkHours: number | null
-  weeklyHolidayAllowanceHours: number | null
   weeklySummaries: WeeklyWorkSummary[]
 }
 
@@ -68,20 +66,12 @@ function parseOptionalNumeric(value: unknown): number | null {
 }
 
 function adjustFreelancerTotals(
-  contractType: TeacherContractType,
+  _contractType: TeacherContractType,
   grossPay: number,
   netPay: number,
-  weeklyHolidayAllowance: number
+  _weeklyHolidayAllowance: number
 ) {
-  if (contractType !== 'freelancer' || weeklyHolidayAllowance <= 0) {
-    return { grossPay, netPay }
-  }
-  const adjustedGross = Math.max(0, grossPay - weeklyHolidayAllowance)
-  const adjustedNet = Math.max(0, netPay - weeklyHolidayAllowance * (1 - FREELANCER_WITHHOLDING_RATE))
-  return {
-    grossPay: Math.round(adjustedGross * 100) / 100,
-    netPay: Math.round(adjustedNet * 100) / 100,
-  }
+  return { grossPay, netPay }
 }
 
 export default async function TeacherWorkJournalPage(props: {
@@ -171,7 +161,6 @@ export default async function TeacherWorkJournalPage(props: {
 
       const meta = (runRow.meta as Record<string, unknown> | null) ?? null
       const totalWorkHours = parseOptionalNumeric(meta?.['totalWorkHours'])
-      const weeklyHolidayAllowanceHours = parseOptionalNumeric(meta?.['weeklyHolidayAllowanceHours'])
       const rawWeeklySummaries = meta?.['weeklySummaries']
       const weeklySummaries = Array.isArray(rawWeeklySummaries)
         ? (rawWeeklySummaries as WeeklyWorkSummary[])
@@ -202,7 +191,6 @@ export default async function TeacherWorkJournalPage(props: {
         acknowledgementNote: ackRow?.note ?? null,
         requestNote,
         totalWorkHours,
-        weeklyHolidayAllowanceHours,
         weeklySummaries,
       }
     }

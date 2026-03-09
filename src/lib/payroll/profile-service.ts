@@ -23,6 +23,8 @@ const PROFILE_SELECT = `
   hourly_currency,
   base_salary_amount,
   base_salary_currency,
+  weekly_holiday_rate,
+  national_pension_amount,
   contract_type,
   insurance_enrolled,
   effective_from,
@@ -99,7 +101,9 @@ export interface SavePayrollProfileInput {
   profileId?: string | null
   teacherId: string
   hourlyRate: number
+  weeklyHolidayRate: number
   baseSalaryAmount: number | null
+  nationalPensionAmount: number
   contractType: TeacherContractType
   insuranceEnrolled: boolean
   effectiveFrom: string
@@ -135,7 +139,9 @@ export async function savePayrollProfile(
   const payload = {
     teacher_id: input.teacherId,
     hourly_rate: input.hourlyRate,
+    weekly_holiday_rate: input.weeklyHolidayRate,
     base_salary_amount: input.baseSalaryAmount,
+    national_pension_amount: input.nationalPensionAmount,
     contract_type: input.contractType,
     insurance_enrolled: input.insuranceEnrolled,
     effective_from: input.effectiveFrom,
@@ -192,6 +198,7 @@ export async function setPayrollProfileEffectiveTo(
     .eq('id', profileId)
     .select(
       `id, teacher_id, hourly_rate, hourly_currency, base_salary_amount, base_salary_currency,
+       weekly_holiday_rate, national_pension_amount,
        contract_type, insurance_enrolled, effective_from, effective_to, notes, created_by, created_at, updated_at`
     )
     .maybeSingle<TeacherPayrollProfileRow>()

@@ -121,7 +121,9 @@ export default async function PrincipalPayrollPage(props: {
       periodStart,
       periodEnd,
       hourlyRate: payrollProfile.hourlyRate,
+      weeklyHolidayRate: payrollProfile.weeklyHolidayRate,
       baseSalaryAmount: payrollProfile.baseSalaryAmount,
+      nationalPensionAmount: payrollProfile.nationalPensionAmount,
       contractType: payrollProfile.contractType,
       insuranceEnrolled: payrollProfile.insuranceEnrolled,
       workLogs: teacherWorkLogs,
@@ -133,7 +135,8 @@ export default async function PrincipalPayrollPage(props: {
         teacherSummary.name ?? teacherSummary.email ?? null,
         monthRange.label,
         payrollProfile.contractType,
-        breakdown
+        breakdown,
+        { hourlyRate: payrollProfile.hourlyRate, weeklyHolidayRate: payrollProfile.weeklyHolidayRate }
       )
     )
 

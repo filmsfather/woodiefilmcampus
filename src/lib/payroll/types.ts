@@ -12,6 +12,8 @@ export interface TeacherPayrollProfile {
   hourlyCurrency: string
   baseSalaryAmount: number | null
   baseSalaryCurrency: string
+  weeklyHolidayRate: number
+  nationalPensionAmount: number
   contractType: TeacherContractType
   insuranceEnrolled: boolean
   effectiveFrom: string
@@ -77,11 +79,6 @@ export interface WeeklyWorkSummary {
   weekStart: string
   weekEnd: string
   totalWorkHours: number
-  containsTardy: boolean
-  containsAbsence: boolean
-  containsSubstitute: boolean
-  eligibleForWeeklyHolidayAllowance: boolean
-  weeklyHolidayAllowanceHours: number
   entries: WorkLogEntry[]
 }
 
@@ -97,7 +94,9 @@ export interface PayrollCalculationInput {
   periodStart: Date
   periodEnd: Date
   hourlyRate: number
+  weeklyHolidayRate: number
   baseSalaryAmount: number | null
+  nationalPensionAmount: number
   contractType: TeacherContractType
   insuranceEnrolled: boolean
   workLogs: WorkLogEntry[]
@@ -106,7 +105,6 @@ export interface PayrollCalculationInput {
 
 export interface PayrollCalculationBreakdown {
   totalWorkHours: number
-  weeklyHolidayAllowanceHours: number
   hourlyTotal: number
   weeklyHolidayAllowance: number
   baseSalaryTotal: number
@@ -125,6 +123,8 @@ export interface PayrollMessageContext {
   teacherName: string | null
   periodLabel: string
   totalWorkHours: number
+  hourlyRate: number
+  weeklyHolidayRate: number
   hourlyTotal: number
   weeklyHolidayAllowance: number
   baseSalaryTotal: number

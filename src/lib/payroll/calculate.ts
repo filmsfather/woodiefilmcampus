@@ -9,8 +9,6 @@ import type {
 } from './types'
 import { FREELANCER_WITHHOLDING_RATE } from './constants'
 
-const WEEKLY_HOLIDAY_STANDARD_DAYS = 5
-
 function roundCurrency(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
@@ -26,7 +24,6 @@ function cloneAdjustment(input: PayrollAdjustmentInput): PayrollAdjustmentInput 
 export function calculatePayroll(input: PayrollCalculationInput): PayrollCalculationBreakdown {
   const periodStart = DateUtil.toUTCDate(input.periodStart)
   const periodEnd = DateUtil.toUTCDate(input.periodEnd)
-  const allowWeeklyHoliday = input.contractType !== 'freelancer'
 
   const weekMap = new Map<string, WeeklyWorkSummary>()
 
@@ -48,11 +45,6 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
         weekStart: DateUtil.formatISODate(displayStartDate),
         weekEnd: DateUtil.formatISODate(displayEndDate),
         totalWorkHours: 0,
-        containsTardy: false,
-        containsAbsence: false,
-        containsSubstitute: false,
-        eligibleForWeeklyHolidayAllowance: false,
-        weeklyHolidayAllowanceHours: 0,
         entries: [],
       })
     }
@@ -62,43 +54,14 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
     if (requiresWorkHours(entry.status) && typeof entry.workHours === 'number') {
       summary.totalWorkHours += entry.workHours
     }
-
-    if (entry.status === 'tardy') {
-      summary.containsTardy = true
-    }
-    if (entry.status === 'absence') {
-      summary.containsAbsence = true
-    }
-    if (entry.status === 'substitute') {
-      summary.containsSubstitute = true
-    }
   }
 
   const weeklySummaries = Array.from(weekMap.values()).sort((a, b) => a.weekStart.localeCompare(b.weekStart))
 
-  for (const summary of weeklySummaries) {
-    const eligible =
-      allowWeeklyHoliday &&
-      summary.totalWorkHours >= 15 &&
-      !summary.containsTardy &&
-      !summary.containsAbsence &&
-      !summary.containsSubstitute
-
-    summary.eligibleForWeeklyHolidayAllowance = eligible
-    summary.weeklyHolidayAllowanceHours = eligible
-      ? roundCurrency(summary.totalWorkHours / WEEKLY_HOLIDAY_STANDARD_DAYS)
-      : 0
-  }
-
   const totalWorkHours = weeklySummaries.reduce((sum, summary) => sum + summary.totalWorkHours, 0)
-  const weeklyHolidayAllowanceHours = allowWeeklyHoliday
-    ? weeklySummaries.reduce((sum, summary) => sum + summary.weeklyHolidayAllowanceHours, 0)
-    : 0
 
   const hourlyTotal = roundCurrency(totalWorkHours * input.hourlyRate)
-  const weeklyHolidayAllowance = allowWeeklyHoliday
-    ? roundCurrency(weeklyHolidayAllowanceHours * input.hourlyRate)
-    : 0
+  const weeklyHolidayAllowance = roundCurrency(totalWorkHours * input.weeklyHolidayRate)
   const baseSalaryTotal = roundCurrency(input.baseSalaryAmount ?? 0)
 
   const normalizedAdjustments = (input.adjustments ?? []).map(cloneAdjustment)
@@ -114,12 +77,12 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
 
   if (input.contractType === 'employee' && input.insuranceEnrolled) {
     const healthInsurance = roundCurrency(grossPay * 0.045)
-    const nationalPension = roundCurrency(grossPay * 0.03545)
-    const longTermCare = roundCurrency(grossPay * 0.03545 * 0.1281)
+    const nationalPension = roundCurrency(input.nationalPensionAmount)
+    const longTermCare = roundCurrency(healthInsurance * 0.1281)
     const employmentInsurance = roundCurrency(grossPay * 0.009)
 
     deductionDetails.push({ label: '건강보험 (4.5%)', amount: healthInsurance })
-    deductionDetails.push({ label: '국민연금 (3.545%)', amount: nationalPension })
+    deductionDetails.push({ label: '국민연금', amount: nationalPension })
     deductionDetails.push({ label: '장기요양보험 (건강보험의 12.81%)', amount: longTermCare })
     deductionDetails.push({ label: '고용보험 (0.9%)', amount: employmentInsurance })
   } else if (input.contractType === 'freelancer') {
@@ -138,7 +101,6 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
 
   return {
     totalWorkHours: roundCurrency(totalWorkHours),
-    weeklyHolidayAllowanceHours: roundCurrency(weeklyHolidayAllowanceHours),
     hourlyTotal,
     weeklyHolidayAllowance,
     baseSalaryTotal,

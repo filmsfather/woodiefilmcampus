@@ -9,6 +9,8 @@ export interface TeacherPayrollProfileRow {
   hourly_currency: string
   base_salary_amount: string | number | null
   base_salary_currency: string
+  weekly_holiday_rate: string | number
+  national_pension_amount: string | number
   contract_type: 'employee' | 'freelancer' | 'none'
   insurance_enrolled: boolean
   effective_from: string
@@ -38,6 +40,8 @@ export function mapTeacherPayrollProfile(row: TeacherPayrollProfileRow): Teacher
     hourlyCurrency: row.hourly_currency,
     baseSalaryAmount: parseNumeric(row.base_salary_amount),
     baseSalaryCurrency: row.base_salary_currency,
+    weeklyHolidayRate: parseNumeric(row.weekly_holiday_rate) ?? 0,
+    nationalPensionAmount: parseNumeric(row.national_pension_amount) ?? 0,
     contractType: row.contract_type,
     insuranceEnrolled: row.insurance_enrolled,
     effectiveFrom: row.effective_from,
@@ -58,6 +62,7 @@ export async function fetchTeacherPayrollProfiles(
     .from('teacher_payroll_profiles')
     .select(
       `id, teacher_id, hourly_rate, hourly_currency, base_salary_amount, base_salary_currency,
+       weekly_holiday_rate, national_pension_amount,
        contract_type, insurance_enrolled, effective_from, effective_to, notes, created_by, created_at, updated_at`
     )
 

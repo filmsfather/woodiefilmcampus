@@ -4,7 +4,6 @@ import type {
   PayrollMessageContext,
   TeacherContractType,
 } from './types'
-import { FREELANCER_WITHHOLDING_RATE } from './constants'
 
 const currencyFormatter = new Intl.NumberFormat('ko-KR', {
   style: 'currency',
@@ -45,10 +44,8 @@ export function buildPayrollMessage(context: PayrollMessageContext): string {
   lines.push('')
 
   lines.push(`- 근무시간: ${formatHours(context.totalWorkHours)}`)
-  lines.push(`- 근무급: ${formatCurrency(context.hourlyTotal)}`)
-  if (context.contractType !== 'freelancer' && context.weeklyHolidayAllowance > 0) {
-    lines.push(`- 주휴수당: ${formatCurrency(context.weeklyHolidayAllowance)}`)
-  }
+  lines.push(`- 시급 (주휴수당 포함): ${formatCurrency(context.hourlyRate + context.weeklyHolidayRate)}`)
+  lines.push(`- 근무급 (주휴수당 포함): ${formatCurrency(context.hourlyTotal + context.weeklyHolidayAllowance)}`)
   if (context.baseSalaryTotal > 0) {
     lines.push(`- 기본급: ${formatCurrency(context.baseSalaryTotal)}`)
   }
@@ -81,12 +78,15 @@ export function createMessageContext(
   teacherName: string | null,
   periodLabel: string,
   contractType: TeacherContractType,
-  breakdown: PayrollCalculationBreakdown
+  breakdown: PayrollCalculationBreakdown,
+  rates: { hourlyRate: number; weeklyHolidayRate: number }
 ): PayrollMessageContext {
   return {
     teacherName,
     periodLabel,
     totalWorkHours: breakdown.totalWorkHours,
+    hourlyRate: rates.hourlyRate,
+    weeklyHolidayRate: rates.weeklyHolidayRate,
     hourlyTotal: breakdown.hourlyTotal,
     weeklyHolidayAllowance: breakdown.weeklyHolidayAllowance,
     baseSalaryTotal: breakdown.baseSalaryTotal,
@@ -97,46 +97,10 @@ export function createMessageContext(
   }
 }
 
-interface SanitizeOptions {
-  netPay?: number
-  weeklyHolidayAllowance?: number
-}
-
 export function sanitizePayrollMessage(
   message: string | null | undefined,
-  contractType: TeacherContractType,
-  options?: SanitizeOptions
+  _contractType: TeacherContractType,
+  _options?: { netPay?: number; weeklyHolidayAllowance?: number }
 ): string | null {
-  if (!message) {
-    return message ?? null
-  }
-
-  if (contractType !== 'freelancer') {
-    return message
-  }
-
-  const lines = message
-    .split(/\r?\n/u)
-    .filter((line) => !line.includes('주휴수당'))
-
-  if (
-    options &&
-    typeof options.netPay === 'number' &&
-    typeof options.weeklyHolidayAllowance === 'number' &&
-    options.weeklyHolidayAllowance > 0
-  ) {
-    const adjustedNet = adjustFreelancerNetPay(options.netPay, options.weeklyHolidayAllowance)
-    const netLineIndex = lines.findIndex((line) => line.startsWith('실지급 예정 금액'))
-    if (netLineIndex >= 0) {
-      lines[netLineIndex] = `실지급 예정 금액: ${formatCurrency(adjustedNet)}`
-    }
-  }
-
-  return lines.join('\n')
-}
-
-function adjustFreelancerNetPay(netPay: number, weeklyHolidayAllowance: number): number {
-  const deductionPortion = weeklyHolidayAllowance * (1 - FREELANCER_WITHHOLDING_RATE)
-  const adjusted = netPay - deductionPortion
-  return adjusted < 0 ? 0 : Math.round(adjusted * 100) / 100
+  return message ?? null
 }

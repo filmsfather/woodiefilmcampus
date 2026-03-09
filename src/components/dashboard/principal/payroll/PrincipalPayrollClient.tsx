@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Fragment, useEffect, useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { completePayrollPayment, requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
@@ -201,10 +201,7 @@ function statusBadge(run: TeacherPayrollRun | null, acknowledgement: TeacherPayr
 
 function PayrollBreakdownTable({ breakdown }: { breakdown: PayrollCalculationBreakdown }) {
   const additionRows = [
-    { label: '근무급', amount: breakdown.hourlyTotal },
-    breakdown.weeklyHolidayAllowance > 0
-      ? { label: '주휴수당', amount: breakdown.weeklyHolidayAllowance }
-      : null,
+    { label: '근무급 (주휴수당 포함)', amount: breakdown.hourlyTotal + breakdown.weeklyHolidayAllowance },
     breakdown.baseSalaryTotal > 0 ? { label: '기본급', amount: breakdown.baseSalaryTotal } : null,
   ].filter(Boolean) as Array<{ label: string; amount: number }>
 
@@ -280,28 +277,8 @@ function WeeklySummaryList({ breakdown }: { breakdown: PayrollCalculationBreakdo
             </p>
             <p className="text-slate-500">근무 {formatHours(week.totalWorkHours)}</p>
           </div>
-          <div className="mt-2 space-y-1 text-slate-600">
-            <p>
-              주휴수당 조건:{' '}
-              {week.eligibleForWeeklyHolidayAllowance ? (
-                <span className="text-emerald-600">충족</span>
-              ) : (
-                <span className="text-rose-600">미충족</span>
-              )}
-            </p>
-            {week.eligibleForWeeklyHolidayAllowance ? (
-              <p>추가 시간: {formatHours(week.weeklyHolidayAllowanceHours)}</p>
-            ) : (
-              <Fragment>
-                <p>조건 요약</p>
-                <ul className="list-disc space-y-0.5 pl-5">
-                  <li>근무 시간 {week.totalWorkHours >= 15 ? '충족' : '15시간 미만'}</li>
-                  <li>지각 여부: {week.containsTardy ? '있음' : '없음'}</li>
-                  <li>결근 여부: {week.containsAbsence ? '있음' : '없음'}</li>
-                  <li>대타 여부: {week.containsSubstitute ? '있음' : '없음'}</li>
-                </ul>
-              </Fragment>
-            )}
+          <div className="mt-2 text-slate-600">
+            <p>근무 항목: {week.entries.length}건</p>
           </div>
         </div>
       ))}
@@ -644,7 +621,7 @@ function TeacherPayrollCard({
             <CardDescription className="space-y-1 text-sm">
               <p>{teacher.email ?? '이메일 미등록'}</p>
               <p>
-                시급 {formatCurrency(payrollProfile.hourlyRate)}
+                시급 {formatCurrency(payrollProfile.hourlyRate + payrollProfile.weeklyHolidayRate)} (주휴수당 포함)
                 {currentBreakdown.baseSalaryTotal > 0 && ` · 기본급 ${formatCurrency(currentBreakdown.baseSalaryTotal)}`}
                 {' '}· 계약 형태{' '}
                 {payrollProfile.contractType === 'employee'
@@ -683,7 +660,7 @@ function TeacherPayrollCard({
             <summary className="cursor-pointer text-sm font-medium text-slate-900">
               <span>주차별 계산 흐름</span>
               <span className="ml-4 text-xs font-normal text-slate-500">
-                근무 {formatHours(currentBreakdown.totalWorkHours)} · 주휴수당 {formatHours(currentBreakdown.weeklyHolidayAllowanceHours)}
+                근무 {formatHours(currentBreakdown.totalWorkHours)}
               </span>
             </summary>
             <div className="mt-3">

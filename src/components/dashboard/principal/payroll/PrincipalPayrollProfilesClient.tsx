@@ -36,7 +36,9 @@ interface FormState {
   profileId: string | null
   teacherId: string
   hourlyRate: string
+  weeklyHolidayRate: string
   baseSalaryAmount: string
+  nationalPensionAmount: string
   contractType: TeacherContractType
   insuranceEnrolled: 'true' | 'false'
   effectiveFrom: string
@@ -66,8 +68,10 @@ function buildInitialState(
       profileId: profile.id,
       teacherId: profile.teacherId,
       hourlyRate: profile.hourlyRate ? String(profile.hourlyRate) : '',
+      weeklyHolidayRate: profile.weeklyHolidayRate ? String(profile.weeklyHolidayRate) : '',
       baseSalaryAmount:
         typeof profile.baseSalaryAmount === 'number' ? String(profile.baseSalaryAmount) : '',
+      nationalPensionAmount: profile.nationalPensionAmount ? String(profile.nationalPensionAmount) : '',
       contractType: profile.contractType,
       insuranceEnrolled: profile.insuranceEnrolled ? 'true' : 'false',
       effectiveFrom: profile.effectiveFrom,
@@ -80,7 +84,9 @@ function buildInitialState(
     profileId: null,
     teacherId,
     hourlyRate: '',
+    weeklyHolidayRate: '',
     baseSalaryAmount: '',
+    nationalPensionAmount: '',
     contractType: 'employee',
     insuranceEnrolled: 'false',
     effectiveFrom: getTodayToken(),
@@ -268,6 +274,20 @@ export function PrincipalPayrollProfilesClient({
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="weekly-holiday-rate">주휴수당 (시간당, 원)</Label>
+                <Input
+                  id="weekly-holiday-rate"
+                  name="weeklyHolidayRate"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formState.weeklyHolidayRate}
+                  onChange={(event) => handleFieldChange('weeklyHolidayRate', event.target.value)}
+                  placeholder="예: 3000"
+                  disabled={isSaving}
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="base-salary">기본급 (선택)</Label>
                 <Input
                   id="base-salary"
@@ -278,6 +298,20 @@ export function PrincipalPayrollProfilesClient({
                   value={formState.baseSalaryAmount}
                   onChange={(event) => handleFieldChange('baseSalaryAmount', event.target.value)}
                   placeholder="없으면 비워두세요"
+                  disabled={isSaving}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="national-pension-amount">국민연금 (고정 금액, 원)</Label>
+                <Input
+                  id="national-pension-amount"
+                  name="nationalPensionAmount"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formState.nationalPensionAmount}
+                  onChange={(event) => handleFieldChange('nationalPensionAmount', event.target.value)}
+                  placeholder="예: 100000"
                   disabled={isSaving}
                 />
               </div>
@@ -369,7 +403,9 @@ export function PrincipalPayrollProfilesClient({
                 <TableRow>
                   <TableHead>선생님</TableHead>
                   <TableHead>시급</TableHead>
+                  <TableHead>주휴수당</TableHead>
                   <TableHead>기본급</TableHead>
+                  <TableHead>국민연금</TableHead>
                   <TableHead>계약 형태</TableHead>
                   <TableHead>4대 보험</TableHead>
                   <TableHead>적용 기간</TableHead>
@@ -384,11 +420,13 @@ export function PrincipalPayrollProfilesClient({
                       <div className="text-xs text-slate-500">{teacher.email ?? ''}</div>
                     </TableCell>
                     <TableCell>{profile.hourlyRate.toLocaleString()}원</TableCell>
+                    <TableCell>{profile.weeklyHolidayRate.toLocaleString()}원</TableCell>
                     <TableCell>
                       {typeof profile.baseSalaryAmount === 'number'
                         ? `${profile.baseSalaryAmount.toLocaleString()}원`
                         : '-'}
                     </TableCell>
+                    <TableCell>{profile.nationalPensionAmount.toLocaleString()}원</TableCell>
                     <TableCell>
                       {profile.contractType === 'employee'
                         ? '근로자'
