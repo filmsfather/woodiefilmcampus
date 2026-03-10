@@ -40,12 +40,14 @@ export async function completeProfile(
     return { error: '올바른 부모님 번호를 입력해주세요.' }
   }
 
+  const normalizePhone = (v: string) => v.replace(/-/g, '')
+
   const { error: updateError } = await supabase
     .from('profiles')
     .update({
       name,
-      student_phone: studentPhone,
-      parent_phone: parentPhone,
+      student_phone: normalizePhone(studentPhone),
+      parent_phone: parentPhone ? normalizePhone(parentPhone) : null,
       academic_record: academicRecord,
       updated_at: new Date().toISOString(),
     })

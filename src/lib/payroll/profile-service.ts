@@ -13,6 +13,7 @@ interface PayrollProfileRowWithTeacher extends TeacherPayrollProfileRow {
     id: string | null
     name: string | null
     email: string | null
+    status: string | null
   } | null
 }
 
@@ -33,7 +34,7 @@ const PROFILE_SELECT = `
   created_by,
   created_at,
   updated_at,
-  profiles:profiles!teacher_payroll_profiles_teacher_id_fkey(id, name, email)
+  profiles:profiles!teacher_payroll_profiles_teacher_id_fkey(id, name, email, status)
 `
 
 function mapRow(row: PayrollProfileRowWithTeacher): {
@@ -72,7 +73,14 @@ export async function fetchPayrollProfilesWithTeachers(
     return []
   }
 
-  return (data ?? []).map((row) => mapRow(row))
+  const EXCLUDED_STATUSES = new Set(['withdrawn', 'graduated'])
+
+  return (data ?? [])
+    .filter((row) => {
+      const status = row.profiles?.status
+      return !status || !EXCLUDED_STATUSES.has(status)
+    })
+    .map((row) => mapRow(row))
 }
 
 export async function fetchPayrollProfileWithTeacher(

@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 interface ProfileRecord {
   id: string
   role: string
+  status: string | null
   parent_phone: string | null
   student_phone: string | null
   class_id: string | null
@@ -22,6 +23,21 @@ function chunk<T>(values: T[], size: number): T[][] {
     result.push(values.slice(index, index + size))
   }
   return result
+}
+
+function normalizePhone(phone: string): string {
+  return phone.replace(/-/g, '')
+}
+
+function phoneVariants(phone: string): string[] {
+  const stripped = normalizePhone(phone)
+  const variants = [stripped]
+  if (stripped.length === 11) {
+    variants.push(`${stripped.slice(0, 3)}-${stripped.slice(3, 7)}-${stripped.slice(7)}`)
+  } else if (stripped.length === 10) {
+    variants.push(`${stripped.slice(0, 3)}-${stripped.slice(3, 6)}-${stripped.slice(6)}`)
+  }
+  return variants
 }
 
 export async function syncEnrollmentApplicationStatuses() {
@@ -51,10 +67,10 @@ export async function syncEnrollmentApplicationStatuses() {
     const phoneSet = new Set<string>()
     applications.forEach((item) => {
       if (item.parent_phone) {
-        phoneSet.add(item.parent_phone)
+        for (const v of phoneVariants(item.parent_phone)) phoneSet.add(v)
       }
       if (item.student_phone) {
-        phoneSet.add(item.student_phone)
+        for (const v of phoneVariants(item.student_phone)) phoneSet.add(v)
       }
     })
 
@@ -79,15 +95,17 @@ export async function syncEnrollmentApplicationStatuses() {
       profilesMap.set(profile.id, profile)
 
       if (profile.parent_phone) {
-        const list = parentPhoneMap.get(profile.parent_phone) ?? []
-        list.push(profile)
-        parentPhoneMap.set(profile.parent_phone, list)
+        const key = normalizePhone(profile.parent_phone)
+        const list = parentPhoneMap.get(key) ?? []
+        if (!list.some((p) => p.id === profile.id)) list.push(profile)
+        parentPhoneMap.set(key, list)
       }
 
       if (profile.student_phone) {
-        const list = studentPhoneMap.get(profile.student_phone) ?? []
-        list.push(profile)
-        studentPhoneMap.set(profile.student_phone, list)
+        const key = normalizePhone(profile.student_phone)
+        const list = studentPhoneMap.get(key) ?? []
+        if (!list.some((p) => p.id === profile.id)) list.push(profile)
+        studentPhoneMap.set(key, list)
       }
     }
 
@@ -99,7 +117,7 @@ export async function syncEnrollmentApplicationStatuses() {
       for (const values of chunk(phoneList, CHUNK_SIZE)) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, role, parent_phone, student_phone, class_id')
+          .select('id, role, status, parent_phone, student_phone, class_id')
           .eq('role', 'student')
           .in(column, values)
 
@@ -122,7 +140,7 @@ export async function syncEnrollmentApplicationStatuses() {
       for (const values of chunk(matchedProfileIds, CHUNK_SIZE)) {
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, role, parent_phone, student_phone, class_id')
+          .select('id, role, status, parent_phone, student_phone, class_id')
           .in('id', values)
 
         if (error) {
@@ -142,6 +160,28 @@ export async function syncEnrollmentApplicationStatuses() {
       return { error: '학원생 정보를 불러오지 못했습니다.' }
     }
 
+    const allProfileIds = Array.from(profilesMap.keys())
+    const classAssignmentMap = new Map<string, string>()
+
+    if (allProfileIds.length > 0) {
+      for (const ids of chunk(allProfileIds, CHUNK_SIZE)) {
+        const { data: csRows, error: csError } = await supabase
+          .from('class_students')
+          .select('student_id, class_id')
+          .in('student_id', ids)
+
+        if (csError) {
+          console.error('[enrollment] sync fetch class_students error', csError)
+        }
+
+        csRows?.forEach((row) => {
+          if (!classAssignmentMap.has(row.student_id)) {
+            classAssignmentMap.set(row.student_id, row.class_id)
+          }
+        })
+      }
+    }
+
     const now = new Date().toISOString()
     const updates: Array<{
       id: string
@@ -158,16 +198,18 @@ export async function syncEnrollmentApplicationStatuses() {
         : null
 
       const phoneMatches: ProfileRecord[] = []
+      const appStudentNorm = application.student_phone ? normalizePhone(application.student_phone) : null
+      const appParentNorm = application.parent_phone ? normalizePhone(application.parent_phone) : null
 
-      if (application.student_phone) {
-        const candidates = studentPhoneMap.get(application.student_phone)
+      if (appStudentNorm) {
+        const candidates = studentPhoneMap.get(appStudentNorm)
         if (candidates) {
           phoneMatches.push(...candidates)
         }
       }
 
-      if (application.parent_phone) {
-        const candidates = parentPhoneMap.get(application.parent_phone)
+      if (appParentNorm) {
+        const candidates = parentPhoneMap.get(appParentNorm)
         if (candidates) {
           phoneMatches.push(...candidates)
         }
@@ -176,25 +218,32 @@ export async function syncEnrollmentApplicationStatuses() {
       let matchedProfile = existingProfile
 
       if (!matchedProfile) {
-        matchedProfile = phoneMatches.find((profile) => profile.student_phone === application.student_phone && profile.student_phone) ?? null
+        matchedProfile = phoneMatches.find((profile) => profile.student_phone && appStudentNorm && normalizePhone(profile.student_phone) === appStudentNorm) ?? null
       }
 
       if (!matchedProfile) {
-        matchedProfile = phoneMatches.find((profile) => profile.parent_phone === application.parent_phone && profile.parent_phone) ?? null
+        matchedProfile = phoneMatches.find((profile) => profile.parent_phone && appParentNorm && normalizePhone(profile.parent_phone) === appParentNorm) ?? null
       }
 
       if (!matchedProfile) {
         matchedProfile = phoneMatches[0] ?? null
       }
 
+      const assignedClassId = matchedProfile
+        ? classAssignmentMap.get(matchedProfile.id) ?? matchedProfile.class_id ?? null
+        : null
+
+      const INACTIVE_STATUSES = new Set(['withdrawn', 'graduated'])
+      const isProfileInactive = matchedProfile?.status ? INACTIVE_STATUSES.has(matchedProfile.status) : false
+
       const nextStatus: 'pending' | 'confirmed' | 'assigned' = matchedProfile
-        ? matchedProfile.class_id
+        ? (assignedClassId || isProfileInactive)
           ? 'assigned'
           : 'confirmed'
         : 'pending'
 
       const nextMatchedProfileId = matchedProfile ? matchedProfile.id : null
-      const nextAssignedClassId = matchedProfile?.class_id ?? null
+      const nextAssignedClassId = assignedClassId
 
       const statusChanged = nextStatus !== application.status
       const profileChanged = nextMatchedProfileId !== application.matched_profile_id
