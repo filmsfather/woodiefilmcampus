@@ -816,7 +816,7 @@ export function PrincipalPayrollClient({
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const [isRouting, startTransition] = useTransition()
-  const [sortField, setSortField] = useState<SummarySortField>('netPay')
+  const [sortField, setSortField] = useState<SummarySortField>('baseSalaryTotal')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [isExternalModalOpen, setExternalModalOpen] = useState(false)
   const [activeTeacherTab, setActiveTeacherTab] = useState<string | null>(null)
@@ -842,7 +842,9 @@ export function PrincipalPayrollClient({
           default: return 0
         }
       }
-      return (getValue(a) - getValue(b)) * direction
+      const diff = (getValue(a) - getValue(b)) * direction
+      if (diff !== 0) return diff
+      return b.payrollProfile.hourlyRate - a.payrollProfile.hourlyRate
     })
   }, [teachers, sortField, sortDirection])
 
@@ -873,9 +875,9 @@ export function PrincipalPayrollClient({
       if (sortField === 'name') {
         return (a.name ?? '').localeCompare(b.name ?? '', 'ko') * direction
       }
-      const valueA = a[sortField]
-      const valueB = b[sortField]
-      return (valueA - valueB) * direction
+      const diff = (a[sortField] - b[sortField]) * direction
+      if (diff !== 0) return diff
+      return (b.hourlyRate - a.hourlyRate)
     })
     return sorted
   }, [teachers, sortField, sortDirection])
