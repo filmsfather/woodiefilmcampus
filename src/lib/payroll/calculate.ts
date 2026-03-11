@@ -13,6 +13,10 @@ function roundCurrency(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
+function roundDown10(value: number): number {
+  return Math.floor(value / 10) * 10
+}
+
 function cloneAdjustment(input: PayrollAdjustmentInput): PayrollAdjustmentInput {
   return {
     label: input.label,
@@ -76,14 +80,14 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   const deductionDetails: Array<{ label: string; amount: number }> = []
 
   if (input.contractType === 'employee' && input.insuranceEnrolled) {
-    const healthInsurance = roundCurrency(grossPay * 0.045)
+    const healthInsurance = roundDown10(grossPay * 0.03595)
     const nationalPension = roundCurrency(input.nationalPensionAmount)
-    const longTermCare = roundCurrency(healthInsurance * 0.1281)
-    const employmentInsurance = roundCurrency(grossPay * 0.009)
+    const longTermCare = roundDown10(healthInsurance * 0.1314)
+    const employmentInsurance = roundDown10(grossPay * 0.009)
 
-    deductionDetails.push({ label: '건강보험 (4.5%)', amount: healthInsurance })
     deductionDetails.push({ label: '국민연금', amount: nationalPension })
-    deductionDetails.push({ label: '장기요양보험 (건강보험의 12.81%)', amount: longTermCare })
+    deductionDetails.push({ label: '건강보험 (3.595%)', amount: healthInsurance })
+    deductionDetails.push({ label: '장기요양보험 (건강보험의 13.14%)', amount: longTermCare })
     deductionDetails.push({ label: '고용보험 (0.9%)', amount: employmentInsurance })
   } else if (input.contractType === 'freelancer') {
     const withholding = roundCurrency(grossPay * FREELANCER_WITHHOLDING_RATE)

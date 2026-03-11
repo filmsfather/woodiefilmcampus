@@ -10,8 +10,8 @@ interface PayrollPdfEntry {
 }
 
 const DEDUCTION_COLUMNS = [
-  { key: "건강보험", shortLabel: "건강보험" },
   { key: "국민연금", shortLabel: "국민연금" },
+  { key: "건강보험", shortLabel: "건강보험" },
   { key: "장기요양보험", shortLabel: "장기요양" },
   { key: "고용보험", shortLabel: "고용보험" },
   { key: "프리랜서 원천징수", shortLabel: "원천징수(3.3%)" },
@@ -192,7 +192,12 @@ export async function generatePayrollPdf(
   container.style.position = "fixed"
   container.style.left = "-9999px"
   container.style.top = "0"
-  container.innerHTML = buildTableHtml(monthLabel, entries)
+  const sorted = [...entries].sort((a, b) => {
+    const baseDiff = b.breakdown.baseSalaryTotal - a.breakdown.baseSalaryTotal
+    if (baseDiff !== 0) return baseDiff
+    return b.payrollProfile.hourlyRate - a.payrollProfile.hourlyRate
+  })
+  container.innerHTML = buildTableHtml(monthLabel, sorted)
   document.body.appendChild(container)
 
   try {
