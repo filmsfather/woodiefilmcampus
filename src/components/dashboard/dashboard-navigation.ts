@@ -100,6 +100,7 @@ const managerSections: NavigationSection[] = [
     title: '업무관리',
     items: [
       { label: '인쇄요청 관리', href: '/dashboard/manager/print-requests' },
+      { label: '지출증빙 관리', href: '/dashboard/manager/receipts' },
       { label: '교사 대시보드 열기', href: '/dashboard/teacher' },
     ],
   },

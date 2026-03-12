@@ -14,6 +14,7 @@ import type { TeacherContractType, WeeklyWorkSummary } from '@/lib/payroll/types
 import { sanitizePayrollMessage } from '@/lib/payroll/messages'
 import { TeacherPayrollCard } from '@/components/dashboard/teacher/work-journal/TeacherPayrollCard'
 import { WorkJournalClient } from '@/components/dashboard/teacher/work-journal/WorkJournalClient'
+import { RECEIPT_SELECT_FIELDS, mapReceiptRow, type ReceiptRow } from '@/lib/receipts'
 
 
 interface TeacherPayrollCardData {
@@ -130,6 +131,20 @@ export default async function TeacherWorkJournalPage(props: {
     console.error('[teacher-work-journal] teacher list unexpected error', error)
   }
 
+  const { data: receiptRows, error: receiptError } = await supabase
+    .from('teacher_receipts')
+    .select(RECEIPT_SELECT_FIELDS)
+    .eq('teacher_id', profile.id)
+    .eq('month_token', monthToken)
+    .order('used_date', { ascending: true })
+    .returns<ReceiptRow[]>()
+
+  if (receiptError) {
+    console.error('[teacher-work-journal] receipt fetch error', receiptError)
+  }
+
+  const receipts = (receiptRows ?? []).map(mapReceiptRow)
+
   let payrollCard: TeacherPayrollCardData | null = null
 
   try {
@@ -218,6 +233,8 @@ export default async function TeacherWorkJournalPage(props: {
         monthStartDate={monthRange.startDate}
         entries={entries}
         internalTeachers={internalTeachers}
+        teacherId={profile.id}
+        initialReceipts={receipts}
       />
     </section>
   )

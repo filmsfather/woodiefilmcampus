@@ -24,6 +24,8 @@ import {
   type WorkLogSubstituteType,
 } from '@/lib/work-logs'
 import { deleteWorkLogEntry, saveWorkLogEntry } from '@/app/dashboard/teacher/work-journal/actions'
+import { ReceiptSection } from '@/components/dashboard/teacher/work-journal/ReceiptSection'
+import type { Receipt } from '@/lib/receipts'
 
 interface WorkJournalClientProps {
   monthToken: string
@@ -31,6 +33,8 @@ interface WorkJournalClientProps {
   monthStartDate: string
   entries: WorkLogEntry[]
   internalTeachers: TeacherProfileSummary[]
+  teacherId: string
+  initialReceipts: Receipt[]
 }
 
 type CalendarDay = {
@@ -216,7 +220,7 @@ function getMonthlyTotal(entries: EntryMap): number {
     .reduce((sum, entry) => sum + (entry.workHours ?? 0), 0)
 }
 
-export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entries, internalTeachers }: WorkJournalClientProps) {
+export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entries, internalTeachers, teacherId, initialReceipts }: WorkJournalClientProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -800,6 +804,12 @@ export function WorkJournalClient({ monthToken, monthLabel, monthStartDate, entr
             </Form>
           </CardContent>
         </Card>
+
+        <ReceiptSection
+          monthToken={monthToken}
+          teacherId={teacherId}
+          initialReceipts={initialReceipts}
+        />
       </section>
 
       <aside className="space-y-4">
