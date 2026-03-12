@@ -721,7 +721,7 @@ export function TimetableManager({ timetables, classes, teacherOptions }: Timeta
                     }}
                     className="sm:w-72"
                   />
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500" suppressHydrationWarning>
                     최근 업데이트: {new Date(selectedTimetable.updatedAt).toLocaleString('ko-KR')}
                   </div>
                 </div>

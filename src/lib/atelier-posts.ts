@@ -661,25 +661,30 @@ export async function fetchAtelierPosts({
 }
 
 async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
-  // 병렬로 workbook_id와 class_id를 동시에 조회
-  const [workbookResult, classResult] = await Promise.all([
+  // classes 테이블에서 직접 조회 + workbook 필터용 데이터 병렬 로드
+  // atelier_posts에서 class_id를 가져오면 Supabase max-rows(1000) 제한에 걸림
+  const [workbookResult, classesResult, unassignedCheck] = await Promise.all([
     admin
       .from('atelier_posts')
       .select('workbook_id')
       .eq('is_deleted', false)
-      .not('workbook_id', 'is', null),
+      .not('workbook_id', 'is', null)
+      .limit(10000),
+    admin
+      .from('classes')
+      .select('id, name'),
     admin
       .from('atelier_posts')
-      .select('class_id')
-      .eq('is_deleted', false),
+      .select('id', { count: 'exact', head: true })
+      .eq('is_deleted', false)
+      .is('class_id', null),
   ])
 
   if (workbookResult.error) {
     console.error('[atelier] failed to load workbook ids for filters', workbookResult.error)
   }
-  if (classResult.error) {
-    console.error('[atelier] failed to load class ids for filters', classResult.error)
-  }
+
+  const hasUnassigned = (unassignedCheck.count ?? 0) > 0
 
   const workbookIds = Array.from(
     new Set(
@@ -689,31 +694,12 @@ async function loadAtelierFilters(admin: ReturnType<typeof createAdminClient>) {
     )
   )
 
-  const classIdSet = new Set<string>()
-  let hasUnassigned = false
-
-  for (const row of classResult.data ?? []) {
-    const classId = (row?.class_id as string | null) ?? null
-    if (!classId) {
-      hasUnassigned = true
-      continue
-    }
-    classIdSet.add(classId)
-  }
-
-  // 병렬로 workbooks와 classes 조회
-  const [workbooksResult, classesResult] = await Promise.all([
+  const [workbooksResult] = await Promise.all([
     workbookIds.length > 0
       ? admin
           .from('workbooks')
           .select('id, week_label, subject')
           .in('id', workbookIds)
-      : Promise.resolve({ data: [], error: null }),
-    classIdSet.size > 0
-      ? admin
-          .from('classes')
-          .select('id, name')
-          .in('id', Array.from(classIdSet))
       : Promise.resolve({ data: [], error: null }),
   ])
 

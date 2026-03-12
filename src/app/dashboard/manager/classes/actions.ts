@@ -275,6 +275,17 @@ export async function deleteClassAction(classId: string): Promise<ActionState> {
 
   try {
     const supabase = createAdminClient()
+
+    const { error: unlinkError } = await supabase
+      .from('student_tasks')
+      .update({ class_id: null })
+      .eq('class_id', parsedId.data)
+
+    if (unlinkError) {
+      console.error('deleteClassAction unlink student_tasks error', unlinkError)
+      return makeErrorState('연결된 학생 과제 정보를 정리하지 못했습니다.')
+    }
+
     const { error } = await supabase.from('classes').delete().eq('id', parsedId.data)
 
     if (error) {
