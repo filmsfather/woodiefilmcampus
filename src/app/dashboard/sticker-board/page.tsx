@@ -24,7 +24,7 @@ export default async function StickerBoardPage() {
         />
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">
-            감상일지 스티커 보드
+            시네필 챌린지 보드
           </h1>
           <p className="text-sm text-slate-600">
             완료된 감상일지마다 스티커가 붙어요. 스티커를 눌러 감상지를 확인해보세요.

@@ -164,7 +164,7 @@ const teacherSections: NavigationSection[] = [
     title: '소통',
     items: [
       { label: 'Culture Picks', href: '/dashboard/culture-picks' },
-      { label: '감상일지 스티커 보드', href: '/dashboard/sticker-board' },
+      { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
     ],
   },
 ]
@@ -196,7 +196,7 @@ const studentSections: NavigationSection[] = [
     items: [
       { label: '지난달 학습 일지', href: '/dashboard/student/learning-journal' },
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
-      { label: '감상일지 스티커 보드', href: '/dashboard/sticker-board' },
+      { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
       { label: '장비 대여', href: '/dashboard/student/equipment-rental' },
