@@ -97,6 +97,7 @@ export default async function BusinessJournalPage(props: {
       totalWorkHours: breakdown.totalWorkHours,
       baseSalaryTotal: breakdown.baseSalaryTotal,
       hourlyRate: profile.hourlyRate,
+      weeklyHolidayRate: profile.weeklyHolidayRate,
       grossPay: breakdown.grossPay,
       deductionsTotal: breakdown.deductionsTotal,
       netPay: breakdown.netPay,

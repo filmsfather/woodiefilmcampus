@@ -67,6 +67,7 @@ interface PayrollSummaryRow {
   totalWorkHours: number
   baseSalaryTotal: number
   hourlyRate: number
+  weeklyHolidayRate: number
   grossPay: number
   deductionsTotal: number
   netPay: number
@@ -297,7 +298,7 @@ function PayrollSummaryTable({ rows, sortField, sortDirection, onSort }: {
       return {
         totalWorkHours: acc.totalWorkHours + row.totalWorkHours,
         baseSalaryTotal: acc.baseSalaryTotal + row.baseSalaryTotal,
-        hourlyRateTotal: acc.hourlyRateTotal + row.hourlyRate,
+        hourlyRateTotal: acc.hourlyRateTotal + (row.hourlyRate + row.weeklyHolidayRate),
         grossPay: acc.grossPay + row.grossPay,
         deductionsTotal: acc.deductionsTotal + row.deductionsTotal,
         netPay: acc.netPay + row.netPay,
@@ -347,7 +348,7 @@ function PayrollSummaryTable({ rows, sortField, sortDirection, onSort }: {
             </TableHead>
             <TableHead className="text-right">
               <SortTrigger
-                label="시급"
+                label="시급+주휴"
                 field="hourlyRate"
                 sortField={sortField}
                 sortDirection={sortDirection}
@@ -399,7 +400,7 @@ function PayrollSummaryTable({ rows, sortField, sortDirection, onSort }: {
               </TableCell>
               <TableCell className="text-right text-slate-900">{formatHours(row.totalWorkHours)}</TableCell>
               <TableCell className="text-right text-slate-900">{formatCurrency(row.baseSalaryTotal)}</TableCell>
-              <TableCell className="text-right text-slate-900">{formatCurrency(row.hourlyRate)}</TableCell>
+              <TableCell className="text-right text-slate-900">{formatCurrency(row.hourlyRate + row.weeklyHolidayRate)}</TableCell>
               <TableCell className="text-right text-slate-900">{formatCurrency(row.grossPay)}</TableCell>
               <TableCell className="text-right text-slate-900">{formatCurrency(row.deductionsTotal)}</TableCell>
               <TableCell className="text-right text-slate-900">{formatCurrency(row.netPay)}</TableCell>
@@ -835,7 +836,7 @@ export function PrincipalPayrollClient({
         switch (sortField) {
           case 'totalWorkHours': return entry.breakdown.totalWorkHours
           case 'baseSalaryTotal': return entry.breakdown.baseSalaryTotal
-          case 'hourlyRate': return entry.payrollProfile.hourlyRate
+          case 'hourlyRate': return entry.payrollProfile.hourlyRate + entry.payrollProfile.weeklyHolidayRate
           case 'grossPay': return entry.breakdown.grossPay
           case 'deductionsTotal': return entry.breakdown.deductionsTotal
           case 'netPay': return entry.breakdown.netPay
@@ -844,7 +845,7 @@ export function PrincipalPayrollClient({
       }
       const diff = (getValue(a) - getValue(b)) * direction
       if (diff !== 0) return diff
-      return b.payrollProfile.hourlyRate - a.payrollProfile.hourlyRate
+      return (b.payrollProfile.hourlyRate + b.payrollProfile.weeklyHolidayRate) - (a.payrollProfile.hourlyRate + a.payrollProfile.weeklyHolidayRate)
     })
   }, [teachers, sortField, sortDirection])
 
@@ -866,6 +867,7 @@ export function PrincipalPayrollClient({
       totalWorkHours: entry.breakdown.totalWorkHours,
       baseSalaryTotal: entry.breakdown.baseSalaryTotal,
       hourlyRate: entry.payrollProfile.hourlyRate,
+      weeklyHolidayRate: entry.payrollProfile.weeklyHolidayRate,
       grossPay: entry.breakdown.grossPay,
       deductionsTotal: entry.breakdown.deductionsTotal,
       netPay: entry.breakdown.netPay,
@@ -875,9 +877,13 @@ export function PrincipalPayrollClient({
       if (sortField === 'name') {
         return (a.name ?? '').localeCompare(b.name ?? '', 'ko') * direction
       }
+      if (sortField === 'hourlyRate') {
+        const diff = ((a.hourlyRate + a.weeklyHolidayRate) - (b.hourlyRate + b.weeklyHolidayRate)) * direction
+        return diff
+      }
       const diff = (a[sortField] - b[sortField]) * direction
       if (diff !== 0) return diff
-      return (b.hourlyRate - a.hourlyRate)
+      return ((b.hourlyRate + b.weeklyHolidayRate) - (a.hourlyRate + a.weeklyHolidayRate))
     })
     return sorted
   }, [teachers, sortField, sortDirection])

@@ -23,6 +23,7 @@ export interface PayrollSummaryEntry {
   totalWorkHours: number
   baseSalaryTotal: number
   hourlyRate: number
+  weeklyHolidayRate: number
   grossPay: number
   deductionsTotal: number
   netPay: number
@@ -214,6 +215,9 @@ export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLe
       if (sortField === 'name') {
         return a.name.localeCompare(b.name, 'ko') * dir
       }
+      if (sortField === 'hourlyRate') {
+        return ((a.hourlyRate + a.weeklyHolidayRate) - (b.hourlyRate + b.weeklyHolidayRate)) * dir
+      }
       return (a[sortField] - b[sortField]) * dir
     })
   }, [computedRows, sortField, sortDirection])
@@ -223,7 +227,7 @@ export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLe
       (acc, row) => ({
         totalWorkHours: acc.totalWorkHours + row.totalWorkHours,
         baseSalaryTotal: acc.baseSalaryTotal + row.baseSalaryTotal,
-        hourlyRateTotal: acc.hourlyRateTotal + row.hourlyRate,
+        hourlyRateTotal: acc.hourlyRateTotal + (row.hourlyRate + row.weeklyHolidayRate),
         grossPay: acc.grossPay + row.grossPay,
         deductionsTotal: acc.deductionsTotal + row.deductionsTotal,
         netPay: acc.netPay + row.netPay,
@@ -485,7 +489,7 @@ export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLe
                     <SortTrigger label="기본급" field="baseSalaryTotal" sortField={sortField} sortDirection={sortDirection} onClick={handleSort} />
                   </TableHead>
                   <TableHead className="text-right">
-                    <SortTrigger label="시급" field="hourlyRate" sortField={sortField} sortDirection={sortDirection} onClick={handleSort} />
+                    <SortTrigger label="시급+주휴" field="hourlyRate" sortField={sortField} sortDirection={sortDirection} onClick={handleSort} />
                   </TableHead>
                   <TableHead className="text-right">
                     <SortTrigger label="총지급액" field="grossPay" sortField={sortField} sortDirection={sortDirection} onClick={handleSort} />
@@ -523,7 +527,7 @@ export function BusinessJournalClient({ monthToken, monthLabel, entries, savedLe
                     </TableCell>
                     <TableCell className="text-right text-slate-900">{formatHours(row.totalWorkHours)}</TableCell>
                     <TableCell className="text-right text-slate-900">{formatCurrency(row.baseSalaryTotal)}</TableCell>
-                    <TableCell className="text-right text-slate-900">{formatCurrency(row.hourlyRate)}</TableCell>
+                    <TableCell className="text-right text-slate-900">{formatCurrency(row.hourlyRate + row.weeklyHolidayRate)}</TableCell>
                     <TableCell className="text-right text-slate-900">{formatCurrency(row.grossPay)}</TableCell>
                     <TableCell className="text-right text-slate-900">{formatCurrency(row.deductionsTotal)}</TableCell>
                     <TableCell className="text-right text-slate-900">{formatCurrency(row.netPay)}</TableCell>
