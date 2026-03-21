@@ -247,16 +247,24 @@ export async function submitTextResponses(input: z.infer<typeof textResponsesSch
     const normalizedContent = rawContent.trim()
     const submissionIsEmpty = normalizedContent.length === 0
 
-    const { data: existing, error: existingError } = await supabase
+    const { data: allExisting, error: allExistingError } = await supabase
       .from('task_submissions')
-      .select('id')
+      .select('id, created_at')
       .eq('student_task_id', parsed.studentTaskId)
       .eq('item_id', answer.workbookItemId)
-      .maybeSingle()
 
-    if (existingError) {
-      console.error('[submitTextResponses] failed to load existing submission', existingError)
+    if (allExistingError) {
+      console.error('[submitTextResponses] failed to load existing submission', allExistingError)
       return { success: false as const, error: '기존 답안을 불러오지 못했습니다.' }
+    }
+
+    const existing = allExisting && allExisting.length > 0 ? allExisting[0] : null
+
+    if (allExisting && allExisting.length > 1) {
+      const idsToRemove = allExisting.slice(1).map((r: {id: string}) => r.id)
+      for (const dupId of idsToRemove) {
+        await supabase.from('task_submissions').delete().eq('id', dupId)
+      }
     }
 
     if (submissionIsEmpty) {
