@@ -4,6 +4,7 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { requireAuthForDashboard } from '@/lib/auth'
 import DateUtil from '@/lib/date-util'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ClassDashboard } from '@/components/dashboard/teacher/ClassDashboard'
 import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
 import {
@@ -227,7 +228,10 @@ export default async function TeacherClassReviewPage({
       .eq('class_id', baseFilter.classId)
 
     // Q2b: 제출물 + 에셋 (상태/아이템 제외)
-    const q2b = supabase
+    // admin client를 사용하여 깊은 nested JOIN의 RLS 타임아웃을 방지
+    // (교사 인증/반 접근 권한은 이미 검증됨, assignmentIds는 RLS 통과한 Q1에서 획득)
+    const adminSupabase = createAdminClient()
+    const q2b = adminSupabase
       .from('student_tasks')
       .select(
         `id,
