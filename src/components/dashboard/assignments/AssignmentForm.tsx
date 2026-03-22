@@ -122,7 +122,8 @@ function filterWorkbooks(
       return false
     }
 
-    if (authorId !== 'all' && workbook.authorId !== authorId) {
+    // 공유 문제집 목록(/dashboard/workbooks)과 동일하게 담당 교사(teacher_id) 기준
+    if (authorId !== 'all' && workbook.teacherId !== authorId) {
       return false
     }
 
@@ -221,15 +222,21 @@ export function AssignmentForm({
     [workbooks, workbookSubjectFilter, workbookTypeFilter, workbookAuthorFilter]
   )
 
-  // 작성자 목록 추출 (중복 제거)
+  // 작성자 목록: 문제집 목록과 동일하게 담당 교사(teacher_id) 기준
   const authorOptions = useMemo(() => {
     const authorMap = new Map<string, string>()
     workbooks.forEach((workbook) => {
-      if (workbook.authorId && workbook.authorName) {
-        authorMap.set(workbook.authorId, workbook.authorName)
+      if (!workbook.teacherId) {
+        return
+      }
+      const label = workbook.teacherName ?? workbook.authorName ?? '이름 미등록'
+      if (!authorMap.has(workbook.teacherId)) {
+        authorMap.set(workbook.teacherId, label)
       }
     })
-    return Array.from(authorMap.entries()).map(([id, name]) => ({ id, name }))
+    return Array.from(authorMap.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   }, [workbooks])
 
   // 선택된 반에 따른 학생 필터링 (드롭다운용)
@@ -657,9 +664,9 @@ export function AssignmentForm({
                                       <Badge variant="secondary">{workbook.subject}</Badge>
                                       <Badge variant="outline">{WORKBOOK_TITLES[workbook.type as keyof typeof WORKBOOK_TITLES] ?? workbook.type}</Badge>
                                       {workbook.weekLabel && <Badge variant="outline">{workbook.weekLabel}</Badge>}
-                                      {workbook.authorName && (
+                                      {(workbook.teacherName ?? workbook.authorName) && (
                                         <Badge variant="outline" className="bg-slate-100">
-                                          {workbook.authorName}
+                                          {workbook.teacherName ?? workbook.authorName}
                                         </Badge>
                                       )}
                                     </div>

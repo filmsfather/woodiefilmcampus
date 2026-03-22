@@ -9,6 +9,9 @@ export interface AssignmentWorkbookSummary {
   itemCount: number
   authorId: string | null
   authorName: string | null
+  /** 담당 교사(문제집 목록의 작성자 열과 동일한 `teacher_id`) */
+  teacherId: string | null
+  teacherName: string | null
 }
 
 export interface AssignmentStudentSummary {

@@ -27,7 +27,9 @@ type WorkbookRow = {
   updated_at: string
   workbook_items: Array<{ count: number }>
   author_id: string | null
+  teacher_id: string | null
   profiles: { id: string; name: string | null } | { id: string; name: string | null }[] | null
+  teacher: { id: string; name: string | null } | { id: string; name: string | null }[] | null
 }
 
 type ClassTeacherRow = {
@@ -101,7 +103,9 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
 
   const { data: workbookData, error: workbookError } = await supabase
     .from('workbooks')
-    .select('id, title, subject, type, week_label, tags, updated_at, workbook_items(count), author_id, profiles!workbooks_author_id_fkey(id, name)')
+    .select(
+      'id, title, subject, type, week_label, tags, updated_at, workbook_items(count), author_id, teacher_id, profiles!workbooks_author_id_fkey(id, name), teacher:profiles!workbooks_teacher_id_fkey(id, name)'
+    )
     .order('updated_at', { ascending: false })
 
   if (workbookError) {
@@ -138,18 +142,23 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
   const _preselectedWorkbookId = typeof _rawWorkbookId === 'string' ? _rawWorkbookId : Array.isArray(_rawWorkbookId) ? _rawWorkbookId[0] : null
 
   const workbookRows = (workbookData ?? []) as WorkbookRow[]
-  const workbookSummaries: AssignmentWorkbookSummary[] = workbookRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    subject: row.subject,
-    type: row.type,
-    weekLabel: row.week_label ?? null,
-    tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-    updatedAt: row.updated_at,
-    itemCount: row.workbook_items?.[0]?.count ?? 0,
-    authorId: row.author_id ?? null,
-    authorName: (Array.isArray(row.profiles) ? row.profiles[0]?.name : row.profiles?.name) ?? null,
-  }))
+  const workbookSummaries: AssignmentWorkbookSummary[] = workbookRows.map((row) => {
+    const teacherRecord = Array.isArray(row.teacher) ? row.teacher[0] : row.teacher
+    return {
+      id: row.id,
+      title: row.title,
+      subject: row.subject,
+      type: row.type,
+      weekLabel: row.week_label ?? null,
+      tags: Array.isArray(row.tags) ? row.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+      updatedAt: row.updated_at,
+      itemCount: row.workbook_items?.[0]?.count ?? 0,
+      authorId: row.author_id ?? null,
+      authorName: (Array.isArray(row.profiles) ? row.profiles[0]?.name : row.profiles?.name) ?? null,
+      teacherId: row.teacher_id ?? null,
+      teacherName: teacherRecord?.name ?? null,
+    }
+  })
 
   const classInfoMap = new Map<string, { name: string; description: string | null }>()
   const classIdSet = new Set<string>()
