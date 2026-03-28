@@ -47,6 +47,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
                         <Table>
                             <TableHeader>
                                 <TableRow>
+                                    <TableHead className="w-14 text-center">번호</TableHead>
                                     <TableHead className="w-[100px]">신청자</TableHead>
                                     <TableHead className="w-[180px]">신청일시</TableHead>
                                     {config?.fields.map((field) => (
@@ -59,8 +60,11 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {applications.map((app) => (
+                                {applications.map((app, index) => (
                                     <TableRow key={app.id}>
+                                        <TableCell className="text-center text-slate-600 tabular-nums">
+                                            {index + 1}
+                                        </TableCell>
                                         <TableCell className="font-medium">
                                             {app.applicant.name}
                                             <span className="ml-1 text-xs text-slate-500">({app.applicant.role === 'student' ? '학생' : '선생님'})</span>
@@ -92,7 +96,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
                                 ))}
                                 {applications.length === 0 && (
                                     <TableRow>
-                                        <TableCell colSpan={2 + (config?.fields.length ?? 0) + 2} className="h-24 text-center text-slate-500">
+                                        <TableCell colSpan={5 + (config?.fields.length ?? 0)} className="h-24 text-center text-slate-500">
                                             신청 내역이 없습니다.
                                         </TableCell>
                                     </TableRow>

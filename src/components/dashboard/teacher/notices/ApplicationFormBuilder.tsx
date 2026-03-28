@@ -103,7 +103,12 @@ export function ApplicationFormBuilder({ config, onChange, disabled }: Applicati
                                                 />
                                                 <Select
                                                     value={field.type}
-                                                    onValueChange={(value) => handleUpdateField(field.id, { type: value as ApplicationFieldType })}
+                                                    onValueChange={(value) =>
+                                                        handleUpdateField(field.id, {
+                                                            type: value as ApplicationFieldType,
+                                                            ...(value !== "checkbox" ? { checkboxGroupId: undefined } : {}),
+                                                        })
+                                                    }
                                                 >
                                                     <SelectTrigger className="h-8 text-sm">
                                                         <SelectValue />
@@ -134,6 +139,27 @@ export function ApplicationFormBuilder({ config, onChange, disabled }: Applicati
                                                 placeholder="옵션 입력 (쉼표로 구분, 예: S, M, L, XL)"
                                                 className="h-8 text-sm"
                                             />
+                                        )}
+
+                                        {field.type === "checkbox" && (
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-slate-600">선택 그룹 ID</Label>
+                                                <Input
+                                                    value={field.checkboxGroupId ?? ""}
+                                                    onChange={(e) =>
+                                                        handleUpdateField(field.id, {
+                                                            checkboxGroupId:
+                                                                e.target.value === "" ? undefined : e.target.value,
+                                                        })
+                                                    }
+                                                    placeholder="같은 값이면 하나만 체크해도 됨 (예: 수강반)"
+                                                    className="h-8 text-sm"
+                                                    disabled={disabled}
+                                                />
+                                                <p className="text-[11px] text-slate-500">
+                                                    여러 체크박스에 동일한 그룹 ID를 넣으면, 그중 하나만 동의해도 신청할 수 있습니다.
+                                                </p>
+                                            </div>
                                         )}
 
                                         <div className="flex items-center gap-4">

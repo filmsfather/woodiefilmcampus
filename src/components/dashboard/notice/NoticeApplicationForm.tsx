@@ -111,12 +111,25 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
         )
     }
 
+    const hasGroupedCheckboxChoice = config.fields.some((f) => {
+        const gid = f.type === "checkbox" ? f.checkboxGroupId?.trim() : ""
+        if (!gid) return false
+        return config.fields.filter(
+            (x) => x.type === "checkbox" && (x.checkboxGroupId?.trim() ?? "") === gid,
+        ).length > 1
+    })
+
     return (
         <Card className="border-slate-200">
             <CardHeader>
                 <CardTitle className="text-lg text-slate-900">신청하기</CardTitle>
-                <CardDescription>
-                    이 공지는 신청이 필요합니다. 아래 내용을 작성하여 제출해주세요.
+                <CardDescription className="space-y-2">
+                    <span className="block">이 공지는 신청이 필요합니다. 아래 내용을 작성하여 제출해주세요.</span>
+                    {hasGroupedCheckboxChoice ? (
+                        <span className="block text-slate-600">
+                            같은 그룹으로 묶인 일정은 그중 하나만 선택해도 됩니다.
+                        </span>
+                    ) : null}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -129,9 +142,11 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
                     <div className="space-y-4">
                         {config.fields.map((field) => (
                             <div key={field.id} className="space-y-2">
-                                <Label className={field.required ? "after:content-['*'] after:ml-0.5 after:text-rose-500" : ""}>
-                                    {field.label}
-                                </Label>
+                                {field.type !== "checkbox" ? (
+                                    <Label className={field.required ? "after:content-['*'] after:ml-0.5 after:text-rose-500" : ""}>
+                                        {field.label}
+                                    </Label>
+                                ) : null}
 
                                 {field.type === 'text' && (
                                     <Input
@@ -173,18 +188,28 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
                                 )}
 
                                 {field.type === 'checkbox' && (
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex items-start gap-2">
                                         <Checkbox
                                             id={field.id}
+                                            className="mt-1 shrink-0"
                                             checked={(formData[field.id] as boolean) ?? false}
                                             onChange={(e) => handleChange(field.id, e.target.checked)}
                                             disabled={isPending}
                                         />
                                         <label
                                             htmlFor={field.id}
-                                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                            className="text-sm font-medium leading-relaxed text-slate-900 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                                         >
-                                            동의합니다
+                                            <span
+                                                className={
+                                                    field.required
+                                                        ? "after:ml-0.5 after:text-rose-500 after:content-['*']"
+                                                        : ""
+                                                }
+                                            >
+                                                {field.label}
+                                            </span>
+                                            <span className="font-normal text-slate-600">에 동의합니다</span>
                                         </label>
                                     </div>
                                 )}
