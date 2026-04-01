@@ -38,6 +38,7 @@ export interface NoticeSummaryItem {
   viewerAcknowledgedAt: string | null
   viewerIsAuthor: boolean
   isApplicationRequired: boolean
+  applicationClosedAt: string | null
 }
 
 export interface NoticeAttachment {
@@ -101,6 +102,7 @@ type NoticePostRow = {
   notice_post_attachments?: NoticeAttachmentRow[] | null
   is_application_required?: boolean
   application_config?: unknown | null
+  application_closed_at?: string | null
 }
 
 export function normalizeRichText(value: string): string {
@@ -199,6 +201,7 @@ function mapNoticeSummary(row: NoticePostRow, viewerId: string): NoticeSummaryIt
     viewerAcknowledgedAt: viewerRecipient?.acknowledgedAt ?? null,
     viewerIsAuthor: author?.id === viewerId,
     isApplicationRequired: row.is_application_required ?? false,
+    applicationClosedAt: row.application_closed_at ?? null,
   }
 }
 
@@ -212,6 +215,7 @@ export async function fetchNoticeSummaries(
       `id,
        title,
        is_application_required,
+       application_closed_at,
        created_at,
        updated_at,
        author:profiles!notice_posts_author_id_fkey(id, name, email, role),
@@ -275,6 +279,7 @@ export async function fetchNoticeDetail(
        body,
        is_application_required,
        application_config,
+       application_closed_at,
        created_at,
        updated_at,
        author:profiles!notice_posts_author_id_fkey(id, name, email, role),
@@ -404,6 +409,7 @@ export async function fetchUnreadNotices(
       `id,
        title,
        is_application_required,
+       application_closed_at,
        created_at,
        updated_at,
        author:profiles!notice_posts_author_id_fkey(id, name, email, role),

@@ -13,6 +13,7 @@ import {
 } from '@/lib/notice-board'
 import { ApplicationConfig, ApplicationConfigSchema, ApplicationFormData, validateApplicationForm } from '@/lib/notice-application'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 interface ActionResult {
   success?: boolean
@@ -692,10 +693,9 @@ export async function applyNotice(noticeId: string, formData: ApplicationFormDat
 
   const supabase = await createServerSupabase()
 
-  // Fetch notice to check config
   const { data: notice, error: noticeError } = await supabase
     .from('notice_posts')
-    .select('is_application_required, application_config')
+    .select('is_application_required, application_config, application_closed_at')
     .eq('id', noticeId)
     .single()
 
@@ -705,6 +705,10 @@ export async function applyNotice(noticeId: string, formData: ApplicationFormDat
 
   if (!notice.is_application_required) {
     return { error: '신청이 필요한 공지가 아닙니다.' }
+  }
+
+  if (notice.application_closed_at) {
+    return { error: '신청이 마감된 공지입니다.' }
   }
 
   const config = notice.application_config as unknown as ApplicationConfig
@@ -787,15 +791,110 @@ export async function cancelApplication(noticeId: string): Promise<ActionResult>
 
   const supabase = await createServerSupabase()
 
-  const { error } = await supabase
-    .from('notice_applications')
+  const { data: notice } = await supabase
+    .from('notice_posts')
+    .select('application_closed_at')
+    .eq('id', noticeId)
+    .maybeSingle()
+
+  if (notice?.application_closed_at) {
+    return { error: '신청이 마감되어 취소할 수 없습니다.' }
+  }
+
+  const { error, data: deletedRows } = await supabase
+    .from("notice_applications")
     .delete()
-    .eq('notice_id', noticeId)
-    .eq('applicant_id', profile.id)
+    .eq("notice_id", noticeId)
+    .eq("applicant_id", profile.id)
+    .select("id")
 
   if (error) {
     console.error('[notice-board] failed to cancel application', error)
     return { error: '신청 취소에 실패했습니다.' }
+  }
+
+  if (!Array.isArray(deletedRows) || deletedRows.length === 0) {
+    return { error: '신청 취소에 실패했습니다. 잠시 후 다시 시도해주세요.' }
+  }
+
+  revalidateNoticePaths(noticeId)
+  return { success: true }
+}
+
+const STAFF_ROLES = new Set(['teacher', 'manager', 'principal'])
+
+export async function closeNoticeApplications(noticeId: string): Promise<ActionResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.role || !STAFF_ROLES.has(profile.role)) {
+    return { error: '신청 마감 권한이 없습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: notice } = await admin
+    .from('notice_posts')
+    .select('is_application_required, application_closed_at')
+    .eq('id', noticeId)
+    .maybeSingle()
+
+  if (!notice) {
+    return { error: '공지를 찾을 수 없습니다.' }
+  }
+
+  if (!notice.is_application_required) {
+    return { error: '신청이 필요한 공지가 아닙니다.' }
+  }
+
+  if (notice.application_closed_at) {
+    return { error: '이미 마감된 공지입니다.' }
+  }
+
+  const { error: updateError } = await admin
+    .from('notice_posts')
+    .update({ application_closed_at: new Date().toISOString() })
+    .eq('id', noticeId)
+
+  if (updateError) {
+    console.error('[notice-board] failed to close applications', updateError)
+    return { error: '신청 마감 처리에 실패했습니다.' }
+  }
+
+  revalidateNoticePaths(noticeId)
+  return { success: true }
+}
+
+export async function reopenNoticeApplications(noticeId: string): Promise<ActionResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile?.role || !STAFF_ROLES.has(profile.role)) {
+    return { error: '신청 마감 해제 권한이 없습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: notice } = await admin
+    .from('notice_posts')
+    .select('is_application_required, application_closed_at')
+    .eq('id', noticeId)
+    .maybeSingle()
+
+  if (!notice) {
+    return { error: '공지를 찾을 수 없습니다.' }
+  }
+
+  if (!notice.application_closed_at) {
+    return { error: '마감되지 않은 공지입니다.' }
+  }
+
+  const { error: updateError } = await admin
+    .from('notice_posts')
+    .update({ application_closed_at: null })
+    .eq('id', noticeId)
+
+  if (updateError) {
+    console.error('[notice-board] failed to reopen applications', updateError)
+    return { error: '마감 해제 처리에 실패했습니다.' }
   }
 
   revalidateNoticePaths(noticeId)

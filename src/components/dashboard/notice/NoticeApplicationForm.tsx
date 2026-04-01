@@ -79,10 +79,17 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
                 <CardHeader>
                     <CardTitle className="text-lg text-primary">신청 완료</CardTitle>
                     <CardDescription>
-                        신청이 접수되었습니다. 내용을 수정하려면 취소 후 다시 신청해주세요.
+                        {isDeadlinePassed
+                            ? '신청이 마감되었습니다. 접수된 내용은 아래에서 확인할 수 있습니다.'
+                            : '신청이 접수되었습니다. 내용을 수정하려면 취소 후 다시 신청해주세요.'}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {error ? (
+                        <Alert variant="destructive">
+                            <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                    ) : null}
                     <div className="space-y-4 rounded-md border border-primary/10 bg-white p-4">
                         {config.fields.map((field) => (
                             <div key={field.id} className="space-y-1">
@@ -95,18 +102,33 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
                             </div>
                         ))}
                     </div>
-                    <div className="flex justify-end">
-                        <Button
-                            variant="outline"
-                            onClick={handleCancel}
-                            disabled={isPending || isDeadlinePassed}
-                            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
-                        >
-                            {isPending ? <LoadingSpinner className="mr-2 h-4 w-4" /> : null}
-                            신청 취소
-                        </Button>
-                    </div>
+                    {!isDeadlinePassed && (
+                        <div className="flex justify-end">
+                            <Button
+                                variant="outline"
+                                onClick={handleCancel}
+                                disabled={isPending}
+                                className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200"
+                            >
+                                {isPending ? <LoadingSpinner className="mr-2 h-4 w-4" /> : null}
+                                신청 취소
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
+            </Card>
+        )
+    }
+
+    if (isDeadlinePassed) {
+        return (
+            <Card className="border-slate-200 bg-slate-50">
+                <CardHeader>
+                    <CardTitle className="text-lg text-slate-600">신청 마감</CardTitle>
+                    <CardDescription>
+                        이 공지의 신청이 마감되었습니다.
+                    </CardDescription>
+                </CardHeader>
             </Card>
         )
     }

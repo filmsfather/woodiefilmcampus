@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import ApplicationMemoCell from '@/components/dashboard/notice/ApplicationMemoCell'
+import { CloseApplicationButton } from '@/components/dashboard/notice/CloseApplicationButton'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -31,14 +32,24 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
 
     const applications = await fetchNoticeApplications(supabase, noticeId)
     const config = notice.applicationConfig
-
+    const isApplicationClosed = !!notice.applicationClosedAt
 
     return (
         <section className="space-y-6">
             <DashboardBackLink fallbackHref={`/dashboard/teacher/notices/${notice.id}`} label="공지 상세로 돌아가기" />
-            <div className="space-y-1">
-                <h1 className="text-2xl font-semibold text-slate-900">{notice.title} - 신청 현황</h1>
-                <p className="text-sm text-slate-600">총 {applications.length}명이 신청했습니다.</p>
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                        <h1 className="text-2xl font-semibold text-slate-900">{notice.title} - 신청 현황</h1>
+                        {isApplicationClosed && <Badge variant="destructive">마감</Badge>}
+                    </div>
+                    <p className="text-sm text-slate-600">총 {applications.length}명이 신청했습니다.</p>
+                </div>
+                <CloseApplicationButton
+                    noticeId={notice.id}
+                    isClosed={isApplicationClosed}
+                    closedAt={notice.applicationClosedAt}
+                />
             </div>
 
             <Card className="border-slate-200">

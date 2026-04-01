@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { NoticeDetail, fetchNoticeApplication } from '@/lib/notice-board'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { CloseApplicationButton } from './CloseApplicationButton'
 import { NoticeApplicationForm } from './NoticeApplicationForm'
 
 function formatKoreanDate(dateIso: string) {
@@ -44,6 +45,8 @@ export async function NoticeDetailView({ notice, viewerId, viewerRole, backLink,
     }
 
     const canManageNotice = viewerRole === 'principal' || notice.author.id === viewerId
+    const isStaff = viewerRole === 'teacher' || viewerRole === 'manager' || viewerRole === 'principal'
+    const isApplicationClosed = !!notice.applicationClosedAt
     const viewerRecipient = notice.recipients.find((recipient) => recipient.isViewer)
     const canAcknowledge = Boolean(viewerRecipient && !viewerRecipient.acknowledgedAt && !notice.viewerIsAuthor)
     const shouldRenderAcknowledgement = Boolean(viewerRecipient)
@@ -65,17 +68,27 @@ export async function NoticeDetailView({ notice, viewerId, viewerRole, backLink,
                 <div className="space-y-1">
                     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <h1 className="text-2xl font-semibold text-slate-900">{notice.title}</h1>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             <Badge variant={acknowledgementVariant}>{acknowledgementLabel}</Badge>
+                            {notice.isApplicationRequired && isApplicationClosed && (
+                                <Badge variant="destructive">신청 마감됨</Badge>
+                            )}
                             {canManageNotice && (
                                 <Button asChild variant="outline" size="sm">
                                     <Link href={`/dashboard/teacher/notices/${notice.id}/edit`}>공지 수정</Link>
                                 </Button>
                             )}
-                            {(viewerRole === 'teacher' || viewerRole === 'manager' || viewerRole === 'principal') && notice.isApplicationRequired && (
+                            {isStaff && notice.isApplicationRequired && (
                                 <Button asChild variant="default" size="sm">
                                     <Link href={`/dashboard/teacher/notices/${notice.id}/applications`}>신청 현황</Link>
                                 </Button>
+                            )}
+                            {isStaff && notice.isApplicationRequired && (
+                                <CloseApplicationButton
+                                    noticeId={notice.id}
+                                    isClosed={isApplicationClosed}
+                                    closedAt={notice.applicationClosedAt}
+                                />
                             )}
                         </div>
                     </div>
@@ -162,6 +175,7 @@ export async function NoticeDetailView({ notice, viewerId, viewerRole, backLink,
                     noticeId={notice.id}
                     config={notice.applicationConfig}
                     initialData={applicationData}
+                    isDeadlinePassed={isApplicationClosed}
                 />
             )}
 
