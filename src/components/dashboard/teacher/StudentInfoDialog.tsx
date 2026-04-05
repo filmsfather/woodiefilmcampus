@@ -35,6 +35,7 @@ interface StudentInfo {
 interface StudentInfoDialogProps {
     student: StudentInfo
     children: React.ReactNode
+    assignedClassNames?: string[]
 }
 
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024 // 5MB
@@ -44,7 +45,7 @@ function buildProfilePhotoPath(studentId: string) {
     return `students/${studentId}/${Date.now()}.jpg`
 }
 
-export function StudentInfoDialog({ student, children }: StudentInfoDialogProps) {
+export function StudentInfoDialog({ student, children, assignedClassNames }: StudentInfoDialogProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -231,12 +232,18 @@ export function StudentInfoDialog({ student, children }: StudentInfoDialogProps)
                             )}
                         </div>
 
-                        {/* 이름 및 이메일 */}
                         <div className="flex-1 pt-2">
-                            <DialogTitle className="flex items-center gap-2">
-                                {student.name}
-                            </DialogTitle>
-                            <DialogDescription>{student.email}</DialogDescription>
+                            <DialogTitle>{student.name}</DialogTitle>
+                            <DialogDescription className="sr-only">{student.name} 학생 정보</DialogDescription>
+                            {assignedClassNames && assignedClassNames.length > 0 && (
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                    {assignedClassNames.map((name) => (
+                                        <span key={name} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                            {name}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </DialogHeader>

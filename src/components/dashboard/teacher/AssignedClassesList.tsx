@@ -15,6 +15,15 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
         return null
     }
 
+    const studentClassMap = new Map<string, string[]>()
+    for (const c of data) {
+        for (const s of c.students) {
+            const names = studentClassMap.get(s.id) ?? []
+            names.push(c.name)
+            studentClassMap.set(s.id, names)
+        }
+    }
+
     return (
         <section className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">내 반 정보</h2>
@@ -37,7 +46,7 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                                     구성원 ({c.students.length}명)
                                 </p>
                                 {c.students.length > 0 ? (
-                                    <StudentGridClient students={c.students} />
+                                    <StudentGridClient students={c.students} studentClassMap={studentClassMap} />
                                 ) : (
                                     <p className="text-sm text-slate-400">등록된 학생이 없습니다.</p>
                                 )}

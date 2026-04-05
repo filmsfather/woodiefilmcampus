@@ -22,13 +22,14 @@ interface StudentGridStudent {
 
 interface StudentGridClientProps {
     students: StudentGridStudent[]
+    studentClassMap?: Map<string, string[]>
 }
 
-export function StudentGridClient({ students }: StudentGridClientProps) {
+export function StudentGridClient({ students, studentClassMap }: StudentGridClientProps) {
     return (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
             {students.map((student) => (
-                <StudentInfoDialog key={student.id} student={student}>
+                <StudentInfoDialog key={student.id} student={student} assignedClassNames={studentClassMap?.get(student.id)}>
                     <button
                         type="button"
                         className="group flex flex-col items-center gap-2 rounded-lg p-2 transition-colors hover:bg-slate-100"
