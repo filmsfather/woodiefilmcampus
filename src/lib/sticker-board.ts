@@ -25,12 +25,27 @@ const STICKER_CUTOFF = '2026-03-09T00:00:00+09:00'
 export async function fetchStickerBoard(): Promise<StickerBoardStudent[]> {
   const admin = createAdminClient()
 
+  const fetchAllNotes = async () => {
+    const all: { student_id: unknown }[] = []
+    const pageSize = 1000
+    let from = 0
+    for (;;) {
+      const { data, error } = await admin
+        .from('film_notes')
+        .select('student_id')
+        .eq('completed', true)
+        .gte('created_at', STICKER_CUTOFF)
+        .range(from, from + pageSize - 1)
+      if (error) return { data: null, error }
+      all.push(...(data ?? []))
+      if (!data || data.length < pageSize) break
+      from += pageSize
+    }
+    return { data: all, error: null }
+  }
+
   const [notesResult, profilesResult] = await Promise.all([
-    admin
-      .from('film_notes')
-      .select('student_id')
-      .eq('completed', true)
-      .gte('created_at', STICKER_CUTOFF),
+    fetchAllNotes(),
     admin
       .from('profiles')
       .select('id, name')
