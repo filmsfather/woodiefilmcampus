@@ -365,6 +365,17 @@ export function WorkLogReviewClient({
                             >
                               {expandedId === entry.id ? '닫기' : '상세 보기'}
                             </Button>
+                            {entry.reviewStatus === 'approved' && (
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleDecision(entry, 'reject')}
+                                disabled={isPending}
+                              >
+                                반려
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
