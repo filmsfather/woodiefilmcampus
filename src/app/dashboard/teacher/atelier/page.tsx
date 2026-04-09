@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchAtelierPosts } from '@/lib/atelier-posts'
+import { fetchExcellentMonths, getPostExcellenceMap } from '@/lib/atelier-excellent'
 import { AtelierPostList } from '@/components/dashboard/atelier/AtelierPostList'
 import { AtelierFiltersForm, FILTER_VALUE } from '@/components/dashboard/atelier/AtelierFiltersForm'
 import { AtelierPagination } from '@/components/dashboard/atelier/AtelierPagination'
@@ -62,17 +63,24 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
   const featuredOnly = isFeatured(searchParams.featured)
   const studentName = parseSearchText(searchParams.student)
 
-  const data = await fetchAtelierPosts({
-    viewerId: profile.id,
-    viewerRole: profile.role,
-    page,
-    perPage: 50,
-    weekLabel,
-    classId,
-    subject,
-    featuredOnly,
-    studentName,
-  })
+  const [data, months] = await Promise.all([
+    fetchAtelierPosts({
+      viewerId: profile.id,
+      viewerRole: profile.role,
+      page,
+      perPage: 50,
+      weekLabel,
+      classId,
+      subject,
+      featuredOnly,
+      studentName,
+    }),
+    fetchExcellentMonths(),
+  ])
+
+  const postIds = data.items.map((item) => item.id)
+  const excellenceMapRaw = await getPostExcellenceMap(postIds)
+  const excellenceMap = Object.fromEntries(excellenceMapRaw)
 
   return (
     <section className="flex flex-col gap-6">
@@ -98,7 +106,13 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
         <span>페이지당 {data.perPage}건</span>
       </div>
 
-      <AtelierPostList items={data.items} viewerId={profile.id} viewerRole={profile.role} />
+      <AtelierPostList
+        items={data.items}
+        viewerId={profile.id}
+        viewerRole={profile.role}
+        excellentMonths={months}
+        postExcellenceMap={excellenceMap}
+      />
 
       <AtelierPagination
         basePath="/dashboard/teacher/atelier"

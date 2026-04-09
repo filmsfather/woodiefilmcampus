@@ -5,6 +5,13 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { deleteAtelierPost, setAtelierPostFeatured, setAtelierPostHidden } from '@/lib/atelier-posts'
+import {
+  addExcellentMonth,
+  fetchExcellentMonths,
+  selectExcellentPost,
+  removeExcellentPost,
+  type ExcellentMonth,
+} from '@/lib/atelier-excellent'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const toggleHiddenSchema = z.object({
@@ -229,4 +236,98 @@ export async function getAtelierAttachmentDownload(input: z.infer<typeof downloa
     console.error('[atelier] unexpected signed url error', error)
     return { success: false as const, error: '다운로드 URL 생성 중 오류가 발생했습니다.' }
   }
+}
+
+// ── 우수작 관련 서버 액션 ──
+
+const STAFF_ROLES = ['teacher', 'manager', 'principal']
+
+function isStaff(role: string): boolean {
+  return STAFF_ROLES.includes(role)
+}
+
+const selectExcellentSchema = z.object({
+  postId: z.string().uuid(),
+  monthId: z.string().uuid(),
+})
+
+export async function selectAsExcellent(input: z.infer<typeof selectExcellentSchema>) {
+  const parsed = selectExcellentSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false as const, error: '잘못된 요청입니다.' }
+  }
+
+  const { profile } = await getAuthContext()
+  if (!profile || !isStaff(profile.role)) {
+    return { success: false as const, error: '교직원만 우수작을 선정할 수 있습니다.' }
+  }
+
+  const result = await selectExcellentPost(parsed.data.monthId, parsed.data.postId, profile.id)
+  if (result.success) {
+    revalidateAtelierPaths()
+  }
+  return result
+}
+
+const removeExcellentSchema = z.object({
+  postId: z.string().uuid(),
+  monthId: z.string().uuid(),
+})
+
+export async function removeFromExcellent(input: z.infer<typeof removeExcellentSchema>) {
+  const parsed = removeExcellentSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false as const, error: '잘못된 요청입니다.' }
+  }
+
+  const { profile } = await getAuthContext()
+  if (!profile || !isStaff(profile.role)) {
+    return { success: false as const, error: '교직원만 우수작을 해제할 수 있습니다.' }
+  }
+
+  const result = await removeExcellentPost(parsed.data.monthId, parsed.data.postId)
+  if (result.success) {
+    revalidateAtelierPaths()
+  }
+  return result
+}
+
+const createExcellentMonthSchema = z.object({
+  label: z.string().min(1).max(50),
+  year: z.number().int().min(2020).max(2100),
+  month: z.number().int().min(1).max(12),
+})
+
+export async function createExcellentMonthAction(
+  input: z.infer<typeof createExcellentMonthSchema>
+): Promise<{ success: true; month: ExcellentMonth } | { success: false; error: string }> {
+  const parsed = createExcellentMonthSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: '입력값이 올바르지 않습니다.' }
+  }
+
+  const { profile } = await getAuthContext()
+  if (!profile || !isStaff(profile.role)) {
+    return { success: false, error: '교직원만 달을 추가할 수 있습니다.' }
+  }
+
+  const result = await addExcellentMonth(
+    parsed.data.label,
+    parsed.data.year,
+    parsed.data.month,
+    profile.id
+  )
+
+  if (result.success) {
+    revalidateAtelierPaths()
+  }
+  return result
+}
+
+export async function fetchExcellentMonthsAction(): Promise<ExcellentMonth[]> {
+  const { profile } = await getAuthContext()
+  if (!profile) {
+    return []
+  }
+  return fetchExcellentMonths()
 }

@@ -3,9 +3,11 @@ import Link from 'next/link'
 
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchAtelierPosts } from '@/lib/atelier-posts'
+import { fetchExcellentPostsByMonth } from '@/lib/atelier-excellent'
 import { AtelierPostList } from '@/components/dashboard/atelier/AtelierPostList'
 import { AtelierFiltersForm, FILTER_VALUE } from '@/components/dashboard/atelier/AtelierFiltersForm'
 import { AtelierPagination } from '@/components/dashboard/atelier/AtelierPagination'
+import { AtelierExcellentShowcase } from '@/components/dashboard/atelier/AtelierExcellentShowcase'
 import { Button } from '@/components/ui/button'
 
 export const metadata: Metadata = {
@@ -64,17 +66,20 @@ export default async function StudentAtelierPage(props: StudentAtelierPageProps)
   const featuredOnly = isFeatured(searchParams.featured)
   const studentName = parseSearchText(searchParams.student)
 
-  const data = await fetchAtelierPosts({
-    viewerId: profile.id,
-    viewerRole: profile.role,
-    page,
-    perPage: 50,
-    weekLabel,
-    classId,
-    subject,
-    featuredOnly,
-    studentName,
-  })
+  const [data, excellentGroups] = await Promise.all([
+    fetchAtelierPosts({
+      viewerId: profile.id,
+      viewerRole: profile.role,
+      page,
+      perPage: 50,
+      weekLabel,
+      classId,
+      subject,
+      featuredOnly,
+      studentName,
+    }),
+    fetchExcellentPostsByMonth(),
+  ])
 
   return (
     <section className="flex flex-col gap-6">
@@ -98,6 +103,8 @@ export default async function StudentAtelierPage(props: StudentAtelierPageProps)
       <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
         추천 버튼을 누르면 교사의 추천 코멘트를 볼 수 있습니다.
       </p>
+
+      <AtelierExcellentShowcase groups={excellentGroups} viewerId={profile.id} />
 
       <div className="flex justify-end">
         <Button asChild size="sm" variant="ghost">

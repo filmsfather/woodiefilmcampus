@@ -3,16 +3,27 @@
 import { useMemo, useState, useTransition } from 'react'
 import type { FormEvent, ReactElement } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, Eye, EyeOff, Loader2, Sparkles, Star, Trash2 } from 'lucide-react'
+import { Download, Eye, EyeOff, Loader2, Sparkles, Star, Trash2, Trophy, Plus } from 'lucide-react'
 
 import type { AtelierPostListItem } from '@/lib/atelier-posts'
+import type { ExcellentMonth, PostExcellenceEntry } from '@/lib/atelier-excellent'
 import type { UserRole } from '@/types/user'
-import { toggleAtelierFeatured, toggleAtelierHidden, removeAtelierPost, getAtelierAttachmentDownload } from '@/app/dashboard/atelier/actions'
+import {
+  toggleAtelierFeatured,
+  toggleAtelierHidden,
+  removeAtelierPost,
+  getAtelierAttachmentDownload,
+  selectAsExcellent,
+  removeFromExcellent,
+  createExcellentMonthAction,
+} from '@/app/dashboard/atelier/actions'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Table,
   TableBody,
@@ -26,6 +37,8 @@ interface AtelierPostListProps {
   items: AtelierPostListItem[]
   viewerId: string
   viewerRole: UserRole
+  excellentMonths?: ExcellentMonth[]
+  postExcellenceMap?: Record<string, PostExcellenceEntry>
 }
 
 type PendingAction = {
@@ -73,7 +86,13 @@ function formatDateTimeFull(value: string) {
   }
 }
 
-export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostListProps) {
+export function AtelierPostList({
+  items,
+  viewerId,
+  viewerRole,
+  excellentMonths: initialMonths,
+  postExcellenceMap: initialExcellenceMap,
+}: AtelierPostListProps) {
   const router = useRouter()
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -85,6 +104,13 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
   const [viewCommentItem, setViewCommentItem] = useState<AtelierPostListItem | null>(null)
   const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  const [excellentMonths, setExcellentMonths] = useState<ExcellentMonth[]>(initialMonths ?? [])
+  const [excellenceMap, setExcellenceMap] = useState<Record<string, PostExcellenceEntry>>(initialExcellenceMap ?? {})
+  const [excellentPopoverOpen, setExcellentPopoverOpen] = useState(false)
+  const [excellentPending, setExcellentPending] = useState(false)
+  const [addMonthMode, setAddMonthMode] = useState(false)
+  const [newMonthLabel, setNewMonthLabel] = useState('')
 
   const isTeacherView = viewerRole !== 'student'
 
@@ -216,6 +242,77 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
       }
       setPendingAction(null)
       router.refresh()
+    })
+  }
+
+  const handleSelectExcellent = (postId: string, monthId: string) => {
+    setExcellentPending(true)
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await selectAsExcellent({ postId, monthId })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '우수작 선정에 실패했습니다.')
+      } else {
+        const selectedMonth = excellentMonths.find((m) => m.id === monthId)
+        if (selectedMonth) {
+          setExcellenceMap((prev) => ({
+            ...prev,
+            [postId]: { monthId, monthLabel: selectedMonth.label },
+          }))
+        }
+      }
+      setExcellentPending(false)
+      setExcellentPopoverOpen(false)
+      router.refresh()
+    })
+  }
+
+  const handleRemoveExcellent = (postId: string, monthId: string) => {
+    setExcellentPending(true)
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await removeFromExcellent({ postId, monthId })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '우수작 해제에 실패했습니다.')
+      } else {
+        setExcellenceMap((prev) => {
+          const next = { ...prev }
+          delete next[postId]
+          return next
+        })
+      }
+      setExcellentPending(false)
+      router.refresh()
+    })
+  }
+
+  const handleAddMonth = () => {
+    const trimmed = newMonthLabel.trim()
+    if (!trimmed) return
+
+    const now = new Date()
+    const monthMatch = trimmed.match(/(\d{1,2})/)
+    const monthNum = monthMatch ? parseInt(monthMatch[1], 10) : now.getMonth() + 1
+    const year = monthNum < now.getMonth() + 1 ? now.getFullYear() + 1 : now.getFullYear()
+
+    setExcellentPending(true)
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await createExcellentMonthAction({
+        label: trimmed,
+        year,
+        month: monthNum,
+      })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '달 추가에 실패했습니다.')
+      } else {
+        setExcellentMonths((prev) =>
+          [result.month, ...prev].sort((a, b) => b.year - a.year || b.month - a.month)
+        )
+      }
+      setExcellentPending(false)
+      setAddMonthMode(false)
+      setNewMonthLabel('')
     })
   }
 
@@ -412,6 +509,12 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
                             </Button>
                           )
                         ) : null}
+                        {excellenceMap[item.id] ? (
+                          <Badge className="bg-yellow-100 text-yellow-800">
+                            <Trophy className="mr-1 h-3 w-3" />
+                            {excellenceMap[item.id].monthLabel} 우수작
+                          </Badge>
+                        ) : null}
                         {hidden ? (
                           <Badge variant="outline" className="text-slate-500">
                             숨김
@@ -477,21 +580,126 @@ export function AtelierPostList({ items, viewerId, viewerRole }: AtelierPostList
             </div>
 
             {featureDialogState?.item.isFeatured ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="self-start"
-                onClick={() => (featureDialogState ? handleUnfeature(featureDialogState.item.id) : undefined)}
-                disabled={!featureDialogState || isPending}
-              >
-                {isDialogUnfeaturePending ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <Star className="mr-1 h-4 w-4" />
-                )}
-                추천 해제
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => (featureDialogState ? handleUnfeature(featureDialogState.item.id) : undefined)}
+                  disabled={!featureDialogState || isPending}
+                >
+                  {isDialogUnfeaturePending ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Star className="mr-1 h-4 w-4" />
+                  )}
+                  추천 해제
+                </Button>
+
+                {isTeacherView && featureDialogState ? (() => {
+                  const postId = featureDialogState.item.id
+                  const currentExcellence = excellenceMap[postId]
+
+                  if (currentExcellence) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-amber-100 text-amber-800">
+                          <Trophy className="mr-1 h-3 w-3" />
+                          {currentExcellence.monthLabel} 우수작
+                        </Badge>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveExcellent(postId, currentExcellence.monthId)}
+                          disabled={excellentPending || isPending}
+                        >
+                          {excellentPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trophy className="mr-1 h-4 w-4" />}
+                          우수작 해제
+                        </Button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <Popover
+                      open={excellentPopoverOpen}
+                      onOpenChange={(open) => {
+                        setExcellentPopoverOpen(open)
+                        if (!open) {
+                          setAddMonthMode(false)
+                          setNewMonthLabel('')
+                        }
+                      }}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button type="button" size="sm" variant="outline" className="gap-1">
+                          <Trophy className="h-4 w-4" />
+                          우수작 선정
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="start">
+                        <div className="flex flex-col gap-1">
+                          <p className="px-2 py-1 text-xs font-medium text-slate-500">월 선택</p>
+                          {excellentMonths.length === 0 && !addMonthMode ? (
+                            <p className="px-2 py-1 text-xs text-slate-400">등록된 달이 없습니다.</p>
+                          ) : null}
+                          {excellentMonths.map((m) => (
+                            <Button
+                              key={m.id}
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="justify-start text-sm"
+                              disabled={excellentPending}
+                              onClick={() => handleSelectExcellent(postId, m.id)}
+                            >
+                              {m.label}
+                            </Button>
+                          ))}
+                          {addMonthMode ? (
+                            <div className="flex items-center gap-1 px-1 pt-1">
+                              <Input
+                                value={newMonthLabel}
+                                onChange={(e) => setNewMonthLabel(e.target.value)}
+                                placeholder="예: 4월"
+                                className="h-8 text-sm"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    handleAddMonth()
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="default"
+                                disabled={excellentPending || !newMonthLabel.trim()}
+                                onClick={handleAddMonth}
+                              >
+                                {excellentPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '추가'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="justify-start gap-1 text-sm text-blue-600"
+                              onClick={() => setAddMonthMode(true)}
+                            >
+                              <Plus className="h-3 w-3" />
+                              새 달 추가
+                            </Button>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )
+                })() : null}
+              </div>
             ) : null}
           </form>
         </SheetContent>
