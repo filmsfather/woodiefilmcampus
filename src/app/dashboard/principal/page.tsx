@@ -70,6 +70,17 @@ export default async function PrincipalDashboardPage() {
             </Button>
           </CardContent>
         </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">지원가능대학 레포트</CardTitle>
+            <CardDescription>학생별 지원 가능 대학 레포트를 관리하고 확인하세요.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/university-reports">레포트 관리</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="rounded-lg border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-500">

@@ -2,10 +2,11 @@ import type { Metadata } from 'next'
 
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchAtelierPosts } from '@/lib/atelier-posts'
-import { fetchExcellentMonths, getPostExcellenceMap } from '@/lib/atelier-excellent'
+import { fetchExcellentMonths, fetchExcellentPostsByMonth, getPostExcellenceMap } from '@/lib/atelier-excellent'
 import { AtelierPostList } from '@/components/dashboard/atelier/AtelierPostList'
 import { AtelierFiltersForm, FILTER_VALUE } from '@/components/dashboard/atelier/AtelierFiltersForm'
 import { AtelierPagination } from '@/components/dashboard/atelier/AtelierPagination'
+import { AtelierExcellentShowcase } from '@/components/dashboard/atelier/AtelierExcellentShowcase'
 
 export const metadata: Metadata = {
   title: '선생님 아틀리에',
@@ -63,7 +64,7 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
   const featuredOnly = isFeatured(searchParams.featured)
   const studentName = parseSearchText(searchParams.student)
 
-  const [data, months] = await Promise.all([
+  const [data, months, excellentGroups] = await Promise.all([
     fetchAtelierPosts({
       viewerId: profile.id,
       viewerRole: profile.role,
@@ -76,6 +77,7 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
       studentName,
     }),
     fetchExcellentMonths(),
+    fetchExcellentPostsByMonth(),
   ])
 
   const postIds = data.items.map((item) => item.id)
@@ -100,6 +102,8 @@ export default async function TeacherAtelierPage(props: TeacherAtelierPageProps)
         featuredOnly={featuredOnly}
         currentStudentName={studentName}
       />
+
+      <AtelierExcellentShowcase groups={excellentGroups} viewerId={profile.id} />
 
       <div className="flex items-center justify-between text-sm text-slate-600">
         <span>총 {data.totalCount}건</span>
