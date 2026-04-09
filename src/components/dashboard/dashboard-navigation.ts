@@ -104,6 +104,14 @@ const managerSections: NavigationSection[] = [
       { label: '교사 대시보드 열기', href: '/dashboard/teacher' },
     ],
   },
+  {
+    id: 'manager-education',
+    title: '교육 활동',
+    items: [
+      { label: '선생님 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
+    ],
+  },
 ]
 
 const teacherSections: NavigationSection[] = [
