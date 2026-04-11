@@ -725,7 +725,7 @@ export function StickerBoard({
                                     </span>
                                   )}
                                   <span className="shrink-0 text-xs text-slate-400">
-                                    {formatDate(note.createdAt)}
+                                    {formatDate(note.watchedDate ?? note.createdAt)}
                                   </span>
                                 </button>
                               ))
@@ -755,7 +755,7 @@ export function StickerBoard({
                   {selectedNote.content.title || '감상지'}
                 </DialogTitle>
                 <DialogDescription>
-                  {formatDate(selectedNote.createdAt)}
+                  {formatDate(selectedNote.watchedDate ?? selectedNote.createdAt)}
                   {' · '}
                   {selectedNote.source === 'assignment' ? '과제 감상지' : '개인 감상지'}
                 </DialogDescription>

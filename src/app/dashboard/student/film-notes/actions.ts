@@ -51,6 +51,7 @@ function normalizeEntry(input: unknown): NormalizedEntryResult {
 
 const createPersonalFilmNoteSchema = z.object({
   content: z.unknown(),
+  watchedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식이 올바르지 않습니다.').optional(),
 })
 
 export async function createPersonalFilmNote(input: z.infer<typeof createPersonalFilmNoteSchema>) {
@@ -77,12 +78,18 @@ export async function createPersonalFilmNote(input: z.infer<typeof createPersona
 
   const supabase = await createServerSupabase()
 
-  const { error } = await supabase.from('film_notes').insert({
+  const insertData: Record<string, unknown> = {
     student_id: profile.id,
     source: 'personal',
     content: entry,
     completed: isComplete,
-  })
+  }
+
+  if (parsedInput.data.watchedDate) {
+    insertData.watched_date = parsedInput.data.watchedDate
+  }
+
+  const { error } = await supabase.from('film_notes').insert(insertData)
 
   if (error) {
     console.error('[createPersonalFilmNote] insert failed', error)
@@ -96,6 +103,7 @@ export async function createPersonalFilmNote(input: z.infer<typeof createPersona
 const updatePersonalFilmNoteSchema = z.object({
   noteId: z.string().uuid('유효한 감상지 ID가 아닙니다.'),
   content: z.unknown(),
+  watchedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜 형식이 올바르지 않습니다.').optional(),
 })
 
 export async function updatePersonalFilmNote(input: z.infer<typeof updatePersonalFilmNoteSchema>) {
@@ -137,13 +145,19 @@ export async function updatePersonalFilmNote(input: z.infer<typeof updatePersona
     return { success: false as const, error: '해당 감상지를 수정할 수 없습니다.' }
   }
 
+  const updateData: Record<string, unknown> = {
+    content: entry,
+    completed: isComplete,
+    updated_at: new Date().toISOString(),
+  }
+
+  if (parsedInput.data.watchedDate) {
+    updateData.watched_date = parsedInput.data.watchedDate
+  }
+
   const { error: updateError } = await supabase
     .from('film_notes')
-    .update({
-      content: entry,
-      completed: isComplete,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq('id', parsedInput.data.noteId)
     .eq('student_id', profile.id)
     .eq('source', 'personal')

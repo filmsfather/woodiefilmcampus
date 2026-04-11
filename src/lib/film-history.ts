@@ -269,6 +269,7 @@ export interface StudentFilmNoteListItem {
   noteIndex: number | null
   createdAt: string
   updatedAt: string
+  watchedDate: string | null
   assignment: {
     id: string
     dueAt: string | null
@@ -285,7 +286,7 @@ export async function fetchStudentFilmNotesList(studentId: string): Promise<Stud
   const { data, error } = await supabase
     .from('film_notes')
     .select(
-      'id, source, assignment_id, student_task_id, workbook_item_id, note_index, content, completed, created_at, updated_at'
+      'id, source, assignment_id, student_task_id, workbook_item_id, note_index, content, completed, created_at, updated_at, watched_date'
     )
     .eq('student_id', studentId)
     .order('updated_at', { ascending: false })
@@ -306,6 +307,7 @@ export async function fetchStudentFilmNotesList(studentId: string): Promise<Stud
     completed: boolean | null
     created_at: string
     updated_at: string
+    watched_date: string | null
   }>
 
   if (rows.length === 0) {
@@ -417,6 +419,7 @@ export async function fetchStudentFilmNotesList(studentId: string): Promise<Stud
       noteIndex,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      watchedDate: row.watched_date ?? null,
       assignment: assignmentMeta,
     }
   })

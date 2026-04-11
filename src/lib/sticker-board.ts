@@ -24,6 +24,7 @@ export interface StickerBoardNote {
   content: FilmNoteEntry
   source: 'assignment' | 'personal'
   createdAt: string
+  watchedDate: string | null
   likeCount: number
   likedByMe: boolean
 }
@@ -107,6 +108,8 @@ export async function fetchPeriodById(periodId: string): Promise<StickerPeriod |
 export async function fetchStickerBoard(period: StickerPeriod): Promise<StickerBoardStudent[]> {
   const admin = createAdminClient()
 
+  const periodFilter = `and(watched_date.not.is.null,watched_date.gte.${period.startDate},watched_date.lte.${period.endDate}),and(watched_date.is.null,created_at.gte.${period.startDate},created_at.lte.${period.endDate})`
+
   const fetchAllNotes = async () => {
     const all: { student_id: unknown }[] = []
     const pageSize = 1000
@@ -116,8 +119,7 @@ export async function fetchStickerBoard(period: StickerPeriod): Promise<StickerB
         .from('film_notes')
         .select('student_id')
         .eq('completed', true)
-        .gte('created_at', period.startDate)
-        .lte('created_at', period.endDate)
+        .or(periodFilter)
         .range(from, from + pageSize - 1)
       if (error) return { data: null, error }
       all.push(...(data ?? []))
@@ -180,14 +182,15 @@ export async function fetchHallOfFame(periodId: string, period: StickerPeriod): 
 
   const studentIds = data.map((r) => r.student_id as string)
 
+  const hofPeriodFilter = `and(watched_date.not.is.null,watched_date.gte.${period.startDate},watched_date.lte.${period.endDate}),and(watched_date.is.null,created_at.gte.${period.startDate},created_at.lte.${period.endDate})`
+
   const [profilesResult, notesResult] = await Promise.all([
     admin.from('profiles').select('id, name').in('id', studentIds),
     admin
       .from('film_notes')
       .select('student_id')
       .eq('completed', true)
-      .gte('created_at', period.startDate)
-      .lte('created_at', period.endDate)
+      .or(hofPeriodFilter)
       .in('student_id', studentIds),
   ])
 
@@ -218,13 +221,14 @@ export async function fetchStudentNotesForBoard(
 ): Promise<StickerBoardNote[]> {
   const admin = createAdminClient()
 
+  const notesPeriodFilter = `and(watched_date.not.is.null,watched_date.gte.${period.startDate},watched_date.lte.${period.endDate}),and(watched_date.is.null,created_at.gte.${period.startDate},created_at.lte.${period.endDate})`
+
   const { data, error } = await admin
     .from('film_notes')
-    .select('id, content, source, created_at')
+    .select('id, content, source, created_at, watched_date')
     .eq('student_id', studentId)
     .eq('completed', true)
-    .gte('created_at', period.startDate)
-    .lte('created_at', period.endDate)
+    .or(notesPeriodFilter)
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -264,6 +268,7 @@ export async function fetchStudentNotesForBoard(
       content: sanitizeFilmEntry(coerceFilmEntry(row.content)),
       source: (row.source === 'assignment' ? 'assignment' : 'personal') as 'assignment' | 'personal',
       createdAt: row.created_at as string,
+      watchedDate: (row.watched_date as string) ?? null,
       likeCount: likeCountMap.get(id) ?? 0,
       likedByMe: myLikeSet.has(id),
     }

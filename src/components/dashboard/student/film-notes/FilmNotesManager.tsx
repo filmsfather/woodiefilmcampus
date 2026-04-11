@@ -62,13 +62,32 @@ function formatDateTime(value: string | null) {
   }
 }
 
+function formatDate(value: string | null) {
+  if (!value) {
+    return '-'
+  }
+
+  try {
+    const [year, month, day] = value.split('-')
+    return `${year}년 ${Number(month)}월 ${Number(day)}일`
+  } catch {
+    return value
+  }
+}
+
+function getTodayKST(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date())
+}
+
 export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
   const router = useRouter()
   const [createEntry, setCreateEntry] = useState<FilmNoteEntry>(createEmptyFilmEntry())
+  const [createWatchedDate, setCreateWatchedDate] = useState<string>(getTodayKST())
   const [createError, setCreateError] = useState<string | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null)
   const [editEntry, setEditEntry] = useState<FilmNoteEntry | null>(null)
+  const [editWatchedDate, setEditWatchedDate] = useState<string>('')
   const [editError, setEditError] = useState<string | null>(null)
   const [mutatingNoteId, setMutatingNoteId] = useState<string | null>(null)
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
@@ -127,6 +146,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
   const resetEditState = () => {
     setEditingNoteId(null)
     setEditEntry(null)
+    setEditWatchedDate('')
     setEditError(null)
     setMutatingNoteId(null)
   }
@@ -160,7 +180,10 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
     ) as FilmNoteEntry
 
     startCreateTransition(async () => {
-      const result = await createPersonalFilmNote({ content: sanitized })
+      const result = await createPersonalFilmNote({
+        content: sanitized,
+        watchedDate: createWatchedDate || undefined,
+      })
 
       if (!result.success) {
         setCreateError(result.error ?? '감상지를 저장하지 못했습니다.')
@@ -168,6 +191,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
       }
 
       setCreateEntry(createEmptyFilmEntry())
+      setCreateWatchedDate(getTodayKST())
       router.refresh()
     })
   }
@@ -178,6 +202,7 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
     setEditError(null)
     setEditingNoteId(note.id)
     setEditEntry({ ...note.content })
+    setEditWatchedDate(note.watchedDate ?? '')
     setMutatingNoteId(null)
   }
 
@@ -198,7 +223,11 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
 
     setMutatingNoteId(editingNoteId)
     startMutatingTransition(async () => {
-      const result = await updatePersonalFilmNote({ noteId: editingNoteId, content: sanitized })
+      const result = await updatePersonalFilmNote({
+        noteId: editingNoteId,
+        content: sanitized,
+        watchedDate: editWatchedDate || undefined,
+      })
 
       if (!result.success) {
         setEditError(result.error ?? '감상지를 수정하지 못했습니다.')
@@ -296,6 +325,19 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
               <span>{createError}</span>
             </div>
           )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700" htmlFor="create-watched-date">
+              감상한 날짜
+            </label>
+            <Input
+              id="create-watched-date"
+              type="date"
+              value={createWatchedDate}
+              onChange={(event) => setCreateWatchedDate(event.target.value)}
+              disabled={isCreatePending}
+              className="w-full md:w-48"
+            />
+          </div>
           {renderEntryFields(createEntry, handleCreateFieldChange, isCreatePending, 'create')}
           <div className="flex justify-end">
             <Button onClick={handleSubmitCreate} disabled={createDisabled} className="min-w-[120px]">
@@ -432,7 +474,10 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
               </CardTitle>
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
                 <span className="flex items-center gap-1">
-                  <CalendarDays className="h-3 w-3" /> 저장: {formatDateTime(selectedNote.createdAt)}
+                  <CalendarDays className="h-3 w-3" /> 감상일: {formatDate(selectedNote.watchedDate)}
+                </span>
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" /> 저장: {formatDateTime(selectedNote.createdAt)}
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" /> 수정: {formatDateTime(selectedNote.updatedAt)}
@@ -459,6 +504,19 @@ export function FilmNotesManager({ notes }: FilmNotesManagerProps) {
                     <span>{editError}</span>
                   </div>
                 )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700" htmlFor="edit-watched-date">
+                    감상한 날짜
+                  </label>
+                  <Input
+                    id="edit-watched-date"
+                    type="date"
+                    value={editWatchedDate}
+                    onChange={(event) => setEditWatchedDate(event.target.value)}
+                    disabled={isMutating}
+                    className="w-full md:w-48"
+                  />
+                </div>
                 {renderEntryFields(editEntry, handleEditFieldChange, isMutating, 'edit')}
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Button
