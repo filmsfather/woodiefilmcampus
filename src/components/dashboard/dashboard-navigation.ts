@@ -152,6 +152,7 @@ const teacherSections: NavigationSection[] = [
     title: '과제 관리',
     items: [
       { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
       { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
       { label: '출판된 문제집 확인', href: '/dashboard/workbooks' },
@@ -193,6 +194,7 @@ const studentSections: NavigationSection[] = [
       { label: '이번달 학습 계획', href: '/dashboard/student/monthly-plan' },
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
       { label: '공지사항 게시판', href: '/dashboard/student/notices' },
+      { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
       { label: '사진일기', href: '/dashboard/student/photo-diary' },
       { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: 'Culture Picks', href: '/dashboard/culture-picks' },
