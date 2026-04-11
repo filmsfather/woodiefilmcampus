@@ -50,13 +50,17 @@ const receiptSchema = z.object({
       const trimmed = v.trim()
       return trimmed.length > 0 ? trimmed : null
     }),
-  receiptImagePath: z
+  receiptImagePaths: z
     .string()
     .optional()
     .transform((v) => {
-      if (!v) return null
+      if (!v) return [] as string[]
+      try {
+        const parsed = JSON.parse(v)
+        if (Array.isArray(parsed)) return parsed.filter((s: unknown) => typeof s === 'string' && s.trim().length > 0)
+      } catch { /* not JSON, treat as single path */ }
       const trimmed = v.trim()
-      return trimmed.length > 0 ? trimmed : null
+      return trimmed.length > 0 ? [trimmed] : ([] as string[])
     }),
 })
 
@@ -100,7 +104,7 @@ export async function saveReceipt(formData: FormData): Promise<ReceiptActionResu
     description: input.description,
     amount: input.amount,
     approval_number: input.approvalNumber,
-    receipt_image_path: input.receiptImagePath,
+    receipt_image_paths: input.receiptImagePaths,
   }
 
   if (input.receiptId) {
@@ -162,7 +166,7 @@ export async function deleteReceipt(formData: FormData): Promise<ReceiptActionRe
 
   const { data: existing } = await supabase
     .from('teacher_receipts')
-    .select('id, teacher_id, receipt_image_path, review_status')
+    .select('id, teacher_id, receipt_image_paths, review_status')
     .eq('id', receiptId)
     .eq('teacher_id', profile.id)
     .maybeSingle()
@@ -175,10 +179,11 @@ export async function deleteReceipt(formData: FormData): Promise<ReceiptActionRe
     return { error: '승인 완료된 영수증은 삭제할 수 없습니다.' }
   }
 
-  if (existing.receipt_image_path) {
+  const imagePaths: string[] = existing.receipt_image_paths ?? []
+  if (imagePaths.length > 0) {
     try {
       const admin = createAdminClient()
-      await admin.storage.from(TEACHER_RECEIPTS_BUCKET).remove([existing.receipt_image_path])
+      await admin.storage.from(TEACHER_RECEIPTS_BUCKET).remove(imagePaths)
     } catch (err) {
       console.error('[receipt] storage delete error', err)
     }

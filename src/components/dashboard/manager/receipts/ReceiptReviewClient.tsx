@@ -616,23 +616,29 @@ export function ReceiptReviewClient({
                                     <p>승인번호: {receipt.approvalNumber}</p>
                                   )}
                                 </div>
-                                {receipt.receiptImagePath && (
+                                {receipt.receiptImagePaths.length > 0 ? (
                                   <div className="space-y-2">
-                                    <p className="font-semibold text-slate-800 text-xs">영수증 이미지</p>
-                                    <a
-                                      href={`/api/storage/teacher-receipts/${receipt.receiptImagePath}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      <img
-                                        src={`/api/storage/teacher-receipts/${receipt.receiptImagePath}`}
-                                        alt="영수증 이미지"
-                                        className="max-h-48 rounded-md border border-slate-200 object-contain"
-                                      />
-                                    </a>
+                                    <p className="font-semibold text-slate-800 text-xs">
+                                      영수증 이미지 ({receipt.receiptImagePaths.length}장)
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {receipt.receiptImagePaths.map((path, idx) => (
+                                        <a
+                                          key={path}
+                                          href={`/api/storage/teacher-receipts/${path}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                        >
+                                          <img
+                                            src={`/api/storage/teacher-receipts/${path}`}
+                                            alt={`영수증 이미지 ${idx + 1}`}
+                                            className="max-h-48 rounded-md border border-slate-200 object-contain"
+                                          />
+                                        </a>
+                                      ))}
+                                    </div>
                                   </div>
-                                )}
-                                {!receipt.receiptImagePath && (
+                                ) : (
                                   <p className="text-xs text-slate-500">첨부된 영수증 이미지가 없습니다.</p>
                                 )}
                               </div>

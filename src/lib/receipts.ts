@@ -15,7 +15,7 @@ export type ReceiptRow = {
   description: string
   amount: number
   approval_number: string | null
-  receipt_image_path: string | null
+  receipt_image_paths: string[]
   review_status: ReceiptReviewStatus
   review_note: string | null
   reviewed_by: string | null
@@ -34,7 +34,7 @@ export type Receipt = {
   description: string
   amount: number
   approvalNumber: string | null
-  receiptImagePath: string | null
+  receiptImagePaths: string[]
   reviewStatus: ReceiptReviewStatus
   reviewNote: string | null
   reviewedBy: string | null
@@ -49,7 +49,7 @@ export type ReceiptWithTeacher = Receipt & {
 }
 
 export const RECEIPT_SELECT_FIELDS =
-  'id, teacher_id, month_token, used_date, description, amount, approval_number, receipt_image_path, review_status, review_note, reviewed_by, reviewed_at, paid_by, paid_at, created_at, updated_at'
+  'id, teacher_id, month_token, used_date, description, amount, approval_number, receipt_image_paths, review_status, review_note, reviewed_by, reviewed_at, paid_by, paid_at, created_at, updated_at'
 
 export function mapReceiptRow(row: ReceiptRow): Receipt {
   return {
@@ -60,7 +60,7 @@ export function mapReceiptRow(row: ReceiptRow): Receipt {
     description: row.description,
     amount: row.amount,
     approvalNumber: row.approval_number,
-    receiptImagePath: row.receipt_image_path,
+    receiptImagePaths: row.receipt_image_paths ?? [],
     reviewStatus: row.review_status,
     reviewNote: row.review_note,
     reviewedBy: row.reviewed_by,

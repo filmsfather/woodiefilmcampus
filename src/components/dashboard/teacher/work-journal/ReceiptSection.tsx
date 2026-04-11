@@ -35,8 +35,8 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
   const [feedback, setFeedback] = useState<FeedbackState>(null)
   const [isPending, startTransition] = useTransition()
   const [pendingAction, setPendingAction] = useState<'save' | string | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [previewUrls, setPreviewUrls] = useState<string[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [usedDate, setUsedDate] = useState('')
@@ -49,37 +49,54 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
     setDescription('')
     setAmount('')
     setApprovalNumber('')
-    setSelectedFile(null)
-    setPreviewUrl(null)
+    setSelectedFiles([])
+    previewUrls.forEach((url) => URL.revokeObjectURL(url))
+    setPreviewUrls([])
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) {
-      setSelectedFile(null)
-      setPreviewUrl(null)
+    const files = e.target.files
+    if (!files || files.length === 0) {
+      setSelectedFiles([])
+      previewUrls.forEach((url) => URL.revokeObjectURL(url))
+      setPreviewUrls([])
       return
     }
 
-    if (file.size > MAX_RECEIPT_IMAGE_SIZE) {
-      setFeedback({ type: 'error', message: '이미지 파일은 최대 10MB까지 허용됩니다.' })
-      e.target.value = ''
-      return
+    const newFiles: File[] = []
+    const newUrls: string[] = []
+
+    for (const file of Array.from(files)) {
+      if (file.size > MAX_RECEIPT_IMAGE_SIZE) {
+        setFeedback({ type: 'error', message: `${file.name}: 이미지 파일은 최대 10MB까지 허용됩니다.` })
+        e.target.value = ''
+        return
+      }
+      if (!file.type.startsWith('image/')) {
+        setFeedback({ type: 'error', message: `${file.name}: 이미지 파일만 첨부할 수 있습니다.` })
+        e.target.value = ''
+        return
+      }
+      newFiles.push(file)
+      newUrls.push(URL.createObjectURL(file))
     }
 
-    if (!file.type.startsWith('image/')) {
-      setFeedback({ type: 'error', message: '이미지 파일만 첨부할 수 있습니다.' })
-      e.target.value = ''
-      return
-    }
-
-    setSelectedFile(file)
-    const url = URL.createObjectURL(file)
-    setPreviewUrl(url)
+    previewUrls.forEach((url) => URL.revokeObjectURL(url))
+    setSelectedFiles(newFiles)
+    setPreviewUrls(newUrls)
     setFeedback(null)
+  }
+
+  const removeSelectedFile = (index: number) => {
+    URL.revokeObjectURL(previewUrls[index])
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
+    setPreviewUrls((prev) => prev.filter((_, i) => i !== index))
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
   }
 
   const handleSave = () => {
@@ -99,18 +116,18 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
     setPendingAction('save')
     startTransition(async () => {
       try {
-        let imagePath: string | null = null
+        const imagePaths: string[] = []
 
-        if (selectedFile) {
-          const fileName = buildRandomizedFileName(selectedFile.name)
+        for (const file of selectedFiles) {
+          const fileName = buildRandomizedFileName(file.name)
           const storagePath = `${teacherId}/${fileName}`
           await uploadFileToStorageViaClient({
             bucket: TEACHER_RECEIPTS_BUCKET,
-            file: selectedFile,
+            file,
             path: storagePath,
             maxSizeBytes: MAX_RECEIPT_IMAGE_SIZE,
           })
-          imagePath = storagePath
+          imagePaths.push(storagePath)
         }
 
         const formData = new FormData()
@@ -121,8 +138,8 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
         if (approvalNumber.trim()) {
           formData.append('approvalNumber', approvalNumber.trim())
         }
-        if (imagePath) {
-          formData.append('receiptImagePath', imagePath)
+        if (imagePaths.length > 0) {
+          formData.append('receiptImagePaths', JSON.stringify(imagePaths))
         }
 
         const result = await saveReceipt(formData)
@@ -240,20 +257,33 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
               id="receipt-image"
               type="file"
               accept="image/*"
+              multiple
               onChange={handleFileChange}
               disabled={isPending}
               className="file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1 file:text-sm file:text-slate-700 hover:file:bg-slate-200"
             />
-            {previewUrl && (
-              <div className="mt-2">
-                <img
-                  src={previewUrl}
-                  alt="영수증 미리보기"
-                  className="max-h-40 rounded-md border border-slate-200 object-contain"
-                />
+            {previewUrls.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {previewUrls.map((url, idx) => (
+                  <div key={url} className="group relative">
+                    <img
+                      src={url}
+                      alt={`영수증 미리보기 ${idx + 1}`}
+                      className="h-24 w-24 rounded-md border border-slate-200 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedFile(idx)}
+                      disabled={isPending}
+                      className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
-            <p className="text-xs text-slate-500">이미지 파일만 첨부 가능하며, 최대 10MB입니다.</p>
+            <p className="text-xs text-slate-500">이미지 파일만 첨부 가능하며, 파일당 최대 10MB입니다. 여러 장 선택 가능합니다.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -317,16 +347,17 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
                         {receipt.approvalNumber && (
                           <span>승인번호: {receipt.approvalNumber}</span>
                         )}
-                        {receipt.receiptImagePath && (
+                        {receipt.receiptImagePaths.length > 0 && receipt.receiptImagePaths.map((path, idx) => (
                           <a
-                            href={`/api/storage/teacher-receipts/${receipt.receiptImagePath}`}
+                            key={path}
+                            href={`/api/storage/teacher-receipts/${path}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 underline hover:text-blue-800"
                           >
-                            영수증 보기
+                            {receipt.receiptImagePaths.length === 1 ? '영수증 보기' : `영수증 ${idx + 1}`}
                           </a>
-                        )}
+                        ))}
                         {receipt.reviewStatus === 'rejected' && receipt.reviewNote && (
                           <span className="text-red-600">반려 사유: {receipt.reviewNote}</span>
                         )}
