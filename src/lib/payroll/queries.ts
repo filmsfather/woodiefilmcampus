@@ -73,7 +73,7 @@ interface TeacherPayrollRunRow {
   gross_pay: string | number
   deductions_total: string | number
   net_pay: string | number
-  status: 'draft' | 'pending_ack' | 'confirmed'
+  status: 'draft' | 'pending_ack' | 'confirmed' | 'paid'
   message_preview: string | null
   meta: Record<string, unknown> | null
   requested_by: string | null
