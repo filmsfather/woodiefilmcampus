@@ -4,7 +4,7 @@ import { createLectureAction } from '@/app/dashboard/teacher/lectures/actions'
 import { requireAuthForDashboard } from '@/lib/auth'
 
 export default async function NewLecturePage() {
-    await requireAuthForDashboard(['teacher', 'manager', 'principal'])
+    const { profile } = await requireAuthForDashboard(['teacher', 'manager', 'principal'])
 
     return (
         <section className="space-y-6">
@@ -18,7 +18,7 @@ export default async function NewLecturePage() {
                 </div>
             </div>
 
-            <LectureForm action={createLectureAction} />
+            <LectureForm action={createLectureAction} currentUserId={profile!.id} />
         </section>
     )
 }
