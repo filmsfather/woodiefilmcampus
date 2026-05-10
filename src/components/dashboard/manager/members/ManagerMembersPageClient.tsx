@@ -56,6 +56,12 @@ type ClassAssignmentSummary = {
   isHomeroom: boolean
 }
 
+type CctvConsentSummary = {
+  agreedAt: string
+  version: string
+  isCurrent: boolean
+}
+
 type AssignableMember = ManagerMemberSummary & { role: 'student' | 'teacher' }
 
 type ManagerMemberSummary = {
@@ -70,6 +76,7 @@ type ManagerMemberSummary = {
   approvedAt: string
   updatedAt: string
   classAssignments: ClassAssignmentSummary[]
+  cctvConsent: CctvConsentSummary | null
 }
 
 type ManagerMembersPageClientProps = {
@@ -162,6 +169,22 @@ function formatDate(value: string) {
   }
 }
 
+function formatDateTime(value: string) {
+  try {
+    const date = new Date(value)
+    return new Intl.DateTimeFormat('ko-KR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date)
+  } catch {
+    return value
+  }
+}
+
 function normalizeInput(value: string) {
   return value.trim()
 }
@@ -228,6 +251,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
         member.parentPhone ?? '',
         member.academicRecord ?? '',
         formatAssignments(member.classAssignments, member.role),
+        member.cctvConsent ? '동의' : '미동의',
       ]
 
       return tokens.some((token) => token.toLowerCase().includes(normalizedSearch))
@@ -629,13 +653,14 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
               <TableHead>학생 번호</TableHead>
               <TableHead>부모님 번호</TableHead>
               <TableHead>성적</TableHead>
+              <TableHead>CCTV 동의</TableHead>
               <TableHead className="text-right">액션</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredMembers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-sm text-slate-500">
+                <TableCell colSpan={8} className="py-10 text-center text-sm text-slate-500">
                   조건에 맞는 구성원이 없습니다.
                 </TableCell>
               </TableRow>
@@ -813,6 +838,30 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                     </TableCell>
                     <TableCell>
                       {renderAcademicCell(member.academicRecord, editingValues?.academicRecord ?? '', (value) => updateEditField('academicRecord', value), editing)}
+                    </TableCell>
+                    <TableCell>
+                      {member.cctvConsent ? (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge
+                            variant={member.cctvConsent.isCurrent ? 'secondary' : 'outline'}
+                            className="w-fit text-xs"
+                          >
+                            {member.cctvConsent.isCurrent ? '동의' : '재동의 필요'}
+                          </Badge>
+                          <span className="text-xs text-slate-500">
+                            {formatDateTime(member.cctvConsent.agreedAt)}
+                          </span>
+                          {!member.cctvConsent.isCurrent && (
+                            <span className="text-[11px] text-slate-400">
+                              v{member.cctvConsent.version}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant="destructive" className="w-fit text-xs">
+                          미동의
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap justify-end gap-2">

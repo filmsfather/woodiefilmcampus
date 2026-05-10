@@ -2,12 +2,19 @@ import { cache } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 
+import {
+  getLatestCctvConsent,
+  hasCurrentCctvConsent,
+  type UserConsentRecord,
+} from '@/lib/consents'
 import type { UserProfile, UserRole } from '@/lib/supabase'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 export interface AuthContext {
   session: Session | null
   profile: UserProfile | null
+  cctvConsent: UserConsentRecord | null
+  cctvConsented: boolean
 }
 
 function isUserRole(value: string): value is UserRole {
@@ -37,14 +44,14 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
   const { data: userData, error: userError } = await supabase.auth.getUser()
 
   if (userError || !userData.user) {
-    return { session: null, profile: null }
+    return { session: null, profile: null, cctvConsent: null, cctvConsented: false }
   }
 
   const { data: sessionData } = await supabase.auth.getSession()
   const session = sessionData?.session ?? null
 
   if (!session) {
-    return { session: null, profile: null }
+    return { session: null, profile: null, cctvConsent: null, cctvConsented: false }
   }
 
   const userId = userData.user.id
@@ -59,23 +66,30 @@ export const getAuthContext = cache(async (): Promise<AuthContext> => {
     return {
       session,
       profile: null,
+      cctvConsent: null,
+      cctvConsented: false,
     }
   }
+
+  const cctvConsent = await getLatestCctvConsent(supabase, userId)
 
   console.log('[auth] profile status debug', {
     email: profile.email,
     status: profile.status,
     role: profile.role,
+    cctvConsentVersion: cctvConsent?.version ?? null,
   })
 
   return {
     session,
     profile: { ...profile, role: profile.role },
+    cctvConsent,
+    cctvConsented: hasCurrentCctvConsent(cctvConsent),
   }
 })
 
 export async function requireAuthForDashboard(targetRole?: UserRole | UserRole[]) {
-  const { session, profile } = await getAuthContext()
+  const { session, profile, cctvConsent, cctvConsented } = await getAuthContext()
 
   if (!session) {
     redirect('/login')
@@ -89,6 +103,10 @@ export async function requireAuthForDashboard(targetRole?: UserRole | UserRole[]
     redirect('/pending-approval')
   }
 
+  if (!cctvConsented) {
+    redirect('/cctv-consent')
+  }
+
   const allowedRoles = Array.isArray(targetRole) ? targetRole : targetRole ? [targetRole] : null
 
   if (
@@ -99,11 +117,11 @@ export async function requireAuthForDashboard(targetRole?: UserRole | UserRole[]
     redirect(resolveDashboardPath(profile.role))
   }
 
-  return { session, profile }
+  return { session, profile, cctvConsent }
 }
 
 export async function redirectAuthenticatedUser() {
-  const { session, profile } = await getAuthContext()
+  const { session, profile, cctvConsented } = await getAuthContext()
 
   // 로그인 안 된 상태
   if (!session) {
@@ -118,6 +136,11 @@ export async function redirectAuthenticatedUser() {
   // 승인 대기 상태
   if (!isApprovedStatus(profile.status)) {
     redirect('/pending-approval')
+  }
+
+  // 승인되었지만 CCTV 동의 미완료 → 동의 페이지로
+  if (!cctvConsented) {
+    redirect('/cctv-consent')
   }
 
   // 승인됨 → 대시보드로

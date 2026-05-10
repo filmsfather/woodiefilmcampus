@@ -1,6 +1,10 @@
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ManagerMembersPageClient } from '@/components/dashboard/manager/members/ManagerMembersPageClient'
 import { requireAuthForDashboard } from '@/lib/auth'
+import {
+  CCTV_CONSENT_TYPE,
+  CURRENT_CCTV_CONSENT_VERSION,
+} from '@/lib/consents'
 import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { createClient } from '@/lib/supabase/server'
 import type { UserRole } from '@/lib/supabase'
@@ -9,6 +13,12 @@ interface ClassAssignmentSummary {
   id: string
   name: string
   isHomeroom: boolean
+}
+
+interface CctvConsentSummary {
+  agreedAt: string
+  version: string
+  isCurrent: boolean
 }
 
 interface ManagerMemberSummary {
@@ -23,6 +33,7 @@ interface ManagerMemberSummary {
   approvedAt: string
   updatedAt: string
   classAssignments: ClassAssignmentSummary[]
+  cctvConsent: CctvConsentSummary | null
 }
 
 interface ManagerMembersPageData {
@@ -83,8 +94,9 @@ export default async function ManagerMembersPage() {
   const approvedProfiles = (profileRows ?? []).filter((row) => row.status === 'approved')
   const studentIds = approvedProfiles.filter((row) => row.role === 'student').map((row) => row.id)
   const teacherIds = approvedProfiles.filter((row) => row.role === 'teacher').map((row) => row.id)
+  const allMemberIds = approvedProfiles.map((row) => row.id)
 
-  const [studentAssignmentsResult, teacherAssignmentsResult] = await Promise.all([
+  const [studentAssignmentsResult, teacherAssignmentsResult, consentsResult] = await Promise.all([
     studentIds.length
       ? supabase
         .from('class_students')
@@ -97,6 +109,15 @@ export default async function ManagerMembersPage() {
         .select('class_id, teacher_id, is_homeroom, classes(id, name)')
         .in('teacher_id', teacherIds)
       : Promise.resolve({ data: null, error: null }),
+    allMemberIds.length
+      ? supabase
+        .from('user_consents')
+        .select('user_id, version, agreed_at')
+        .eq('consent_type', CCTV_CONSENT_TYPE)
+        .eq('agreed', true)
+        .in('user_id', allMemberIds)
+        .order('agreed_at', { ascending: false })
+      : Promise.resolve({ data: null, error: null }),
   ])
 
   if (studentAssignmentsResult.error) {
@@ -107,8 +128,24 @@ export default async function ManagerMembersPage() {
     console.error('[manager] load teacher assignments error', teacherAssignmentsResult.error)
   }
 
+  if (consentsResult.error) {
+    console.error('[manager] load cctv consents error', consentsResult.error)
+  }
+
   const studentAssignmentsMap = new Map<string, ClassAssignmentSummary[]>()
   const teacherAssignmentsMap = new Map<string, ClassAssignmentSummary[]>()
+  const cctvConsentMap = new Map<string, CctvConsentSummary>()
+
+  for (const row of consentsResult.data ?? []) {
+    if (cctvConsentMap.has(row.user_id)) {
+      continue
+    }
+    cctvConsentMap.set(row.user_id, {
+      agreedAt: row.agreed_at,
+      version: row.version,
+      isCurrent: row.version === CURRENT_CCTV_CONSENT_VERSION,
+    })
+  }
 
   for (const row of studentAssignmentsResult.data ?? []) {
     const classInfo = extractClass(row.classes)
@@ -159,6 +196,7 @@ export default async function ManagerMembersPage() {
       approvedAt: row.created_at,
       updatedAt: row.updated_at,
       classAssignments: assignments,
+      cctvConsent: cctvConsentMap.get(row.id) ?? null,
     }
   })
 

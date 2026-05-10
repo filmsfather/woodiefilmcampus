@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse, type NextRequest } from 'next/server'
 
+import { getLatestCctvConsent, hasCurrentCctvConsent } from '@/lib/consents'
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
@@ -63,6 +65,12 @@ export async function GET(request: NextRequest) {
         // 프로필 완성됨 - 상태 확인
         if (profile.status !== 'approved') {
           return NextResponse.redirect(`${origin}/pending-approval`)
+        }
+
+        // CCTV/개인정보 동의 여부 확인 - 미동의 시 동의 페이지로
+        const latestConsent = await getLatestCctvConsent(supabase, userData.user.id)
+        if (!hasCurrentCctvConsent(latestConsent)) {
+          return NextResponse.redirect(`${origin}/cctv-consent`)
         }
 
         // 승인된 사용자 - 역할별 대시보드로
