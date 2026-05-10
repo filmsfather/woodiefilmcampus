@@ -41,12 +41,9 @@ export default async function StickerBoardPage(props: {
     ? allPeriods[currentIdx + 1]
     : null
 
-  const [hallOfFame, previousPeriodStudents] = previousPeriod
-    ? await Promise.all([
-        fetchHallOfFame(previousPeriod.id, previousPeriod),
-        fetchStickerBoard(previousPeriod),
-      ])
-    : [[], []]
+  const previousPeriodStudents = previousPeriod
+    ? await fetchStickerBoard(previousPeriod)
+    : []
 
   const currentStudentId = profile.role === 'student' ? profile.id : null
   const isStaff = ['principal', 'manager', 'teacher'].includes(profile.role)
@@ -77,7 +74,6 @@ export default async function StickerBoardPage(props: {
         currentStudentId={currentStudentId}
         periods={allPeriods}
         currentPeriod={currentPeriod}
-        previousPeriodHallOfFame={hallOfFame}
         previousPeriodLabel={previousPeriod?.label ?? null}
         previousPeriodStudents={previousPeriodStudents}
         isStaff={isStaff}

@@ -48,7 +48,6 @@ interface StickerBoardProps {
   currentStudentId: string | null
   periods: StickerPeriod[]
   currentPeriod: StickerPeriod | null
-  previousPeriodHallOfFame: HallOfFameEntry[]
   previousPeriodLabel: string | null
   previousPeriodStudents: StickerBoardStudent[]
   isStaff: boolean
@@ -493,7 +492,6 @@ export function StickerBoard({
   currentStudentId,
   periods,
   currentPeriod,
-  previousPeriodHallOfFame,
   previousPeriodLabel,
   previousPeriodStudents,
   isStaff,
@@ -598,17 +596,10 @@ export function StickerBoard({
 
       <PeriodNavigator periods={periods} currentPeriod={currentPeriod} />
 
-      {previousPeriodLabel && previousPeriodHallOfFame.length > 0 && (
-        <HallOfFameCard
-          entries={previousPeriodHallOfFame}
-          periodLabel={previousPeriodLabel}
-        />
-      )}
-
-      {currentPeriod && currentPeriodHallOfFame.length > 0 && (
+      {currentPeriod && currentPeriodHallOfFame.length > 0 && previousPeriodLabel && (
         <HallOfFameCard
           entries={currentPeriodHallOfFame}
-          periodLabel={previousPeriodLabel ?? currentPeriod.label}
+          periodLabel={previousPeriodLabel}
         />
       )}
 
