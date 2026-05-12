@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const WORKBOOK_SUBJECTS = ['연출', '작법', '연구', '통합', '한예종', '사전과제'] as const
-export const WORKBOOK_TYPES = ['srs', 'pdf', 'writing', 'film', 'lecture', 'image'] as const
+export const WORKBOOK_TYPES = ['srs', 'pdf', 'writing', 'film', 'lecture', 'image', 'essay'] as const
 
 export const WORKBOOK_TITLES: Record<(typeof WORKBOOK_TYPES)[number], string> = {
   srs: 'SRS 반복 학습',
@@ -10,6 +10,7 @@ export const WORKBOOK_TITLES: Record<(typeof WORKBOOK_TYPES)[number], string> = 
   film: '영화 감상형',
   lecture: '인터넷 강의형',
   image: '이미지 제출형',
+  essay: '에세이형',
 }
 
 export const WORKBOOK_TYPE_DESCRIPTIONS: Record<(typeof WORKBOOK_TYPES)[number], string> = {
@@ -19,6 +20,7 @@ export const WORKBOOK_TYPE_DESCRIPTIONS: Record<(typeof WORKBOOK_TYPES)[number],
   film: '지정된 감상 노트를 작성',
   lecture: '강의 시청 후 요약 제출',
   image: '각 질문에 사진을 업로드하여 제출',
+  essay: '에세이 주제를 출제하고 학생이 PDF로 제출',
 }
 
 const optionalTrimmedString = z
@@ -146,6 +148,12 @@ const imageSettingsSchema = z
   })
   .default({ instructions: '' })
 
+const essaySettingsSchema = z
+  .object({
+    topic: optionalTrimmedString,
+  })
+  .default({ topic: '' })
+
 export const workbookFormSchema = z
   .object({
     title: requiredTrimmedString
@@ -163,6 +171,7 @@ export const workbookFormSchema = z
     filmSettings: filmSettingsSchema,
     lectureSettings: lectureSettingsSchema,
     imageSettings: imageSettingsSchema,
+    essaySettings: essaySettingsSchema,
     items: z.array(workbookItemSchema).min(1, { message: '문항을 최소 1개 이상 추가해주세요.' }),
   })
   .superRefine((values, ctx) => {
@@ -249,6 +258,24 @@ export const workbookFormSchema = z
         })
       }
     }
+
+    if (values.type === 'essay') {
+      const topic = values.essaySettings?.topic?.trim() ?? ''
+      if (topic.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '에세이 주제를 입력해주세요.',
+          path: ['essaySettings', 'topic'],
+        })
+      }
+      if (topic.length > 2000) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '에세이 주제는 2000자 이내로 입력해주세요.',
+          path: ['essaySettings', 'topic'],
+        })
+      }
+    }
   })
 
 export type WorkbookFormValues = z.infer<typeof workbookFormSchema>
@@ -273,6 +300,7 @@ export const workbookMetadataFormSchema = z.object({
   filmSettings: filmSettingsSchema,
   lectureSettings: lectureSettingsSchema,
   imageSettings: imageSettingsSchema,
+  essaySettings: essaySettingsSchema,
 })
 
 export type WorkbookMetadataFormValues = z.input<typeof workbookMetadataFormSchema>
@@ -331,6 +359,9 @@ export interface NormalizedWorkbookPayload {
     }
     image?: {
       instructions?: string
+    }
+    essay?: {
+      topic?: string
     }
   }
   items: Array<{
@@ -437,6 +468,13 @@ export function buildNormalizedWorkbookPayload(
       const instructions = normalizeString(values.imageSettings?.instructions)
       if (instructions) {
         config.image = { instructions }
+      }
+      break
+    }
+    case 'essay': {
+      const topic = normalizeString(values.essaySettings?.topic)
+      if (topic) {
+        config.essay = { topic }
       }
       break
     }
@@ -583,6 +621,13 @@ export function buildWorkbookMetadataPayload(values: WorkbookMetadataFormValues)
       const instructions = normalizeString(values.imageSettings?.instructions)
       if (instructions) {
         config.image = { instructions }
+      }
+      break
+    }
+    case 'essay': {
+      const topic = normalizeString(values.essaySettings?.topic)
+      if (topic) {
+        config.essay = { topic }
       }
       break
     }

@@ -1,0 +1,734 @@
+'use client'
+
+import { useMemo, useState, useTransition } from 'react'
+import type { FormEvent, ReactElement } from 'react'
+import { useRouter } from 'next/navigation'
+import { Download, Eye, EyeOff, Loader2, Sparkles, Star, Trash2, Trophy, Plus } from 'lucide-react'
+
+import type { EssayPostListItem } from '@/lib/essay-posts'
+import type { EssayExcellentMonth, EssayPostExcellenceEntry } from '@/lib/essay-excellent'
+import type { UserRole } from '@/types/user'
+import {
+  toggleEssayFeatured,
+  toggleEssayHidden,
+  removeEssayPost,
+  getEssayAttachmentDownload,
+  selectEssayAsExcellent,
+  removeEssayFromExcellent,
+  createEssayExcellentMonthAction,
+} from '@/app/dashboard/essay/actions'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+
+interface EssayPostListProps {
+  items: EssayPostListItem[]
+  viewerId: string
+  viewerRole: UserRole
+  excellentMonths?: EssayExcellentMonth[]
+  postExcellenceMap?: Record<string, EssayPostExcellenceEntry>
+}
+
+type PendingAction = {
+  id: string
+  type: 'hide' | 'feature' | 'unfeature' | 'delete'
+}
+
+function formatDateTime(value: string) {
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return '-'
+    }
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = date.getHours()
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const period = hours < 12 ? '오전' : '오후'
+    const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+
+    return `${month}.${day} ${period} ${displayHour}:${minutes}`
+  } catch (error) {
+    console.error('[EssayPostList] invalid date', error)
+    return '-'
+  }
+}
+
+function formatDateTimeFull(value: string) {
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) {
+      return undefined
+    }
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = date.getHours()
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const period = hours < 12 ? '오전' : '오후'
+    const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours
+
+    return `${year}. ${month}. ${day}. ${period} ${displayHour}:${minutes}`
+  } catch {
+    return undefined
+  }
+}
+
+export function EssayPostList({
+  items,
+  viewerId,
+  viewerRole,
+  excellentMonths: initialMonths,
+  postExcellenceMap: initialExcellenceMap,
+}: EssayPostListProps) {
+  const router = useRouter()
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [featureDialogState, setFeatureDialogState] = useState<{
+    item: EssayPostListItem
+    mode: 'add' | 'edit'
+  } | null>(null)
+  const [featureComment, setFeatureComment] = useState('')
+  const [viewCommentItem, setViewCommentItem] = useState<EssayPostListItem | null>(null)
+  const [downloadingAttachmentId, setDownloadingAttachmentId] = useState<string | null>(null)
+  const [isPending, startTransition] = useTransition()
+
+  const [excellentMonths, setExcellentMonths] = useState<EssayExcellentMonth[]>(initialMonths ?? [])
+  const [excellenceMap, setExcellenceMap] = useState<Record<string, EssayPostExcellenceEntry>>(initialExcellenceMap ?? {})
+  const [excellentPopoverOpen, setExcellentPopoverOpen] = useState(false)
+  const [excellentPending, setExcellentPending] = useState(false)
+  const [addMonthMode, setAddMonthMode] = useState(false)
+  const [newMonthLabel, setNewMonthLabel] = useState('')
+
+  const isTeacherView = viewerRole !== 'student'
+
+  const sortedItems = useMemo(
+    () => items.slice().sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()),
+    [items]
+  )
+
+  const handleHiddenToggle = (postId: string, nextHidden: boolean) => {
+    setPendingAction({ id: postId, type: 'hide' })
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await toggleEssayHidden({ postId, hidden: nextHidden })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '숨김 변경에 실패했습니다.')
+      }
+      setPendingAction(null)
+      router.refresh()
+    })
+  }
+
+  const handleAttachmentDownload = async (postId: string, mediaAssetId: string) => {
+    const downloadKey = `${postId}:${mediaAssetId}`
+    setDownloadingAttachmentId(downloadKey)
+    setErrorMessage(null)
+
+    try {
+      const result = await getEssayAttachmentDownload({ postId, mediaAssetId })
+      if (!result.success || !result.url) {
+        setErrorMessage(result.error ?? '파일을 다운로드하지 못했습니다.')
+        return
+      }
+
+      const newWindow = window.open(result.url, '_blank', 'noopener,noreferrer')
+      if (!newWindow) {
+        window.location.href = result.url
+      }
+    } catch (error) {
+      console.error('[EssayPostList] failed to download attachment', error)
+      setErrorMessage('파일을 다운로드하지 못했습니다.')
+    } finally {
+      setDownloadingAttachmentId(null)
+    }
+  }
+
+  const openFeatureDialog = (item: EssayPostListItem, mode: 'add' | 'edit') => {
+    setFeatureDialogState({ item, mode })
+    setFeatureComment(item.featuredComment ?? '')
+    setErrorMessage(null)
+  }
+
+  const closeFeatureDialog = () => {
+    setFeatureDialogState(null)
+    setFeatureComment('')
+  }
+
+  const handleFeatureSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!featureDialogState) {
+      return
+    }
+
+    const comment = featureComment.trim()
+    if (!comment) {
+      setErrorMessage('추천 코멘트를 입력해주세요.')
+      return
+    }
+
+    const { item } = featureDialogState
+    const postId = item.id
+
+    setPendingAction({ id: postId, type: 'feature' })
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await toggleEssayFeatured({
+        postId,
+        featured: true,
+        comment,
+      })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '추천 상태 변경에 실패했습니다.')
+        setPendingAction(null)
+        return
+      }
+      setPendingAction(null)
+      closeFeatureDialog()
+      router.refresh()
+    })
+  }
+
+  const handleUnfeature = (postId: string) => {
+    setPendingAction({ id: postId, type: 'unfeature' })
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await toggleEssayFeatured({ postId, featured: false })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '추천 상태 변경에 실패했습니다.')
+        setPendingAction(null)
+        return
+      }
+      setPendingAction(null)
+      closeFeatureDialog()
+      router.refresh()
+    })
+  }
+
+  const isFeatureFormPending = Boolean(featureDialogState) &&
+    isPending &&
+    pendingAction?.id === featureDialogState?.item.id &&
+    pendingAction?.type === 'feature'
+
+  const featureDialogTitle = featureDialogState?.mode === 'edit' ? '추천 코멘트 수정' : '추천 코멘트 작성'
+  const isDialogUnfeaturePending = Boolean(featureDialogState) &&
+    isPending &&
+    pendingAction?.id === featureDialogState?.item.id &&
+    pendingAction?.type === 'unfeature'
+
+  const handleDelete = (postId: string) => {
+    if (!window.confirm('이 게시물을 목록에서 삭제할까요? 삭제 후에도 제출물 자체는 보관됩니다.')) {
+      return
+    }
+
+    setPendingAction({ id: postId, type: 'delete' })
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await removeEssayPost({ postId })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '삭제에 실패했습니다.')
+      }
+      setPendingAction(null)
+      router.refresh()
+    })
+  }
+
+  const handleSelectExcellent = (postId: string, monthId: string) => {
+    setExcellentPending(true)
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await selectEssayAsExcellent({ postId, monthId })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '우수작 선정에 실패했습니다.')
+      } else {
+        const selectedMonth = excellentMonths.find((m) => m.id === monthId)
+        if (selectedMonth) {
+          setExcellenceMap((prev) => ({
+            ...prev,
+            [postId]: { monthId, monthLabel: selectedMonth.label },
+          }))
+        }
+      }
+      setExcellentPending(false)
+      setExcellentPopoverOpen(false)
+      router.refresh()
+    })
+  }
+
+  const handleRemoveExcellent = (postId: string, monthId: string) => {
+    setExcellentPending(true)
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await removeEssayFromExcellent({ postId, monthId })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '우수작 해제에 실패했습니다.')
+      } else {
+        setExcellenceMap((prev) => {
+          const next = { ...prev }
+          delete next[postId]
+          return next
+        })
+      }
+      setExcellentPending(false)
+      router.refresh()
+    })
+  }
+
+  const handleAddMonth = () => {
+    const trimmed = newMonthLabel.trim()
+    if (!trimmed) return
+
+    const now = new Date()
+    const monthMatch = trimmed.match(/(\d{1,2})/)
+    const monthNum = monthMatch ? parseInt(monthMatch[1], 10) : now.getMonth() + 1
+    const year = monthNum < now.getMonth() + 1 ? now.getFullYear() + 1 : now.getFullYear()
+
+    setExcellentPending(true)
+    setErrorMessage(null)
+    startTransition(async () => {
+      const result = await createEssayExcellentMonthAction({
+        label: trimmed,
+        year,
+        month: monthNum,
+      })
+      if (!result.success) {
+        setErrorMessage(result.error ?? '달 추가에 실패했습니다.')
+      } else {
+        setExcellentMonths((prev) =>
+          [result.month, ...prev].sort((a, b) => b.year - a.year || b.month - a.month)
+        )
+      }
+      setExcellentPending(false)
+      setAddMonthMode(false)
+      setNewMonthLabel('')
+    })
+  }
+
+  const renderActions = (item: EssayPostListItem) => {
+    const actions: ReactElement[] = []
+
+    if (item.attachments.length > 0) {
+      item.attachments.forEach((attachment, index) => {
+        const downloadKey = `${item.id}:${attachment.mediaAssetId}`
+        const isDownloading = downloadingAttachmentId === downloadKey
+        actions.push(
+          <Button
+            key={`download-${attachment.id}`}
+            size="sm"
+            variant="outline"
+            disabled={isDownloading}
+            title={attachment.filename}
+            onClick={() => handleAttachmentDownload(item.id, attachment.mediaAssetId)}
+            className="flex items-center gap-1"
+          >
+            {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            <span className="max-w-[120px] truncate text-xs sm:text-sm">
+              {attachment.filename || `파일 ${index + 1}`}
+            </span>
+          </Button>
+        )
+      })
+    }
+
+    const isOwner = item.studentId === viewerId
+
+    if (!isTeacherView && isOwner) {
+      const hidden = item.hiddenByStudent
+      const isRowPending = isPending && pendingAction?.id === item.id && pendingAction.type === 'hide'
+
+      actions.push(
+        <Button
+          key="hide"
+          size="sm"
+          variant="ghost"
+          onClick={() => handleHiddenToggle(item.id, !hidden)}
+          disabled={isPending}
+          className="gap-1"
+        >
+          {isRowPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : hidden ? (
+            <Eye className="h-4 w-4" />
+          ) : (
+            <EyeOff className="h-4 w-4" />
+          )}
+          <span>{hidden ? '다시 보이기' : '숨기기'}</span>
+        </Button>
+      )
+    }
+
+    if (isTeacherView) {
+      const isFeatured = item.isFeatured
+      const isFeaturePending = isPending && pendingAction?.id === item.id && pendingAction.type === 'feature'
+      const isUnfeaturePending = isPending && pendingAction?.id === item.id && pendingAction.type === 'unfeature'
+      const isDeletePending = isPending && pendingAction?.id === item.id && pendingAction.type === 'delete'
+
+      actions.push(
+        <Button
+          key="feature-manage"
+          size="sm"
+          variant={isFeatured ? 'default' : 'outline'}
+          onClick={() => openFeatureDialog(item, isFeatured ? 'edit' : 'add')}
+          disabled={isPending && pendingAction?.id === item.id && pendingAction.type !== 'feature'}
+          className="gap-1"
+        >
+          {isFeaturePending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Star className={`h-4 w-4 ${isFeatured ? 'fill-yellow-400 text-yellow-500' : ''}`} />
+          )}
+          <span>{isFeatured ? '코멘트 수정' : '추천하기'}</span>
+        </Button>
+      )
+
+      if (isFeatured) {
+        actions.push(
+          <Button
+            key="unfeature"
+            size="sm"
+            variant="ghost"
+            onClick={() => handleUnfeature(item.id)}
+            disabled={isPending}
+            className="gap-1"
+          >
+            {isUnfeaturePending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Star className="h-4 w-4" />
+            )}
+            <span>추천 해제</span>
+          </Button>
+        )
+      }
+
+      actions.push(
+        <Button
+          key="delete"
+          size="sm"
+          variant="destructive"
+          onClick={() => handleDelete(item.id)}
+          disabled={isPending}
+          className="gap-1"
+        >
+          {isDeletePending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+          <span>삭제</span>
+        </Button>
+      )
+    }
+
+    return <div className="flex flex-wrap gap-2">{actions}</div>
+  }
+
+  return (
+    <div className="space-y-4">
+      {errorMessage && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {errorMessage}
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>학생</TableHead>
+              <TableHead>반</TableHead>
+              <TableHead>문제집</TableHead>
+              <TableHead>과목</TableHead>
+              <TableHead>주차</TableHead>
+              <TableHead>제출일</TableHead>
+              <TableHead className="text-center">상태</TableHead>
+              <TableHead>작업</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedItems.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="py-10 text-center text-sm text-slate-500">
+                  표시할 게시물이 없습니다.
+                </TableCell>
+              </TableRow>
+            ) : (
+              sortedItems.map((item) => {
+                const isOwner = item.studentId === viewerId
+                const hidden = item.hiddenByStudent
+                const hasAttachments = item.attachments.length > 0
+
+                return (
+                  <TableRow key={item.id} className={hidden ? 'bg-slate-50' : undefined}>
+                    <TableCell className="text-sm text-slate-700">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-medium text-slate-900">{item.studentName}</span>
+                        {isOwner ? <Badge variant="outline">내 제출</Badge> : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600">
+                      {item.className ? item.className : <span className="text-slate-400">미지정</span>}
+                    </TableCell>
+                    <TableCell className="whitespace-normal break-words text-sm text-slate-700">
+                      {item.workbookTitle ? item.workbookTitle : <span className="text-slate-400">제목 없음</span>}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600">
+                      {item.workbookSubject ? item.workbookSubject : <span className="text-slate-400">-</span>}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600">
+                      {item.weekLabel ? item.weekLabel : <span className="text-slate-400">-</span>}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600" title={formatDateTimeFull(item.submittedAt)}>
+                      {formatDateTime(item.submittedAt)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex flex-col items-center gap-1 text-xs">
+                        {item.isFeatured ? (
+                          isTeacherView ? (
+                            <Badge className="bg-amber-100 text-amber-800">
+                              <Sparkles className="mr-1 h-3 w-3" /> 추천
+                            </Badge>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="gap-1"
+                              onClick={() => setViewCommentItem(item)}
+                            >
+                              <Sparkles className="h-4 w-4" />
+                              <span>추천</span>
+                            </Button>
+                          )
+                        ) : null}
+                        {excellenceMap[item.id] ? (
+                          <Badge className="bg-yellow-100 text-yellow-800">
+                            <Trophy className="mr-1 h-3 w-3" />
+                            {excellenceMap[item.id].monthLabel} 우수작
+                          </Badge>
+                        ) : null}
+                        {hidden ? (
+                          <Badge variant="outline" className="text-slate-500">
+                            숨김
+                          </Badge>
+                        ) : null}
+                        {hasAttachments ? (
+                          <Badge variant="outline" className="text-slate-500">
+                            첨부 {item.attachments.length}개
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-red-500">
+                            파일 없음
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-normal text-sm text-slate-700">
+                      {renderActions(item)}
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <Sheet open={featureDialogState !== null} onOpenChange={(open) => (!open ? closeFeatureDialog() : undefined)}>
+        <SheetContent side="bottom" className="mx-auto w-full max-w-xl rounded-t-lg border-t border-slate-200 bg-white pb-6">
+          <SheetHeader className="pb-0">
+            <SheetTitle>{featureDialogTitle}</SheetTitle>
+            <SheetDescription>
+              {featureDialogState?.item.studentName} 학생의 제출물에 교사 코멘트를 남길 수 있습니다.
+            </SheetDescription>
+          </SheetHeader>
+
+          <form onSubmit={handleFeatureSubmit} className="flex flex-col gap-4 px-4 pt-4">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="feature-comment">추천 코멘트</Label>
+              <Textarea
+                id="feature-comment"
+                value={featureComment}
+                onChange={(event) => setFeatureComment(event.target.value)}
+                placeholder="학생에게 전달할 메시지를 입력하세요."
+                rows={5}
+                disabled={isFeatureFormPending}
+              />
+              <p className="text-xs text-slate-500">작성한 코멘트는 추천된 학생에게 그대로 보여집니다.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" onClick={closeFeatureDialog} disabled={isFeatureFormPending}>
+                취소
+              </Button>
+              <Button type="submit" size="sm" className="gap-1" disabled={isFeatureFormPending || featureComment.trim().length === 0}>
+                {isFeatureFormPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                <span>{featureDialogState?.mode === 'edit' ? '코멘트 저장' : '추천하기'}</span>
+              </Button>
+            </div>
+
+            {featureDialogState?.item.isFeatured ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => (featureDialogState ? handleUnfeature(featureDialogState.item.id) : undefined)}
+                  disabled={!featureDialogState || isPending}
+                >
+                  {isDialogUnfeaturePending ? (
+                    <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Star className="mr-1 h-4 w-4" />
+                  )}
+                  추천 해제
+                </Button>
+
+                {isTeacherView && featureDialogState ? (() => {
+                  const postId = featureDialogState.item.id
+                  const currentExcellence = excellenceMap[postId]
+
+                  if (currentExcellence) {
+                    return (
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-amber-100 text-amber-800">
+                          <Trophy className="mr-1 h-3 w-3" />
+                          {currentExcellence.monthLabel} 우수작
+                        </Badge>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleRemoveExcellent(postId, currentExcellence.monthId)}
+                          disabled={excellentPending || isPending}
+                        >
+                          {excellentPending ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Trophy className="mr-1 h-4 w-4" />}
+                          우수작 해제
+                        </Button>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <Popover
+                      open={excellentPopoverOpen}
+                      onOpenChange={(open) => {
+                        setExcellentPopoverOpen(open)
+                        if (!open) {
+                          setAddMonthMode(false)
+                          setNewMonthLabel('')
+                        }
+                      }}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button type="button" size="sm" variant="outline" className="gap-1">
+                          <Trophy className="h-4 w-4" />
+                          우수작 선정
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="start">
+                        <div className="flex flex-col gap-1">
+                          <p className="px-2 py-1 text-xs font-medium text-slate-500">월 선택</p>
+                          {excellentMonths.length === 0 && !addMonthMode ? (
+                            <p className="px-2 py-1 text-xs text-slate-400">등록된 달이 없습니다.</p>
+                          ) : null}
+                          {excellentMonths.map((m) => (
+                            <Button
+                              key={m.id}
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="justify-start text-sm"
+                              disabled={excellentPending}
+                              onClick={() => handleSelectExcellent(postId, m.id)}
+                            >
+                              {m.label}
+                            </Button>
+                          ))}
+                          {addMonthMode ? (
+                            <div className="flex items-center gap-1 px-1 pt-1">
+                              <Input
+                                value={newMonthLabel}
+                                onChange={(e) => setNewMonthLabel(e.target.value)}
+                                placeholder="예: 4월"
+                                className="h-8 text-sm"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    handleAddMonth()
+                                  }
+                                }}
+                              />
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="default"
+                                disabled={excellentPending || !newMonthLabel.trim()}
+                                onClick={handleAddMonth}
+                              >
+                                {excellentPending ? <Loader2 className="h-4 w-4 animate-spin" /> : '추가'}
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="justify-start gap-1 text-sm text-blue-600"
+                              onClick={() => setAddMonthMode(true)}
+                            >
+                              <Plus className="h-3 w-3" />
+                              새 달 추가
+                            </Button>
+                          )}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  )
+                })() : null}
+              </div>
+            ) : null}
+          </form>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={viewCommentItem !== null} onOpenChange={(open) => (!open ? setViewCommentItem(null) : undefined)}>
+        <SheetContent side="bottom" className="mx-auto w-full max-w-xl rounded-t-lg border-t border-slate-200 bg-white pb-6">
+          <SheetHeader className="pb-0">
+            <SheetTitle>추천 코멘트</SheetTitle>
+            <SheetDescription>
+              {viewCommentItem?.studentName} 학생에게 전달된 추천 코멘트입니다.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex flex-col gap-4 px-4 pt-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 whitespace-pre-wrap">
+              {viewCommentItem?.featuredComment ?? '등록된 코멘트가 없습니다.'}
+            </div>
+            {viewCommentItem?.featuredCommentedAt ? (
+              <p className="text-xs text-slate-500">작성일: {formatDateTime(viewCommentItem.featuredCommentedAt)}</p>
+            ) : null}
+            <div className="flex justify-end">
+              <Button type="button" size="sm" variant="ghost" onClick={() => setViewCommentItem(null)}>
+                닫기
+              </Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  )
+}

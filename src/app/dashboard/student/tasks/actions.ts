@@ -6,6 +6,7 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
+import { syncEssayPostForSubmission } from '@/lib/essay-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
 import { MAX_PDF_FILE_SIZE, MAX_IMAGE_FILE_SIZE, MAX_IMAGES_PER_QUESTION } from '@/lib/storage/limits'
@@ -1106,16 +1107,27 @@ export async function submitPdfSubmission(formData: FormData) {
     const primaryAssetId = primaryAsset?.id ?? null
     const primaryName = (primaryAsset?.metadata as { originalName?: string } | null)?.originalName ?? null
 
-    // IMPORTANT: atelier 동기화를 먼저 수행하여 새 asset으로 업데이트
+    const workbookType = await resolveWorkbookTypeForStudentTask(supabase, studentTaskId)
+
+    // IMPORTANT: atelier/essay 동기화를 먼저 수행하여 새 asset으로 업데이트
     // removeMediaAsset이 CASCADE로 atelier_post_assets를 삭제할 때
     // 트리거가 NULL 설정을 시도하는 문제를 방지
     if (primaryAssetId) {
-      await syncAtelierPostForPdfSubmission({
-        studentTaskId,
-        studentId: profile.id,
-        taskSubmissionId: submissionId,
-        mediaAssetId: primaryAssetId,
-      })
+      if (workbookType === 'essay') {
+        await syncEssayPostForSubmission({
+          studentTaskId,
+          studentId: profile.id,
+          taskSubmissionId: submissionId,
+          mediaAssetId: primaryAssetId,
+        })
+      } else {
+        await syncAtelierPostForPdfSubmission({
+          studentTaskId,
+          studentId: profile.id,
+          taskSubmissionId: submissionId,
+          mediaAssetId: primaryAssetId,
+        })
+      }
     }
 
     // 이제 이전 파일 삭제 (atelier가 이미 새 asset을 참조하므로 안전)
@@ -1163,8 +1175,13 @@ export async function submitPdfSubmission(formData: FormData) {
 
     revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${studentTaskId}`)
-    revalidatePath('/dashboard/student/atelier')
-    revalidatePath('/dashboard/teacher/atelier')
+    if (workbookType === 'essay') {
+      revalidatePath('/dashboard/student/essay')
+      revalidatePath('/dashboard/teacher/essay')
+    } else {
+      revalidatePath('/dashboard/student/atelier')
+      revalidatePath('/dashboard/teacher/atelier')
+    }
 
     return { success: true as const }
   } catch (error) {
@@ -1190,6 +1207,27 @@ export async function submitPdfSubmission(formData: FormData) {
 }
 
 type AnySupabaseClient = SupabaseClient
+
+async function resolveWorkbookTypeForStudentTask(
+  supabase: AnySupabaseClient,
+  studentTaskId: string
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('student_tasks')
+    .select('assignment:assignments(workbook:workbooks(type))')
+    .eq('id', studentTaskId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[student-task-actions] failed to resolve workbook type', error)
+    return null
+  }
+
+  const assignment = Array.isArray(data?.assignment) ? data?.assignment[0] : data?.assignment
+  const workbook = Array.isArray(assignment?.workbook) ? assignment?.workbook[0] : assignment?.workbook
+  const type = typeof workbook?.type === 'string' ? workbook.type : null
+  return type
+}
 
 async function ensureStudentOwnsTask(
   supabase: AnySupabaseClient,

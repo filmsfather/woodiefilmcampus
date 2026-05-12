@@ -109,6 +109,7 @@ const managerSections: NavigationSection[] = [
     title: '교육 활동',
     items: [
       { label: '선생님 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '선생님 에세이 보드', href: '/dashboard/teacher/essay' },
       { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
     ],
   },
@@ -152,6 +153,7 @@ const teacherSections: NavigationSection[] = [
     title: '과제 관리',
     items: [
       { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '학생 에세이 보드', href: '/dashboard/teacher/essay' },
       { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
       { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
@@ -208,6 +210,7 @@ const studentSections: NavigationSection[] = [
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
       { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
+      { label: '에세이 보드', href: '/dashboard/student/essay' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
       { label: '장비 대여', href: '/dashboard/student/equipment-rental' },
     ],

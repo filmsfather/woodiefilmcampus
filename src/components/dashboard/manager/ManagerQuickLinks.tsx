@@ -59,9 +59,10 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
   },
   {
     title: '교육 활동',
-    description: '아틀리에 제출물과 시네필 챌린지를 확인하세요.',
+    description: '아틀리에·에세이 제출물과 시네필 챌린지를 확인하세요.',
     actions: [
       { label: '선생님 아틀리에', href: '/dashboard/teacher/atelier' },
+      { label: '선생님 에세이 보드', href: '/dashboard/teacher/essay', variant: 'outline' },
       { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board', variant: 'outline' },
     ],
   },

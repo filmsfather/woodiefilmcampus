@@ -19,6 +19,8 @@ interface PdfTaskPanelProps {
   existingSubmission: StudentTaskSubmission | null
   existingAssets: Array<{ id: string; filename: string; url: string | null }>
   instructions?: string | null
+  headline?: string
+  instructionsLabel?: string | null
   items: Array<{
     id: string
     index: number
@@ -61,6 +63,8 @@ export function PdfTaskPanel({
   existingSubmission,
   existingAssets,
   instructions,
+  headline,
+  instructionsLabel,
   items,
 }: PdfTaskPanelProps) {
   const router = useRouter()
@@ -223,9 +227,18 @@ export function PdfTaskPanel({
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
-        <p className="text-base font-medium text-slate-900">PDF 파일을 업로드해주세요</p>
+        <p className="text-base font-medium text-slate-900">{headline ?? 'PDF 파일을 업로드해주세요'}</p>
         <p className="mt-1">최대 {MAX_DISPLAY_SIZE_MB}MB까지 제출할 수 있습니다.</p>
-        {instructions && <p className="mt-2 whitespace-pre-line">{instructions}</p>}
+        {instructions && (
+          <div className="mt-2 space-y-1">
+            {instructionsLabel && (
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {instructionsLabel}
+              </p>
+            )}
+            <p className="whitespace-pre-line">{instructions}</p>
+          </div>
+        )}
         {existingSubmission?.updatedAt && (
           <p className="mt-2 text-xs text-slate-500">
             최근 제출: {new Date(existingSubmission.updatedAt).toLocaleString('ko-KR')}

@@ -36,6 +36,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         description: '학생 제출물을 추천하거나 목록에서 정리하세요.',
       },
       {
+        label: '학생 에세이 보드',
+        href: '/dashboard/teacher/essay',
+        description: '에세이 제출물을 확인하고 추천 코멘트를 남기세요.',
+        variant: 'outline',
+      },
+      {
         label: '문제집 만들기',
         href: '/dashboard/workbooks/new',
         description: '새 문제집을 작성하는 마법사로 이동합니다.',

@@ -1,0 +1,774 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+import type { UserRole } from '@/types/user'
+
+interface SyncPostArgs {
+  studentTaskId: string
+  studentId: string
+  taskSubmissionId: string
+  mediaAssetId: string
+  submittedAt?: string
+}
+
+type SubmissionAttachmentOrder = {
+  mediaAssetId: string
+  order: number
+}
+
+async function fetchSubmissionAttachmentOrder(
+  admin: ReturnType<typeof createAdminClient>,
+  submissionId: string,
+  fallbackMediaAssetId: string | null
+): Promise<SubmissionAttachmentOrder[]> {
+  const { data, error } = await admin
+    .from('task_submission_assets')
+    .select('media_asset_id, order_index')
+    .eq('submission_id', submissionId)
+    .order('order_index', { ascending: true })
+
+  if (error) {
+    console.error('[essay] failed to load submission assets', error)
+  }
+
+  const attachments = (data ?? [])
+    .map((row, index) => {
+      const mediaAssetId = typeof row.media_asset_id === 'string' ? row.media_asset_id : null
+      if (!mediaAssetId) {
+        return null
+      }
+      const order = typeof row.order_index === 'number' ? row.order_index : index
+      return { mediaAssetId, order }
+    })
+    .filter((row): row is SubmissionAttachmentOrder => Boolean(row))
+    .sort((a, b) => a.order - b.order)
+
+  if (attachments.length === 0 && fallbackMediaAssetId) {
+    return [{ mediaAssetId: fallbackMediaAssetId, order: 0 }]
+  }
+
+  return attachments
+}
+
+async function replaceEssayPostAssets(
+  admin: ReturnType<typeof createAdminClient>,
+  params: { postId: string; studentId: string; attachments: SubmissionAttachmentOrder[] }
+) {
+  const { postId, studentId, attachments } = params
+
+  await admin.from('essay_post_assets').delete().eq('post_id', postId)
+
+  if (attachments.length === 0) {
+    return
+  }
+
+  const payload = attachments.map((attachment, index) => ({
+    post_id: postId,
+    media_asset_id: attachment.mediaAssetId,
+    order_index: index,
+    created_by: studentId,
+  }))
+
+  const { error } = await admin
+    .from('essay_post_assets')
+    .upsert(payload, { onConflict: 'post_id,media_asset_id', ignoreDuplicates: true })
+
+  if (error) {
+    console.error('[essay] failed to sync post assets', error)
+  }
+}
+
+export async function syncEssayPostForSubmission({
+  studentTaskId,
+  studentId,
+  taskSubmissionId,
+  mediaAssetId,
+  submittedAt,
+}: SyncPostArgs) {
+  console.log('[essay] syncEssayPostForSubmission called', {
+    studentTaskId,
+    studentId,
+    taskSubmissionId,
+    mediaAssetId,
+  })
+
+  const admin = createAdminClient()
+
+  const { data: taskRow, error: taskError } = await admin
+    .from('student_tasks')
+    .select('id, assignment_id, class_id')
+    .eq('id', studentTaskId)
+    .maybeSingle()
+
+  if (taskError) {
+    console.error('[essay] failed to load student_task', taskError)
+    return
+  }
+
+  if (!taskRow) {
+    console.warn('[essay] student_task not found for submission sync', studentTaskId)
+    return
+  }
+
+  let workbookId: string | null = null
+
+  if (taskRow.assignment_id) {
+    const { data: assignmentRow, error: assignmentError } = await admin
+      .from('assignments')
+      .select('id, workbook_id')
+      .eq('id', taskRow.assignment_id)
+      .maybeSingle()
+
+    if (assignmentError) {
+      console.error('[essay] failed to load assignment for post sync', assignmentError)
+    } else {
+      workbookId = (assignmentRow?.workbook_id as string | null) ?? null
+    }
+  }
+
+  const timestamp = submittedAt ?? new Date().toISOString()
+
+  const attachments = await fetchSubmissionAttachmentOrder(admin, taskSubmissionId, mediaAssetId)
+
+  console.log('[essay] fetchSubmissionAttachmentOrder result', {
+    taskSubmissionId,
+    attachmentsCount: attachments.length,
+    attachments: attachments.map((a) => a.mediaAssetId),
+  })
+
+  if (attachments.length === 0) {
+    console.warn('[essay] submission has no attachments; skipping post sync', { taskSubmissionId })
+    return
+  }
+
+  const primaryAttachmentId = attachments[0]?.mediaAssetId ?? mediaAssetId
+
+  console.log('[essay] determined primaryAttachmentId', { primaryAttachmentId, fallbackMediaAssetId: mediaAssetId })
+
+  if (!primaryAttachmentId) {
+    console.warn('[essay] unable to determine primary attachment for submission', { taskSubmissionId })
+    return
+  }
+
+  const updatePayload = {
+    task_submission_id: taskSubmissionId,
+    media_asset_id: primaryAttachmentId,
+    assignment_id: (taskRow.assignment_id as string | null) ?? null,
+    class_id: (taskRow.class_id as string | null) ?? null,
+    workbook_id: workbookId,
+    submitted_at: timestamp,
+    hidden_by_student: false,
+    hidden_at: null,
+    is_deleted: false,
+    deleted_at: null,
+    deleted_by: null,
+  }
+
+  const upsertPayload = {
+    student_task_id: studentTaskId,
+    student_id: studentId,
+    ...updatePayload,
+  }
+
+  console.log('[essay] upserting essay_posts', {
+    studentTaskId,
+    mediaAssetId: updatePayload.media_asset_id,
+  })
+
+  const { data: postRow, error: upsertError } = await admin
+    .from('essay_posts')
+    .upsert(upsertPayload, { onConflict: 'student_task_id', ignoreDuplicates: false })
+    .select('id')
+    .single()
+
+  if (upsertError || !postRow?.id) {
+    console.error('[essay] failed to upsert post', upsertError, { upsertPayload })
+    return
+  }
+
+  console.log('[essay] upsert success', { postId: postRow.id, mediaAssetId: updatePayload.media_asset_id })
+
+  await replaceEssayPostAssets(admin, { postId: postRow.id, studentId, attachments })
+}
+
+export async function setEssayPostHidden({
+  postId,
+  studentId,
+  hidden,
+}: {
+  postId: string
+  studentId: string
+  hidden: boolean
+}) {
+  const admin = createAdminClient()
+
+  const { data: postRow, error: fetchError } = await admin
+    .from('essay_posts')
+    .select('id, student_id')
+    .eq('id', postId)
+    .maybeSingle()
+
+  if (fetchError) {
+    console.error('[essay] failed to fetch post for hide toggle', fetchError)
+    return { success: false as const, error: '게시물을 찾지 못했습니다.' }
+  }
+
+  if (!postRow || postRow.student_id !== studentId) {
+    return { success: false as const, error: '본인 게시물만 숨길 수 있습니다.' }
+  }
+
+  const { error: updateError } = await admin
+    .from('essay_posts')
+    .update({
+      hidden_by_student: hidden,
+      hidden_at: hidden ? new Date().toISOString() : null,
+      is_deleted: false,
+      deleted_at: null,
+      deleted_by: null,
+    })
+    .eq('id', postId)
+
+  if (updateError) {
+    console.error('[essay] failed to toggle hidden state', updateError)
+    return { success: false as const, error: '숨김 상태를 변경하지 못했습니다.' }
+  }
+
+  return { success: true as const }
+}
+
+export async function setEssayPostFeatured({
+  postId,
+  teacherId,
+  featured,
+  comment,
+}: {
+  postId: string
+  teacherId: string
+  featured: boolean
+  comment?: string | null
+}) {
+  const admin = createAdminClient()
+
+  const trimmedComment = typeof comment === 'string' ? comment.trim() : null
+  const now = new Date().toISOString()
+
+  const { error } = await admin
+    .from('essay_posts')
+    .update({
+      is_featured: featured,
+      featured_by: featured ? teacherId : null,
+      featured_at: featured ? now : null,
+      featured_comment: featured ? trimmedComment : null,
+      featured_commented_at: featured ? now : null,
+    })
+    .eq('id', postId)
+    .eq('is_deleted', false)
+
+  if (error) {
+    console.error('[essay] failed to toggle featured state', error)
+    return { success: false as const, error: '추천 상태를 변경하지 못했습니다.' }
+  }
+
+  return { success: true as const }
+}
+
+export async function deleteEssayPost({
+  postId,
+  teacherId,
+}: {
+  postId: string
+  teacherId: string
+}) {
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('essay_posts')
+    .update({
+      is_deleted: true,
+      deleted_by: teacherId,
+      deleted_at: new Date().toISOString(),
+      is_featured: false,
+      featured_by: null,
+      featured_at: null,
+      featured_comment: null,
+      featured_commented_at: null,
+    })
+    .eq('id', postId)
+
+  if (error) {
+    console.error('[essay] failed to delete post', error)
+    return { success: false as const, error: '게시물을 삭제하지 못했습니다.' }
+  }
+
+  return { success: true as const }
+}
+
+type JsonRecord = Record<string, unknown>
+
+export interface EssayPostListItem {
+  id: string
+  studentTaskId: string
+  studentId: string
+  studentName: string
+  classId: string | null
+  className: string | null
+  assignmentId: string | null
+  workbookId: string | null
+  workbookTitle: string | null
+  workbookSubject: string | null
+  weekLabel: string | null
+  submittedAt: string
+  isFeatured: boolean
+  featuredBy: string | null
+  featuredAt: string | null
+  featuredComment: string | null
+  featuredCommentedAt: string | null
+  hiddenByStudent: boolean
+  mediaAssetId: string
+  attachments: Array<{
+    id: string
+    mediaAssetId: string
+    filename: string
+  }>
+}
+
+export interface EssayFilters {
+  weekLabels: string[]
+  subjects: string[]
+  classes: Array<{ id: string; name: string }>
+  includesUnassignedClass: boolean
+  hasWeeklessWeekLabel: boolean
+  hasSubjectless: boolean
+}
+
+export interface FetchEssayOptions {
+  viewerId: string
+  viewerRole: UserRole
+  page?: number
+  perPage?: number
+  weekLabel?: string | null
+  classId?: string | null
+  subject?: string | null
+  featuredOnly?: boolean
+  studentName?: string | null
+}
+
+export interface EssayListResult {
+  items: EssayPostListItem[]
+  totalCount: number
+  totalPages: number
+  page: number
+  perPage: number
+  filters: EssayFilters
+}
+
+export async function fetchEssayPosts({
+  viewerId,
+  viewerRole,
+  page = 1,
+  perPage = 50,
+  weekLabel,
+  classId,
+  subject,
+  featuredOnly,
+  studentName,
+}: FetchEssayOptions): Promise<EssayListResult> {
+  const admin = createAdminClient()
+
+  const safePerPage = Math.min(Math.max(perPage, 1), 100)
+  const safePage = Math.max(page, 1)
+  const from = (safePage - 1) * safePerPage
+  const to = from + safePerPage - 1
+
+  const trimmedStudentName = typeof studentName === 'string' && studentName.trim().length > 0 ? studentName.trim() : null
+
+  const baseSelect = `id,
+       student_task_id,
+       student_id,
+       class_id,
+       assignment_id,
+       workbook_id,
+       media_asset_id,
+       submitted_at,
+       is_featured,
+       featured_by,
+       featured_at,
+       featured_comment,
+       featured_commented_at,
+       hidden_by_student,
+       hidden_at,
+       profiles:profiles!essay_posts_student_id_fkey(id, name),
+        classes:classes!essay_posts_class_id_fkey(id, name),
+        workbooks:workbooks!essay_posts_workbook_id_fkey(id, title, subject, week_label),
+        essay_post_assets(id, order_index, media_asset_id)
+      ` as const
+
+  const filteredSelect = `id,
+       student_task_id,
+       student_id,
+       class_id,
+       assignment_id,
+       workbook_id,
+       media_asset_id,
+       submitted_at,
+       is_featured,
+       featured_by,
+       featured_at,
+       featured_comment,
+       featured_commented_at,
+       hidden_by_student,
+       hidden_at,
+       profiles:profiles!essay_posts_student_id_fkey!inner(id, name),
+        classes:classes!essay_posts_class_id_fkey(id, name),
+        workbooks:workbooks!essay_posts_workbook_id_fkey(id, title, subject, week_label),
+        essay_post_assets(id, order_index, media_asset_id)
+      ` as const
+
+  const select = trimmedStudentName ? filteredSelect : baseSelect
+
+  let query = admin
+    .from('essay_posts')
+    .select(select, { count: 'exact' })
+    .eq('is_deleted', false)
+    .not('media_asset_id', 'is', null)
+    .order('submitted_at', { ascending: false })
+    .range(from, to)
+
+  if (featuredOnly) {
+    query = query.eq('is_featured', true)
+  }
+
+  if (classId) {
+    query = query.eq('class_id', classId)
+  } else if (classId === '') {
+    query = query.is('class_id', null)
+  }
+
+  if (typeof weekLabel === 'string' && weekLabel.length > 0) {
+    query = query.eq('workbooks.week_label', weekLabel)
+  } else if (weekLabel === '') {
+    query = query.is('workbooks.week_label', null)
+  }
+
+  if (typeof subject === 'string' && subject.length > 0) {
+    query = query.eq('workbooks.subject', subject)
+  } else if (subject === '') {
+    query = query.is('workbooks.subject', null)
+  }
+
+  if (viewerRole === 'student') {
+    const orFilter = `hidden_by_student.eq.false,student_id.eq.${viewerId}`
+    query = query.or(orFilter)
+  }
+
+  if (trimmedStudentName) {
+    const escapedPattern = `%${escapeIlikePattern(trimmedStudentName)}%`
+    query = query.ilike('profiles.name', escapedPattern)
+  }
+
+  const [queryResult, filtersResult] = await Promise.all([
+    query,
+    loadEssayFilters(admin),
+  ])
+
+  const { data, error, count } = queryResult
+  const { filters, includesUnassigned, hasWeekless, hasSubjectless } = filtersResult
+
+  if (error) {
+    console.error('[essay] failed to fetch posts', error)
+    return {
+      items: [],
+      totalCount: 0,
+      totalPages: 0,
+      page: safePage,
+      perPage: safePerPage,
+      filters: { weekLabels: [], subjects: [], classes: [], includesUnassignedClass: false, hasWeeklessWeekLabel: false, hasSubjectless: false },
+    }
+  }
+
+  const rows = (data ?? []) as Array<Record<string, unknown>>
+
+  const mediaAssetIdSet = new Set<string>()
+
+  for (const row of rows) {
+    if (typeof row.media_asset_id === 'string') {
+      mediaAssetIdSet.add(row.media_asset_id)
+    }
+
+    const attachmentRows = Array.isArray(row.essay_post_assets) ? row.essay_post_assets : []
+    for (const attachment of attachmentRows) {
+      const mediaId = typeof (attachment as { media_asset_id?: unknown })?.media_asset_id === 'string'
+        ? (attachment as { media_asset_id: string }).media_asset_id
+        : null
+      if (mediaId) {
+        mediaAssetIdSet.add(mediaId)
+      }
+    }
+  }
+
+  const mediaAssetIds = Array.from(mediaAssetIdSet)
+
+  const assetFilenameLookup = new Map<string, string>()
+
+  if (mediaAssetIds.length > 0) {
+    const { data: assetRows, error: assetError } = await admin
+      .from('media_assets')
+      .select('id, path, metadata')
+      .in('id', mediaAssetIds)
+
+    if (assetError) {
+      console.error('[essay] failed to load media assets', assetError)
+    } else {
+      for (const asset of assetRows ?? []) {
+        if (!asset?.id) {
+          continue
+        }
+        const metadata = (asset.metadata as JsonRecord | null) ?? null
+        const possibleName = metadata?.originalName || metadata?.original_name || metadata?.filename || metadata?.name
+        const fallbackName = typeof asset.path === 'string' ? asset.path.split('/').pop() : null
+        const filename = typeof possibleName === 'string' && possibleName.length > 0
+          ? possibleName
+          : fallbackName ?? '제출 파일'
+        assetFilenameLookup.set(asset.id, filename)
+      }
+    }
+  }
+
+  const items: EssayPostListItem[] = rows
+    .map((row) => {
+      const id = typeof row.id === 'string' ? row.id : null
+      const studentTaskId = typeof row.student_task_id === 'string' ? row.student_task_id : null
+      const studentId = typeof row.student_id === 'string' ? row.student_id : null
+      const mediaAssetId = typeof row.media_asset_id === 'string' ? row.media_asset_id : null
+
+      if (!id || !studentTaskId || !studentId || !mediaAssetId) {
+        return null
+      }
+
+      const profileRelation = pickFirstRelation<{ id: string; name: string | null }>(row.profiles)
+      const classRelation = pickFirstRelation<{ id: string; name: string | null }>(row.classes)
+      const workbookRelation = pickFirstRelation<{
+        id: string
+        title: string | null
+        subject: string | null
+        week_label: string | null
+      }>(row.workbooks)
+
+      const assignmentId = typeof row.assignment_id === 'string' ? row.assignment_id : null
+      const classId = typeof row.class_id === 'string' ? row.class_id : null
+      const workbookId = typeof row.workbook_id === 'string' ? row.workbook_id : null
+      const submittedAt = typeof row.submitted_at === 'string' ? row.submitted_at : new Date().toISOString()
+      const isFeatured = typeof row.is_featured === 'boolean' ? row.is_featured : Boolean(row.is_featured)
+      const featuredBy = typeof row.featured_by === 'string' ? row.featured_by : null
+      const featuredAt = typeof row.featured_at === 'string' ? row.featured_at : null
+      const featuredCommentRaw = typeof row.featured_comment === 'string' ? row.featured_comment : null
+      const featuredComment = featuredCommentRaw && featuredCommentRaw.trim().length > 0 ? featuredCommentRaw.trim() : null
+      const featuredCommentedAt = typeof row.featured_commented_at === 'string' ? row.featured_commented_at : null
+      const hiddenByStudent = typeof row.hidden_by_student === 'boolean'
+        ? row.hidden_by_student
+        : Boolean(row.hidden_by_student)
+
+      const rawAttachments = Array.isArray(row.essay_post_assets) ? row.essay_post_assets : []
+      let attachments = rawAttachments
+        .map((attachment, index) => {
+          if (!attachment || typeof attachment !== 'object') {
+            return null
+          }
+
+          const attachmentId = typeof (attachment as { id?: unknown }).id === 'string'
+            ? ((attachment as { id: string }).id)
+            : null
+          const attachmentMediaId = typeof (attachment as { media_asset_id?: unknown }).media_asset_id === 'string'
+            ? ((attachment as { media_asset_id: string }).media_asset_id)
+            : null
+          const orderIndex = typeof (attachment as { order_index?: unknown }).order_index === 'number'
+            ? ((attachment as { order_index: number }).order_index)
+            : index
+
+          if (!attachmentId || !attachmentMediaId) {
+            return null
+          }
+
+          return {
+            id: attachmentId,
+            mediaAssetId: attachmentMediaId,
+            filename: assetFilenameLookup.get(attachmentMediaId) ?? '제출 파일',
+            order: orderIndex,
+          }
+        })
+        .filter((attachment): attachment is { id: string; mediaAssetId: string; filename: string; order: number } => Boolean(attachment))
+        .sort((a, b) => a.order - b.order)
+
+      if (attachments.length === 0 && mediaAssetId) {
+        attachments = [
+          {
+            id: `${id ?? mediaAssetId}-primary`,
+            mediaAssetId,
+            filename: assetFilenameLookup.get(mediaAssetId) ?? '제출 파일',
+            order: 0,
+          },
+        ]
+      }
+
+      const normalizedAttachments = attachments.map((attachment) => ({
+        id: attachment.id,
+        mediaAssetId: attachment.mediaAssetId,
+        filename: attachment.filename,
+      }))
+
+      return {
+        id,
+        studentTaskId,
+        studentId,
+        studentName: (profileRelation?.name ?? '이름 미확인').trim() || '이름 미입력',
+        classId,
+        className: classRelation?.name ?? null,
+        assignmentId,
+        workbookId,
+        workbookTitle: workbookRelation?.title ?? null,
+        workbookSubject: workbookRelation?.subject ?? null,
+        weekLabel: workbookRelation?.week_label ?? null,
+        submittedAt,
+        isFeatured,
+        featuredBy,
+        featuredAt,
+        featuredComment,
+        featuredCommentedAt,
+        hiddenByStudent,
+        mediaAssetId,
+        attachments: normalizedAttachments,
+      }
+    })
+    .filter((item): item is EssayPostListItem => Boolean(item))
+
+  const totalCount = count ?? rows.length
+  const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / safePerPage)
+
+  return {
+    items,
+    totalCount,
+    totalPages,
+    page: safePage,
+    perPage: safePerPage,
+    filters: {
+      weekLabels: filters.weekLabels,
+      subjects: filters.subjects,
+      classes: filters.classes,
+      includesUnassignedClass: includesUnassigned,
+      hasWeeklessWeekLabel: hasWeekless,
+      hasSubjectless,
+    },
+  }
+}
+
+async function loadEssayFilters(admin: ReturnType<typeof createAdminClient>) {
+  const [workbookResult, classesResult, unassignedCheck] = await Promise.all([
+    admin
+      .from('essay_posts')
+      .select('workbook_id')
+      .eq('is_deleted', false)
+      .not('workbook_id', 'is', null)
+      .limit(10000),
+    admin
+      .from('classes')
+      .select('id, name'),
+    admin
+      .from('essay_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_deleted', false)
+      .is('class_id', null),
+  ])
+
+  if (workbookResult.error) {
+    console.error('[essay] failed to load workbook ids for filters', workbookResult.error)
+  }
+
+  const hasUnassigned = (unassignedCheck.count ?? 0) > 0
+
+  const workbookIds = Array.from(
+    new Set(
+      (workbookResult.data ?? [])
+        .map((row) => (row?.workbook_id as string | null) ?? null)
+        .filter((value): value is string => Boolean(value))
+    )
+  )
+
+  const [workbooksResult] = await Promise.all([
+    workbookIds.length > 0
+      ? admin
+          .from('workbooks')
+          .select('id, week_label, subject')
+          .in('id', workbookIds)
+      : Promise.resolve({ data: [], error: null }),
+  ])
+
+  let weekLabels: string[] = []
+  let subjects: string[] = []
+  let hasWeekless = false
+  let hasSubjectless = false
+
+  if (workbooksResult.error) {
+    console.error('[essay] failed to load workbook week labels', workbooksResult.error)
+  } else {
+    const labelSet = new Set<string>()
+    const subjectSet = new Set<string>()
+
+    for (const row of workbooksResult.data ?? []) {
+      const label = (row?.week_label as string | null) ?? null
+      if (typeof label === 'string' && label.trim().length > 0) {
+        labelSet.add(label.trim())
+      } else {
+        hasWeekless = true
+      }
+
+      const subjectValue = (row?.subject as string | null) ?? null
+      if (typeof subjectValue === 'string' && subjectValue.trim().length > 0) {
+        subjectSet.add(subjectValue.trim())
+      } else {
+        hasSubjectless = true
+      }
+    }
+
+    weekLabels = Array.from(labelSet).sort((a, b) => a.localeCompare(b, 'ko'))
+    subjects = Array.from(subjectSet).sort((a, b) => a.localeCompare(b, 'ko'))
+  }
+
+  let classes: Array<{ id: string; name: string }> = []
+
+  if (classesResult.error) {
+    console.error('[essay] failed to load class names for filters', classesResult.error)
+  } else {
+    classes = (classesResult.data ?? [])
+      .map((row) => ({
+        id: row.id as string,
+        name: ((row.name as string | null) ?? '이름 미지정').trim() || '이름 미지정',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  }
+
+  return {
+    filters: {
+      weekLabels,
+      subjects,
+      classes,
+    },
+    includesUnassigned: hasUnassigned,
+    hasWeekless,
+    hasSubjectless,
+  }
+}
+
+function pickFirstRelation<T extends Record<string, unknown>>(value: unknown): T | null {
+  if (!value) {
+    return null
+  }
+
+  if (Array.isArray(value)) {
+    const first = value[0]
+    return typeof first === 'object' && first !== null ? (first as T) : null
+  }
+
+  return typeof value === 'object' && value !== null ? (value as T) : null
+}
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, (match) => `\\${match}`)
+}

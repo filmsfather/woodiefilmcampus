@@ -68,6 +68,7 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
     writing?: { instructions?: string | null; maxCharacters?: number | null }
     film?: { noteCount?: number | null }
     lecture?: { instructions?: string | null; youtubeUrl?: string | null }
+    essay?: { topic?: string | null }
   }
 
   const dueLabel = formatDate(task.due.dueAt)
@@ -240,6 +241,19 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
             attachments={attachmentsByItem}
           />
         </div>
+      )
+      break
+    case 'essay':
+      taskContent = (
+        <PdfTaskPanel
+          studentTaskId={task.id}
+          existingSubmission={pdfSubmission ?? null}
+          existingAssets={pdfSignedAssets}
+          instructions={workbookConfig.essay?.topic ?? null}
+          headline="에세이 PDF를 업로드해주세요"
+          instructionsLabel="에세이 주제"
+          items={pdfItems}
+        />
       )
       break
     case 'image':

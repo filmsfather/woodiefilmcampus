@@ -39,6 +39,12 @@ type WorkbookConfig = {
     youtubeUrl?: string
     instructions?: string
   }
+  image?: {
+    instructions?: string
+  }
+  essay?: {
+    topic?: string
+  }
 }
 
 export const metadata: Metadata = {
@@ -145,7 +151,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
         <WorkbookMetadataForm workbookId={workbook.id} defaultValues={formDefaults} teachers={teachers} />
         <WorkbookItemsEditor
           workbookId={workbook.id}
-          workbookType={workbook.type as 'srs' | 'pdf' | 'writing' | 'film' | 'lecture'}
+          workbookType={workbook.type as 'srs' | 'pdf' | 'writing' | 'film' | 'lecture' | 'image' | 'essay'}
           allowMultipleCorrect={allowMultipleCorrect}
           items={itemsForEditor}
         />
@@ -222,6 +228,12 @@ const buildMetadataFormDefaults = (workbook: WorkbookRecord): WorkbookMetadataFo
     lectureSettings: {
       youtubeUrl: config.lecture?.youtubeUrl ?? '',
       instructions: config.lecture?.instructions ?? '',
+    },
+    imageSettings: {
+      instructions: config.image?.instructions ?? '',
+    },
+    essaySettings: {
+      topic: config.essay?.topic ?? '',
     },
   }
 }

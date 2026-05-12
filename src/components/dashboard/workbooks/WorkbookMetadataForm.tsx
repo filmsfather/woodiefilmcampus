@@ -280,6 +280,52 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues, teache
             />
           </div>
         )
+      case 'image':
+        return (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">이미지 제출형 옵션</h3>
+            <FormField
+              control={form.control}
+              name="imageSettings.instructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>제출 안내</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="예: 손글씨로 작성한 내용을 촬영하여 업로드해주세요."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )
+      case 'essay':
+        return (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">에세이 주제</h3>
+            <FormField
+              control={form.control}
+              name="essaySettings.topic"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>에세이 주제</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={5}
+                      placeholder="에세이 주제를 작성하세요."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )
       default:
         return null
     }

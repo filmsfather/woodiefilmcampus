@@ -116,6 +116,7 @@ const stepFieldMap: Record<(typeof steps)[number]['id'], string[]> = {
     'lectureSettings.youtubeUrl',
     'lectureSettings.instructions',
     'imageSettings.instructions',
+    'essaySettings.topic',
   ],
   items: ['items'],
   review: [],
@@ -174,6 +175,9 @@ const defaultValues: WorkbookFormValues = {
   },
   imageSettings: {
     instructions: '',
+  },
+  essaySettings: {
+    topic: '',
   },
   items: [createEmptyItem(true)],
 }
@@ -956,6 +960,34 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             />
           </div>
         )
+      case 'essay':
+        return (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-slate-900">에세이 주제</h3>
+              <p className="text-xs text-slate-500">
+                학생이 PDF로 제출할 에세이의 주제를 작성하세요. 문항별로 이미지나 PDF 자료를 함께 첨부할 수 있습니다.
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name="essaySettings.topic"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>에세이 주제</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={5}
+                      placeholder="예: 자신이 본 영화 중 가장 인상 깊었던 장면을 골라, 그 장면이 인물에게 어떤 변화를 가져왔는지 분석해 보세요."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )
       default:
         return null
     }
@@ -1027,6 +1059,15 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             <p className="font-medium text-slate-900">제출 안내</p>
             <p className="whitespace-pre-line text-sm text-slate-700">
               {normalizedPreview.config.image.instructions}
+            </p>
+          </div>
+        ) : null
+      case 'essay':
+        return normalizedPreview.config.essay?.topic ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="font-medium text-slate-900">에세이 주제</p>
+            <p className="whitespace-pre-line text-sm text-slate-700">
+              {normalizedPreview.config.essay.topic}
             </p>
           </div>
         ) : null

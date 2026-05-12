@@ -85,6 +85,12 @@ const DONE_ACTIONS: DashboardActionItem[] = [
     variant: 'outline',
   },
   {
+    label: '에세이 보드',
+    href: '/dashboard/student/essay',
+    description: '친구들이 작성한 에세이 PDF를 살펴보고 영감을 얻으세요.',
+    variant: 'outline',
+  },
+  {
     label: '우디쌤 인터넷강의 시청',
     href: '/dashboard/student/lectures',
     description: '선생님이 올려주신 인터넷 강의를 시청하며 학습합니다.',
