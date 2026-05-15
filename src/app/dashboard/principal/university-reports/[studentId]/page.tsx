@@ -1,11 +1,14 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { GraduationCap } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import UniversityReportCoursesTable from '@/components/dashboard/university-report/UniversityReportCoursesTable'
 import UniversityReportEmptyState from '@/components/dashboard/university-report/UniversityReportEmptyState'
 import UniversityReportResultSummary from '@/components/dashboard/university-report/UniversityReportResultSummary'
-import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
@@ -98,6 +101,35 @@ export default async function PrincipalStudentReportPage({
             studentId={student.id}
             gradeSemesterCounts={gradeSemesterCounts}
           />
+
+          {snapshot.status === 'parsed' ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="flex flex-row items-center justify-between gap-2">
+                <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                  <GraduationCap className="size-4" />
+                  지원가능대학 분석
+                </CardTitle>
+                <Button asChild>
+                  <Link href={`/dashboard/principal/university-reports/${student.id}/analysis`}>
+                    분석 페이지로 이동
+                  </Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="text-sm text-slate-600">
+                <p>
+                  등록된 대학 산식과 입시 컷을 학생의 성적과 비교해 모집단위별 지원 가능 단계(안정/적정/도전/위험)를 산출합니다.
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  대학·산식·컷이 부족하다면 먼저{' '}
+                  <Link href="/dashboard/principal/universities" className="underline">
+                    대학 카탈로그
+                  </Link>
+                  에서 등록을 완료해주세요.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {courses.length > 0 ? (
             <UniversityReportCoursesTable courses={courses} studentId={student.id} />
           ) : null}

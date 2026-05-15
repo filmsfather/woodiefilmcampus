@@ -73,9 +73,14 @@ export default async function PrincipalDashboardPage() {
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle className="text-lg text-slate-900">지원가능대학 레포트</CardTitle>
-            <CardDescription>학생별 지원 가능 대학 레포트를 관리하고 확인하세요.</CardDescription>
+            <CardDescription>
+              학생별 지원 가능 대학 레포트를 확인하고, 산식·컷 프리셋이 의도대로 계산되는지 검증하세요.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/principal/universities">산식·컷 카탈로그(읽기 전용)</Link>
+            </Button>
             <Button asChild size="sm">
               <Link href="/dashboard/principal/university-reports">레포트 관리</Link>
             </Button>
