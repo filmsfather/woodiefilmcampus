@@ -40,3 +40,4 @@
 - 실장 대시보드에 반 관리 카드가 추가되어 `/dashboard/manager/classes`에서 반 생성·수정·삭제와 교사/학생 배정을 서버 액션 + Zod 검증으로 처리할 수 있습니다.
 - Supabase 스키마(`supabase/setup.sql`)에 `class_teachers`, `class_students`, `public.can_manage_profiles` 함수와 갱신된 RLS 정책이 포함되었으니 변경 후 스크립트를 다시 적용하세요.
 - 관리자 권한 확인 헬퍼(`src/lib/authz.ts`)와 액션 상태/검증 스키마(`src/app/dashboard/manager/classes/action-state.ts`, `src/lib/validation/class.ts`)가 서버·클라이언트 흐름을 일관되게 유지합니다.
+- 지원가능 대학 레포트의 기초 데이터를 위한 성적증명서 업로드/파싱 흐름이 추가되었습니다. 학생은 `/dashboard/student/university-report`, 교장은 `/dashboard/principal/university-reports/[studentId]`에서 정부24 PDF를 업로드하면 Gemini 멀티모달 파서가 학년·학기 단위로 자동 정규화해 `university_report_snapshots/assets/courses` 테이블에 저장합니다. 적용 전 `supabase/migrations/101_university_reports.sql`을 반영하고 `GEMINI_API_KEY`가 설정되어 있어야 합니다.

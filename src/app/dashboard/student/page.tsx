@@ -22,6 +22,12 @@ interface DashboardActionItem {
 
 const TODO_ACTIONS: DashboardActionItem[] = [
   {
+    label: '내 성적 등록',
+    href: '/dashboard/student/university-report',
+    description: '성적증명서 PDF를 업로드해 지원 가능 대학 분석을 위한 성적을 등록하세요.',
+    variant: 'default',
+  },
+  {
     label: '연간 학습 일정',
     href: '/dashboard/learning-journal/annual-schedule',
     description: '한 해의 주요 커리큘럼과 일정을 한눈에 확인하세요.',
