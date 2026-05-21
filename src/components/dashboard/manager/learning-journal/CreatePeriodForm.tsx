@@ -52,6 +52,16 @@ export function CreatePeriodForm({ classOptions, defaultStartDate }: CreatePerio
     setSelectedClassIds((prev) => prev.filter((id) => id !== classId))
   }
 
+  const handleSelectAll = () => {
+    setSelectedClassIds(classOptions.map((option) => option.id))
+  }
+
+  const handleClearAll = () => {
+    setSelectedClassIds([])
+  }
+
+  const allSelected = hasClasses && selectedClassIds.length === classOptions.length
+
   const getClassInfo = (classId: string) => {
     const classOption = classOptions.find((c) => c.id === classId)
     return {
@@ -90,7 +100,31 @@ export function CreatePeriodForm({ classOptions, defaultStartDate }: CreatePerio
           <input type="hidden" name="classIds" value={selectedClassIds.join(',')} />
 
           <div className="grid gap-2 md:col-span-1">
-            <Label>반 선택</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label>반 선택</Label>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                  disabled={selectDisabled || allSelected}
+                  className="h-7 px-2 text-xs"
+                >
+                  전체 선택
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearAll}
+                  disabled={isPending || selectedClassIds.length === 0}
+                  className="h-7 px-2 text-xs"
+                >
+                  전체 해제
+                </Button>
+              </div>
+            </div>
             <Select
               value=""
               onValueChange={handleAddClass}
