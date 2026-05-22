@@ -89,7 +89,6 @@ export function ClassPeriodSelector({
   const handleClassChange = (classId: string) => {
     const params = new URLSearchParams()
     params.set("class", classId)
-    params.set("period", "all")
     router.push(`${basePath}?${params.toString()}`)
   }
 

@@ -58,7 +58,8 @@ export default async function PrincipalLearningJournalReviewPage({
 
   const periodsForClass = (periodRows ?? []).filter((period) => period.class_id === classParam)
   const periodParamRaw = typeof resolvedSearchParams?.period === 'string' ? resolvedSearchParams.period : null
-  let periodParam: 'all' | string = 'all'
+  const latestPeriodId = periodsForClass[0]?.id ?? null
+  let periodParam: 'all' | string = latestPeriodId ?? 'all'
   if (periodParamRaw) {
     if (periodParamRaw === 'all') {
       periodParam = 'all'
