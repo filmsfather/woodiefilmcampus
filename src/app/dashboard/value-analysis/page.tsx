@@ -14,8 +14,20 @@ interface PageProps {
 }
 
 function parseString(value: string | string[] | undefined): string | null {
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => typeof entry === "string" && entry.length > 0)
+    return first ?? null
+  }
   if (typeof value !== "string" || value.length === 0) return null
   return value
+}
+
+function parseStringArray(value: string | string[] | undefined): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0)
+  }
+  if (typeof value === "string" && value.length > 0) return [value]
+  return []
 }
 
 function parseFeatured(value: string | string[] | undefined): boolean {
@@ -38,7 +50,7 @@ export default async function ValueAnalysisPage(props: PageProps) {
     "principal",
   ])
 
-  const classId = parseString(searchParams.class)
+  const classIds = parseStringArray(searchParams.class)
   const genreId = parseString(searchParams.genre)
   const studentName = parseString(searchParams.student)
   const title = parseString(searchParams.title)
@@ -47,7 +59,7 @@ export default async function ValueAnalysisPage(props: PageProps) {
 
   const data = await fetchValueAnalysisPosts({
     page,
-    classId,
+    classIds,
     genreId,
     studentName,
     title,
@@ -89,7 +101,7 @@ export default async function ValueAnalysisPage(props: PageProps) {
       <ValueAnalysisFilters
         basePath="/dashboard/value-analysis"
         filters={data.filters}
-        currentClassId={classId}
+        currentClassIds={classIds}
         currentGenreId={genreId}
         currentStudentName={studentName}
         currentTitle={title}
@@ -145,7 +157,13 @@ function buildPageParams(
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(searchParams)) {
     if (key === "page") continue
-    if (typeof value === "string" && value.length > 0) {
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (typeof entry === "string" && entry.length > 0) {
+          params.append(key, entry)
+        }
+      }
+    } else if (typeof value === "string" && value.length > 0) {
       params.set(key, value)
     }
   }
