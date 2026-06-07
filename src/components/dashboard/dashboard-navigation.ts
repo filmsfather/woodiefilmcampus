@@ -105,6 +105,13 @@ const managerSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'manager-special-lectures',
+    title: '특강 관리',
+    items: [
+      { label: '특강 게시판', href: '/dashboard/manager/special-lectures' },
+    ],
+  },
+  {
     id: 'manager-education',
     title: '교육 활동',
     items: [
@@ -212,6 +219,7 @@ const studentSections: NavigationSection[] = [
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
       { label: '에세이 보드', href: '/dashboard/student/essay' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
+      { label: '특강', href: '/dashboard/student/special-lectures' },
       { label: '장비 대여', href: '/dashboard/student/equipment-rental' },
     ],
   },

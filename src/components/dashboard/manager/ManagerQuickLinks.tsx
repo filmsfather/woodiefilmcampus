@@ -50,6 +50,14 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
     ],
   },
   {
+    title: '특강 관리',
+    description: '영상을 업로드하고 시청 가능한 학생을 직접 지정하세요.',
+    actions: [
+      { label: '특강 게시판', href: '/dashboard/manager/special-lectures' },
+      { label: '새 특강 등록', href: '/dashboard/manager/special-lectures/new', variant: 'outline' },
+    ],
+  },
+  {
     title: '학습일지 관리',
     description: '주기를 만들고 주요 일정까지 한 곳에서 관리하세요.',
     actions: [
