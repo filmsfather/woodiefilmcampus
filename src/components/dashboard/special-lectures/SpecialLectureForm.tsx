@@ -10,18 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  AudienceSelector,
-  type AudienceClassOption,
-  type AudienceStudentOption,
-} from '@/components/dashboard/special-lectures/AudienceSelector'
 import {
   SPECIAL_LECTURE_MAX_VIDEO_SIZE,
   SPECIAL_LECTURE_VIDEOS_BUCKET,
   type SpecialLecture,
-  type SpecialLectureAudienceMode,
 } from '@/lib/special-lectures'
 import {
   buildPendingStoragePath,
@@ -38,11 +31,6 @@ export type SpecialLectureFormResult = {
 
 interface SpecialLectureFormProps {
   lecture?: SpecialLecture
-  defaultAudienceMode?: SpecialLectureAudienceMode
-  defaultClassIds?: string[]
-  defaultStudentIds?: string[]
-  classes: AudienceClassOption[]
-  students: AudienceStudentOption[]
   action: (formData: FormData) => Promise<SpecialLectureFormResult>
   currentUserId: string
   submitLabel?: string
@@ -68,11 +56,6 @@ const formatFileSize = (bytes: number) => {
 
 export function SpecialLectureForm({
   lecture,
-  defaultAudienceMode,
-  defaultClassIds = [],
-  defaultStudentIds = [],
-  classes,
-  students,
   action,
   currentUserId,
   submitLabel,
@@ -84,7 +67,6 @@ export function SpecialLectureForm({
   const [isPending, startTransition] = useTransition()
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgressLabel, setUploadProgressLabel] = useState<string | null>(null)
-  const [published, setPublished] = useState(lecture?.is_published ?? false)
   const [pendingVideo, setPendingVideo] = useState<PendingVideo | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -238,7 +220,7 @@ export function SpecialLectureForm({
           <CardTitle className="text-base text-slate-900">영상 파일</CardTitle>
           <p className="text-xs text-slate-500">
             mp4 등 동영상 파일을 업로드해주세요. 최대 {maxSizeLabel}까지 가능합니다. 영상은 외부에 공개되지 않으며,
-            허용된 학생에게만 30분 단위 임시 링크로 제공됩니다.
+            허용된 학생에게만 24시간 단위 임시 링크로 제공됩니다.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -302,34 +284,9 @@ export function SpecialLectureForm({
         </CardContent>
       </Card>
 
-      <Card className="border-slate-200">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-base text-slate-900">시청 권한</CardTitle>
-          <p className="text-xs text-slate-500">
-            누가 이 특강을 시청할 수 있는지 지정합니다.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <AudienceSelector
-            classes={classes}
-            students={students}
-            defaultMode={defaultAudienceMode ?? lecture?.audience_mode ?? 'class'}
-            defaultClassIds={defaultClassIds}
-            defaultStudentIds={defaultStudentIds}
-            disabled={isPending}
-          />
-        </CardContent>
-      </Card>
-
-      <div className="flex items-center space-x-2">
-        <input type="hidden" name="is_published" value={published ? 'on' : 'off'} />
-        <Switch
-          id="is_published_switch"
-          checked={published}
-          onCheckedChange={setPublished}
-          disabled={isPending}
-        />
-        <Label htmlFor="is_published_switch">학생에게 공개</Label>
+      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+        등록 후 특강 목록의 <span className="font-semibold">영상 공개</span> 버튼으로 시청 가능한
+        학생과 공개 기간을 지정할 수 있습니다.
       </div>
 
       <div className="flex justify-end gap-2">

@@ -15,8 +15,8 @@ export default async function StudentSpecialLecturesPage() {
   await requireAuthForDashboard('student')
 
   const supabase = await createServerSupabase()
-  // RLS가 자동으로 시청 가능한 특강만 반환합니다.
-  const lectures = (await fetchSpecialLectures(supabase)).filter((lecture) => lecture.is_published)
+  // RLS의 can_view_special_lecture가 유효 grant 기준으로 자동 필터링합니다.
+  const lectures = await fetchSpecialLectures(supabase)
 
   return (
     <section className="space-y-6">

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import { SpecialLectureShareDialog } from '@/components/dashboard/special-lectures/SpecialLectureShareDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,8 +16,8 @@ import { ensureManagerProfile } from '@/lib/authz'
 import { resolveDashboardPath } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import {
-  SPECIAL_LECTURE_AUDIENCE_LABELS,
-  fetchSpecialLectureAudienceCounts,
+  fetchSpecialLectureActiveGrantSummary,
+  fetchSpecialLectureAudienceOptions,
   fetchSpecialLectures,
 } from '@/lib/special-lectures'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -34,8 +35,11 @@ export default async function ManagerSpecialLecturesPage() {
   }
 
   const supabase = await createServerSupabase()
-  const lectures = await fetchSpecialLectures(supabase)
-  const audienceCounts = await fetchSpecialLectureAudienceCounts(
+  const [lectures, { classes, students }] = await Promise.all([
+    fetchSpecialLectures(supabase),
+    fetchSpecialLectureAudienceOptions(supabase),
+  ])
+  const grantSummary = await fetchSpecialLectureActiveGrantSummary(
     supabase,
     lectures.map((lecture) => lecture.id)
   )
@@ -48,7 +52,9 @@ export default async function ManagerSpecialLecturesPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold text-slate-900">특강 관리</h1>
             <p className="text-sm text-slate-600">
-              영상을 업로드하고 시청 가능한 학생을 직접 지정합니다. 게시되지 않은 특강은 학생에게 노출되지 않습니다.
+              영상을 업로드한 뒤 각 특강의 <span className="font-medium">영상 공개</span>{' '}
+              버튼으로 시청 가능한 학생과 공개 기간을 지정합니다. 공개 기록이 만료되면 자동으로
+              비공개로 전환됩니다.
             </p>
           </div>
         </div>
@@ -62,7 +68,7 @@ export default async function ManagerSpecialLecturesPage() {
           <CardHeader>
             <CardTitle className="text-lg text-slate-800">등록된 특강이 없습니다.</CardTitle>
             <CardDescription className="text-sm text-slate-600">
-              새 특강을 등록하면 이곳에서 게시 상태와 시청 통계를 한 번에 확인할 수 있습니다.
+              새 특강을 등록하면 이곳에서 공개 상태와 시청 통계를 한 번에 확인할 수 있습니다.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -74,7 +80,12 @@ export default async function ManagerSpecialLecturesPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {lectures.map((lecture) => {
-            const counts = audienceCounts.get(lecture.id) ?? { classCount: 0, studentCount: 0 }
+            const summary = grantSummary.get(lecture.id) ?? {
+              activeGrantCount: 0,
+              latestExpiresAt: null,
+            }
+            const hasVideo = Boolean(lecture.video_asset)
+
             return (
               <Card key={lecture.id} className="flex flex-col border-slate-200 shadow-sm">
                 <CardHeader className="space-y-2">
@@ -87,8 +98,10 @@ export default async function ManagerSpecialLecturesPage() {
                         {lecture.title}
                       </Link>
                     </CardTitle>
-                    <Badge variant={lecture.is_published ? 'default' : 'secondary'}>
-                      {lecture.is_published ? '게시 중' : '비공개'}
+                    <Badge variant={summary.activeGrantCount > 0 ? 'default' : 'secondary'}>
+                      {summary.activeGrantCount > 0
+                        ? `공개 중 ${summary.activeGrantCount}건`
+                        : '공개 없음'}
                     </Badge>
                   </div>
                   <CardDescription className="text-xs text-slate-500">
@@ -103,20 +116,12 @@ export default async function ManagerSpecialLecturesPage() {
                     <p className="line-clamp-2 text-sm text-slate-600">{lecture.description}</p>
                   ) : null}
                   <div className="flex flex-wrap gap-2 text-xs">
-                    <Badge variant="outline" className="border-slate-300 text-slate-600">
-                      공개 모드: {SPECIAL_LECTURE_AUDIENCE_LABELS[lecture.audience_mode]}
-                    </Badge>
-                    {lecture.audience_mode !== 'all_students' ? (
-                      <>
-                        <Badge variant="outline" className="border-slate-300 text-slate-600">
-                          반 {counts.classCount}개
-                        </Badge>
-                        <Badge variant="outline" className="border-slate-300 text-slate-600">
-                          학생 {counts.studentCount}명
-                        </Badge>
-                      </>
+                    {summary.latestExpiresAt ? (
+                      <Badge variant="outline" className="border-slate-300 text-slate-600">
+                        가장 늦은 만료 {formatKoreanDate(summary.latestExpiresAt)}
+                      </Badge>
                     ) : null}
-                    {lecture.video_asset ? (
+                    {hasVideo ? (
                       <Badge variant="outline" className="border-emerald-300 bg-emerald-50 text-emerald-700">
                         영상 업로드됨
                       </Badge>
@@ -127,8 +132,17 @@ export default async function ManagerSpecialLecturesPage() {
                     )}
                   </div>
                   <div className="flex flex-wrap gap-2 pt-2">
+                    <SpecialLectureShareDialog
+                      lectureId={lecture.id}
+                      lectureTitle={lecture.title}
+                      classes={classes}
+                      students={students}
+                      triggerDisabled={!hasVideo}
+                    />
                     <Button asChild variant="outline" size="sm">
-                      <Link href={`/dashboard/manager/special-lectures/${lecture.id}/edit`}>수정</Link>
+                      <Link href={`/dashboard/manager/special-lectures/${lecture.id}/edit`}>
+                        수정
+                      </Link>
                     </Button>
                     <Button asChild variant="ghost" size="sm">
                       <Link href={`/dashboard/manager/special-lectures/${lecture.id}/views`}>

@@ -2,7 +2,11 @@ export const SPECIAL_LECTURE_VIDEOS_BUCKET = 'special-lecture-videos'
 
 export const SPECIAL_LECTURE_MAX_VIDEO_SIZE = 1024 * 1024 * 1024 // 1GB
 
-export const SPECIAL_LECTURE_SIGNED_URL_TTL_SECONDS = 60 * 30 // 30분
+export const SPECIAL_LECTURE_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24 // 24시간
+
+export const SPECIAL_LECTURE_DEFAULT_GRANT_HOURS = 24
+
+export const SPECIAL_LECTURE_MAX_GRANT_HOURS = 24 * 30 // 최대 30일
 
 export const SPECIAL_LECTURE_MANAGE_ROLES = ['manager', 'principal'] as const
 

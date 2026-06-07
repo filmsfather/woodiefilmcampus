@@ -20,8 +20,9 @@ export default async function StudentSpecialLectureDetailPage({ params }: PagePr
   const supabase = await createServerSupabase()
 
   const lecture = await getSpecialLecture(supabase, id).catch(() => null)
-  // RLS가 차단하면 lecture는 null이며, 허용된 학생만 게시된 특강을 볼 수 있습니다.
-  if (!lecture || !lecture.is_published) {
+  // RLS의 can_view_special_lecture가 grant 유효성을 검증하므로
+  // 만료/해지 상태에서는 lecture가 null로 반환됩니다.
+  if (!lecture) {
     notFound()
   }
 

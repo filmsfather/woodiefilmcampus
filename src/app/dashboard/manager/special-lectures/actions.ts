@@ -7,6 +7,8 @@ import { ensureManagerProfile } from '@/lib/authz'
 import {
   SPECIAL_LECTURE_VIDEOS_BUCKET,
   SPECIAL_LECTURE_MAX_VIDEO_SIZE,
+  SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
+  SPECIAL_LECTURE_MAX_GRANT_HOURS,
   type SpecialLectureAudienceMode,
   isSpecialLectureAudienceMode,
 } from '@/lib/special-lectures'
@@ -25,6 +27,12 @@ type ActionResult = {
 type DeleteResult = {
   success?: boolean
   error?: string
+}
+
+type GrantActionResult = {
+  success?: boolean
+  error?: string
+  grantId?: string
 }
 
 function sanitizeFileName(name: string) {
@@ -88,6 +96,21 @@ function parseAudienceMode(formData: FormData): SpecialLectureAudienceMode {
     return raw
   }
   return 'class'
+}
+
+function parseExpiresHours(formData: FormData): number {
+  const raw = formData.get('expires_hours')
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return SPECIAL_LECTURE_DEFAULT_GRANT_HOURS
+  }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return SPECIAL_LECTURE_DEFAULT_GRANT_HOURS
+  }
+  if (parsed > SPECIAL_LECTURE_MAX_GRANT_HOURS) {
+    return SPECIAL_LECTURE_MAX_GRANT_HOURS
+  }
+  return parsed
 }
 
 function revalidateAll(lectureId?: string) {
@@ -183,53 +206,6 @@ async function removeMediaAsset(
   }
 }
 
-async function syncAudienceMappings(
-  supabase: Awaited<ReturnType<typeof createServerSupabase>>,
-  lectureId: string,
-  classIds: string[],
-  studentIds: string[]
-) {
-  const [{ error: deleteClassesError }, { error: deleteStudentsError }] = await Promise.all([
-    supabase.from('special_lecture_classes').delete().eq('special_lecture_id', lectureId),
-    supabase.from('special_lecture_students').delete().eq('special_lecture_id', lectureId),
-  ])
-
-  if (deleteClassesError) {
-    console.error('[special-lectures] failed to clear classes audience', deleteClassesError)
-    throw new Error('기존 반 대상을 정리하지 못했습니다.')
-  }
-  if (deleteStudentsError) {
-    console.error('[special-lectures] failed to clear students audience', deleteStudentsError)
-    throw new Error('기존 학생 대상을 정리하지 못했습니다.')
-  }
-
-  if (classIds.length > 0) {
-    const { error } = await supabase.from('special_lecture_classes').insert(
-      classIds.map((classId) => ({
-        special_lecture_id: lectureId,
-        class_id: classId,
-      }))
-    )
-    if (error) {
-      console.error('[special-lectures] failed to insert classes audience', error)
-      throw new Error('반 대상 정보를 저장하지 못했습니다.')
-    }
-  }
-
-  if (studentIds.length > 0) {
-    const { error } = await supabase.from('special_lecture_students').insert(
-      studentIds.map((studentId) => ({
-        special_lecture_id: lectureId,
-        student_id: studentId,
-      }))
-    )
-    if (error) {
-      console.error('[special-lectures] failed to insert students audience', error)
-      throw new Error('학생 대상 정보를 저장하지 못했습니다.')
-    }
-  }
-}
-
 export async function createSpecialLectureAction(formData: FormData): Promise<ActionResult> {
   const profile = await ensureManagerProfile()
   if (!profile) {
@@ -245,8 +221,6 @@ export async function createSpecialLectureAction(formData: FormData): Promise<Ac
 
   const title = titleValue.trim()
   const description = typeof descriptionValue === 'string' ? descriptionValue.trim() : ''
-  const audienceMode = parseAudienceMode(formData)
-  const isPublished = formData.get('is_published') === 'on'
 
   let uploadedVideo: UploadedObjectMeta | null = null
   try {
@@ -261,16 +235,6 @@ export async function createSpecialLectureAction(formData: FormData): Promise<Ac
     return { error: '영상 파일을 업로드해주세요.' }
   }
 
-  const classIds = audienceMode === 'all_students' ? [] : collectIds(formData, 'classIds')
-  const studentIds = audienceMode === 'all_students' ? [] : collectIds(formData, 'studentIds')
-
-  if (audienceMode === 'class' && classIds.length === 0 && studentIds.length === 0) {
-    return { error: '특정 반 또는 개별 학생을 1명 이상 선택해주세요.' }
-  }
-  if (audienceMode === 'student' && studentIds.length === 0 && classIds.length === 0) {
-    return { error: '시청 가능한 학생을 1명 이상 선택해주세요.' }
-  }
-
   const supabase = await createServerSupabase()
 
   let createdLectureId: string | null = null
@@ -282,8 +246,6 @@ export async function createSpecialLectureAction(formData: FormData): Promise<Ac
       .insert({
         title,
         description: description || null,
-        audience_mode: audienceMode,
-        is_published: isPublished,
         created_by: profile.id,
       })
       .select('id')
@@ -312,8 +274,6 @@ export async function createSpecialLectureAction(formData: FormData): Promise<Ac
       console.error('[special-lectures] failed to link video asset', linkError)
       throw new Error('영상 파일을 특강에 연결하지 못했습니다.')
     }
-
-    await syncAudienceMappings(supabase, createdLectureId, classIds, studentIds)
 
     revalidateAll(createdLectureId)
     return { success: true, lectureId: createdLectureId }
@@ -354,8 +314,6 @@ export async function updateSpecialLectureAction(
 
   const title = titleValue.trim()
   const description = typeof descriptionValue === 'string' ? descriptionValue.trim() : ''
-  const audienceMode = parseAudienceMode(formData)
-  const isPublished = formData.get('is_published') === 'on'
 
   let uploadedVideo: UploadedObjectMeta | null = null
   try {
@@ -364,16 +322,6 @@ export async function updateSpecialLectureAction(
     return {
       error: parseError instanceof Error ? parseError.message : '영상 정보를 확인하지 못했습니다.',
     }
-  }
-
-  const classIds = audienceMode === 'all_students' ? [] : collectIds(formData, 'classIds')
-  const studentIds = audienceMode === 'all_students' ? [] : collectIds(formData, 'studentIds')
-
-  if (audienceMode === 'class' && classIds.length === 0 && studentIds.length === 0) {
-    return { error: '특정 반 또는 개별 학생을 1명 이상 선택해주세요.' }
-  }
-  if (audienceMode === 'student' && studentIds.length === 0 && classIds.length === 0) {
-    return { error: '시청 가능한 학생을 1명 이상 선택해주세요.' }
   }
 
   const supabase = await createServerSupabase()
@@ -404,8 +352,6 @@ export async function updateSpecialLectureAction(
     const updates: Record<string, unknown> = {
       title,
       description: description || null,
-      audience_mode: audienceMode,
-      is_published: isPublished,
     }
     if (newMediaAssetId) {
       updates.video_asset_id = newMediaAssetId
@@ -420,8 +366,6 @@ export async function updateSpecialLectureAction(
       console.error('[special-lectures] failed to update lecture', updateError)
       throw new Error('특강 정보를 저장하지 못했습니다.')
     }
-
-    await syncAudienceMappings(supabase, id, classIds, studentIds)
 
     if (newMediaAssetId && existing.video_asset_id) {
       await removeMediaAsset(supabase, String(existing.video_asset_id))
@@ -486,29 +430,192 @@ export async function deleteSpecialLectureAction(id: string): Promise<DeleteResu
   }
 }
 
-export async function toggleSpecialLecturePublishAction(
-  id: string,
-  nextPublished: boolean
-): Promise<ActionResult> {
+// ----- Grant 액션 ---------------------------------------------------------
+
+export async function createSpecialLectureGrantAction(
+  lectureId: string,
+  formData: FormData
+): Promise<GrantActionResult> {
   const profile = await ensureManagerProfile()
   if (!profile) {
-    return { error: '특강을 수정할 권한이 없습니다.' }
+    return { error: '영상을 공개할 권한이 없습니다.' }
   }
-  if (!id) {
+  if (!lectureId) {
     return { error: '특강 정보를 확인할 수 없습니다.' }
   }
 
-  const supabase = await createServerSupabase()
-  const { error } = await supabase
-    .from('special_lectures')
-    .update({ is_published: nextPublished })
-    .eq('id', id)
+  const audienceMode = parseAudienceMode(formData)
+  const classIds = audienceMode === 'all_students' ? [] : collectIds(formData, 'classIds')
+  const studentIds = audienceMode === 'all_students' ? [] : collectIds(formData, 'studentIds')
 
-  if (error) {
-    console.error('[special-lectures] toggle publish error', error)
-    return { error: '게시 상태를 변경하지 못했습니다.' }
+  if (audienceMode === 'class' && classIds.length === 0 && studentIds.length === 0) {
+    return { error: '공개할 반 또는 개별 학생을 1명 이상 선택해주세요.' }
+  }
+  if (audienceMode === 'student' && studentIds.length === 0 && classIds.length === 0) {
+    return { error: '공개할 학생을 1명 이상 선택해주세요.' }
   }
 
-  revalidateAll(id)
-  return { success: true, lectureId: id }
+  const expiresHours = parseExpiresHours(formData)
+  const expiresAt = new Date(Date.now() + expiresHours * 60 * 60 * 1000).toISOString()
+
+  const supabase = await createServerSupabase()
+
+  const { data: lecture, error: lectureError } = await supabase
+    .from('special_lectures')
+    .select('id')
+    .eq('id', lectureId)
+    .maybeSingle()
+
+  if (lectureError || !lecture) {
+    console.error('[special-lectures] failed to load lecture for grant', lectureError)
+    return { error: '특강 정보를 불러오지 못했습니다.' }
+  }
+
+  const { data: grant, error: grantError } = await supabase
+    .from('special_lecture_grants')
+    .insert({
+      special_lecture_id: lectureId,
+      audience_mode: audienceMode,
+      expires_at: expiresAt,
+      created_by: profile.id,
+    })
+    .select('id')
+    .single()
+
+  if (grantError || !grant?.id) {
+    console.error('[special-lectures] failed to create grant', grantError)
+    return { error: '영상 공개 기록을 생성하지 못했습니다.' }
+  }
+
+  const grantId = String(grant.id)
+
+  try {
+    if (classIds.length > 0) {
+      const { error: classInsertError } = await supabase
+        .from('special_lecture_grant_classes')
+        .insert(
+          classIds.map((classId) => ({
+            grant_id: grantId,
+            class_id: classId,
+          }))
+        )
+      if (classInsertError) {
+        console.error('[special-lectures] failed to insert grant classes', classInsertError)
+        throw new Error('공개 반 정보를 저장하지 못했습니다.')
+      }
+    }
+
+    if (studentIds.length > 0) {
+      const { error: studentInsertError } = await supabase
+        .from('special_lecture_grant_students')
+        .insert(
+          studentIds.map((studentId) => ({
+            grant_id: grantId,
+            student_id: studentId,
+          }))
+        )
+      if (studentInsertError) {
+        console.error('[special-lectures] failed to insert grant students', studentInsertError)
+        throw new Error('공개 학생 정보를 저장하지 못했습니다.')
+      }
+    }
+
+    revalidateAll(lectureId)
+    return { success: true, grantId }
+  } catch (error) {
+    console.error('[special-lectures] grant create cleanup', error)
+    await supabase.from('special_lecture_grants').delete().eq('id', grantId)
+    return {
+      error: error instanceof Error ? error.message : '영상 공개 처리 중 문제가 발생했습니다.',
+    }
+  }
+}
+
+export async function revokeSpecialLectureGrantAction(
+  grantId: string
+): Promise<GrantActionResult> {
+  const profile = await ensureManagerProfile()
+  if (!profile) {
+    return { error: '공개를 종료할 권한이 없습니다.' }
+  }
+  if (!grantId) {
+    return { error: '공개 정보를 확인할 수 없습니다.' }
+  }
+
+  const supabase = await createServerSupabase()
+
+  const { data: existing, error: fetchError } = await supabase
+    .from('special_lecture_grants')
+    .select('id, special_lecture_id, revoked_at')
+    .eq('id', grantId)
+    .maybeSingle()
+
+  if (fetchError || !existing) {
+    console.error('[special-lectures] failed to load grant for revoke', fetchError)
+    return { error: '공개 정보를 불러오지 못했습니다.' }
+  }
+
+  if (existing.revoked_at) {
+    return { success: true, grantId }
+  }
+
+  const { error: updateError } = await supabase
+    .from('special_lecture_grants')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', grantId)
+
+  if (updateError) {
+    console.error('[special-lectures] failed to revoke grant', updateError)
+    return { error: '공개를 종료하지 못했습니다.' }
+  }
+
+  revalidateAll(String(existing.special_lecture_id))
+  return { success: true, grantId }
+}
+
+export async function extendSpecialLectureGrantAction(
+  grantId: string,
+  expiresAtIso: string
+): Promise<GrantActionResult> {
+  const profile = await ensureManagerProfile()
+  if (!profile) {
+    return { error: '공개 기간을 수정할 권한이 없습니다.' }
+  }
+  if (!grantId) {
+    return { error: '공개 정보를 확인할 수 없습니다.' }
+  }
+
+  const expiresDate = new Date(expiresAtIso)
+  if (Number.isNaN(expiresDate.getTime())) {
+    return { error: '만료 시각이 올바르지 않습니다.' }
+  }
+  if (expiresDate.getTime() <= Date.now()) {
+    return { error: '만료 시각은 현재 시각보다 이후여야 합니다.' }
+  }
+
+  const supabase = await createServerSupabase()
+
+  const { data: existing, error: fetchError } = await supabase
+    .from('special_lecture_grants')
+    .select('id, special_lecture_id')
+    .eq('id', grantId)
+    .maybeSingle()
+
+  if (fetchError || !existing) {
+    console.error('[special-lectures] failed to load grant for extend', fetchError)
+    return { error: '공개 정보를 불러오지 못했습니다.' }
+  }
+
+  const { error: updateError } = await supabase
+    .from('special_lecture_grants')
+    .update({ expires_at: expiresDate.toISOString(), revoked_at: null })
+    .eq('id', grantId)
+
+  if (updateError) {
+    console.error('[special-lectures] failed to extend grant', updateError)
+    return { error: '공개 기간을 수정하지 못했습니다.' }
+  }
+
+  revalidateAll(String(existing.special_lecture_id))
+  return { success: true, grantId }
 }

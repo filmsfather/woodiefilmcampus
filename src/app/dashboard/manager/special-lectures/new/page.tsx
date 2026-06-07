@@ -5,8 +5,6 @@ import { SpecialLectureForm } from '@/components/dashboard/special-lectures/Spec
 import { createSpecialLectureAction } from '@/app/dashboard/manager/special-lectures/actions'
 import { requireAuthForDashboard, resolveDashboardPath } from '@/lib/auth'
 import { ensureManagerProfile } from '@/lib/authz'
-import { fetchSpecialLectureAudienceOptions } from '@/lib/special-lectures'
-import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 export default async function NewSpecialLecturePage() {
   const { profile } = await requireAuthForDashboard(['manager', 'principal'])
@@ -14,9 +12,6 @@ export default async function NewSpecialLecturePage() {
   if (!managerProfile) {
     redirect(resolveDashboardPath(profile?.role ?? 'manager'))
   }
-
-  const supabase = await createServerSupabase()
-  const { classes, students } = await fetchSpecialLectureAudienceOptions(supabase)
 
   return (
     <section className="space-y-6">
@@ -28,7 +23,8 @@ export default async function NewSpecialLecturePage() {
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">새 특강 등록</h1>
           <p className="text-sm text-slate-600">
-            영상 파일을 업로드하고 시청 가능한 학생을 지정하세요.
+            영상 파일을 업로드해 특강을 등록합니다. 등록 후 특강 목록의 영상 공개 버튼으로 시청
+            대상을 지정하세요.
           </p>
         </div>
       </div>
@@ -36,8 +32,6 @@ export default async function NewSpecialLecturePage() {
       <SpecialLectureForm
         action={createSpecialLectureAction}
         currentUserId={managerProfile.id}
-        classes={classes}
-        students={students}
       />
     </section>
   )

@@ -4,6 +4,8 @@ export {
   SPECIAL_LECTURE_VIDEOS_BUCKET,
   SPECIAL_LECTURE_MAX_VIDEO_SIZE,
   SPECIAL_LECTURE_SIGNED_URL_TTL_SECONDS,
+  SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
+  SPECIAL_LECTURE_MAX_GRANT_HOURS,
   SPECIAL_LECTURE_MANAGE_ROLES,
   SPECIAL_LECTURE_AUDIENCE_MODES,
   SPECIAL_LECTURE_AUDIENCE_LABELS,
@@ -32,8 +34,6 @@ export interface SpecialLecture {
   id: string
   title: string
   description: string | null
-  audience_mode: SpecialLectureAudienceMode
-  is_published: boolean
   created_by: string
   created_at: string
   updated_at: string
@@ -45,8 +45,6 @@ interface SpecialLectureRow {
   id: string
   title: string
   description: string | null
-  audience_mode: string
-  is_published: boolean
   created_by: string
   created_at: string
   updated_at: string
@@ -94,17 +92,10 @@ function normalizeRow(row: SpecialLectureRow | null | undefined): SpecialLecture
       }
     : null
 
-  const audienceMode: SpecialLectureAudienceMode =
-    row.audience_mode === 'all_students' || row.audience_mode === 'class' || row.audience_mode === 'student'
-      ? row.audience_mode
-      : 'class'
-
   return {
     id: String(row.id),
     title: row.title,
     description: row.description,
-    audience_mode: audienceMode,
-    is_published: row.is_published,
     created_by: String(row.created_by),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -117,8 +108,6 @@ const SPECIAL_LECTURE_SELECT = `
   id,
   title,
   description,
-  audience_mode,
-  is_published,
   created_by,
   created_at,
   updated_at,
@@ -160,39 +149,6 @@ export async function getSpecialLecture(
   return normalizeRow(data as SpecialLectureRow | null)
 }
 
-export interface SpecialLectureAudience {
-  classIds: string[]
-  studentIds: string[]
-}
-
-export async function fetchSpecialLectureAudience(
-  supabase: SupabaseClient,
-  lectureId: string
-): Promise<SpecialLectureAudience> {
-  const [classRows, studentRows] = await Promise.all([
-    supabase
-      .from('special_lecture_classes')
-      .select('class_id')
-      .eq('special_lecture_id', lectureId),
-    supabase
-      .from('special_lecture_students')
-      .select('student_id')
-      .eq('special_lecture_id', lectureId),
-  ])
-
-  if (classRows.error) {
-    console.error('[special-lectures] failed to fetch audience classes', classRows.error)
-  }
-  if (studentRows.error) {
-    console.error('[special-lectures] failed to fetch audience students', studentRows.error)
-  }
-
-  return {
-    classIds: (classRows.data ?? []).map((row) => String(row.class_id)),
-    studentIds: (studentRows.data ?? []).map((row) => String(row.student_id)),
-  }
-}
-
 export async function getSignedSpecialLectureVideoUrl(
   supabase: SupabaseClient,
   path: string,
@@ -210,50 +166,147 @@ export async function getSignedSpecialLectureVideoUrl(
   return data?.signedUrl ?? null
 }
 
-export interface SpecialLectureAudienceCount {
+// ----- Grant 모델 ---------------------------------------------------------
+
+export interface SpecialLectureGrant {
+  id: string
+  specialLectureId: string
   audienceMode: SpecialLectureAudienceMode
-  classCount: number
-  studentCount: number
+  expiresAt: string
+  revokedAt: string | null
+  createdAt: string
+  createdBy: string
+  classIds: string[]
+  studentIds: string[]
 }
 
-export async function fetchSpecialLectureAudienceCounts(
+export interface SpecialLectureActiveGrantSummary {
+  activeGrantCount: number
+  latestExpiresAt: string | null
+}
+
+interface SpecialLectureGrantRow {
+  id: string
+  special_lecture_id: string
+  audience_mode: string
+  expires_at: string
+  revoked_at: string | null
+  created_at: string
+  created_by: string
+}
+
+function toAudienceMode(value: string | null | undefined): SpecialLectureAudienceMode {
+  if (value === 'all_students' || value === 'class' || value === 'student') {
+    return value
+  }
+  return 'class'
+}
+
+export async function fetchSpecialLectureGrants(
   supabase: SupabaseClient,
-  lectureIds: string[]
-): Promise<Map<string, { classCount: number; studentCount: number }>> {
-  const result = new Map<string, { classCount: number; studentCount: number }>()
-  if (lectureIds.length === 0) return result
+  lectureId: string
+): Promise<SpecialLectureGrant[]> {
+  const { data, error } = await supabase
+    .from('special_lecture_grants')
+    .select('id, special_lecture_id, audience_mode, expires_at, revoked_at, created_at, created_by')
+    .eq('special_lecture_id', lectureId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[special-lectures] failed to fetch grants', error)
+    return []
+  }
+
+  const grants = (data ?? []) as SpecialLectureGrantRow[]
+  if (grants.length === 0) {
+    return []
+  }
+
+  const grantIds = grants.map((row) => String(row.id))
 
   const [classRows, studentRows] = await Promise.all([
     supabase
-      .from('special_lecture_classes')
-      .select('special_lecture_id')
-      .in('special_lecture_id', lectureIds),
+      .from('special_lecture_grant_classes')
+      .select('grant_id, class_id')
+      .in('grant_id', grantIds),
     supabase
-      .from('special_lecture_students')
-      .select('special_lecture_id')
-      .in('special_lecture_id', lectureIds),
+      .from('special_lecture_grant_students')
+      .select('grant_id, student_id')
+      .in('grant_id', grantIds),
   ])
 
+  if (classRows.error) {
+    console.error('[special-lectures] failed to fetch grant classes', classRows.error)
+  }
+  if (studentRows.error) {
+    console.error('[special-lectures] failed to fetch grant students', studentRows.error)
+  }
+
+  const classMap = new Map<string, string[]>()
+  for (const row of (classRows.data ?? []) as Array<{ grant_id: string; class_id: string }>) {
+    const list = classMap.get(String(row.grant_id)) ?? []
+    list.push(String(row.class_id))
+    classMap.set(String(row.grant_id), list)
+  }
+
+  const studentMap = new Map<string, string[]>()
+  for (const row of (studentRows.data ?? []) as Array<{ grant_id: string; student_id: string }>) {
+    const list = studentMap.get(String(row.grant_id)) ?? []
+    list.push(String(row.student_id))
+    studentMap.set(String(row.grant_id), list)
+  }
+
+  return grants.map((row) => ({
+    id: String(row.id),
+    specialLectureId: String(row.special_lecture_id),
+    audienceMode: toAudienceMode(row.audience_mode),
+    expiresAt: row.expires_at,
+    revokedAt: row.revoked_at ?? null,
+    createdAt: row.created_at,
+    createdBy: String(row.created_by),
+    classIds: classMap.get(String(row.id)) ?? [],
+    studentIds: studentMap.get(String(row.id)) ?? [],
+  }))
+}
+
+export async function fetchSpecialLectureActiveGrantSummary(
+  supabase: SupabaseClient,
+  lectureIds: string[]
+): Promise<Map<string, SpecialLectureActiveGrantSummary>> {
+  const result = new Map<string, SpecialLectureActiveGrantSummary>()
+  if (lectureIds.length === 0) return result
+
   for (const id of lectureIds) {
-    result.set(id, { classCount: 0, studentCount: 0 })
+    result.set(id, { activeGrantCount: 0, latestExpiresAt: null })
   }
 
-  for (const row of classRows.data ?? []) {
-    const id = String((row as { special_lecture_id: string }).special_lecture_id)
-    const entry = result.get(id) ?? { classCount: 0, studentCount: 0 }
-    entry.classCount += 1
-    result.set(id, entry)
+  const nowIso = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('special_lecture_grants')
+    .select('special_lecture_id, expires_at')
+    .in('special_lecture_id', lectureIds)
+    .is('revoked_at', null)
+    .gt('expires_at', nowIso)
+
+  if (error) {
+    console.error('[special-lectures] failed to fetch active grant summary', error)
+    return result
   }
 
-  for (const row of studentRows.data ?? []) {
-    const id = String((row as { special_lecture_id: string }).special_lecture_id)
-    const entry = result.get(id) ?? { classCount: 0, studentCount: 0 }
-    entry.studentCount += 1
-    result.set(id, entry)
+  for (const row of (data ?? []) as Array<{ special_lecture_id: string; expires_at: string }>) {
+    const id = String(row.special_lecture_id)
+    const current = result.get(id) ?? { activeGrantCount: 0, latestExpiresAt: null }
+    current.activeGrantCount += 1
+    if (!current.latestExpiresAt || row.expires_at > current.latestExpiresAt) {
+      current.latestExpiresAt = row.expires_at
+    }
+    result.set(id, current)
   }
 
   return result
 }
+
+// ----- Audience 옵션 (반·학생 목록 조회) ---------------------------------
 
 export interface SpecialLectureViewLogEntry {
   id: string
