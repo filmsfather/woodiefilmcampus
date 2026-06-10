@@ -2,12 +2,14 @@ import type { Metadata } from 'next'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import UniversityList from '@/components/dashboard/university-policy/UniversityList'
+import UniversityScheduleCalendar from '@/components/dashboard/university-policy/UniversityScheduleCalendar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import {
   fetchAllProgramsWithPolicy,
   fetchUniversities,
 } from '@/lib/university-policy/data'
+import { buildScheduleEvents } from '@/lib/university-policy/schedule-events'
 
 export const metadata: Metadata = {
   title: '산식·컷 카탈로그 | 지원가능대학 분석',
@@ -24,6 +26,20 @@ export default async function UniversitiesIndexPage() {
     return acc
   }, {})
 
+  const scheduleEvents = buildScheduleEvents()
+  const universitiesWithSchedule = new Set(scheduleEvents.map((e) => e.universityId))
+  const calendarUniversityOptions = universities
+    .filter((u) => universitiesWithSchedule.has(u.id))
+    .map((u) => ({ id: u.id, name: u.name, shortName: u.shortName }))
+
+  const todayMonth = (() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })()
+  const earliestEventMonth = scheduleEvents[0]?.startISO?.slice(0, 7) ?? null
+  const defaultMonth =
+    earliestEventMonth && earliestEventMonth > todayMonth ? earliestEventMonth : todayMonth
+
   return (
     <section className="space-y-6">
       <DashboardBackLink fallbackHref="/dashboard/principal" label="원장 대시보드로 돌아가기" />
@@ -37,6 +53,21 @@ export default async function UniversitiesIndexPage() {
           학생 데이터로 검증할 수 있습니다.
         </p>
       </header>
+
+      <section className="space-y-3">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold text-slate-900">대학별 영화과 수시 일정 달력</h2>
+          <p className="text-xs text-slate-500">
+            등록된 모집단위 일정({scheduleEvents.length}건)을 월별로 모아 보여줍니다.
+            대학·일정 유형 필터로 빠르게 좁혀 볼 수 있고, 일정 카드를 클릭하면 모집단위 상세로 이동합니다.
+          </p>
+        </div>
+        <UniversityScheduleCalendar
+          events={scheduleEvents}
+          universities={calendarUniversityOptions}
+          defaultMonthISO={defaultMonth}
+        />
+      </section>
 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader>

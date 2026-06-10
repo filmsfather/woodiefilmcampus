@@ -1,9 +1,13 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { Eye } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import AnalysisRunButton from '@/components/dashboard/university-policy/AnalysisRunButton'
 import EvaluationsTable from '@/components/dashboard/university-policy/EvaluationsTable'
+import ReportPublishControl from '@/components/dashboard/university-policy/ReportPublishControl'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -13,6 +17,7 @@ import {
   fetchCoursesForSnapshot,
   fetchLatestSnapshot,
 } from '@/lib/university-report/data'
+import { fetchLatestPublicationForStudent } from '@/lib/university-report/publication'
 
 export const metadata: Metadata = {
   title: '지원가능대학 분석 | 학생 레포트',
@@ -65,6 +70,7 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
       ])
     : [[], []]
   const lastComputedAt = evaluations.length > 0 ? evaluations[0].computedAt : null
+  const publication = await fetchLatestPublicationForStudent(student.id)
 
   return (
     <section className="space-y-6">
@@ -99,9 +105,34 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
         <Card className="border-slate-200 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <CardTitle className="text-base font-semibold text-slate-900">지원가능대학 분석</CardTitle>
-            <AnalysisRunButton studentId={student.id} />
+            <div className="flex items-center gap-2">
+              {evaluations.length > 0 ? (
+                <Button asChild size="sm" variant="outline" className="gap-2">
+                  <Link href={`/dashboard/principal/university-reports/${student.id}/report`}>
+                    <Eye className="size-4" />
+                    학생 화면 미리보기
+                  </Link>
+                </Button>
+              ) : null}
+              <AnalysisRunButton studentId={student.id} />
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {evaluations.length > 0 ? (
+              <ReportPublishControl
+                studentId={student.id}
+                publication={
+                  publication
+                    ? {
+                        id: publication.id,
+                        status: publication.status,
+                        publishedAt: publication.publishedAt,
+                        principalComment: publication.principalComment,
+                      }
+                    : null
+                }
+              />
+            ) : null}
             <EvaluationsTable rows={evaluations} courses={courses} />
           </CardContent>
         </Card>

@@ -56,6 +56,11 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
             {program.totalScore != null ? `학생부 ${program.totalScore}점 · ` : ''}
             <code className="rounded bg-slate-100 px-1 py-0.5 text-[10px]">{program.key}</code>
           </p>
+          {program.details?.coreTrack ? (
+            <p className="text-sm text-slate-700">
+              <span className="font-medium">수시 핵심 전형:</span> {program.details.coreTrack}
+            </p>
+          ) : null}
         </div>
         <Button asChild size="sm" disabled={!formula}>
           <Link
@@ -65,6 +70,108 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
           </Link>
         </Button>
       </header>
+
+      {program.details ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {program.details.recruitSummary ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">모집 정원</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-line text-sm text-slate-700">
+                  {program.details.recruitSummary}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {program.details.schedule && program.details.schedule.length > 0 ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">모집 일정</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-sm text-slate-700">
+                  {program.details.schedule.map((item) => (
+                    <div key={item.label} className="contents">
+                      <dt className="text-slate-500">{item.label}</dt>
+                      <dd className="font-medium">{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {program.details.evaluationMethod ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">전형 방법</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-line text-sm text-slate-700">
+                  {program.details.evaluationMethod}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {program.details.practicalTest ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">실기 내용</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-line text-sm text-slate-700">
+                  {program.details.practicalTest}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {program.details.gradeCalculation ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">
+                  내신 산출 방법
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-line text-sm text-slate-700">
+                  {program.details.gradeCalculation}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {program.details.gradeFormula ? (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">산출 수식</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <pre className="overflow-x-auto whitespace-pre-wrap rounded bg-slate-50 p-3 text-xs text-slate-700">
+                  {program.details.gradeFormula}
+                </pre>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {program.details.other ? (
+            <Card className="border-slate-200 shadow-sm lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-slate-900">기타</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-line text-sm text-slate-700">
+                  {program.details.other}
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card className="border-slate-200 shadow-sm">
@@ -135,6 +242,19 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
                     {cut.fillRate != null ? ` · 충원율 ${cut.fillRate}%` : ''}
                   </p>
                 ) : null}
+                {cut.sourceUrl ? (
+                  <p className="text-xs text-slate-400">
+                    출처:{' '}
+                    <a
+                      href={cut.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline hover:text-slate-600"
+                    >
+                      {cut.sourceUrl}
+                    </a>
+                  </p>
+                ) : null}
                 <ul className="space-y-1 text-xs text-slate-600">
                   {cut.points.map((p, idx) => (
                     <li key={`${p.metric}-${p.label}-${idx}`} className="flex flex-wrap items-center gap-2">
@@ -145,6 +265,11 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
                     </li>
                   ))}
                 </ul>
+                {cut.notes ? (
+                  <p className="whitespace-pre-line border-t border-slate-100 pt-2 text-xs text-slate-500">
+                    {cut.notes}
+                  </p>
+                ) : null}
               </div>
             ) : (
               <p className="text-sm text-slate-500">

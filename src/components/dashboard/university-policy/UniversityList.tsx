@@ -6,11 +6,13 @@ import type { UniversityPreset } from '@/lib/university-policy/presets'
 interface UniversityListProps {
   universities: UniversityPreset[]
   programCounts?: Record<string, number>
+  basePath?: string
 }
 
 export default function UniversityList({
   universities,
   programCounts,
+  basePath = '/dashboard/principal/universities',
 }: UniversityListProps) {
   if (universities.length === 0) {
     return (
@@ -27,7 +29,7 @@ export default function UniversityList({
         return (
           <li key={u.id}>
             <Link
-              href={`/dashboard/principal/universities/${u.id}`}
+              href={`${basePath}/${u.id}`}
               className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-slate-50 sm:px-6"
             >
               <div className="min-w-0">

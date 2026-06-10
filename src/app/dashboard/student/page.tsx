@@ -20,12 +20,33 @@ interface DashboardActionItem {
   variant: ActionVariant
 }
 
-const TODO_ACTIONS: DashboardActionItem[] = [
+const UNIVERSITY_PREP_ACTIONS: DashboardActionItem[] = [
   {
     label: '내 성적 등록',
     href: '/dashboard/student/university-report',
     description: '성적증명서 PDF를 업로드해 지원 가능 대학 분석을 위한 성적을 등록하세요.',
     variant: 'default',
+  },
+  {
+    label: '지원가능대학 리포트',
+    href: '/dashboard/student/university-report/analysis',
+    description: '우디쌤이 발행한 지원 가능 대학 분석 결과를 한눈에 확인하세요.',
+    variant: 'secondary',
+  },
+  {
+    label: '입시 자료 확인하기',
+    href: '/dashboard/student/admission-materials',
+    description: '대학별 수시 일정과 모집단위 산식·컷, 기출·합격 복기 자료를 한곳에서 열람하세요.',
+    variant: 'outline',
+  },
+]
+
+const TODO_ACTIONS: DashboardActionItem[] = [
+  {
+    label: '희망대학 선정',
+    href: '/dashboard/student/university-report/wishlist',
+    description: '원장 선생님이 추천한 대학을 확인하고 희망대학을 함께 확정하세요.',
+    variant: 'outline',
   },
   {
     label: '연간 학습 일정',
@@ -490,6 +511,22 @@ export default async function StudentDashboardPage() {
         description="소속된 반의 시간표를 확인할 수 있습니다."
       >
         <StudentTimetableViewer timetables={studentTimetables} />
+      </DashboardCard>
+
+      <DashboardCard
+        title="대학준비"
+        description="입시 성적 등록부터 지원 가능 대학 분석까지, 대학 준비에 필요한 정보를 한곳에서 확인하세요."
+      >
+        <div className="grid gap-4 md:grid-cols-2">
+          {UNIVERSITY_PREP_ACTIONS.map(({ label, href, description, variant }) => (
+            <div key={href} className="flex flex-col gap-1">
+              <Button asChild variant={variant} className="justify-start">
+                <Link href={href}>{label}</Link>
+              </Button>
+              <p className="text-xs text-slate-500">{description}</p>
+            </div>
+          ))}
+        </div>
       </DashboardCard>
 
       <div className="grid gap-4 md:grid-cols-2">

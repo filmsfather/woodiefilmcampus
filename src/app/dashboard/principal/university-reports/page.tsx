@@ -60,11 +60,20 @@ export default async function UniversityReportsPage() {
     <section className="space-y-6">
       <DashboardBackLink fallbackHref="/dashboard/principal" label="원장 대시보드로 돌아가기" />
 
-      <header className="space-y-2">
-        <h1 className="text-2xl font-semibold text-slate-900">지원가능대학 레포트 관리</h1>
-        <p className="text-sm text-slate-600">
-          학생별 성적증명서 업로드 현황을 확인하고, 학생 행을 클릭해 분석 결과를 확인하거나 대신 업로드할 수 있습니다.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-slate-900">지원가능대학 레포트 관리</h1>
+          <p className="text-sm text-slate-600">
+            학생별 성적증명서 업로드 현황을 확인하고, 학생 행을 클릭해 분석 결과를 확인하거나 대신 업로드할 수 있습니다.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/principal/university-reports/wishlists"
+          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          확정 희망대학 현황
+          <ChevronRight className="size-4" />
+        </Link>
       </header>
 
       <div className="grid gap-3 sm:grid-cols-4">

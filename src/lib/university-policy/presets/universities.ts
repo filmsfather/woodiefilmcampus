@@ -35,15 +35,19 @@ export const UNIVERSITY_PRESETS: readonly UniversityPreset[] = [
   { id: 'suwon', name: '수원대학교', shortName: '수원대', region: '경기' },
   { id: 'daejin', name: '대진대학교', shortName: '대진대', region: '경기' },
   { id: 'pyeongtaek', name: '평택대학교', shortName: '평택대', region: '경기' },
+  { id: 'yongin', name: '용인대학교', shortName: '용인대', region: '경기' },
+  { id: 'joongbu', name: '중부대학교', shortName: '중부대', region: '경기', notes: '고양창의캠퍼스' },
   { id: 'inha', name: '인하대학교', shortName: '인하대', region: '인천' },
 
   // 충청
   { id: 'cheongju', name: '청주대학교', shortName: '청주대', region: '충북' },
   { id: 'hoseo', name: '호서대학교', shortName: '호서대', region: '충남' },
   { id: 'soonchunhyang', name: '순천향대학교', shortName: '순천향대', region: '충남' },
+  { id: 'mokwon', name: '목원대학교', shortName: '목원대', region: '대전' },
 
   // 부산
   { id: 'dongseo', name: '동서대학교', shortName: '동서대', region: '부산' },
+  { id: 'kyungsung', name: '경성대학교', shortName: '경성대', region: '부산' },
 
   // 예술·전문대학
   { id: 'baekje', name: '백제예술대학교', shortName: '백제예대', region: '전북' },

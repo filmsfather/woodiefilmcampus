@@ -25,12 +25,21 @@ import {
   getUniversityPreset,
   type UniversityPreset,
 } from './universities'
+import {
+  PROGRAM_ANALYSIS_OVERRIDES,
+  listProgramsForAnalysis,
+  resolveAnalysisMode,
+  type ProgramAnalysisMode,
+  type ProgramForAnalysis,
+} from './analysis'
 
 export type {
   CutPreset,
   FormulaPreset,
   ProgramPreset,
   UniversityPreset,
+  ProgramAnalysisMode,
+  ProgramForAnalysis,
 }
 
 export {
@@ -38,11 +47,14 @@ export {
   FORMULA_PRESETS,
   PROGRAM_PRESETS,
   UNIVERSITY_PRESETS,
+  PROGRAM_ANALYSIS_OVERRIDES,
   getCutPreset,
   getFormulaPreset,
   getProgramPreset,
   getUniversityPreset,
   listProgramPresetsByUniversity,
+  listProgramsForAnalysis,
+  resolveAnalysisMode,
 }
 
 /**

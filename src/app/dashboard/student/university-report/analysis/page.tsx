@@ -1,0 +1,63 @@
+import type { Metadata } from 'next'
+
+import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import PrintReportButton from '@/components/dashboard/university-report-share/PrintReportButton'
+import StudentReportView from '@/components/dashboard/university-report-share/StudentReportView'
+import { Card, CardContent } from '@/components/ui/card'
+import { requireAuthForDashboard } from '@/lib/auth'
+import { fetchEvaluationsForSnapshot } from '@/lib/university-policy/data'
+import { buildStudentReportViewModel } from '@/lib/university-policy/report-view'
+import { fetchPublicationForStudent } from '@/lib/university-report/publication'
+
+export const metadata: Metadata = {
+  title: '지원가능대학 리포트 | 학생 대시보드',
+  description: '우디쌤이 발행한 지원 가능 대학 분석 리포트를 확인합니다.',
+}
+
+export default async function StudentAnalysisReportPage() {
+  const { profile } = await requireAuthForDashboard('student')
+
+  if (!profile) {
+    return null
+  }
+
+  const publication = await fetchPublicationForStudent(profile.id)
+
+  const evaluations = publication
+    ? await fetchEvaluationsForSnapshot(publication.snapshotId)
+    : []
+
+  const studentName = profile.name ?? profile.email ?? '학생'
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
+        <DashboardBackLink
+          fallbackHref="/dashboard/student/university-report"
+          label="내 성적 등록으로 돌아가기"
+        />
+        {publication ? <PrintReportButton /> : null}
+      </div>
+
+      {!publication || evaluations.length === 0 ? (
+        <Card className="border-amber-200 bg-amber-50 shadow-sm">
+          <CardContent className="space-y-2 text-sm text-amber-900">
+            <p className="font-medium">아직 발행된 리포트가 없습니다.</p>
+            <p className="text-amber-800">
+              우디쌤이 성적을 검수하고 지원 가능 대학 분석 리포트를 발행하면 이곳에서 확인할 수
+              있습니다. 먼저 성적증명서가 등록되어 있는지 확인해 주세요.
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <StudentReportView
+          model={buildStudentReportViewModel({
+            rows: evaluations,
+            studentName,
+            publication,
+          })}
+        />
+      )}
+    </section>
+  )
+}

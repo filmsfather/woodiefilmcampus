@@ -191,6 +191,7 @@ export type VerdictTier =
   | 'reach' // 도전
   | 'risk' // 위험
   | 'unfit' // 부적합
+  | 'consult' // 원장 문의 (정성평가 등 산식으로 판정 불가)
   | 'unknown' // 비교 불가
 
 export const VERDICT_TIER_LABELS: Record<VerdictTier, string> = {
@@ -199,6 +200,7 @@ export const VERDICT_TIER_LABELS: Record<VerdictTier, string> = {
   reach: '도전',
   risk: '위험',
   unfit: '부적합',
+  consult: '원장 문의',
   unknown: '판정 불가',
 }
 

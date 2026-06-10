@@ -1,10 +1,15 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import UniversityReportCoursesTable from '@/components/dashboard/university-report/UniversityReportCoursesTable'
 import UniversityReportEmptyState from '@/components/dashboard/university-report/UniversityReportEmptyState'
 import UniversityReportResultSummary from '@/components/dashboard/university-report/UniversityReportResultSummary'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { fetchPublicationForStudent } from '@/lib/university-report/publication'
 import {
   fetchActiveSnapshot,
   fetchCoursesForSnapshot,
@@ -38,6 +43,7 @@ export default async function StudentUniversityReportPage() {
     snapshot && snapshot.status === 'parsed'
       ? await fetchCoursesForSnapshot(snapshot.id)
       : []
+  const publication = await fetchPublicationForStudent(profile.id)
 
   return (
     <section className="space-y-6">
@@ -50,6 +56,26 @@ export default async function StudentUniversityReportPage() {
           정리된 데이터를 기반으로 우디쌤이 지원 가능 대학 레포트를 발행합니다.
         </p>
       </div>
+
+      {publication ? (
+        <Card className="border-sky-200 bg-sky-50 shadow-sm">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-sky-900">
+                지원가능대학 분석 리포트가 발행되었습니다.
+              </p>
+              <p className="text-xs text-sky-800">
+                우디쌤이 분석한 지원 가능 대학 결과를 한눈에 확인해 보세요.
+              </p>
+            </div>
+            <Button asChild size="sm" className="gap-1">
+              <Link href="/dashboard/student/university-report/analysis">
+                리포트 보기 <ArrowRight className="size-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {showResult && snapshot ? (
         <>

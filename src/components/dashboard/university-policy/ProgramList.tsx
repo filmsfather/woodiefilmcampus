@@ -7,9 +7,14 @@ import type { ProgramWithPolicy } from '@/lib/university-policy/presets'
 interface ProgramListProps {
   universityId: string
   rows: ProgramWithPolicy[]
+  basePath?: string
 }
 
-export default function ProgramList({ universityId, rows }: ProgramListProps) {
+export default function ProgramList({
+  universityId,
+  rows,
+  basePath = '/dashboard/principal/universities',
+}: ProgramListProps) {
   if (rows.length === 0) {
     return (
       <div className="rounded-md border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
@@ -24,7 +29,7 @@ export default function ProgramList({ universityId, rows }: ProgramListProps) {
       {rows.map(({ program, formula, cut }) => (
         <li key={program.key}>
           <Link
-            href={`/dashboard/principal/universities/${universityId}/programs/${program.key}`}
+            href={`${basePath}/${universityId}/programs/${program.key}`}
             className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-slate-50 sm:px-6"
           >
             <div className="min-w-0 space-y-1">

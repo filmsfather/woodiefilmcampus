@@ -22,6 +22,7 @@ import {
   metricLabel,
   type EvaluationListRow,
 } from '@/lib/university-policy/data'
+import { TIER_RANK, resolveItemTier } from '@/lib/university-policy/report-view'
 import {
   CUT_PRESETS,
   FORMULA_PRESETS,
@@ -49,24 +50,12 @@ const TIER_FILTERS: Array<{ value: 'all' | VerdictTier; label: string }> = [
   { value: 'reach', label: '도전' },
   { value: 'risk', label: '위험' },
   { value: 'unfit', label: '부적합' },
+  { value: 'consult', label: '원장 문의' },
   { value: 'unknown', label: '판정 불가' },
 ]
 
-const TIER_RANK: Record<VerdictTier, number> = {
-  safe: 0,
-  fit: 1,
-  reach: 2,
-  risk: 3,
-  unfit: 4,
-  unknown: 5,
-}
-
 function bestVerdict(row: EvaluationListRow): VerdictTier {
-  if (row.verdicts.length === 0) return 'unknown'
-  return row.verdicts.reduce<VerdictTier>(
-    (acc, v) => (TIER_RANK[v.tier] < TIER_RANK[acc] ? v.tier : acc),
-    'unknown'
-  )
+  return resolveItemTier(row.analysisMode, row.verdicts)
 }
 
 export default function EvaluationsTable({ rows, courses }: EvaluationsTableProps) {
@@ -277,6 +266,20 @@ function RowTrace({
   const formula = FORMULA_PRESETS[row.formulaKey]
   const cut = CUT_PRESETS[row.cutKey]
 
+  if (row.analysisMode === 'consult') {
+    return (
+      <p className="text-xs text-slate-500">
+        정성평가(학생부종합 등) 전형이라 내신 산식 계산이 없습니다. 지원 가능 여부는 원장이 직접 판단합니다.
+      </p>
+    )
+  }
+  if (row.analysisMode === 'always_open' && !formula) {
+    return (
+      <p className="text-xs text-slate-500">
+        실기 위주(또는 내신 미반영) 전형이라 산식 계산 없이 전 등급 지원 가능으로 안내합니다.
+      </p>
+    )
+  }
   if (!formula) {
     return (
       <p className="text-xs text-slate-500">
@@ -321,6 +324,20 @@ function StudentValuesCell({ row }: { row: EvaluationListRow }) {
 }
 
 function VerdictsCell({ row }: { row: EvaluationListRow }) {
+  if (row.analysisMode === 'always_open') {
+    return (
+      <Badge className={`${VERDICT_TIER_BADGE.safe.className} text-xs`}>
+        전 등급 지원 가능
+      </Badge>
+    )
+  }
+  if (row.analysisMode === 'consult') {
+    return (
+      <Badge className={`${VERDICT_TIER_BADGE.consult.className} text-xs`}>
+        원장 문의 (정성평가)
+      </Badge>
+    )
+  }
   if (row.verdicts.length === 0) {
     return (
       <Badge variant="outline" className="text-xs text-slate-500">

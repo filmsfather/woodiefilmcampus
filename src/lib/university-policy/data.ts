@@ -22,8 +22,10 @@ import {
   listAllProgramsWithPolicy,
   listAnalyzablePrograms,
   listProgramPresetsByUniversity,
+  resolveAnalysisMode,
   type CutPreset,
   type FormulaPreset,
+  type ProgramAnalysisMode,
   type ProgramPreset,
   type ProgramWithPolicy,
   type UniversityPreset,
@@ -111,6 +113,8 @@ export interface EvaluationListRow {
   programTrack: string
   programTotalScore: number | null
   cutSourceType: CutSourceType
+  // 분석 방식 (grade_cut: 컷 비교 / always_open: 전 등급 지원 가능 / consult: 원장 문의)
+  analysisMode: ProgramAnalysisMode
 }
 
 interface EvaluationRow {
@@ -165,6 +169,7 @@ export async function fetchEvaluationsForSnapshot(
       programTrack: program?.admissionTrack ?? '',
       programTotalScore: program?.totalScore ?? null,
       cutSourceType: cut?.sourceType ?? 'university_official',
+      analysisMode: resolveAnalysisMode(e.program_key),
     }
   })
 }
@@ -213,6 +218,7 @@ export const VERDICT_TIER_BADGE: Record<
   reach: { label: '도전', className: 'bg-amber-100 text-amber-800' },
   risk: { label: '위험', className: 'bg-rose-100 text-rose-700' },
   unfit: { label: '부적합', className: 'bg-slate-200 text-slate-600' },
+  consult: { label: '원장 문의', className: 'bg-violet-100 text-violet-700' },
   unknown: { label: '판정 불가', className: 'bg-slate-100 text-slate-500' },
 }
 

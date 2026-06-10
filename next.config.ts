@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
   images: {
+    // NAT64/DNS64 환경에서 Supabase 호스트가 64:ff9b:: 주소로 해석되면
+    // Next.js 16의 사설 IP 차단이 이를 사설 IP로 오판해 이미지를 막는다.
+    // 호스트는 아래 remotePatterns로 이미 제한되므로 차단을 해제한다.
+    dangerouslyAllowLocalIP: true,
     remotePatterns: [
       {
         protocol: "https",

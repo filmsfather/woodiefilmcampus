@@ -1,0 +1,43 @@
+{
+  "stats": {
+    "total_pdf": 260,
+    "parsed": 260,
+    "errors": 0,
+    "university_mapped": 259,
+    "university_unmapped": 1,
+    "has_year": 226,
+    "low_year_confidence": 1,
+    "has_student_name": 214,
+    "with_images": 35,
+    "empty_body": 0
+  },
+  "byUniversity": {
+    "dima": 22,
+    "soongsil": 26,
+    "seoularts": 22,
+    "sejong": 20,
+    "sangmyung": 3,
+    "kookmin": 21,
+    "seokyeong": 36,
+    "dongguk": 1,
+    "baekseok-arts": 5,
+    "seoil": 12,
+    "sungkyul": 13,
+    "sungkyunkwan": 2,
+    "suwon": 9,
+    "joongbu": 4,
+    "cheongju": 19,
+    "pyeongtaek": 4,
+    "karts": 13,
+    "hoseo": 3,
+    "daejin": 5,
+    "soonchunhyang": 1,
+    "dankook": 6,
+    "myongji": 6,
+    "yongin": 4,
+    "mokwon": 1,
+    "(미매핑)추계예술대학교": 1,
+    "chungang": 1
+  },
+  "errors": []
+}
