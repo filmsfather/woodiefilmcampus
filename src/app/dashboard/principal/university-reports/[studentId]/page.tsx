@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { GraduationCap } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import ManualReportControl from '@/components/dashboard/university-policy/ManualReportControl'
+import EligibilitySummary from '@/components/dashboard/university-report/EligibilitySummary'
 import UniversityReportCoursesTable from '@/components/dashboard/university-report/UniversityReportCoursesTable'
 import UniversityReportEmptyState from '@/components/dashboard/university-report/UniversityReportEmptyState'
 import UniversityReportResultSummary from '@/components/dashboard/university-report/UniversityReportResultSummary'
@@ -16,7 +18,9 @@ import {
   fetchCoursesForSnapshot,
   fetchGradeSemesterCounts,
   fetchLatestSnapshot,
+  fetchReportEligibility,
 } from '@/lib/university-report/data'
+import { fetchLatestPublicationForStudent } from '@/lib/university-report/publication'
 
 export const metadata: Metadata = {
   title: '학생 성적증명서 | 지원가능대학 레포트',
@@ -74,6 +78,10 @@ export default async function PrincipalStudentReportPage({
     snapshot && snapshot.status === 'parsed'
       ? await fetchCoursesForSnapshot(snapshot.id)
       : []
+  const eligibility = await fetchReportEligibility(student.id)
+  const publication = eligibility?.isGed
+    ? await fetchLatestPublicationForStudent(student.id)
+    : null
 
   return (
     <section className="space-y-6">
@@ -94,7 +102,39 @@ export default async function PrincipalStudentReportPage({
         </CardContent>
       </Card>
 
-      {showResult && snapshot ? (
+      <EligibilitySummary
+        eligibility={eligibility}
+        emptyMessage="학생이 아직 사전 조사에 응답하지 않았습니다."
+      />
+
+      {eligibility?.isGed ? (
+        <>
+          <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-base font-semibold text-emerald-900">
+                검정고시 응시자입니다.
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-emerald-800">
+              검정고시로 지원하는 학생이라 성적증명서 업로드가 필요하지 않습니다. 아래에서 직접 작성한
+              리포트를 학생에게 공개할 수 있습니다.
+            </CardContent>
+          </Card>
+          <ManualReportControl
+            studentId={student.id}
+            publication={
+              publication
+                ? {
+                    id: publication.id,
+                    status: publication.status,
+                    publishedAt: publication.publishedAt,
+                    principalComment: publication.principalComment,
+                  }
+                : null
+            }
+          />
+        </>
+      ) : showResult && snapshot ? (
         <>
           <UniversityReportResultSummary
             snapshot={snapshot}

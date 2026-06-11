@@ -39,21 +39,53 @@ function formatDateTime(iso: string | null) {
   })
 }
 
-export default async function UniversityReportsPage() {
+const FILTERS = [
+  { key: 'all', label: '전체' },
+  { key: 'ged', label: '검정고시' },
+  { key: 'rural', label: '농어촌' },
+  { key: 'lowincome', label: '차상위' },
+] as const
+
+type FilterKey = (typeof FILTERS)[number]['key']
+
+function matchesFilter(row: StudentSnapshotStatusRow, filter: FilterKey) {
+  switch (filter) {
+    case 'ged':
+      return row.isGed
+    case 'rural':
+      return row.ruralEligible
+    case 'lowincome':
+      return row.lowIncomeEligible
+    case 'all':
+    default:
+      return true
+  }
+}
+
+interface UniversityReportsPageProps {
+  searchParams: Promise<{ filter?: string }>
+}
+
+export default async function UniversityReportsPage({ searchParams }: UniversityReportsPageProps) {
   await requireAuthForDashboard('principal')
 
-  const rows = await fetchStudentSnapshotStatuses()
+  const { filter: filterParam } = await searchParams
+  const activeFilter: FilterKey = FILTERS.some((f) => f.key === filterParam)
+    ? (filterParam as FilterKey)
+    : 'all'
 
-  const summary = rows.reduce(
+  const allRows = await fetchStudentSnapshotStatuses()
+  const rows = allRows.filter((row) => matchesFilter(row, activeFilter))
+
+  const summary = allRows.reduce(
     (acc, row) => {
       acc.total += 1
-      if (row.snapshotStatus === 'parsed') acc.parsed += 1
-      else if (row.snapshotStatus === 'parsing') acc.parsing += 1
-      else if (row.snapshotStatus === 'failed') acc.failed += 1
-      else if (!row.snapshotStatus) acc.missing += 1
+      if (row.isGed) acc.ged += 1
+      if (row.ruralEligible) acc.rural += 1
+      if (row.lowIncomeEligible) acc.lowIncome += 1
       return acc
     },
-    { total: 0, parsed: 0, parsing: 0, failed: 0, missing: 0 }
+    { total: 0, ged: 0, rural: 0, lowIncome: 0 }
   )
 
   return (
@@ -78,16 +110,38 @@ export default async function UniversityReportsPage() {
 
       <div className="grid gap-3 sm:grid-cols-4">
         <SummaryStat label="총 학생" value={summary.total} />
-        <SummaryStat label="분석 완료" value={summary.parsed} tone="emerald" />
-        <SummaryStat label="분석 실패" value={summary.failed} tone="red" />
-        <SummaryStat label="미업로드" value={summary.missing} tone="slate" />
+        <SummaryStat label="검정고시" value={summary.ged} tone="emerald" />
+        <SummaryStat label="농어촌 지원가능" value={summary.rural} tone="slate" />
+        <SummaryStat label="차상위 지원가능" value={summary.lowIncome} tone="slate" />
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {FILTERS.map((f) => {
+          const isActive = f.key === activeFilter
+          const href = f.key === 'all' ? '?' : `?filter=${f.key}`
+          return (
+            <Link
+              key={f.key}
+              href={href}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                isActive
+                  ? 'border-sky-500 bg-sky-50 text-sky-700'
+                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {f.label}
+            </Link>
+          )
+        })}
       </div>
 
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
           {rows.length === 0 ? (
             <div className="p-8 text-center text-sm text-slate-500">
-              승인된 학생이 아직 없습니다.
+              {activeFilter === 'all'
+                ? '승인된 학생이 아직 없습니다.'
+                : '해당 조건에 맞는 학생이 없습니다.'}
             </div>
           ) : (
             <div className="divide-y divide-slate-100">
@@ -144,6 +198,19 @@ function StudentRow({ row }: { row: StudentSnapshotStatusRow }) {
         <p className="text-xs text-slate-500">{row.email}</p>
         {row.schoolName ? (
           <p className="mt-1 text-xs text-slate-500">{row.schoolName}</p>
+        ) : null}
+        {row.isGed || row.ruralEligible || row.lowIncomeEligible ? (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {row.isGed ? (
+              <Badge className="bg-emerald-100 text-emerald-700">검정고시</Badge>
+            ) : null}
+            {row.ruralEligible ? (
+              <Badge className="bg-sky-100 text-sky-700">농어촌</Badge>
+            ) : null}
+            {row.lowIncomeEligible ? (
+              <Badge className="bg-violet-100 text-violet-700">차상위</Badge>
+            ) : null}
+          </div>
         ) : null}
       </div>
       <div className="hidden text-xs text-slate-600 sm:block">{row.className ?? '-'}</div>

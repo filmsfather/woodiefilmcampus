@@ -11,7 +11,7 @@ export type PublicationStatus = 'published' | 'revoked'
 
 export interface ReportPublication {
   id: string
-  snapshotId: string
+  snapshotId: string | null
   studentId: string
   publishedBy: string
   shareToken: string
@@ -26,7 +26,7 @@ export interface ReportPublication {
 
 interface PublicationRow {
   id: string
-  snapshot_id: string
+  snapshot_id: string | null
   student_id: string
   published_by: string
   share_token: string

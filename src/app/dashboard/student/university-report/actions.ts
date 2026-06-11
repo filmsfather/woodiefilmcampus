@@ -61,6 +61,58 @@ function pathsRevalidate(studentId: string) {
   revalidatePath('/dashboard/principal/university-reports')
 }
 
+// ---------------- 0. 사전 조사 ----------------
+
+const saveEligibilitySchema = z.object({
+  studentId: z.string().uuid('유효한 학생 ID가 아닙니다.'),
+  isGed: z.boolean(),
+  ruralEligible: z.boolean(),
+  lowIncomeEligible: z.boolean(),
+})
+
+export type SaveEligibilityResult = { success: true } | { error: string }
+
+/**
+ * 성적증명서 업로드 전 사전 조사(검정고시/농어촌/차상위) 응답을 저장한다.
+ * 학생 본인 또는 교사/매니저/원장이 호출할 수 있으며, 학생당 1행으로 upsert 한다.
+ */
+export async function saveEligibility(payload: unknown): Promise<SaveEligibilityResult> {
+  const parsed = saveEligibilitySchema.safeParse(payload)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    return { error: issue?.message ?? '입력값을 다시 확인해주세요.' }
+  }
+
+  const { studentId, isGed, ruralEligible, lowIncomeEligible } = parsed.data
+  const access = await requireUploadAccess(studentId)
+  if (access.kind === 'denied') {
+    return { error: access.error }
+  }
+
+  const supabase = createAdminClient()
+  const now = new Date().toISOString()
+  const { error } = await supabase
+    .from('university_report_eligibility')
+    .upsert(
+      {
+        student_id: studentId,
+        is_ged: isGed,
+        rural_eligible: ruralEligible,
+        low_income_eligible: lowIncomeEligible,
+        surveyed_at: now,
+      },
+      { onConflict: 'student_id' }
+    )
+
+  if (error) {
+    console.error('[university-report] saveEligibility error', error)
+    return { error: '사전 조사 응답을 저장하지 못했습니다.' }
+  }
+
+  pathsRevalidate(studentId)
+  return { success: true }
+}
+
 // ---------------- 1. 업로드 ----------------
 
 const createSnapshotSchema = z.object({

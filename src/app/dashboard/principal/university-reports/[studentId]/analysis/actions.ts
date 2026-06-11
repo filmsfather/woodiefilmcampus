@@ -327,6 +327,66 @@ export async function publishReportAction(payload: unknown): Promise<PublishRepo
   return { success: true, publicationId: inserted.id }
 }
 
+const publishManualReportSchema = z.object({
+  studentId: z.string().uuid(),
+  comment: z.string().trim().min(1, '학생에게 전달할 코멘트를 입력해주세요.').max(2000),
+})
+
+/**
+ * 성적증명서가 없는 학생(검정고시 등)을 위해 원장이 코멘트만으로 리포트를 발행한다.
+ * 분석 데이터(snapshot/evaluations) 없이 코멘트 기반으로 학생·학부모에게 공개한다.
+ */
+export async function publishManualReportAction(payload: unknown): Promise<PublishReportResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal') return { error: '원장만 공개할 수 있습니다.' }
+
+  const parsed = publishManualReportSchema.safeParse(payload)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '잘못된 요청입니다.' }
+  }
+
+  const supabase = createAdminClient()
+
+  // 기존 published 행이 있으면 취소 처리해 partial unique 제약을 비운다.
+  const { error: revokeExistingError } = await supabase
+    .from('university_report_publications')
+    .update({ status: 'revoked', revoked_at: new Date().toISOString() })
+    .eq('student_id', parsed.data.studentId)
+    .eq('status', 'published')
+
+  if (revokeExistingError) {
+    console.error('[publish-manual-report] revoke existing error', revokeExistingError)
+    return { error: '기존 공개 정보를 정리하지 못했습니다.' }
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('university_report_publications')
+    .insert({
+      snapshot_id: null,
+      student_id: parsed.data.studentId,
+      published_by: profile.id,
+      share_token: generateShareToken(),
+      principal_comment: parsed.data.comment,
+      status: 'published',
+      published_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (insertError || !inserted) {
+    console.error('[publish-manual-report] insert error', insertError)
+    return { error: '공개에 실패했습니다.' }
+  }
+
+  revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}`)
+  revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}/analysis`)
+  revalidatePath('/dashboard/student/university-report')
+  revalidatePath('/dashboard/student/university-report/analysis')
+
+  return { success: true, publicationId: inserted.id }
+}
+
 /**
  * 발행된 리포트를 비공개(revoked) 처리한다.
  */

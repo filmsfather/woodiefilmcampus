@@ -3,7 +3,11 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { SnapshotStatus, SnapshotSummary } from '@/lib/university-report/types'
+import type {
+  ReportEligibility,
+  SnapshotStatus,
+  SnapshotSummary,
+} from '@/lib/university-report/types'
 
 interface SnapshotRow {
   id: string
@@ -107,6 +111,38 @@ export async function fetchLatestSnapshot(studentId: string): Promise<SnapshotSu
     .eq('snapshot_id', data.id)
 
   return toSummary(data, count ?? 0)
+}
+
+/**
+ * 학생의 성적증명서 사전 조사 결과를 반환. 응답 전이면 null.
+ */
+export async function fetchReportEligibility(
+  studentId: string
+): Promise<ReportEligibility | null> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('university_report_eligibility')
+    .select('student_id, is_ged, rural_eligible, low_income_eligible, surveyed_at, updated_at')
+    .eq('student_id', studentId)
+    .maybeSingle()
+
+  if (error) {
+    console.error('[university-report] fetchReportEligibility error', error)
+    return null
+  }
+
+  if (!data) {
+    return null
+  }
+
+  return {
+    studentId: data.student_id,
+    isGed: data.is_ged,
+    ruralEligible: data.rural_eligible,
+    lowIncomeEligible: data.low_income_eligible,
+    surveyedAt: data.surveyed_at,
+    updatedAt: data.updated_at,
+  }
 }
 
 export interface CourseRow {
@@ -216,6 +252,10 @@ export interface StudentSnapshotStatusRow {
   studentNameOnDoc: string | null
   updatedAt: string | null
   parseError: string | null
+  isGed: boolean
+  ruralEligible: boolean
+  lowIncomeEligible: boolean
+  surveyed: boolean
 }
 
 /**
@@ -293,11 +333,20 @@ export async function fetchStudentSnapshotStatuses(): Promise<StudentSnapshotSta
     }
   }
 
+  const { data: eligibilityRows } = await supabase
+    .from('university_report_eligibility')
+    .select('student_id, is_ged, rural_eligible, low_income_eligible')
+    .in('student_id', studentIds)
+  const eligibilityMap = new Map(
+    (eligibilityRows ?? []).map((row) => [row.student_id, row])
+  )
+
   return students
     .map<StudentSnapshotStatusRow>((student) => {
       const activeSnap = latestActive.get(student.id)
       const anySnap = latestAny.get(student.id)
       const snap = activeSnap ?? anySnap ?? null
+      const eligibility = eligibilityMap.get(student.id)
 
       return {
         studentId: student.id,
@@ -310,6 +359,10 @@ export async function fetchStudentSnapshotStatuses(): Promise<StudentSnapshotSta
         studentNameOnDoc: snap?.student_name_on_doc ?? null,
         updatedAt: snap?.updated_at ?? null,
         parseError: snap?.parse_error ?? null,
+        isGed: eligibility?.is_ged ?? false,
+        ruralEligible: eligibility?.rural_eligible ?? false,
+        lowIncomeEligible: eligibility?.low_income_eligible ?? false,
+        surveyed: Boolean(eligibility),
       }
     })
     .sort((a, b) => {

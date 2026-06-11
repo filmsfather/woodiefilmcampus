@@ -3,11 +3,12 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import EligibilitySection from '@/components/dashboard/university-report/EligibilitySection'
 import UniversityReportCoursesTable from '@/components/dashboard/university-report/UniversityReportCoursesTable'
 import UniversityReportEmptyState from '@/components/dashboard/university-report/UniversityReportEmptyState'
 import UniversityReportResultSummary from '@/components/dashboard/university-report/UniversityReportResultSummary'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchPublicationForStudent } from '@/lib/university-report/publication'
 import {
@@ -15,6 +16,7 @@ import {
   fetchCoursesForSnapshot,
   fetchGradeSemesterCounts,
   fetchLatestSnapshot,
+  fetchReportEligibility,
 } from '@/lib/university-report/data'
 
 export const metadata: Metadata = {
@@ -44,6 +46,7 @@ export default async function StudentUniversityReportPage() {
       ? await fetchCoursesForSnapshot(snapshot.id)
       : []
   const publication = await fetchPublicationForStudent(profile.id)
+  const eligibility = await fetchReportEligibility(profile.id)
 
   return (
     <section className="space-y-6">
@@ -77,7 +80,23 @@ export default async function StudentUniversityReportPage() {
         </Card>
       ) : null}
 
-      {showResult && snapshot ? (
+      <EligibilitySection studentId={profile.id} eligibility={eligibility} isViewingOther={false} />
+
+      {eligibility === null ? null : eligibility.isGed ? (
+        <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold text-emerald-900">
+              검정고시 응시자는 성적증명서 업로드가 필요하지 않습니다.
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-emerald-800">
+            <p>
+              검정고시로 지원하는 경우 학교생활기록부 성적이 별도로 활용되지 않으므로 PDF 업로드 단계를 건너뜁니다.
+              사전 조사 응답을 잘못 입력했다면 위에서 다시 응답할 수 있습니다.
+            </p>
+          </CardContent>
+        </Card>
+      ) : showResult && snapshot ? (
         <>
           <UniversityReportResultSummary
             snapshot={snapshot}

@@ -114,6 +114,20 @@ export interface ParsedTranscript {
 }
 
 /**
+ * 성적증명서 업로드 전 학생 사전 조사 결과.
+ * 검정고시 응시자는 성적증명서 업로드가 필요 없으며,
+ * 농어촌/차상위 해당 여부는 원장 페이지에서 확인한다.
+ */
+export interface ReportEligibility {
+  studentId: string
+  isGed: boolean
+  ruralEligible: boolean
+  lowIncomeEligible: boolean
+  surveyedAt: string
+  updatedAt: string
+}
+
+/**
  * UI/server action 간에 주고받는 스냅샷 요약 페이로드.
  */
 export interface SnapshotSummary {
