@@ -43,12 +43,6 @@ const UNIVERSITY_PREP_ACTIONS: DashboardActionItem[] = [
 
 const TODO_ACTIONS: DashboardActionItem[] = [
   {
-    label: '희망대학 선정',
-    href: '/dashboard/student/university-report/wishlist',
-    description: '원장 선생님이 추천한 대학을 확인하고 희망대학을 함께 확정하세요.',
-    variant: 'outline',
-  },
-  {
     label: '연간 학습 일정',
     href: '/dashboard/learning-journal/annual-schedule',
     description: '한 해의 주요 커리큘럼과 일정을 한눈에 확인하세요.',
