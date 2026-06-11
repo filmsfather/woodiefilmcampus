@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, ChevronDown, ChevronUp } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Badge } from '@/components/ui/badge'
@@ -62,20 +62,79 @@ function matchesFilter(row: StudentSnapshotStatusRow, filter: FilterKey) {
   }
 }
 
+const SORTS = [
+  { key: 'name', label: '학생' },
+  { key: 'class', label: '반' },
+  { key: 'status', label: '상태' },
+  { key: 'updated', label: '마지막 업데이트' },
+] as const
+
+type SortKey = (typeof SORTS)[number]['key']
+type SortDir = 'asc' | 'desc'
+
+// 상태 정렬 우선순위(작을수록 위). 의미 있는 진행 단계 순서로 배치.
+const STATUS_RANK: Record<string, number> = {
+  parsed: 0,
+  parsing: 1,
+  pending: 2,
+  failed: 3,
+  archived: 4,
+}
+
+function statusRank(status: SnapshotStatus | null): number {
+  if (status == null) return 5
+  return STATUS_RANK[status] ?? 5
+}
+
+function compareRows(a: StudentSnapshotStatusRow, b: StudentSnapshotStatusRow, sortKey: SortKey): number {
+  switch (sortKey) {
+    case 'class':
+      return (a.className ?? '').localeCompare(b.className ?? '', 'ko')
+    case 'status':
+      return statusRank(a.snapshotStatus) - statusRank(b.snapshotStatus)
+    case 'updated': {
+      const at = a.updatedAt ? new Date(a.updatedAt).getTime() : 0
+      const bt = b.updatedAt ? new Date(b.updatedAt).getTime() : 0
+      return at - bt
+    }
+    case 'name':
+    default:
+      return (a.name ?? a.email).localeCompare(b.name ?? b.email, 'ko')
+  }
+}
+
+function buildQuery(filter: FilterKey, sort: SortKey, dir: SortDir): string {
+  const params = new URLSearchParams()
+  if (filter !== 'all') params.set('filter', filter)
+  params.set('sort', sort)
+  params.set('dir', dir)
+  const qs = params.toString()
+  return qs ? `?${qs}` : '?'
+}
+
 interface UniversityReportsPageProps {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<{ filter?: string; sort?: string; dir?: string }>
 }
 
 export default async function UniversityReportsPage({ searchParams }: UniversityReportsPageProps) {
   await requireAuthForDashboard('principal')
 
-  const { filter: filterParam } = await searchParams
+  const { filter: filterParam, sort: sortParam, dir: dirParam } = await searchParams
   const activeFilter: FilterKey = FILTERS.some((f) => f.key === filterParam)
     ? (filterParam as FilterKey)
     : 'all'
+  const activeSort: SortKey = SORTS.some((s) => s.key === sortParam)
+    ? (sortParam as SortKey)
+    : 'name'
+  const activeDir: SortDir = dirParam === 'desc' ? 'desc' : 'asc'
 
   const allRows = await fetchStudentSnapshotStatuses()
-  const rows = allRows.filter((row) => matchesFilter(row, activeFilter))
+  const rows = allRows
+    .filter((row) => matchesFilter(row, activeFilter))
+    .sort((a, b) => {
+      const base = compareRows(a, b, activeSort)
+      return activeDir === 'desc' ? -base : base
+    })
 
   const summary = allRows.reduce(
     (acc, row) => {
@@ -118,7 +177,7 @@ export default async function UniversityReportsPage({ searchParams }: University
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {
           const isActive = f.key === activeFilter
-          const href = f.key === 'all' ? '?' : `?filter=${f.key}`
+          const href = buildQuery(f.key, activeSort, activeDir)
           return (
             <Link
               key={f.key}
@@ -146,10 +205,37 @@ export default async function UniversityReportsPage({ searchParams }: University
           ) : (
             <div className="divide-y divide-slate-100">
               <div className="grid grid-cols-[2fr_1.2fr_1fr_1.4fr_0.5fr] gap-3 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500 sm:px-6">
-                <div>학생</div>
-                <div className="hidden sm:block">반</div>
-                <div className="hidden sm:block">상태</div>
-                <div className="hidden md:block">마지막 업데이트</div>
+                <SortHeader
+                  sortKey="name"
+                  label="학생"
+                  filter={activeFilter}
+                  activeSort={activeSort}
+                  activeDir={activeDir}
+                />
+                <SortHeader
+                  sortKey="class"
+                  label="반"
+                  filter={activeFilter}
+                  activeSort={activeSort}
+                  activeDir={activeDir}
+                  className="hidden sm:flex"
+                />
+                <SortHeader
+                  sortKey="status"
+                  label="상태"
+                  filter={activeFilter}
+                  activeSort={activeSort}
+                  activeDir={activeDir}
+                  className="hidden sm:flex"
+                />
+                <SortHeader
+                  sortKey="updated"
+                  label="마지막 업데이트"
+                  filter={activeFilter}
+                  activeSort={activeSort}
+                  activeDir={activeDir}
+                  className="hidden md:flex"
+                />
                 <div className="text-right">상세</div>
               </div>
               {rows.map((row) => (
@@ -184,6 +270,43 @@ function SummaryStat({
       <p className="text-xs font-medium">{label}</p>
       <p className="mt-1 text-xl font-semibold">{value}</p>
     </div>
+  )
+}
+
+function SortHeader({
+  sortKey,
+  label,
+  filter,
+  activeSort,
+  activeDir,
+  className = '',
+}: {
+  sortKey: SortKey
+  label: string
+  filter: FilterKey
+  activeSort: SortKey
+  activeDir: SortDir
+  className?: string
+}) {
+  const isActive = activeSort === sortKey
+  const nextDir: SortDir = isActive && activeDir === 'asc' ? 'desc' : 'asc'
+
+  return (
+    <Link
+      href={buildQuery(filter, sortKey, nextDir)}
+      className={`flex items-center gap-1 transition hover:text-slate-700 ${
+        isActive ? 'text-slate-700' : ''
+      } ${className}`}
+    >
+      {label}
+      {isActive ? (
+        activeDir === 'asc' ? (
+          <ChevronUp className="size-3" />
+        ) : (
+          <ChevronDown className="size-3" />
+        )
+      ) : null}
+    </Link>
   )
 }
 
