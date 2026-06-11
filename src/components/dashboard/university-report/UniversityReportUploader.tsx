@@ -13,7 +13,7 @@ import {
   UNIVERSITY_REPORTS_BUCKET,
 } from '@/lib/storage/buckets'
 import {
-  buildPendingStoragePath,
+  sanitizeStorageFileName,
   uploadFileToStorageViaClient,
 } from '@/lib/storage-upload'
 
@@ -58,11 +58,8 @@ export default function UniversityReportUploader({
     setStage('uploading')
 
     try {
-      const path = buildPendingStoragePath({
-        ownerId: studentId,
-        prefix: 'transcripts',
-        fileName: file.name,
-      })
+      const safeName = sanitizeStorageFileName(file.name)
+      const path = `${studentId}/transcripts/${Date.now()}-${crypto.randomUUID()}-${safeName}`
 
       const uploadResult = await uploadFileToStorageViaClient({
         bucket: UNIVERSITY_REPORTS_BUCKET,
