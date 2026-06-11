@@ -134,7 +134,12 @@ interface GeminiResponse {
   }>
 }
 
-async function callGemini(model: string, parts: GeminiPart[]): Promise<string | null> {
+type GeminiCallResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: 'http'; status: number; body: string }
+  | { ok: false; reason: 'empty' }
+
+async function callGemini(model: string, parts: GeminiPart[]): Promise<GeminiCallResult> {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`,
     {
@@ -161,13 +166,27 @@ async function callGemini(model: string, parts: GeminiPart[]): Promise<string | 
   if (!response.ok) {
     const errorText = await response.text()
     console.error('[university-report-parser] Gemini API error', model, response.status, errorText)
-    return null
+    return { ok: false, reason: 'http', status: response.status, body: errorText }
   }
 
   const data: GeminiResponse = await response.json()
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text
 
-  return text ?? null
+  if (!text) {
+    return { ok: false, reason: 'empty' }
+  }
+
+  return { ok: true, text }
+}
+
+/**
+ * PDF가 비밀번호/보안으로 암호화되어 있는지 가볍게 판별한다.
+ * 암호화 PDF는 trailer에 /Encrypt 항목을 두므로 바이트에 존재 여부만 확인한다.
+ * (성적증명서 본문에 "/Encrypt" 문자열이 들어갈 일은 사실상 없어 오탐 위험이 낮다.)
+ */
+function isPdfEncrypted(pdfBase64: string): boolean {
+  const buffer = Buffer.from(pdfBase64, 'base64')
+  return buffer.includes('/Encrypt')
 }
 
 function clampGrade(value: unknown): 1 | 2 | 3 | null {
@@ -307,6 +326,14 @@ export async function parseTranscriptPdf(input: {
     return { ok: false, error: '업로드된 PDF가 비어 있습니다.' }
   }
 
+  if (isPdfEncrypted(input.pdfBase64)) {
+    return {
+      ok: false,
+      error:
+        'PDF에 비밀번호(보안)가 설정되어 있어 분석할 수 없습니다. 비밀번호를 해제한 뒤 다시 업로드해 주세요.',
+    }
+  }
+
   const parts: GeminiPart[] = [
     {
       inline_data: {
@@ -323,19 +350,29 @@ export async function parseTranscriptPdf(input: {
   let lastError = '응답 없음'
 
   for (const model of tryModels) {
-    let raw: string | null
+    let result: GeminiCallResult
     try {
-      raw = await callGemini(model, parts)
+      result = await callGemini(model, parts)
     } catch (error) {
       console.error('[university-report-parser] network error', model, error)
       lastError = 'AI 서버 연결에 실패했습니다.'
       continue
     }
 
-    if (!raw) {
-      lastError = 'AI 응답이 비어 있습니다.'
+    if (!result.ok) {
+      if (result.reason === 'http') {
+        const isQuota =
+          result.status === 429 || /RESOURCE_EXHAUSTED|quota|credit/i.test(result.body)
+        lastError = isQuota
+          ? 'AI 사용량(크레딧)이 소진되어 분석을 진행할 수 없습니다. 관리자에게 문의해 주세요.'
+          : `AI 서버 오류로 분석에 실패했습니다. (코드 ${result.status})`
+      } else {
+        lastError = 'AI 응답이 비어 있습니다.'
+      }
       continue
     }
+
+    const raw = result.text
 
     try {
       const parsed = JSON.parse(raw) as unknown
