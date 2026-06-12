@@ -7,6 +7,7 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import AnalysisRunButton from '@/components/dashboard/university-policy/AnalysisRunButton'
 import EvaluationsTable from '@/components/dashboard/university-policy/EvaluationsTable'
 import ReportPublishControl from '@/components/dashboard/university-policy/ReportPublishControl'
+import ShareLinkBox from '@/components/dashboard/university-report-share/ShareLinkBox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
@@ -132,6 +133,9 @@ export default async function AnalysisPage({ params }: AnalysisPageProps) {
                     : null
                 }
               />
+            ) : null}
+            {publication?.status === 'published' ? (
+              <ShareLinkBox token={publication.shareToken} />
             ) : null}
             <EvaluationsTable rows={evaluations} courses={courses} />
           </CardContent>

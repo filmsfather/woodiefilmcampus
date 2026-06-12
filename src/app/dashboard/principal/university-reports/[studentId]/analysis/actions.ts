@@ -13,6 +13,7 @@ import { listProgramsForAnalysis } from '@/lib/university-policy/presets'
 import type { StudentMetrics } from '@/lib/university-policy/types'
 import { buildVerdicts } from '@/lib/university-policy/verdict'
 import { fetchCoursesForSnapshot } from '@/lib/university-report/data'
+import { notifyUniversityReportShareLink } from '@/lib/university-report/notifications'
 
 const runAnalysisSchema = z.object({
   studentId: z.string().uuid(),
@@ -221,6 +222,13 @@ export async function runAnalysisAction(payload: unknown): Promise<RunAnalysisRe
     evaluatedCount += 1
   }
 
+  // 분석이 끝나면 곧바로 발행(공유 링크 생성)하고 학생·학부모에게 문자로 링크를 보낸다.
+  // 발행 단계 실패는 분석 성공 결과에 영향을 주지 않도록 best-effort로 처리한다.
+  const publishResult = await publishReportAction({ studentId: parsed.data.studentId })
+  if ('error' in publishResult) {
+    console.error('[analysis] auto-publish after analysis failed', publishResult.error)
+  }
+
   revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}`)
   revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}/analysis`)
 
@@ -313,13 +321,19 @@ export async function publishReportAction(payload: unknown): Promise<PublishRepo
       status: 'published',
       published_at: new Date().toISOString(),
     })
-    .select('id')
+    .select('id, share_token')
     .single()
 
   if (insertError || !inserted) {
     console.error('[publish-report] insert error', insertError)
     return { error: '공개에 실패했습니다.' }
   }
+
+  // 학생·학부모에게 공유 링크 문자 발송(best-effort, 실패해도 발행은 성공 처리).
+  await notifyUniversityReportShareLink({
+    studentId: parsed.data.studentId,
+    token: inserted.share_token,
+  })
 
   revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}/analysis`)
   revalidatePath('/dashboard/student/university-report/analysis')

@@ -144,7 +144,7 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
   // 실기 60% 비중이라 학생부 평균등급은 참고용. 3개년 합격 평균등급을 컷 점으로 사용.
   'sejong-2027-silgi-film-direction': {
     key: 'sejong-2027-silgi-film-direction',
-    version: 1,
+    version: 2,
     sourceYear: 2026,
     sourceType: 'university_official',
     applicants: 753,
@@ -153,26 +153,18 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
     fillRate: 0,
     notes:
       '세종대 입학처 수시모집 상담자료 PDF 기준 최근 3개년 실기우수자(연출제작) 입결. ' +
-      '2024: 모집 10명 · 경쟁률 78.50:1 · 충원율 60% · 평균등급 3.20 · 70%컷 3.54. ' +
-      '2025: 모집 12명 · 경쟁률 101.83:1 · 충원율 8.3% · 평균등급 3.51 · 70%컷 3.82. ' +
-      '2026: 모집 6명(반토막) · 경쟁률 125.50:1 · 충원율 0% · 평균등급 3.97 · 70%컷 3.71(최저 5.58). ' +
-      '※ 실기 60% 비중으로 학생부 등급은 합격 결정력이 낮은 참고용 가늠치.',
+      '2024: 모집 10명 · 경쟁률 78.50:1 · 충원율 60% · 평균등급 3.20 · 70%컷 3.54 · 최초컷 2.24. ' +
+      '2025: 모집 12명 · 경쟁률 101.83:1 · 충원율 8.3% · 평균등급 3.51 · 70%컷 3.82 · 최초컷 1.42. ' +
+      '2026: 모집 6명(반토막) · 경쟁률 125.50:1 · 충원율 0% · 평균등급 3.97 · 70%컷 3.71 · 최저 5.58. ' +
+      '※ 실기 60% 비중으로 학생부 등급은 합격 결정력이 낮은 참고용 가늠치. ' +
+      'v2: 평균 1점에서 최초합격선~평균~최저 분포 3점으로 확장(판정 밴드 정교화).',
     points: [
       {
         metric: 'grade_mean_with_career',
-        label: '합격자 평균등급 (2024)',
+        label: '최초합격선 (2024)',
         percentile: null,
-        pointKind: 'mean',
-        value: 3.2,
-        confidence: 'medium',
-        isEstimated: false,
-      },
-      {
-        metric: 'grade_mean_with_career',
-        label: '합격자 평균등급 (2025)',
-        percentile: null,
-        pointKind: 'mean',
-        value: 3.51,
+        pointKind: 'best',
+        value: 2.24,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -182,6 +174,15 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
         percentile: null,
         pointKind: 'mean',
         value: 3.97,
+        confidence: 'medium',
+        isEstimated: false,
+      },
+      {
+        metric: 'grade_mean_with_career',
+        label: '합격 최저등급 (2026)',
+        percentile: null,
+        pointKind: 'worst',
+        value: 5.58,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -470,7 +471,7 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
   // 출처: 단국대 입학처 죽전캠퍼스 수시모집 입시결과 PDF. 합격 평균등급 기준.
   'dankook-2027-silgi-film': {
     key: 'dankook-2027-silgi-film',
-    version: 1,
+    version: 2,
     sourceYear: 2026,
     sourceType: 'university_official',
     applicants: 543,
@@ -480,23 +481,15 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
       '2024: 모집 12명 · 지원 725명 · 경쟁률 60.42:1 · 평균 4.18 · 최고 2.63 · 최저 5.32 · 예비 1번. ' +
       '2025: 모집 12명 · 지원 1,237명 · 경쟁률 103.08:1 · 평균 4.18 · 최고 2.65 · 최저 5.86 · 예비 2번. ' +
       '2026: 모집 7명 · 지원 543명 · 경쟁률 77.57:1 · 평균 4.44 · 최고 3.05 · 최저 6.23 · 예비 2번. ' +
-      '※ 등록률 100%, 충원 거의 없음. 합격 평균등급 사용.',
+      '※ 등록률 100%, 충원 거의 없음. ' +
+      'v2: 평균 1점에서 2026 최고~평균~최저 분포 3점으로 확장(판정 밴드 정교화).',
     points: [
       {
         metric: 'grade_mean_with_career',
-        label: '합격 평균등급 (2024)',
+        label: '최고 합격등급 (2026)',
         percentile: null,
-        pointKind: 'mean',
-        value: 4.18,
-        confidence: 'medium',
-        isEstimated: false,
-      },
-      {
-        metric: 'grade_mean_with_career',
-        label: '합격 평균등급 (2025)',
-        percentile: null,
-        pointKind: 'mean',
-        value: 4.18,
+        pointKind: 'best',
+        value: 3.05,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -506,6 +499,15 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
         percentile: null,
         pointKind: 'mean',
         value: 4.44,
+        confidence: 'medium',
+        isEstimated: false,
+      },
+      {
+        metric: 'grade_mean_with_career',
+        label: '합격 최저등급 (2026)',
+        percentile: null,
+        pointKind: 'worst',
+        value: 6.23,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -561,7 +563,7 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
   // 출처: 중부대 입학처 전년도 입시결과. 학생부 100% 컷 평균. 2024는 미공개라 2년만.
   'joongbu-2027-silgi-film-direction': {
     key: 'joongbu-2027-silgi-film-direction',
-    version: 1,
+    version: 2,
     sourceYear: 2026,
     sourceType: 'university_official',
     applicants: 181,
@@ -570,23 +572,33 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
       '중부대 입학처 전년도 입시결과 게시 기준 연출/제작/기획 트랙 입결(2024 미공개). ' +
       '2025: 모집 26명 · 지원 80명 · 경쟁률 3.08:1 · 합격 평균 3.72 · 70%컷 5.70 · 충원 35번. ' +
       '2026: 모집 21명 · 지원 181명 · 경쟁률 8.62:1 · 합격 평균 3.01 · 70%컷 3.90 · 충원 28번. ' +
-      '※ 실기 80% 비중. 학생부 100% 컷 평균등급 사용.',
+      '※ 실기 80% 비중. 학생부 100% 컷 평균등급 사용. ' +
+      'v2: 평균 2점에서 평균~70%컷(분포) 3점으로 확장(판정 밴드 정교화).',
     points: [
-      {
-        metric: 'grade_mean_with_career',
-        label: '합격 평균등급 (2025)',
-        percentile: null,
-        pointKind: 'mean',
-        value: 3.72,
-        confidence: 'medium',
-        isEstimated: false,
-      },
       {
         metric: 'grade_mean_with_career',
         label: '합격 평균등급 (2026)',
         percentile: null,
         pointKind: 'mean',
         value: 3.01,
+        confidence: 'medium',
+        isEstimated: false,
+      },
+      {
+        metric: 'grade_mean_with_career',
+        label: '70% Cut (2026)',
+        percentile: 70,
+        pointKind: 'percentile',
+        value: 3.9,
+        confidence: 'medium',
+        isEstimated: false,
+      },
+      {
+        metric: 'grade_mean_with_career',
+        label: '70% Cut (2025)',
+        percentile: 70,
+        pointKind: 'percentile',
+        value: 5.7,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -687,23 +699,24 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
   // 출처: 청주대 입학처 최종등록자 모집결과 PDF. 합격 평균등급 기준(2025 미공개).
   'cheongju-2027-yechaeneung-film': {
     key: 'cheongju-2027-yechaeneung-film',
-    version: 1,
+    version: 2,
     sourceYear: 2026,
     sourceType: 'university_official',
     applicants: 477,
     competitionRate: 11.1,
     notes:
       '청주대 입학처 수시 최종등록자 모집결과 PDF 기준 영화영상학과 예체능전형 입결(2025 미공개). ' +
-      '2024: 모집 42명 · 지원 377명 · 경쟁률 8.98:1 · 평균등급 4.58 · 70%컷 5.13 · 추합 23명. ' +
-      '2026: 모집 43명 · 지원 477명 · 경쟁률 11.10:1 · 평균등급 4.94 · 70%컷 6.06 · 추합 16명. ' +
-      '※ 실기 80% 비중. 합격자 등급 분포 매우 넓음(2.13~6.06). 합격 평균등급 사용.',
+      '2024: 모집 42명 · 지원 377명 · 경쟁률 8.98:1 · 평균등급 4.58 · 70%컷 5.13 · 최고 2.88 · 추합 23명. ' +
+      '2026: 모집 43명 · 지원 477명 · 경쟁률 11.10:1 · 평균등급 4.94 · 70%컷 6.06 · 최고 2.13 · 추합 16명. ' +
+      '※ 실기 80% 비중. 합격자 등급 분포 매우 넓음(2.13~6.06). ' +
+      'v2: 평균 2점에서 2026 최고~평균~70%컷 분포 3점으로 확장(판정 밴드 정교화).',
     points: [
       {
         metric: 'grade_mean_with_career',
-        label: '평균등급 (2024)',
+        label: '최고 합격등급 (2026)',
         percentile: null,
-        pointKind: 'mean',
-        value: 4.58,
+        pointKind: 'best',
+        value: 2.13,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -713,6 +726,15 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
         percentile: null,
         pointKind: 'mean',
         value: 4.94,
+        confidence: 'medium',
+        isEstimated: false,
+      },
+      {
+        metric: 'grade_mean_with_career',
+        label: '70% Cut (2026)',
+        percentile: 70,
+        pointKind: 'percentile',
+        value: 6.06,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -757,7 +779,7 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
   // 출처: 서일대 입학처 수시1차 정원내 PDF. 합격 평균등급 기준(수시1차).
   'seoil-2024-silgi-film-production': {
     key: 'seoil-2024-silgi-film-production',
-    version: 1,
+    version: 2,
     sourceYear: 2026,
     sourceType: 'university_official',
     applicants: 281,
@@ -767,14 +789,15 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
       '2024: 모집 26명 · 경쟁률 8.12:1 · 평균 4.64 · 내신 최저 6.14 · 예비 31번. ' +
       '2025: 모집 28명 · 경쟁률 8.04:1 · 평균 4.86 · 내신 최저 4.24 · 예비 65번. ' +
       '2026: 모집 30명 · 경쟁률 9.37:1 · 평균 4.60 · 내신 최저 4.52 · 예비 52번. ' +
-      '※ 수시1차 기준(2차·정시 별도). 실기 80% 비중. 프로그램 프리셋은 2024학년도 키이나 컷은 3개년 반영.',
+      '※ 수시1차 기준(2차·정시 별도). 실기 80% 비중. 프로그램 프리셋은 2024학년도 키이나 컷은 3개년 반영. ' +
+      'v2: 평균 3점에 내신 최저(2024 6.14) 추가로 도전~위험 경계 확장.',
     points: [
       {
         metric: 'grade_mean_with_career',
-        label: '합격 평균등급 (2024)',
+        label: '합격 평균등급 (2026)',
         percentile: null,
         pointKind: 'mean',
-        value: 4.64,
+        value: 4.6,
         confidence: 'medium',
         isEstimated: false,
       },
@@ -789,10 +812,10 @@ export const CUT_PRESETS: Readonly<Record<string, CutPreset>> = {
       },
       {
         metric: 'grade_mean_with_career',
-        label: '합격 평균등급 (2026)',
+        label: '내신 최저등급 (2024)',
         percentile: null,
-        pointKind: 'mean',
-        value: 4.6,
+        pointKind: 'worst',
+        value: 6.14,
         confidence: 'medium',
         isEstimated: false,
       },

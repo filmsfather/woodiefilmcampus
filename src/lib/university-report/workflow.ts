@@ -1,0 +1,163 @@
+/**
+ * 지원가능대학 레포트 워크플로우(6단계) 진행 현황 집계.
+ *
+ * 단계별 완료 여부는 단일 테이블이 아니라 여러 테이블을 학생별로 합성해 계산한다.
+ * 모든 읽기는 admin(service role) 클라이언트로 수행하며, 접근 제어는 호출하는 페이지에서
+ * 역할(원장)로 강제한다. (data.ts / publication.ts 패턴과 동일)
+ *
+ * 단계 정의:
+ *  1. 성적표 제출   : 검정고시는 면제(완료) / 그 외는 활성 스냅샷 존재
+ *  2. 성적 분석     : 검정고시는 발행 존재 / 그 외는 evaluations 1건 이상
+ *  3. 컨설팅 방향   : consult_requests 행 존재
+ *  4. 원장 추천     : wishlists.status in (proposed, revising, confirmed)
+ *  5. 새 의견(주의) : wishlists.status='revising' 또는 consult_requests.status='requested'
+ *  6. 대학 확정     : wishlists.status='confirmed'
+ */
+
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export interface StudentWorkflowRow {
+  studentId: string
+  name: string | null
+  email: string
+  className: string | null
+  isGed: boolean
+  stage1Submitted: boolean
+  stage2Analyzed: boolean
+  stage3ConsultSubmitted: boolean
+  stage4Recommended: boolean
+  stage5NewOpinion: boolean
+  stage6Confirmed: boolean
+}
+
+export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow[]> {
+  const supabase = createAdminClient()
+
+  const { data: students, error: studentsError } = await supabase
+    .from('profiles')
+    .select('id, name, email, class_id')
+    .eq('role', 'student')
+    .eq('status', 'approved')
+
+  if (studentsError || !students) {
+    if (studentsError) {
+      console.error('[university-report] fetchStudentWorkflowStatuses students error', studentsError)
+    }
+    return []
+  }
+
+  const studentIds = students.map((s) => s.id)
+  if (studentIds.length === 0) {
+    return []
+  }
+
+  const classIds = Array.from(new Set(students.map((s) => s.class_id).filter(Boolean) as string[]))
+  let classNameMap = new Map<string, string>()
+  if (classIds.length > 0) {
+    const { data: classes } = await supabase.from('classes').select('id, name').in('id', classIds)
+    classNameMap = new Map((classes ?? []).map((c) => [c.id, c.name]))
+  }
+
+  // 사전조사(검정고시)
+  const { data: eligibilityRows } = await supabase
+    .from('university_report_eligibility')
+    .select('student_id, is_ged')
+    .in('student_id', studentIds)
+  const gedSet = new Set(
+    (eligibilityRows ?? []).filter((row) => row.is_ged).map((row) => row.student_id)
+  )
+
+  // 활성 스냅샷(최신 우선, archived/failed 제외)
+  const { data: snapshots } = await supabase
+    .from('university_report_snapshots')
+    .select('id, student_id, status, created_at')
+    .in('student_id', studentIds)
+    .order('created_at', { ascending: false })
+  const activeSnapshotByStudent = new Map<string, string>()
+  for (const snap of snapshots ?? []) {
+    if (snap.status === 'archived' || snap.status === 'failed') continue
+    if (!activeSnapshotByStudent.has(snap.student_id)) {
+      activeSnapshotByStudent.set(snap.student_id, snap.id)
+    }
+  }
+
+  // 활성 스냅샷별 평가(evaluations) 존재 여부
+  const activeSnapshotIds = Array.from(activeSnapshotByStudent.values())
+  const snapshotsWithEvaluations = new Set<string>()
+  if (activeSnapshotIds.length > 0) {
+    const { data: evaluationRows } = await supabase
+      .from('university_report_evaluations')
+      .select('snapshot_id')
+      .in('snapshot_id', activeSnapshotIds)
+    for (const row of evaluationRows ?? []) {
+      snapshotsWithEvaluations.add(row.snapshot_id)
+    }
+  }
+
+  // 발행(published) 학생 집합 (검정고시 2단계 및 향후 링크 발송 판정용)
+  const { data: publicationRows } = await supabase
+    .from('university_report_publications')
+    .select('student_id')
+    .eq('status', 'published')
+    .in('student_id', studentIds)
+  const publishedSet = new Set((publicationRows ?? []).map((row) => row.student_id))
+
+  // 컨설팅 방향 제출
+  const { data: consultRows } = await supabase
+    .from('university_report_consult_requests')
+    .select('student_id, status')
+    .in('student_id', studentIds)
+  const consultSubmittedSet = new Set<string>()
+  const consultRequestedSet = new Set<string>()
+  for (const row of consultRows ?? []) {
+    consultSubmittedSet.add(row.student_id)
+    if (row.status === 'requested') consultRequestedSet.add(row.student_id)
+  }
+
+  // 희망대학 협의(wishlist) 상태
+  const { data: wishlistRows } = await supabase
+    .from('university_wishlists')
+    .select('student_id, status')
+    .in('student_id', studentIds)
+  const wishlistStatusByStudent = new Map<string, string>()
+  for (const row of wishlistRows ?? []) {
+    wishlistStatusByStudent.set(row.student_id, row.status)
+  }
+
+  return students
+    .map<StudentWorkflowRow>((student) => {
+      const isGed = gedSet.has(student.id)
+      const hasActiveSnapshot = activeSnapshotByStudent.has(student.id)
+      const activeSnapshotId = activeSnapshotByStudent.get(student.id)
+      const hasEvaluations = activeSnapshotId
+        ? snapshotsWithEvaluations.has(activeSnapshotId)
+        : false
+      const wishlistStatus = wishlistStatusByStudent.get(student.id) ?? null
+
+      const stage1Submitted = isGed || hasActiveSnapshot
+      const stage2Analyzed = isGed ? publishedSet.has(student.id) : hasEvaluations
+      const stage3ConsultSubmitted = consultSubmittedSet.has(student.id)
+      const stage4Recommended =
+        wishlistStatus === 'proposed' ||
+        wishlistStatus === 'revising' ||
+        wishlistStatus === 'confirmed'
+      const stage5NewOpinion =
+        wishlistStatus === 'revising' || consultRequestedSet.has(student.id)
+      const stage6Confirmed = wishlistStatus === 'confirmed'
+
+      return {
+        studentId: student.id,
+        name: student.name,
+        email: student.email,
+        className: student.class_id ? classNameMap.get(student.class_id) ?? null : null,
+        isGed,
+        stage1Submitted,
+        stage2Analyzed,
+        stage3ConsultSubmitted,
+        stage4Recommended,
+        stage5NewOpinion,
+        stage6Confirmed,
+      }
+    })
+    .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email, 'ko'))
+}

@@ -18,6 +18,11 @@ import {
 } from '@/components/ui/select'
 import { evaluateMetricsWithTrace } from '@/lib/university-policy/calculator'
 import {
+  computeGradeDiscrimination,
+  DISCRIMINATION_LABELS,
+  type DiscriminationLevel,
+} from '@/lib/university-policy/discrimination'
+import {
   VERDICT_TIER_BADGE,
   metricLabel,
   type EvaluationListRow,
@@ -230,6 +235,7 @@ function EvaluationRow({
             {row.universityName || row.programKey}
           </Link>
           <p className="text-xs text-slate-600">{row.programName}</p>
+          <DiscriminationBadge row={row} />
         </td>
         <td className="px-3 py-3 text-xs text-slate-600">
           <p>{row.programYear}학년도</p>
@@ -301,6 +307,28 @@ function RowTrace({
       cutPoints={cut?.points}
       warnings={row.warnings ?? undefined}
     />
+  )
+}
+
+const DISCRIMINATION_BADGE_STYLES: Record<DiscriminationLevel, string> = {
+  weak: 'border-slate-200 bg-slate-50 text-slate-500',
+  medium: 'border-amber-200 bg-amber-50 text-amber-700',
+  strong: 'border-rose-200 bg-rose-50 text-rose-700',
+}
+
+function DiscriminationBadge({ row }: { row: EvaluationListRow }) {
+  if (row.analysisMode !== 'grade_cut') return null
+  const formula = FORMULA_PRESETS[row.formulaKey]
+  if (!formula) return null
+  const cut = CUT_PRESETS[row.cutKey]
+  const d = computeGradeDiscrimination(formula.spec, cut?.points ?? [])
+  return (
+    <span
+      title={`합격선 ${d.referenceGrade}등급을 학교 환산표로 환산하면 만점의 ${d.worstAdmitPercent}% (1등급 대비 -${d.gapFromTopPercent}%p). 환산표 모양 기준이며 학생부 반영비중(실기 비중 등)은 별도입니다.`}
+      className={`mt-1 inline-flex w-fit items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium ${DISCRIMINATION_BADGE_STYLES[d.level]}`}
+    >
+      내신 변별력 {DISCRIMINATION_LABELS[d.level]} · 합격선 만점의 {d.worstAdmitPercent}%
+    </span>
   )
 }
 

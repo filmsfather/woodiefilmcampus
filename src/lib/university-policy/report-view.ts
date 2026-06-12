@@ -242,6 +242,22 @@ export interface BuildReportViewModelInput {
   publication: ReportPublication | null
 }
 
+/**
+ * 학생·학부모가 카드를 하나씩 보며 희망/비희망을 분류할 대상을 "순서 있는 평탄 리스트"로 만든다.
+ * 추천(안정·적정·도전) → 생기부(원장문의) → 예대 → 비권장(위험·부적합) → 컷 미공개 순.
+ */
+export function flattenClassificationItems(
+  model: StudentReportViewModel
+): ReportUniversityItem[] {
+  return [
+    ...model.recommendedGroups.flatMap((g) => g.items),
+    ...model.consultItems,
+    ...model.yedaeItems,
+    ...model.cautionGroups.flatMap((g) => g.items),
+    ...model.unknownItems,
+  ]
+}
+
 export function buildStudentReportViewModel({
   rows,
   studentName,

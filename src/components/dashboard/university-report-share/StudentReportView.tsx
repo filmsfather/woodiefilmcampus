@@ -1,6 +1,7 @@
 import { Sparkles } from 'lucide-react'
 
 import DisclaimerNote from '@/components/dashboard/university-report-share/DisclaimerNote'
+import PrincipalRecommendationCard from '@/components/dashboard/university-report-share/PrincipalRecommendationCard'
 import ReportHero from '@/components/dashboard/university-report-share/ReportHero'
 import StrategyGuideSection from '@/components/dashboard/university-report-share/StrategyGuideSection'
 import UniversityVerdictCard from '@/components/dashboard/university-report-share/UniversityVerdictCard'
@@ -69,6 +70,7 @@ function PlainCardGroup({
 export default function StudentReportView({ model }: StudentReportViewProps) {
   return (
     <div className="space-y-8">
+      <PrincipalRecommendationCard />
       <ReportHero model={model} />
 
       {model.recommendedGroups.length > 0 ? (

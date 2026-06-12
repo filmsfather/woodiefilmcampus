@@ -81,8 +81,11 @@ export default async function PrincipalDashboardPage() {
             <Button asChild variant="outline" size="sm">
               <Link href="/dashboard/principal/universities">산식·컷 카탈로그(읽기 전용)</Link>
             </Button>
-            <Button asChild size="sm">
+            <Button asChild variant="outline" size="sm">
               <Link href="/dashboard/principal/university-reports">레포트 관리</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/university-reports/workflow">단계별 관리</Link>
             </Button>
           </CardContent>
         </Card>

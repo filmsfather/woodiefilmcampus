@@ -70,7 +70,8 @@ function buildReflected(courses: CourseRow[], spec: FormulaSpec): BuildResult {
       continue
     }
     const credits = row.credits ?? 0
-    if (credits <= 0) {
+    const useEqualWeighting = spec.creditWeighting === 'equal'
+    if (!useEqualWeighting && credits <= 0) {
       excluded.push({ row, reason: '이수단위 0 또는 미상' })
       continue
     }
@@ -80,7 +81,9 @@ function buildReflected(courses: CourseRow[], spec: FormulaSpec): BuildResult {
       continue
     }
 
-    const denomFactor = credits * yWeight
+    // 이수단위 미적용 대학은 과목당 동일 가중(=학년가중만), 그 외는 이수단위 × 학년가중.
+    const effectiveCredit = useEqualWeighting ? 1 : credits
+    const denomFactor = effectiveCredit * yWeight
     let gradeForMean: number | null = null
     let convertedScore: number | null = null
     const isCareerType = row.courseType === '진로선택'
@@ -119,7 +122,158 @@ function buildReflected(courses: CourseRow[], spec: FormulaSpec): BuildResult {
     reflected.push({ row, weight: denomFactor, gradeForMean, convertedScore, denomFactor })
   }
 
+  if (spec.subjectGroupTopK && spec.subjectGroupTopK.length > 0) {
+    return applySubjectGroupTopK(reflected, excluded, spec)
+  }
+
+  if (typeof spec.perYearTopK === 'number' && spec.perYearTopK > 0) {
+    return applyPerYearTopK(reflected, excluded, spec.perYearTopK)
+  }
+
   return { reflected, excluded }
+}
+
+// 과목을 등급이 좋은 순(gradeForMean 오름차순 → 이수단위 큰 순 → id)으로 정렬한다.
+function sortByGrade(courses: ReflectedCourse[]): ReflectedCourse[] {
+  return [...courses].sort((a, b) => {
+    const ga = a.gradeForMean ?? Number.POSITIVE_INFINITY
+    const gb = b.gradeForMean ?? Number.POSITIVE_INFINITY
+    if (ga !== gb) return ga - gb
+    const ca = a.row.credits ?? 0
+    const cb = b.row.credits ?? 0
+    if (ca !== cb) return cb - ca
+    return a.row.id.localeCompare(b.row.id)
+  })
+}
+
+/**
+ * 학년별 상위 N과목만 남긴다(용인대 — 학년별 3과목 × 3학년 = 9과목).
+ * 학년 정보가 없는 과목은 반영에서 제외한다.
+ */
+function applyPerYearTopK(
+  reflected: ReflectedCourse[],
+  excluded: ExcludedCourse[],
+  perYearTopK: number
+): BuildResult {
+  const byGrade = new Map<number, ReflectedCourse[]>()
+  for (const course of reflected) {
+    const grade = course.row.grade
+    if (grade === null) {
+      excluded.push({ row: course.row, reason: '학년 정보 없음 (학년별 상위 과목 선별 불가)' })
+      continue
+    }
+    const bucket = byGrade.get(grade)
+    if (bucket) bucket.push(course)
+    else byGrade.set(grade, [course])
+  }
+
+  const kept: ReflectedCourse[] = []
+  for (const [grade, courses] of byGrade) {
+    sortByGrade(courses).forEach((course, index) => {
+      if (index < perYearTopK) kept.push(course)
+      else
+        excluded.push({
+          row: course.row,
+          reason: `${grade}학년 상위 ${perYearTopK}과목 외 (반영 제외)`,
+        })
+    })
+  }
+
+  return { reflected: kept, excluded }
+}
+
+/**
+ * 영역 그룹별 상위 N과목만 남긴다(경성대 등 "각 영역 2과목, 총 10과목" 산출 방식).
+ *
+ * 각 과목을 (반영교과 + 과목구분)이 일치하는 첫 그룹에 배정한 뒤, 그룹 안에서
+ * 등급이 좋은 순(gradeForMean 오름차순)으로 정렬해 topK만 반영하고 나머지(초과분)는
+ * 제외 처리한다. 어떤 그룹에도 속하지 않는 과목은 반영에서 제외한다.
+ *
+ * 그룹별 topK 선별 이후 추가 규칙:
+ *  - spec.topGroups: 그룹 평균 등급이 좋은 상위 M개 그룹만 남긴다(수원대 — 최상위 2개 교과영역).
+ *  - spec.overallTopK: 남은 과목 전체에서 다시 등급 상위 N과목만 남긴다(동서대/성결대/대진대/평택대).
+ */
+function applySubjectGroupTopK(
+  reflected: ReflectedCourse[],
+  excluded: ExcludedCourse[],
+  spec: FormulaSpec
+): BuildResult {
+  const groups = spec.subjectGroupTopK!
+  type Group = NonNullable<FormulaSpec['subjectGroupTopK']>[number]
+
+  const matchesGroup = (group: Group, course: ReflectedCourse): boolean => {
+    if (!(group.subjects as string[]).includes(course.row.subjectArea)) return false
+    if (group.courseTypes && !(group.courseTypes as string[]).includes(course.row.courseType)) return false
+    return true
+  }
+
+  const grouped = new Map<Group, ReflectedCourse[]>()
+
+  for (const course of reflected) {
+    const group = groups.find((g) => matchesGroup(g, course))
+    if (!group) {
+      excluded.push({ row: course.row, reason: '반영 그룹에 속하지 않는 교과/과목구분 (반영 제외)' })
+      continue
+    }
+    const bucket = grouped.get(group)
+    if (bucket) {
+      bucket.push(course)
+    } else {
+      grouped.set(group, [course])
+    }
+  }
+
+  // 1단계: 그룹별 상위 topK 선별.
+  const groupKept = new Map<Group, ReflectedCourse[]>()
+  for (const [group, courses] of grouped) {
+    const sorted = sortByGrade(courses)
+    const label = group.label ?? group.subjects.join('·')
+    const keptInGroup: ReflectedCourse[] = []
+    sorted.forEach((course, index) => {
+      if (index < group.topK) {
+        keptInGroup.push(course)
+      } else {
+        excluded.push({
+          row: course.row,
+          reason: `${label} 상위 ${group.topK}과목 외 (반영 제외)`,
+        })
+      }
+    })
+    groupKept.set(group, keptInGroup)
+  }
+
+  // 2단계(선택): 평균 등급이 좋은 상위 M개 그룹만 남긴다.
+  if (typeof spec.topGroups === 'number' && spec.topGroups > 0 && groupKept.size > spec.topGroups) {
+    const groupAvg = (courses: ReflectedCourse[]): number => {
+      const valid = courses.filter((c) => c.gradeForMean !== null)
+      if (valid.length === 0) return Number.POSITIVE_INFINITY
+      return valid.reduce((s, c) => s + (c.gradeForMean ?? 0), 0) / valid.length
+    }
+    const ranked = [...groupKept.entries()].sort((a, b) => groupAvg(a[1]) - groupAvg(b[1]))
+    ranked.forEach(([group, courses], index) => {
+      if (index >= spec.topGroups!) {
+        const label = group.label ?? group.subjects.join('·')
+        for (const course of courses) {
+          excluded.push({ row: course.row, reason: `상위 ${spec.topGroups}개 교과영역 외 (반영 제외)` })
+        }
+        groupKept.delete(group)
+      }
+    })
+  }
+
+  let kept: ReflectedCourse[] = []
+  for (const courses of groupKept.values()) kept.push(...courses)
+
+  // 3단계(선택): 남은 과목 전체에서 다시 등급 상위 N과목만 남긴다.
+  if (typeof spec.overallTopK === 'number' && spec.overallTopK > 0 && kept.length > spec.overallTopK) {
+    const sorted = sortByGrade(kept)
+    kept = sorted.slice(0, spec.overallTopK)
+    for (const course of sorted.slice(spec.overallTopK)) {
+      excluded.push({ row: course.row, reason: `전체 상위 ${spec.overallTopK}과목 외 (반영 제외)` })
+    }
+  }
+
+  return { reflected: kept, excluded }
 }
 
 function weightedSum(
@@ -136,6 +290,47 @@ function weightedSum(
   }
   if (den <= 0) return { numerator: 0, denominator: 0, value: null }
   return { numerator: num, denominator: den, value: num / den }
+}
+
+/**
+ * 교과영역별 가중치 적용 등급/점수 평균(숭실대 — 국 35 / 수 15 / 영 35 / 사 15).
+ * 각 영역의 이수단위 가중평균을 구한 뒤, 영역 가중치로 다시 가중합한다(가중치는 내부 정규화).
+ * 한국사는 사회 교과군에 합산한다.
+ */
+function areaWeightedMean(
+  rows: ReflectedCourse[],
+  pick: (r: ReflectedCourse) => number | null,
+  areaWeights: NonNullable<FormulaSpec['subjectAreaWeights']>
+): { numerator: number; denominator: number; value: number | null } {
+  const buckets = new Map<string, { num: number; den: number }>()
+  let totalNum = 0
+  let totalDen = 0
+
+  for (const r of rows) {
+    const v = pick(r)
+    if (v === null) continue
+    const area = r.row.subjectArea === '한국사' ? '사회' : r.row.subjectArea
+    const weight = areaWeights[area as keyof typeof areaWeights]
+    if (weight === undefined || weight <= 0) continue
+    const b = buckets.get(area) ?? { num: 0, den: 0 }
+    b.num += v * r.denomFactor
+    b.den += r.denomFactor
+    buckets.set(area, b)
+    totalNum += v * r.denomFactor
+    totalDen += r.denomFactor
+  }
+
+  let acc = 0
+  let weightSum = 0
+  for (const [area, b] of buckets) {
+    if (b.den <= 0) continue
+    const weight = areaWeights[area as keyof typeof areaWeights]!
+    acc += (b.num / b.den) * weight
+    weightSum += weight
+  }
+
+  if (weightSum <= 0) return { numerator: 0, denominator: 0, value: null }
+  return { numerator: totalNum, denominator: totalDen, value: acc / weightSum }
 }
 
 function round(value: number | null, decimals: number): number | null {
@@ -213,25 +408,36 @@ export function evaluateMetricsWithTrace(
   const values: Partial<Record<CutoffMetric, number | null>> = {}
   const breakdown: CalculationTrace['metricBreakdown'] = {}
 
+  const useAreaWeights = !!spec.subjectAreaWeights
+  const creditFormulaText = spec.creditWeighting === 'equal' ? '단순평균(이수단위 미적용)' : 'Σ(등급 × 이수단위 × 학년가중) / Σ(이수단위 × 학년가중)'
+
   if (wantedOutputs.has('grade_mean_with_career')) {
-    const r = weightedSum(reflected, (x) => x.gradeForMean)
+    const r = useAreaWeights
+      ? areaWeightedMean(reflected, (x) => x.gradeForMean, spec.subjectAreaWeights!)
+      : weightedSum(reflected, (x) => x.gradeForMean)
     values.grade_mean_with_career = round(r.value, 2)
     breakdown.grade_mean_with_career = {
       numerator: round(r.numerator, 2)!,
       denominator: round(r.denominator, 2)!,
       value: round(r.value, 2),
-      formula: `Σ(등급 × 이수단위 × 학년가중) / Σ(이수단위 × 학년가중) (진로선택 포함)`,
+      formula: useAreaWeights
+        ? '교과영역별 가중평균(국/수/영/사 가중치 적용, 진로선택 포함)'
+        : `${creditFormulaText} (진로선택 포함)`,
     }
   }
 
   if (wantedOutputs.has('grade_mean_without_career')) {
-    const r = weightedSum(commonRows, (x) => x.gradeForMean)
+    const r = useAreaWeights
+      ? areaWeightedMean(commonRows, (x) => x.gradeForMean, spec.subjectAreaWeights!)
+      : weightedSum(commonRows, (x) => x.gradeForMean)
     values.grade_mean_without_career = round(r.value, 2)
     breakdown.grade_mean_without_career = {
       numerator: round(r.numerator, 2)!,
       denominator: round(r.denominator, 2)!,
       value: round(r.value, 2),
-      formula: `Σ(등급 × 이수단위 × 학년가중) / Σ(이수단위 × 학년가중) (공통/일반선택만)`,
+      formula: useAreaWeights
+        ? '교과영역별 가중평균(국/수/영/사 가중치 적용, 공통/일반선택만)'
+        : `${creditFormulaText} (공통/일반선택만)`,
     }
   }
 

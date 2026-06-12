@@ -100,10 +100,43 @@ export interface FormulaSpec {
   weights: { common: number; career: number }
   // 학생부교과 반영총점 (대학마다 다름: 600/900/1000 등)
   totalScore: number
+  // 영역 그룹별 상위 N과목만 반영 (예: 경성대 — 국·수·영·탐구·기타 각 2과목, 총 10과목).
+  // 정의 시, 그룹별로 등급이 좋은 상위 topK 과목만 남기고 나머지는 반영에서 제외한다.
+  // 미정의 시 반영 교과 전체를 사용(기존 동작).
+  subjectGroupTopK?: SubjectGroupTopK[]
+  // subjectGroupTopK 그룹 선택 후, 남은 과목 전체에서 다시 등급이 좋은 상위 N과목만 남긴다.
+  // (예: 동서대 — 영역별 최대 3 + 진로 최대 2 선별 후 전체 상위 10과목 / 성결대·대진대·평택대 — 영역 상한 후 전체 상한)
+  overallTopK?: number
+  // subjectGroupTopK 그룹들 중 평균 등급이 좋은 상위 M개 그룹만 반영한다.
+  // (예: 수원대 — 국·수·영·탐구 각 상위 5과목 중 가장 좋은 2개 교과영역만)
+  topGroups?: number
+  // 학년별 등급이 좋은 상위 N과목만 반영한다(subjectGroupTopK와 배타적으로 사용).
+  // (예: 용인대 — 학년별 상위 3과목 × 3학년 = 9과목)
+  perYearTopK?: number
+  // 이수단위 가중 방식. 'equal'이면 이수단위를 무시하고 과목 단위 단순평균(이수단위 미적용 대학).
+  // 미지정(또는 'by_credit')이면 기존대로 이수단위 가중.
+  creditWeighting?: 'by_credit' | 'equal'
+  // 교과영역별 가중치(합이 1이 아니어도 됨, 내부에서 정규화).
+  // 정의 시 등급평균을 "영역별 이수단위 가중평균 → 영역 가중치로 가중합"으로 산출한다.
+  // (예: 숭실대 — 국 35 / 수 15 / 영 35 / 사(한국사 포함) 15)
+  subjectAreaWeights?: Partial<Record<SubjectArea, number>>
   // 이 산식이 산출하는 지표 (UI에서 어느 컬럼을 보여줄지에도 사용)
   outputs: CutoffMetric[]
   // 임의 메모
   notes?: string | null
+}
+
+// 영역 그룹별 상위 N과목 반영 규칙.
+export interface SubjectGroupTopK {
+  // 표시·디버깅용 라벨 (예: '탐구(한국사 포함)')
+  label?: string
+  // 이 그룹에 묶이는 반영 교과들 (예: ['사회','과학','한국사'])
+  subjects: SubjectArea[]
+  // 이 그룹에 한정할 과목구분. 미지정 시 모든 반영 과목구분을 포함.
+  // (예: 경성대 — 국·수·영·탐구 그룹은 ['공통','일반선택'], 진로선택 슬롯은 ['진로선택'])
+  courseTypes?: CourseType[]
+  // 등급이 좋은 순으로 남길 과목 수
+  topK: number
 }
 
 // 컷 1개 점.
