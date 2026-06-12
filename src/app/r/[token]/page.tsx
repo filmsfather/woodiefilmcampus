@@ -70,8 +70,16 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
   const classificationItems = reportModel ? flattenClassificationItems(reportModel) : []
 
   // 원장이 추천 전송(proposed 이상)을 마쳤다면 추천 대학·코멘트를 함께 표시한다.
+  // 질문·답변 흐름의 시작점으로 학생이 제출한 컨설팅 방향도 함께 넘긴다.
   const wishlistDetail = await fetchWishlistDetailForStudent(publication.studentId)
-  const recommendation = buildReportRecommendation(wishlistDetail)
+  const { data: consultRows } = await supabase
+    .from('university_report_consult_requests')
+    .select('direction, created_at')
+    .eq('student_id', publication.studentId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const consultDirection = consultRows?.[0]?.direction ?? null
+  const recommendation = buildReportRecommendation(wishlistDetail, consultDirection)
 
   // 학생이 공유 링크에서 직접 응답(지원 확정 / 질문·다른 대학 선택)할 수 있도록 컨텍스트를 넘긴다.
   const recommendationResponse = recommendation

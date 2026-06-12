@@ -247,15 +247,19 @@ export interface RecommendationItemView {
 export interface ReportRecommendation {
   status: WishlistStatus
   comment: string | null
+  consultDirection: string | null
+  messages: WishlistMessage[]
   items: RecommendationItemView[]
 }
 
 /**
  * 협의(wishlist) 상세를 학생·학부모 공유 화면의 "원장 추천 대학 및 코멘트" 뷰모델로 변환한다.
  * 아직 전송되지 않았거나(draft) 추천 항목이 없으면 null을 반환해 안내 플레이스홀더를 보여준다.
+ * `consultDirection`(학생이 제출한 컨설팅 방향)이 있으면 질문·답변 흐름의 시작점으로 함께 노출한다.
  */
 export function buildReportRecommendation(
-  detail: WishlistDetail | null
+  detail: WishlistDetail | null,
+  consultDirection: string | null = null
 ): ReportRecommendation | null {
   if (!detail) return null
   const status = detail.wishlist.status
@@ -269,6 +273,8 @@ export function buildReportRecommendation(
   return {
     status,
     comment,
+    consultDirection,
+    messages: detail.messages,
     items: detail.items.map((item) => ({
       id: item.id,
       category: item.category,

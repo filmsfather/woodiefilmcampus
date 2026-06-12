@@ -1,6 +1,7 @@
 import { Loader2, MessageSquareText, Sparkles } from 'lucide-react'
 
 import RecommendationResponse from '@/components/dashboard/university-report-share/RecommendationResponse'
+import WishlistThread from '@/components/dashboard/university-wishlist/WishlistThread'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import type {
@@ -53,10 +54,29 @@ export default function PrincipalRecommendationCard({
           </div>
         ) : (
           <div className="space-y-4">
-            {recommendation.comment ? (
-              <div className="flex items-start gap-2 rounded-lg border border-[#e3e6db] bg-white p-3 text-sm text-slate-700">
-                <MessageSquareText className="mt-0.5 size-4 shrink-0 text-[#8a9472]" />
-                <p className="whitespace-pre-wrap leading-relaxed">{recommendation.comment}</p>
+            {recommendation.consultDirection || recommendation.messages.length > 0 ? (
+              <div className="space-y-2 rounded-lg border border-[#e3e6db] bg-white p-3">
+                <div className="flex items-center gap-2">
+                  <MessageSquareText className="size-4 text-[#8a9472]" />
+                  <h3 className="text-sm font-semibold text-[#5a6450]">
+                    원장 선생님과 주고받은 의견
+                  </h3>
+                </div>
+                {recommendation.consultDirection ? (
+                  <div className="flex justify-end">
+                    <div className="max-w-[85%] rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-900">
+                      <p className="mb-0.5 text-[11px] font-medium text-slate-500">
+                        학생이 입력한 컨설팅 방향
+                      </p>
+                      <p className="whitespace-pre-line leading-relaxed">
+                        {recommendation.consultDirection}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+                {recommendation.messages.length > 0 ? (
+                  <WishlistThread messages={recommendation.messages} viewerSide="student" />
+                ) : null}
               </div>
             ) : null}
 

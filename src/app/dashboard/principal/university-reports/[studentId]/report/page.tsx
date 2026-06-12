@@ -70,7 +70,6 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
   const isPublished = publication?.status === 'published'
 
   const wishlistDetail = await fetchWishlistDetailForStudent(student.id)
-  const recommendation = buildReportRecommendation(wishlistDetail)
   const wishlistCatalog = listWishlistCatalog()
   const verdictByProgramKey = evaluations.reduce<Record<string, VerdictTier>>((acc, row) => {
     acc[row.programKey] = resolveItemTier(row.analysisMode, row.verdicts)
@@ -102,6 +101,7 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
     .order('created_at', { ascending: false })
     .limit(1)
   const consultDirection = consultRows?.[0]?.direction ?? null
+  const recommendation = buildReportRecommendation(wishlistDetail, consultDirection)
 
   let photoUrl: string | null = null
   if (student.photo_url) {
