@@ -1,7 +1,9 @@
 import { Sparkles } from 'lucide-react'
 
 import DisclaimerNote from '@/components/dashboard/university-report-share/DisclaimerNote'
-import PrincipalRecommendationCard from '@/components/dashboard/university-report-share/PrincipalRecommendationCard'
+import PrincipalRecommendationCard, {
+  type RecommendationResponseContext,
+} from '@/components/dashboard/university-report-share/PrincipalRecommendationCard'
 import ReportHero from '@/components/dashboard/university-report-share/ReportHero'
 import StrategyGuideSection from '@/components/dashboard/university-report-share/StrategyGuideSection'
 import UniversityVerdictCard from '@/components/dashboard/university-report-share/UniversityVerdictCard'
@@ -16,6 +18,7 @@ import type { ReportRecommendation } from '@/lib/university-wishlist/data'
 interface StudentReportViewProps {
   model: StudentReportViewModel
   recommendation?: ReportRecommendation | null
+  recommendationResponse?: RecommendationResponseContext | null
 }
 
 function TierGroupBlock({ group }: { group: ReportTierGroup }) {
@@ -69,10 +72,17 @@ function PlainCardGroup({
   )
 }
 
-export default function StudentReportView({ model, recommendation }: StudentReportViewProps) {
+export default function StudentReportView({
+  model,
+  recommendation,
+  recommendationResponse,
+}: StudentReportViewProps) {
   return (
     <div className="space-y-8">
-      <PrincipalRecommendationCard recommendation={recommendation} />
+      <PrincipalRecommendationCard
+        recommendation={recommendation}
+        responseContext={recommendationResponse}
+      />
       <ReportHero model={model} />
 
       {model.recommendedGroups.length > 0 ? (

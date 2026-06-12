@@ -1,14 +1,23 @@
 import { Loader2, MessageSquareText, Sparkles } from 'lucide-react'
 
+import RecommendationResponse from '@/components/dashboard/university-report-share/RecommendationResponse'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import type {
   RecommendationItemView,
   ReportRecommendation,
+  WishlistCatalogEntry,
 } from '@/lib/university-wishlist/data'
+
+export interface RecommendationResponseContext {
+  token: string
+  catalog: WishlistCatalogEntry[]
+  existingProgramKeys: string[]
+}
 
 interface PrincipalRecommendationCardProps {
   recommendation?: ReportRecommendation | null
+  responseContext?: RecommendationResponseContext | null
 }
 
 const GROUP_ORDER: { category: RecommendationItemView['category']; label: string; hint?: string }[] = [
@@ -23,6 +32,7 @@ const GROUP_ORDER: { category: RecommendationItemView['category']; label: string
  */
 export default function PrincipalRecommendationCard({
   recommendation,
+  responseContext,
 }: PrincipalRecommendationCardProps) {
   return (
     <Card className="border-[#dfe4d4] bg-[#f7f8f3] shadow-sm print:shadow-none">
@@ -89,6 +99,15 @@ export default function PrincipalRecommendationCard({
                 )
               })}
             </div>
+
+            {responseContext ? (
+              <RecommendationResponse
+                token={responseContext.token}
+                status={recommendation.status}
+                catalog={responseContext.catalog}
+                existingProgramKeys={responseContext.existingProgramKeys}
+              />
+            ) : null}
           </div>
         )}
       </CardContent>

@@ -14,6 +14,7 @@ import { fetchPublicationByToken } from '@/lib/university-report/publication'
 import {
   buildReportRecommendation,
   fetchWishlistDetailForStudent,
+  listWishlistCatalog,
 } from '@/lib/university-wishlist/data'
 
 export const metadata: Metadata = {
@@ -72,6 +73,17 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
   const wishlistDetail = await fetchWishlistDetailForStudent(publication.studentId)
   const recommendation = buildReportRecommendation(wishlistDetail)
 
+  // 학생이 공유 링크에서 직접 응답(지원 확정 / 질문·다른 대학 선택)할 수 있도록 컨텍스트를 넘긴다.
+  const recommendationResponse = recommendation
+    ? {
+        token,
+        catalog: listWishlistCatalog(),
+        existingProgramKeys: (wishlistDetail?.items ?? [])
+          .map((item) => item.programKey)
+          .filter((key): key is string => Boolean(key)),
+      }
+    : null
+
   // 이미 희망대학 분류를 제출한 적이 있는지 확인해, 재방문 시 표지에서 안내한다.
   const { count: wishCount } = await supabase
     .from('university_report_university_wishes')
@@ -117,7 +129,11 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
           </CardContent>
         </Card>
       ) : reportModel ? (
-        <StudentReportView model={reportModel} recommendation={recommendation} />
+        <StudentReportView
+          model={reportModel}
+          recommendation={recommendation}
+          recommendationResponse={recommendationResponse}
+        />
       ) : null}
     </SharedReportFlow>
   )

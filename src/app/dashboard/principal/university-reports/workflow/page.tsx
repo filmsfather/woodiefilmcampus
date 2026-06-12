@@ -18,6 +18,7 @@ const FILTERS = [
   { key: 's4', label: '추천 미완료' },
   { key: 's5', label: '새 의견 있음' },
   { key: 's6', label: '미확정' },
+  { key: 's7', label: '대학 확정' },
 ] as const
 
 type FilterKey = (typeof FILTERS)[number]['key']
@@ -38,6 +39,8 @@ function matchesFilter(row: StudentWorkflowRow, filter: FilterKey): boolean {
       return row.stage5NewOpinion
     case 's6':
       return row.stage4Recommended && !row.stage6Confirmed
+    case 's7':
+      return row.stage6Confirmed
     case 'all':
     default:
       return true
