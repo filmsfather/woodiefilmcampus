@@ -17,9 +17,22 @@ export function isYedaeUniversity(universityId: string): boolean {
   return YEDAE_UNIVERSITY_IDS.has(universityId)
 }
 
-export type WishlistCategory = 'general' | 'specialized'
+// 한예종(예종)은 수시 6장(일반대) 정원에 포함되지 않는 별도 지원 대상이므로 단독 카테고리로 구분한다.
+export const KARTS_UNIVERSITY_ID = 'karts'
 
-/** 대학 id로 희망대학 카테고리(일반대/전문대·예대)를 판정한다. */
+export function isKartsUniversity(universityId: string): boolean {
+  return universityId === KARTS_UNIVERSITY_ID
+}
+
+export type WishlistCategory = 'general' | 'specialized' | 'karts'
+
+/**
+ * 대학 id로 희망대학 카테고리를 판정한다.
+ *  - karts       : 한예종(수시 6장과 별개의 추가 지원)
+ *  - specialized : 전문대·예대(추가 지원)
+ *  - general     : 일반대(4년제, 수시 6장 정원에 포함)
+ */
 export function resolveWishlistCategory(universityId: string): WishlistCategory {
+  if (isKartsUniversity(universityId)) return 'karts'
   return isYedaeUniversity(universityId) ? 'specialized' : 'general'
 }

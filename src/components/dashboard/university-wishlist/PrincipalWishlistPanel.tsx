@@ -27,6 +27,8 @@ interface PrincipalWishlistPanelProps {
   detail: WishlistDetail | null
   catalog: WishlistCatalogEntry[]
   verdictByProgramKey?: Record<string, VerdictTier>
+  /** 학생이 공유 링크에서 분류한 모집단위별 희망 여부(true=지원 희망, false=희망하지 않음). */
+  wishByProgramKey?: Record<string, boolean>
 }
 
 function StatusBadge({ status }: { status: WishlistDetail['wishlist']['status'] | 'none' }) {
@@ -46,6 +48,7 @@ export default function PrincipalWishlistPanel({
   detail,
   catalog,
   verdictByProgramKey,
+  wishByProgramKey,
 }: PrincipalWishlistPanelProps) {
   const router = useRouter()
   const [message, setMessage] = useState('')
@@ -83,7 +86,8 @@ export default function PrincipalWishlistPanel({
           <StatusBadge status={status} />
         </div>
         <span className="text-xs text-slate-500">
-          일반대 {detail?.generalCount ?? 0} / 6 · 전문대 {detail?.specializedCount ?? 0}
+          일반대 {detail?.generalCount ?? 0} / 6 · 전문대 {detail?.specializedCount ?? 0} · 한예종{' '}
+          {detail?.kartsCount ?? 0}
         </span>
       </div>
 
@@ -95,6 +99,7 @@ export default function PrincipalWishlistPanel({
             catalog={catalog}
             existingKeys={existingKeys}
             verdictByProgramKey={verdictByProgramKey}
+            wishByProgramKey={wishByProgramKey}
           />
         </div>
       ) : null}

@@ -20,7 +20,10 @@ import {
   fetchActiveSnapshot,
   fetchLatestSnapshot,
 } from '@/lib/university-report/data'
-import { fetchLatestPublicationForStudent } from '@/lib/university-report/publication'
+import {
+  fetchLatestPublicationForStudent,
+  fetchLatestUniversityWishMap,
+} from '@/lib/university-report/publication'
 import {
   fetchWishlistDetailForStudent,
   listWishlistCatalog,
@@ -71,6 +74,15 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
     return acc
   }, {})
 
+  // 학생이 공유 링크에서 분류한 희망/비희망 결과를 모집단위(programKey) 기준으로 변환한다.
+  const wishByEvaluationId = await fetchLatestUniversityWishMap(student.id)
+  const wishByProgramKey = evaluations.reduce<Record<string, boolean>>((acc, row) => {
+    if (row.id in wishByEvaluationId) {
+      acc[row.programKey] = wishByEvaluationId[row.id]
+    }
+    return acc
+  }, {})
+
   const studentName = student.name ?? student.email ?? '학생'
 
   return (
@@ -109,6 +121,7 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
             detail={wishlistDetail}
             catalog={wishlistCatalog}
             verdictByProgramKey={verdictByProgramKey}
+            wishByProgramKey={wishByProgramKey}
           />
         </CardContent>
       </Card>

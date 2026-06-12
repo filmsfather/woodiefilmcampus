@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { GraduationCap, Loader2, Sparkles, X } from 'lucide-react'
+import { Clapperboard, GraduationCap, Loader2, Sparkles, X } from 'lucide-react'
 
 import { removeWishlistItemAction } from '@/lib/university-wishlist/actions'
 import type { WishlistItem } from '@/lib/university-wishlist/data'
@@ -128,6 +128,7 @@ export default function WishlistItems({
   const router = useRouter()
   const general = items.filter((i) => i.category === 'general')
   const specialized = items.filter((i) => i.category === 'specialized')
+  const karts = items.filter((i) => i.category === 'karts')
   const onChanged = () => router.refresh()
 
   return (
@@ -145,6 +146,14 @@ export default function WishlistItems({
         icon={<Sparkles className="size-4 text-amber-600" />}
         hint={`${specialized.length}개`}
         items={specialized}
+        canRemove={canRemove}
+        onChanged={onChanged}
+      />
+      <Group
+        title="한예종 (추가 지원)"
+        icon={<Clapperboard className="size-4 text-violet-600" />}
+        hint={`${karts.length}개 · 수시 6장과 별개`}
+        items={karts}
         canRemove={canRemove}
         onChanged={onChanged}
       />

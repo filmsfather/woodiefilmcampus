@@ -76,6 +76,7 @@ export interface WishlistDetail {
   messages: WishlistMessage[]
   generalCount: number
   specializedCount: number
+  kartsCount: number
 }
 
 interface WishlistRow {
@@ -228,6 +229,7 @@ export async function fetchWishlistDetailForStudent(
     messages,
     generalCount: items.filter((i) => i.category === 'general').length,
     specializedCount: items.filter((i) => i.category === 'specialized').length,
+    kartsCount: items.filter((i) => i.category === 'karts').length,
   }
 }
 
@@ -281,6 +283,7 @@ export interface ConfirmedWishlistSummary {
   confirmedAt: string | null
   generalItems: WishlistItem[]
   specializedItems: WishlistItem[]
+  kartsItems: WishlistItem[]
 }
 
 /**
@@ -352,6 +355,7 @@ export async function fetchConfirmedWishlistSummaries(): Promise<ConfirmedWishli
         confirmedAt: w.confirmed_at,
         generalItems: items.filter((i) => i.category === 'general'),
         specializedItems: items.filter((i) => i.category === 'specialized'),
+        kartsItems: items.filter((i) => i.category === 'karts'),
       }
     })
     .sort((a, b) => a.studentName.localeCompare(b.studentName, 'ko'))

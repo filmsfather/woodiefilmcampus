@@ -2,15 +2,25 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, Plus, Search } from 'lucide-react'
+import { Check, Loader2, Plus, Search, X } from 'lucide-react'
 
 import { tierStyle } from '@/components/dashboard/university-report-share/tier-styles'
 import { addWishlistItemAction } from '@/lib/university-wishlist/actions'
-import { TIER_RANK } from '@/lib/university-policy/report-view'
 import type { VerdictTier } from '@/lib/university-policy/types'
 import type { WishlistCatalogEntry } from '@/lib/university-wishlist/data'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+
+// 모집단위 정렬 순서: 위험 → 도전 → 적정 → 안정(이후 부적합·문의·미상).
+const PICKER_TIER_ORDER: Record<VerdictTier, number> = {
+  risk: 0,
+  reach: 1,
+  fit: 2,
+  safe: 3,
+  unfit: 4,
+  consult: 5,
+  unknown: 6,
+}
 
 interface ProgramPickerProps {
   studentId: string
@@ -19,6 +29,8 @@ interface ProgramPickerProps {
   disabled?: boolean
   /** 학생 분석 결과의 모집단위별 판정(안정/적정/도전 등). 있으면 목록에 배지로 표시·정렬한다. */
   verdictByProgramKey?: Record<string, VerdictTier>
+  /** 학생이 공유 링크에서 분류한 모집단위별 희망 여부(true=지원 희망, false=희망하지 않음). */
+  wishByProgramKey?: Record<string, boolean>
 }
 
 export default function ProgramPicker({
@@ -27,6 +39,7 @@ export default function ProgramPicker({
   existingKeys,
   disabled = false,
   verdictByProgramKey,
+  wishByProgramKey,
 }: ProgramPickerProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
@@ -45,16 +58,31 @@ export default function ProgramPicker({
             .toLowerCase()
             .includes(lc)
         )
-    // 판정 정보가 있으면 좋은 판정(안정→적정→…)이 먼저 보이도록 정렬한다.
-    if (verdictByProgramKey) {
-      const rank = (key: string) => {
-        const tier = verdictByProgramKey[key]
-        return tier ? TIER_RANK[tier] : Number.MAX_SAFE_INTEGER
-      }
-      return [...list].sort((a, b) => rank(a.programKey) - rank(b.programKey)).slice(0, 40)
+
+    const needsSort = Boolean(verdictByProgramKey) || Boolean(wishByProgramKey)
+    if (!needsSort) {
+      return list.slice(0, 40)
     }
-    return list.slice(0, 40)
-  }, [catalog, search, verdictByProgramKey])
+
+    // 학생이 "지원 희망"으로 고른 모집단위를 먼저, 그다음 판정 순(위험→도전→적정→안정)으로 노출한다.
+    const wishRank = (key: string) => {
+      const wish = wishByProgramKey?.[key]
+      if (wish === true) return 0
+      if (wish === false) return 1
+      return 2
+    }
+    const tierRank = (key: string) => {
+      const tier = verdictByProgramKey?.[key]
+      return tier ? PICKER_TIER_ORDER[tier] : Number.MAX_SAFE_INTEGER
+    }
+    return [...list]
+      .sort((a, b) => {
+        const wishDiff = wishRank(a.programKey) - wishRank(b.programKey)
+        if (wishDiff !== 0) return wishDiff
+        return tierRank(a.programKey) - tierRank(b.programKey)
+      })
+      .slice(0, 40)
+  }, [catalog, search, verdictByProgramKey, wishByProgramKey])
 
   const handleAdd = (programKey: string) => {
     if (disabled) return
@@ -94,6 +122,7 @@ export default function ProgramPicker({
             const added = existing.has(c.programKey)
             const loading = isPending && pendingKey === c.programKey
             const tier = verdictByProgramKey?.[c.programKey]
+            const studentWish = wishByProgramKey?.[c.programKey]
             return (
               <button
                 key={c.programKey}
@@ -108,15 +137,32 @@ export default function ProgramPicker({
                     {tier ? (
                       <Badge className={tierStyle(tier).badge}>{tierStyle(tier).label}</Badge>
                     ) : null}
+                    {studentWish === true ? (
+                      <Badge className="gap-0.5 bg-emerald-100 text-emerald-700">
+                        <Check className="size-3" />
+                        학생 희망
+                      </Badge>
+                    ) : studentWish === false ? (
+                      <Badge className="gap-0.5 bg-slate-100 text-slate-500">
+                        <X className="size-3" />
+                        희망 안 함
+                      </Badge>
+                    ) : null}
                     <Badge
                       variant="outline"
                       className={
                         c.category === 'specialized'
                           ? 'border-amber-200 text-amber-700'
-                          : 'border-sky-200 text-sky-700'
+                          : c.category === 'karts'
+                            ? 'border-violet-200 text-violet-700'
+                            : 'border-sky-200 text-sky-700'
                       }
                     >
-                      {c.category === 'specialized' ? '전문대·예대' : '일반대'}
+                      {c.category === 'specialized'
+                        ? '전문대·예대'
+                        : c.category === 'karts'
+                          ? '한예종(추가)'
+                          : '일반대'}
                     </Badge>
                   </span>
                   <span className="block truncate text-xs text-slate-500">

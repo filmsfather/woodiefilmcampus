@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# university reference materials (대용량 PDF 등, 저장소 제외)
+/university/

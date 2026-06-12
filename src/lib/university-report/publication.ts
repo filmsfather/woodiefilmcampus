@@ -132,3 +132,35 @@ export async function fetchPublicationByToken(
   }
   return publication
 }
+
+/**
+ * 학생이 공유 링크(/r/[token])에서 분류한 "지원 희망/희망하지 않음" 결과를
+ * evaluation_id 기준으로 반환한다(값: true=지원 희망, false=희망하지 않음).
+ *
+ * 재발행으로 publication이 바뀌어도 학생의 최신 선택을 노출하기 위해 student_id로 조회하고,
+ * evaluation_id별로 가장 최근(created_at desc) 항목만 채택한다.
+ */
+export async function fetchLatestUniversityWishMap(
+  studentId: string
+): Promise<Record<string, boolean>> {
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('university_report_university_wishes')
+    .select('evaluation_id, wish, created_at')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[university-report] fetchLatestUniversityWishMap error', error)
+    return {}
+  }
+
+  const map: Record<string, boolean> = {}
+  for (const row of data ?? []) {
+    const key = row.evaluation_id as string
+    if (!(key in map)) {
+      map[key] = row.wish as boolean
+    }
+  }
+  return map
+}

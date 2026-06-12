@@ -115,6 +115,14 @@ function SummaryRow({ summary }: { summary: ConfirmedWishlistSummary }) {
             names={summary.specializedItems.map((i) => i.shortName ?? i.universityName)}
             tone="amber"
           />
+          {summary.kartsItems.length > 0 ? (
+            <GroupLine
+              label="한예종(추가)"
+              count={summary.kartsItems.length}
+              names={summary.kartsItems.map((i) => i.shortName ?? i.universityName)}
+              tone="violet"
+            />
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -130,9 +138,14 @@ function GroupLine({
   label: string
   count: number
   names: string[]
-  tone: 'sky' | 'amber'
+  tone: 'sky' | 'amber' | 'violet'
 }) {
-  const toneClass = tone === 'sky' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-800'
+  const toneClass =
+    tone === 'sky'
+      ? 'bg-sky-100 text-sky-700'
+      : tone === 'violet'
+        ? 'bg-violet-100 text-violet-700'
+        : 'bg-amber-100 text-amber-800'
   return (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-medium text-slate-500">
