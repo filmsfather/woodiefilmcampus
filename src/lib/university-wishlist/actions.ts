@@ -8,7 +8,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getProgramPreset } from '@/lib/university-policy/presets'
 import { resolveWishlistCategory } from '@/lib/university-policy/yedae'
 import { fetchActiveSnapshot } from '@/lib/university-report/data'
-import { notifyUniversityRecommendationReady } from '@/lib/university-report/notifications'
+import {
+  notifyUniversityRecommendationReady,
+  notifyUniversityRecommendationReply,
+} from '@/lib/university-report/notifications'
 
 export type WishlistActionResult = { success: true } | { error: string }
 
@@ -224,6 +227,9 @@ export async function proposeWishlistAction(payload: unknown): Promise<WishlistA
     .eq('wishlist_id', wishlist.id)
   if (!count || count === 0) return { error: '추천 대학을 1개 이상 추가해 주세요.' }
 
+  // 재전송(이미 학생에게 보낸 적 있음) 여부를 갱신 전 상태로 판별한다.
+  const isResend = wishlist.status === 'proposed' || wishlist.status === 'revising'
+
   const { error } = await supabase
     .from('university_wishlists')
     .update({ status: 'proposed' })
@@ -243,8 +249,12 @@ export async function proposeWishlistAction(payload: unknown): Promise<WishlistA
     })
   }
 
-  // 학생·학부모에게 원장 추천 대학 도착을 문자로 알린다(best-effort).
-  await notifyUniversityRecommendationReady({ studentId: parsed.data.studentId })
+  // 첫 전송이면 "추천 도착", 재전송(학생 의견 이후)이면 "원장 답변" 문구로 문자를 보낸다(best-effort).
+  if (isResend) {
+    await notifyUniversityRecommendationReply({ studentId: parsed.data.studentId })
+  } else {
+    await notifyUniversityRecommendationReady({ studentId: parsed.data.studentId })
+  }
 
   revalidateForStudent(parsed.data.studentId)
   return { success: true }
@@ -291,6 +301,9 @@ export async function principalReplyAction(payload: unknown): Promise<WishlistAc
   if (wishlist.status === 'revising') {
     await supabase.from('university_wishlists').update({ status: 'proposed' }).eq('id', wishlist.id)
   }
+
+  // 학생·학부모에게 원장 답변 도착을 문자로 알린다(best-effort).
+  await notifyUniversityRecommendationReply({ studentId: parsed.data.studentId })
 
   revalidateForStudent(parsed.data.studentId)
   return { success: true }

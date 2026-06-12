@@ -241,6 +241,66 @@ export async function sendUniversityRecommendationSMS({
   }
 }
 
+/**
+ * 원장이 학생 의견·질문에 답변(추천 재전송 포함)했을 때 발송하는 알림 문자.
+ * 추천 "도착" 문자와 구분되는 답변 안내 문구를 사용한다.
+ */
+export async function sendUniversityRecommendationReplySMS({
+  phoneNumber,
+  studentName,
+  shareUrl,
+}: SendUniversityRecommendationParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 답변 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 답변 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const safeShareUrl = shareUrl.trim()
+
+  if (!safeShareUrl) {
+    console.warn('[solapi] 공유 링크가 비어 있어 답변 문자 발송을 건너뜁니다.')
+    return false
+  }
+
+  const displayName = studentName?.trim() || '학생'
+  const messageLines = [
+    '[우디필름캠퍼스 지원가능대학 리포트]',
+    `${displayName} 학생의 의견에 원장 선생님이 답변을 남겼습니다.`,
+    `확인하기: ${safeShareUrl}`,
+    '링크에서 원장 선생님의 답변과 추천 대학을 확인해 주세요.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 답변 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
 function formatCounselingDateTime(date: string, time: string) {
   try {
     const base = new Date(`${date}T${time}+09:00`)
