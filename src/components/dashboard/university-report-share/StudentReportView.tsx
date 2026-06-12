@@ -11,9 +11,11 @@ import type {
   ReportUniversityItem,
   StudentReportViewModel,
 } from '@/lib/university-policy/report-view'
+import type { ReportRecommendation } from '@/lib/university-wishlist/data'
 
 interface StudentReportViewProps {
   model: StudentReportViewModel
+  recommendation?: ReportRecommendation | null
 }
 
 function TierGroupBlock({ group }: { group: ReportTierGroup }) {
@@ -67,10 +69,10 @@ function PlainCardGroup({
   )
 }
 
-export default function StudentReportView({ model }: StudentReportViewProps) {
+export default function StudentReportView({ model, recommendation }: StudentReportViewProps) {
   return (
     <div className="space-y-8">
-      <PrincipalRecommendationCard />
+      <PrincipalRecommendationCard recommendation={recommendation} />
       <ReportHero model={model} />
 
       {model.recommendedGroups.length > 0 ? (

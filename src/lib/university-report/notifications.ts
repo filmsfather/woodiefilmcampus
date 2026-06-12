@@ -6,7 +6,11 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendUniversityReportShareLinkSMS } from '@/lib/solapi'
+import {
+  sendUniversityRecommendationSMS,
+  sendUniversityReportShareLinkSMS,
+} from '@/lib/solapi'
+import { fetchPublicationForStudent } from '@/lib/university-report/publication'
 
 interface NotifyParams {
   studentId: string
@@ -22,15 +26,10 @@ function resolveSiteOrigin(): string | null {
   return raw.replace(/\/$/, '')
 }
 
-export async function notifyUniversityReportShareLink({
-  studentId,
-  token,
-}: NotifyParams): Promise<{ sent: number }> {
-  const origin = resolveSiteOrigin()
-  if (!origin || !token) {
-    return { sent: 0 }
-  }
-
+/** 학생·학부모 발송 대상(이름·연락처)을 조회한다. 학부모·학생 번호가 같으면 중복을 제거한다. */
+async function fetchNotifyTargets(
+  studentId: string
+): Promise<{ studentName: string; phones: string[] } | null> {
   const supabase = createAdminClient()
   const { data: profile, error } = await supabase
     .from('profiles')
@@ -40,14 +39,10 @@ export async function notifyUniversityReportShareLink({
 
   if (error || !profile) {
     console.error('[university-report] 학생 연락처 조회 중 오류가 발생했습니다.', error)
-    return { sent: 0 }
+    return null
   }
 
-  const shareUrl = `${origin}/r/${token}`
-  const studentName = profile.name ?? profile.email ?? '학생'
-
-  // 학부모·학생 번호가 동일할 수 있어 중복 발송을 막는다.
-  const targets = Array.from(
+  const phones = Array.from(
     new Set(
       [profile.student_phone, profile.parent_phone].filter(
         (phone): phone is string => Boolean(phone && phone.trim())
@@ -55,14 +50,78 @@ export async function notifyUniversityReportShareLink({
     )
   )
 
-  if (targets.length === 0) {
-    console.warn('[university-report] 학생·학부모 연락처가 없어 문자 발송을 건너뜁니다.', studentId)
+  return { studentName: profile.name ?? profile.email ?? '학생', phones }
+}
+
+export async function notifyUniversityReportShareLink({
+  studentId,
+  token,
+}: NotifyParams): Promise<{ sent: number }> {
+  const origin = resolveSiteOrigin()
+  if (!origin || !token) {
     return { sent: 0 }
   }
 
+  const targets = await fetchNotifyTargets(studentId)
+  if (!targets || targets.phones.length === 0) {
+    if (targets) {
+      console.warn('[university-report] 학생·학부모 연락처가 없어 문자 발송을 건너뜁니다.', studentId)
+    }
+    return { sent: 0 }
+  }
+
+  const shareUrl = `${origin}/r/${token}`
+
   let sent = 0
-  for (const phoneNumber of targets) {
-    const ok = await sendUniversityReportShareLinkSMS({ phoneNumber, studentName, shareUrl })
+  for (const phoneNumber of targets.phones) {
+    const ok = await sendUniversityReportShareLinkSMS({
+      phoneNumber,
+      studentName: targets.studentName,
+      shareUrl,
+    })
+    if (ok) sent += 1
+  }
+
+  return { sent }
+}
+
+/**
+ * 원장이 추천 대학을 학생에게 전송했을 때, 발행된 공유 링크로 학생·학부모에게 알림 문자를 보낸다.
+ * 발행된 리포트(공유 토큰)가 없으면 발송을 건너뛴다(best-effort).
+ */
+export async function notifyUniversityRecommendationReady({
+  studentId,
+}: {
+  studentId: string
+}): Promise<{ sent: number }> {
+  const origin = resolveSiteOrigin()
+  if (!origin) {
+    return { sent: 0 }
+  }
+
+  const publication = await fetchPublicationForStudent(studentId)
+  if (!publication) {
+    console.warn('[university-report] 발행된 리포트가 없어 추천 문자 발송을 건너뜁니다.', studentId)
+    return { sent: 0 }
+  }
+
+  const targets = await fetchNotifyTargets(studentId)
+  if (!targets || targets.phones.length === 0) {
+    if (targets) {
+      console.warn('[university-report] 학생·학부모 연락처가 없어 추천 문자 발송을 건너뜁니다.', studentId)
+    }
+    return { sent: 0 }
+  }
+
+  const shareUrl = `${origin}/r/${publication.shareToken}`
+
+  let sent = 0
+  for (const phoneNumber of targets.phones) {
+    const ok = await sendUniversityRecommendationSMS({
+      phoneNumber,
+      studentName: targets.studentName,
+      shareUrl,
+    })
     if (ok) sent += 1
   }
 

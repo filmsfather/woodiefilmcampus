@@ -9,6 +9,7 @@ import StudentReportView from '@/components/dashboard/university-report-share/St
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchEvaluationsForSnapshot } from '@/lib/university-policy/data'
 import {
@@ -25,6 +26,7 @@ import {
   fetchLatestUniversityWishMap,
 } from '@/lib/university-report/publication'
 import {
+  buildReportRecommendation,
   fetchWishlistDetailForStudent,
   listWishlistCatalog,
 } from '@/lib/university-wishlist/data'
@@ -46,7 +48,7 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
   const supabase = createAdminClient()
   const { data: student, error: studentError } = await supabase
     .from('profiles')
-    .select('id, name, email')
+    .select('id, name, email, photo_url')
     .eq('id', studentId)
     .eq('role', 'student')
     .maybeSingle()
@@ -68,6 +70,7 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
   const isPublished = publication?.status === 'published'
 
   const wishlistDetail = await fetchWishlistDetailForStudent(student.id)
+  const recommendation = buildReportRecommendation(wishlistDetail)
   const wishlistCatalog = listWishlistCatalog()
   const verdictByProgramKey = evaluations.reduce<Record<string, VerdictTier>>((acc, row) => {
     acc[row.programKey] = resolveItemTier(row.analysisMode, row.verdicts)
@@ -84,6 +87,27 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
   }, {})
 
   const studentName = student.name ?? student.email ?? '학생'
+
+  // 사전조사(농어촌·차상위·검정고시)와 학생이 제출한 컨설팅 방향을 함께 보여준다.
+  const { data: eligibility } = await supabase
+    .from('university_report_eligibility')
+    .select('is_ged, rural_eligible, low_income_eligible')
+    .eq('student_id', student.id)
+    .maybeSingle()
+
+  const { data: consultRows } = await supabase
+    .from('university_report_consult_requests')
+    .select('direction, created_at')
+    .eq('student_id', student.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const consultDirection = consultRows?.[0]?.direction ?? null
+
+  let photoUrl: string | null = null
+  if (student.photo_url) {
+    const { data } = supabase.storage.from(PROFILE_PHOTOS_BUCKET).getPublicUrl(student.photo_url)
+    photoUrl = data.publicUrl
+  }
 
   return (
     <section className="space-y-6">
@@ -115,7 +139,15 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
             희망대학 선정 협의
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <StudentInfoBlock
+            studentName={studentName}
+            photoUrl={photoUrl}
+            consultDirection={consultDirection}
+            isGed={eligibility?.is_ged ?? false}
+            ruralEligible={eligibility?.rural_eligible ?? false}
+            lowIncomeEligible={eligibility?.low_income_eligible ?? false}
+          />
           <PrincipalWishlistPanel
             studentId={student.id}
             detail={wishlistDetail}
@@ -139,8 +171,73 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
             studentName,
             publication,
           })}
+          recommendation={recommendation}
         />
       )}
     </section>
+  )
+}
+
+function StudentInfoBlock({
+  studentName,
+  photoUrl,
+  consultDirection,
+  isGed,
+  ruralEligible,
+  lowIncomeEligible,
+}: {
+  studentName: string
+  photoUrl: string | null
+  consultDirection: string | null
+  isGed: boolean
+  ruralEligible: boolean
+  lowIncomeEligible: boolean
+}) {
+  return (
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
+      <div className="flex items-start gap-4">
+        {photoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={photoUrl}
+            alt={`${studentName} 학생 사진`}
+            className="size-20 shrink-0 rounded-lg border border-slate-200 object-cover"
+          />
+        ) : (
+          <div className="flex size-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+            사진 없음
+          </div>
+        )}
+        <div className="min-w-0 space-y-1.5">
+          <p className="text-lg font-semibold text-slate-900">{studentName}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {isGed ? <Badge className="bg-emerald-100 text-emerald-700">검정고시</Badge> : null}
+            {ruralEligible ? (
+              <Badge className="bg-lime-100 text-lime-700">농어촌 지원 가능</Badge>
+            ) : (
+              <Badge className="bg-slate-100 text-slate-500">농어촌 불가</Badge>
+            )}
+            {lowIncomeEligible ? (
+              <Badge className="bg-amber-100 text-amber-700">차상위 지원 가능</Badge>
+            ) : (
+              <Badge className="bg-slate-100 text-slate-500">차상위 불가</Badge>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-xs font-medium text-slate-500">학생이 입력한 컨설팅 방향</p>
+        {consultDirection ? (
+          <p className="whitespace-pre-wrap rounded-md border border-slate-100 bg-slate-50 p-3 text-sm leading-relaxed text-slate-700">
+            {consultDirection}
+          </p>
+        ) : (
+          <p className="rounded-md border border-dashed border-slate-200 p-3 text-xs text-slate-400">
+            아직 학생이 컨설팅 방향을 제출하지 않았습니다.
+          </p>
+        )}
+      </div>
+    </div>
   )
 }

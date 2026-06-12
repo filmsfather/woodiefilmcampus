@@ -233,6 +233,53 @@ export async function fetchWishlistDetailForStudent(
   }
 }
 
+// ── 학생 공유 화면용 "원장 추천 대학 + 코멘트" 뷰모델 ─────────────────────────
+
+export interface RecommendationItemView {
+  id: string
+  category: WishlistCategory
+  universityName: string
+  programName: string
+  admissionTrack: string
+  region: string | null
+}
+
+export interface ReportRecommendation {
+  status: WishlistStatus
+  comment: string | null
+  items: RecommendationItemView[]
+}
+
+/**
+ * 협의(wishlist) 상세를 학생·학부모 공유 화면의 "원장 추천 대학 및 코멘트" 뷰모델로 변환한다.
+ * 아직 전송되지 않았거나(draft) 추천 항목이 없으면 null을 반환해 안내 플레이스홀더를 보여준다.
+ */
+export function buildReportRecommendation(
+  detail: WishlistDetail | null
+): ReportRecommendation | null {
+  if (!detail) return null
+  const status = detail.wishlist.status
+  if (status === 'draft' || detail.items.length === 0) return null
+
+  const staffMessages = detail.messages.filter(
+    (m) => m.authorRole === 'principal' || m.authorRole === 'teacher'
+  )
+  const comment = staffMessages.length > 0 ? staffMessages[staffMessages.length - 1].body : null
+
+  return {
+    status,
+    comment,
+    items: detail.items.map((item) => ({
+      id: item.id,
+      category: item.category,
+      universityName: item.universityName,
+      programName: item.programName,
+      admissionTrack: item.admissionTrack,
+      region: item.region,
+    })),
+  }
+}
+
 // ── 모집단위 카탈로그 (추천/희망 선택용 슬림 데이터) ──────────────────────────
 
 export interface WishlistCatalogEntry {

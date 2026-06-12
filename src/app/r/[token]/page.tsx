@@ -11,6 +11,10 @@ import {
   flattenClassificationItems,
 } from '@/lib/university-policy/report-view'
 import { fetchPublicationByToken } from '@/lib/university-report/publication'
+import {
+  buildReportRecommendation,
+  fetchWishlistDetailForStudent,
+} from '@/lib/university-wishlist/data'
 
 export const metadata: Metadata = {
   title: '지원가능대학 리포트',
@@ -64,6 +68,10 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
       : null
   const classificationItems = reportModel ? flattenClassificationItems(reportModel) : []
 
+  // 원장이 추천 전송(proposed 이상)을 마쳤다면 추천 대학·코멘트를 함께 표시한다.
+  const wishlistDetail = await fetchWishlistDetailForStudent(publication.studentId)
+  const recommendation = buildReportRecommendation(wishlistDetail)
+
   // 이미 희망대학 분류를 제출한 적이 있는지 확인해, 재방문 시 표지에서 안내한다.
   const { count: wishCount } = await supabase
     .from('university_report_university_wishes')
@@ -109,7 +117,7 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
           </CardContent>
         </Card>
       ) : reportModel ? (
-        <StudentReportView model={reportModel} />
+        <StudentReportView model={reportModel} recommendation={recommendation} />
       ) : null}
     </SharedReportFlow>
   )

@@ -12,6 +12,12 @@ interface SendUniversityReportLinkParams {
   shareUrl: string
 }
 
+interface SendUniversityRecommendationParams {
+  phoneNumber: string
+  studentName?: string | null
+  shareUrl: string
+}
+
 interface SendCounselingReservationParams {
   phoneNumber: string
   studentName: string
@@ -175,6 +181,62 @@ export async function sendUniversityReportShareLinkSMS({
     return true
   } catch (error) {
     console.error('[solapi] 리포트 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
+export async function sendUniversityRecommendationSMS({
+  phoneNumber,
+  studentName,
+  shareUrl,
+}: SendUniversityRecommendationParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 추천 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 추천 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const safeShareUrl = shareUrl.trim()
+
+  if (!safeShareUrl) {
+    console.warn('[solapi] 공유 링크가 비어 있어 추천 문자 발송을 건너뜁니다.')
+    return false
+  }
+
+  const displayName = studentName?.trim() || '학생'
+  const messageLines = [
+    '[우디필름캠퍼스 지원가능대학 리포트]',
+    `${displayName} 학생의 원장 추천 대학과 코멘트가 도착했습니다.`,
+    `확인하기: ${safeShareUrl}`,
+    '링크에서 추천 대학을 확인하고 동의 또는 의견을 남겨 주세요.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 추천 문자 발송 중 오류가 발생했습니다.', error)
     return false
   }
 }

@@ -8,6 +8,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getProgramPreset } from '@/lib/university-policy/presets'
 import { resolveWishlistCategory } from '@/lib/university-policy/yedae'
 import { fetchActiveSnapshot } from '@/lib/university-report/data'
+import { notifyUniversityRecommendationReady } from '@/lib/university-report/notifications'
 
 export type WishlistActionResult = { success: true } | { error: string }
 
@@ -241,6 +242,9 @@ export async function proposeWishlistAction(payload: unknown): Promise<WishlistA
       body: parsed.data.message,
     })
   }
+
+  // 학생·학부모에게 원장 추천 대학 도착을 문자로 알린다(best-effort).
+  await notifyUniversityRecommendationReady({ studentId: parsed.data.studentId })
 
   revalidateForStudent(parsed.data.studentId)
   return { success: true }
