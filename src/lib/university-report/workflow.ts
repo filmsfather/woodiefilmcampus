@@ -125,7 +125,7 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
     wishlistStatusByStudent.set(row.student_id, row.status)
   }
 
-  return students
+  const rows = students
     .map<StudentWorkflowRow>((student) => {
       const isGed = gedSet.has(student.id)
       const hasActiveSnapshot = activeSnapshotByStudent.has(student.id)
@@ -135,8 +135,13 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
         : false
       const wishlistStatus = wishlistStatusByStudent.get(student.id) ?? null
 
+      const isPublished = publishedSet.has(student.id)
       const stage1Submitted = isGed || hasActiveSnapshot
-      const stage2Analyzed = isGed ? publishedSet.has(student.id) : hasEvaluations
+      // 비검정고시: 활성 스냅샷에 평가가 있으면 분석 완료.
+      // 단, 발행(published)은 발행 시점에 평가가 1건 이상 존재해야만 가능하므로
+      // (publishReportAction의 evalCount 가드) "발행됨"은 분석 완료의 충분조건이다.
+      // 과거 데이터 변경 등으로 평가 행이 유실되어도 이미 분석·발행된 학생은 완료로 표시한다.
+      const stage2Analyzed = isGed ? isPublished : hasEvaluations || isPublished
       const stage3ConsultSubmitted = consultSubmittedSet.has(student.id)
       const stage4Recommended =
         wishlistStatus === 'proposed' ||
@@ -168,4 +173,6 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
       }
     })
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email, 'ko'))
+
+  return rows
 }
