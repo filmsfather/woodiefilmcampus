@@ -10,7 +10,8 @@
  *  2. 성적 분석     : 검정고시는 발행 존재 / 그 외는 evaluations 1건 이상
  *  3. 컨설팅 방향   : consult_requests 행 존재
  *  4. 원장 추천     : wishlists.status in (proposed, revising, confirmed)
- *  5. 새 의견(주의) : wishlists.status='revising' 또는 consult_requests.status='requested'
+ *  5. 새 의견(주의) : 미확정 상태에서 원장이 아직 응답하지 않은 새 입력이 있을 때.
+ *                    (wishlists.status='revising' 또는 원장 추천 전 consult_requests 제출)
  *  6. 대학 확정     : wishlists.status='confirmed'
  */
 
@@ -141,9 +142,16 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
         wishlistStatus === 'proposed' ||
         wishlistStatus === 'revising' ||
         wishlistStatus === 'confirmed'
-      const stage5NewOpinion =
-        wishlistStatus === 'revising' || consultRequestedSet.has(student.id)
       const stage6Confirmed = wishlistStatus === 'confirmed'
+      // 새 의견은 "원장이 아직 응답하지 않은 새 입력"이 있을 때만 표시한다.
+      //  - 학생이 추천을 보고 수정 요청을 한 경우(wishlist='revising')
+      //  - 또는 원장 추천 전 단계에서 컨설팅 방향이 제출된 경우
+      // 원장이 추천을 (다시) 전송하면 wishlist 상태가 'proposed'로 바뀌어 해소되고,
+      // 확정(confirmed) 이후에는 항상 제외한다.
+      const stage5NewOpinion =
+        !stage6Confirmed &&
+        (wishlistStatus === 'revising' ||
+          (consultRequestedSet.has(student.id) && !stage4Recommended))
 
       return {
         studentId: student.id,

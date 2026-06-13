@@ -23,13 +23,21 @@ interface StudentGridStudent {
 interface StudentGridClientProps {
     students: StudentGridStudent[]
     studentClassMap?: Map<string, string[]>
+    publishedStudentIds?: string[]
 }
 
-export function StudentGridClient({ students, studentClassMap }: StudentGridClientProps) {
+export function StudentGridClient({ students, studentClassMap, publishedStudentIds }: StudentGridClientProps) {
+    const publishedSet = new Set(publishedStudentIds ?? [])
+
     return (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
             {students.map((student) => (
-                <StudentInfoDialog key={student.id} student={student} assignedClassNames={studentClassMap?.get(student.id)}>
+                <StudentInfoDialog
+                    key={student.id}
+                    student={student}
+                    assignedClassNames={studentClassMap?.get(student.id)}
+                    hasPublishedReport={publishedSet.has(student.id)}
+                >
                     <button
                         type="button"
                         className="group flex flex-col items-center gap-2 rounded-lg p-2 transition-colors hover:bg-slate-100"

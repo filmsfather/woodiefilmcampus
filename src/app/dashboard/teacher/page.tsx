@@ -2,6 +2,7 @@ import Link from 'next/link'
 
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchTeacherDashboardData } from '@/lib/dashboard-data'
+import { fetchPublishedStudentIds } from '@/lib/university-report/publication'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -101,6 +102,12 @@ export default async function TeacherDashboardPage() {
   const supabase = await createServerSupabase()
   const dashboardData = await fetchTeacherDashboardData(supabase, profile!.id)
 
+  // 담당 학생 중 대학 리포트가 발행된 학생을 조회해 "리포트 보기" 버튼 노출에 사용
+  const assignedStudentIds = Array.from(
+    new Set(dashboardData.assignedClasses.flatMap((c) => c.students.map((s) => s.id)))
+  )
+  const publishedStudentIds = await fetchPublishedStudentIds(assignedStudentIds)
+
   return (
     <section className="mx-auto flex max-w-4xl flex-col gap-6">
       <header className="space-y-2 text-center">
@@ -117,7 +124,10 @@ export default async function TeacherDashboardPage() {
         <WorkJournalSummaryCard data={dashboardData.workJournal} />
       </div>
 
-      <AssignedClassesList data={dashboardData.assignedClasses} />
+      <AssignedClassesList
+        data={dashboardData.assignedClasses}
+        publishedStudentIds={Array.from(publishedStudentIds)}
+      />
 
       <div className="grid gap-4 md:grid-cols-2">
         {TEACHER_SECTIONS.map((section) => (

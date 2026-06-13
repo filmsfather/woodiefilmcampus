@@ -8,9 +8,10 @@ import { StudentGridClient } from '@/components/dashboard/teacher/StudentGridCli
 
 interface AssignedClassesListProps {
     data: AssignedClass[]
+    publishedStudentIds?: string[]
 }
 
-export function AssignedClassesList({ data }: AssignedClassesListProps) {
+export function AssignedClassesList({ data, publishedStudentIds }: AssignedClassesListProps) {
     if (data.length === 0) {
         return null
     }
@@ -46,7 +47,11 @@ export function AssignedClassesList({ data }: AssignedClassesListProps) {
                                     구성원 ({c.students.length}명)
                                 </p>
                                 {c.students.length > 0 ? (
-                                    <StudentGridClient students={c.students} studentClassMap={studentClassMap} />
+                                    <StudentGridClient
+                                        students={c.students}
+                                        studentClassMap={studentClassMap}
+                                        publishedStudentIds={publishedStudentIds}
+                                    />
                                 ) : (
                                     <p className="text-sm text-slate-400">등록된 학생이 없습니다.</p>
                                 )}

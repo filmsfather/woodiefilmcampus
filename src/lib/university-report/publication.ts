@@ -106,6 +106,32 @@ export async function fetchLatestPublicationForStudent(
 }
 
 /**
+ * 주어진 학생 ID 목록 중 현재 발행(published) 리포트가 있는 학생 ID 집합을 반환.
+ * 교사 대시보드에서 "대학 리포트 보기" 버튼 노출 여부 판정 등에 사용한다.
+ */
+export async function fetchPublishedStudentIds(
+  studentIds: string[]
+): Promise<Set<string>> {
+  if (studentIds.length === 0) {
+    return new Set()
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('university_report_publications')
+    .select('student_id')
+    .eq('status', 'published')
+    .in('student_id', studentIds)
+
+  if (error) {
+    console.error('[university-report] fetchPublishedStudentIds error', error)
+    return new Set()
+  }
+
+  return new Set((data ?? []).map((row) => row.student_id as string))
+}
+
+/**
  * 공유 토큰으로 발행 리포트를 조회(추후 /r/[token] 라우트용).
  * 현재는 학생 라우트만 소비하지만 시그니처를 미리 제공한다.
  */

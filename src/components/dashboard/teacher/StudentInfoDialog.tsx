@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, Camera, GraduationCap, Loader2, Phone, Trash2, User, X, ZoomIn } from 'lucide-react'
+import { CalendarDays, Camera, FileText, GraduationCap, Loader2, Phone, Trash2, User, X, ZoomIn } from 'lucide-react'
 
 import { compressImageFile, isImageFile } from '@/lib/image-compress'
 import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
@@ -36,6 +36,7 @@ interface StudentInfoDialogProps {
     student: StudentInfo
     children: React.ReactNode
     assignedClassNames?: string[]
+    hasPublishedReport?: boolean
 }
 
 const MAX_PHOTO_SIZE = 5 * 1024 * 1024 // 5MB
@@ -45,7 +46,7 @@ function buildProfilePhotoPath(studentId: string) {
     return `students/${studentId}/${Date.now()}.jpg`
 }
 
-export function StudentInfoDialog({ student, children, assignedClassNames }: StudentInfoDialogProps) {
+export function StudentInfoDialog({ student, children, assignedClassNames, hasPublishedReport = false }: StudentInfoDialogProps) {
     const router = useRouter()
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -286,7 +287,15 @@ export function StudentInfoDialog({ student, children, assignedClassNames }: Stu
                         </div>
                     </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex-col gap-2 sm:flex-row">
+                    {hasPublishedReport ? (
+                        <Button asChild variant="default" className="w-full sm:w-auto">
+                            <Link href={`/dashboard/teacher/university-reports/${student.id}/report`}>
+                                <FileText className="mr-2 h-4 w-4" />
+                                대학 리포트 보기
+                            </Link>
+                        </Button>
+                    ) : null}
                     <Button asChild variant="outline" className="w-full sm:w-auto">
                         <Link href="/dashboard/teacher/absences">
                             <CalendarDays className="mr-2 h-4 w-4" />
