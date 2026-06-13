@@ -35,7 +35,11 @@ export type RunAnalysisResult =
  * 산식·컷은 `src/lib/university-policy/presets/`에서만 가져옵니다.
  * formula_key/program_key/cut_key는 모두 `programKey`와 동일하게 사용합니다.
  */
-export async function runAnalysisAction(payload: unknown): Promise<RunAnalysisResult> {
+export async function runAnalysisAction(
+  payload: unknown,
+  options?: { autoPublish?: boolean }
+): Promise<RunAnalysisResult> {
+  const autoPublish = options?.autoPublish ?? true
   const { profile } = await getAuthContext()
   if (!profile) return { error: '로그인이 필요합니다.' }
   if (profile.role !== 'principal') return { error: '원장만 실행할 수 있습니다.' }
@@ -224,9 +228,12 @@ export async function runAnalysisAction(payload: unknown): Promise<RunAnalysisRe
 
   // 분석이 끝나면 곧바로 발행(공유 링크 생성)하고 학생·학부모에게 문자로 링크를 보낸다.
   // 발행 단계 실패는 분석 성공 결과에 영향을 주지 않도록 best-effort로 처리한다.
-  const publishResult = await publishReportAction({ studentId: parsed.data.studentId })
-  if ('error' in publishResult) {
-    console.error('[analysis] auto-publish after analysis failed', publishResult.error)
+  // autoPublish=false인 경우(예: 평가 데이터 복구)에는 발행·문자 발송을 건너뛴다.
+  if (autoPublish) {
+    const publishResult = await publishReportAction({ studentId: parsed.data.studentId })
+    if ('error' in publishResult) {
+      console.error('[analysis] auto-publish after analysis failed', publishResult.error)
+    }
   }
 
   revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}`)

@@ -185,6 +185,67 @@ export async function sendUniversityReportShareLinkSMS({
   }
 }
 
+/**
+ * 분석 결과가 (재)생성되어 학생이 희망 대학을 다시 선택해야 할 때 발송하는 안내 문자.
+ * 희망대학 선택이 컨설팅 참고용임을 함께 안내한다.
+ */
+export async function sendUniversityWishReselectSMS({
+  phoneNumber,
+  studentName,
+  shareUrl,
+}: SendUniversityReportLinkParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 희망대학 재선택 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 희망대학 재선택 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const safeShareUrl = shareUrl.trim()
+
+  if (!safeShareUrl) {
+    console.warn('[solapi] 공유 링크가 비어 있어 희망대학 재선택 문자 발송을 건너뜁니다.')
+    return false
+  }
+
+  const displayName = studentName?.trim() || '학생'
+  const messageLines = [
+    '[우디필름캠퍼스 지원가능대학 리포트]',
+    `${displayName} 학생의 지원가능대학 분석 결과가 업데이트되었습니다.`,
+    `확인하기: ${safeShareUrl}`,
+    '링크에서 희망 대학을 다시 선택해 주세요.',
+    '※ 희망대학 선택은 컨설팅 참고용입니다.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 희망대학 재선택 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
 export async function sendUniversityRecommendationSMS({
   phoneNumber,
   studentName,

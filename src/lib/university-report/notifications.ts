@@ -10,6 +10,7 @@ import {
   sendUniversityRecommendationReplySMS,
   sendUniversityRecommendationSMS,
   sendUniversityReportShareLinkSMS,
+  sendUniversityWishReselectSMS,
 } from '@/lib/solapi'
 import { fetchPublicationForStudent } from '@/lib/university-report/publication'
 
@@ -76,6 +77,42 @@ export async function notifyUniversityReportShareLink({
   let sent = 0
   for (const phoneNumber of targets.phones) {
     const ok = await sendUniversityReportShareLinkSMS({
+      phoneNumber,
+      studentName: targets.studentName,
+      shareUrl,
+    })
+    if (ok) sent += 1
+  }
+
+  return { sent }
+}
+
+/**
+ * 분석 결과를 (재)생성한 뒤, 기존 공유 링크로 학생·학부모에게 "희망 대학을 다시 선택해 주세요" 안내 문자를 보낸다.
+ * 희망대학 선택이 컨설팅 참고용임을 함께 안내한다. (best-effort)
+ */
+export async function notifyUniversityReportWishReselect({
+  studentId,
+  token,
+}: NotifyParams): Promise<{ sent: number }> {
+  const origin = resolveSiteOrigin()
+  if (!origin || !token) {
+    return { sent: 0 }
+  }
+
+  const targets = await fetchNotifyTargets(studentId)
+  if (!targets || targets.phones.length === 0) {
+    if (targets) {
+      console.warn('[university-report] 학생·학부모 연락처가 없어 희망대학 재선택 문자 발송을 건너뜁니다.', studentId)
+    }
+    return { sent: 0 }
+  }
+
+  const shareUrl = `${origin}/r/${token}`
+
+  let sent = 0
+  for (const phoneNumber of targets.phones) {
+    const ok = await sendUniversityWishReselectSMS({
       phoneNumber,
       studentName: targets.studentName,
       shareUrl,

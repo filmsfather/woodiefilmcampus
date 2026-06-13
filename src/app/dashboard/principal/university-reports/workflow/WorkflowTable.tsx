@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Check, Loader2, Minus, Play, Send } from 'lucide-react'
+import { AlertTriangle, Check, Loader2, Minus, Play, RefreshCw, Send } from 'lucide-react'
 
 import AnalysisRunButton from '@/components/dashboard/university-policy/AnalysisRunButton'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import type { StudentWorkflowRow } from '@/lib/university-report/workflow'
 import {
+  backfillMissingEvaluationsAction,
   publishBulkReportAction,
   runBulkAnalysisAction,
   type BulkResult,
@@ -84,6 +85,31 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
     })
   }
 
+  const runBackfill = () => {
+    if (
+      !window.confirm(
+        '발행됐지만 분석 결과(평가)가 비어 있는 학생의 데이터를 복구합니다.\n복구된 학생에게는 기존 공유 링크로 "희망 대학 재선택(컨설팅 참고용)" 안내 문자가 발송됩니다.\n진행할까요?'
+      )
+    ) {
+      return
+    }
+    setFeedback(null)
+    startTransition(async () => {
+      const result = await backfillMissingEvaluationsAction()
+      if ('error' in result) {
+        setFeedback({ kind: 'err', message: result.error })
+        return
+      }
+      const errorSuffix = result.errors.length > 0 ? ` · ${result.errors[0]}` : ''
+      setFeedback({
+        kind: result.failed > 0 ? 'err' : 'ok',
+        message: `분석 결과 복구: 대상 ${result.candidates}명 / 성공 ${result.ok}명 / 실패 ${result.failed}명 / 안내 문자 ${result.notified}건${errorSuffix}`,
+      })
+      setSelected(new Set())
+      router.refresh()
+    })
+  }
+
   return (
     <div className="space-y-3">
       <StageLegend />
@@ -116,6 +142,21 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
           >
             {isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             선택 발행
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+            disabled={isPending}
+            onClick={runBackfill}
+          >
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <RefreshCw className="size-4" />
+            )}
+            분석 결과 복구
           </Button>
         </div>
       </div>

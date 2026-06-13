@@ -3,6 +3,8 @@
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyUniversityReportWishReselect } from '@/lib/university-report/notifications'
 import {
   publishReportAction,
   runAnalysisAction,
@@ -72,6 +74,96 @@ export async function publishBulkReportAction(payload: unknown): Promise<BulkRes
     } else {
       result.ok += 1
     }
+  }
+
+  return { success: true, ...result }
+}
+
+export interface BackfillResult extends BulkActionResult {
+  candidates: number
+  notified: number
+}
+
+export type BackfillEvaluationsResult =
+  | ({ success: true } & BackfillResult)
+  | { error: string }
+
+/**
+ * 이미 발행됐지만 분석 평가(evaluations) 행이 비어 있는 학생들의 평가 데이터를 복구한다.
+ *
+ * 대상: status='published' + snapshot_id 연결됨 + 해당 스냅샷의 evaluations가 0건인 학생만.
+ * 동작: 분석을 다시 실행하되 자동 발행을 건너뛰어(autoPublish=false) 기존 발행/공유 링크는
+ *       그대로 두고, 평가 행만 다시 채운다. 복구에 성공하면 기존 공유 링크로
+ *       "희망 대학을 다시 선택해 주세요(컨설팅 참고용)" 안내 문자를 발송한다.
+ *
+ * 이미 평가가 있는 학생은 대상에서 제외되므로 중복 문자 발송 위험이 없다.
+ */
+export async function backfillMissingEvaluationsAction(): Promise<BackfillEvaluationsResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal') return { error: '원장만 실행할 수 있습니다.' }
+
+  const supabase = createAdminClient()
+
+  const { data: pubs, error: pubError } = await supabase
+    .from('university_report_publications')
+    .select('student_id, snapshot_id, share_token')
+    .eq('status', 'published')
+    .not('snapshot_id', 'is', null)
+
+  if (pubError) {
+    console.error('[backfill-evaluations] publication fetch error', pubError)
+    return { error: '발행 정보를 불러오지 못했습니다.' }
+  }
+
+  const result: BackfillResult = { ok: 0, failed: 0, errors: [], candidates: 0, notified: 0 }
+
+  for (const pub of pubs ?? []) {
+    const snapshotId = pub.snapshot_id as string
+
+    const { count: beforeCount, error: countError } = await supabase
+      .from('university_report_evaluations')
+      .select('id', { count: 'exact', head: true })
+      .eq('snapshot_id', snapshotId)
+
+    if (countError) {
+      console.error('[backfill-evaluations] eval count error', countError)
+      continue
+    }
+    // 이미 평가가 있는 학생은 복구 대상이 아니다(문자 재발송 방지).
+    if ((beforeCount ?? 0) > 0) continue
+
+    result.candidates += 1
+
+    // 발행/문자 없이 평가만 다시 생성한다.
+    const r = await runAnalysisAction({ studentId: pub.student_id }, { autoPublish: false })
+    if ('error' in r) {
+      result.failed += 1
+      if (!result.errors.includes(r.error)) result.errors.push(r.error)
+      continue
+    }
+
+    // 발행 레코드가 가리키는 스냅샷에 평가가 실제로 채워졌는지 확인 후 안내 문자 발송.
+    const { count: afterCount } = await supabase
+      .from('university_report_evaluations')
+      .select('id', { count: 'exact', head: true })
+      .eq('snapshot_id', snapshotId)
+
+    if ((afterCount ?? 0) === 0) {
+      result.failed += 1
+      if (!result.errors.includes('평가 복구 후에도 결과가 비어 있습니다.')) {
+        result.errors.push('평가 복구 후에도 결과가 비어 있습니다.')
+      }
+      continue
+    }
+
+    result.ok += 1
+
+    const notifyResult = await notifyUniversityReportWishReselect({
+      studentId: pub.student_id,
+      token: pub.share_token as string,
+    })
+    if (notifyResult.sent > 0) result.notified += 1
   }
 
   return { success: true, ...result }
