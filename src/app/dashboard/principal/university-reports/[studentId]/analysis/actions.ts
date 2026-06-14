@@ -49,6 +49,35 @@ export async function runAnalysisAction(
 
   const supabase = createAdminClient()
 
+  // 검정고시는 성적증명서/평가가 없으므로 분석할 성적이 없다.
+  // 대신 학생부종합전형을 제외한 전 전형을 '안정'으로 보여주는 합성 리포트를 곧바로 발행한다.
+  const { data: eligibility } = await supabase
+    .from('university_report_eligibility')
+    .select('is_ged')
+    .eq('student_id', parsed.data.studentId)
+    .maybeSingle()
+
+  if (eligibility?.is_ged) {
+    // 평가행 복구(backfill) 호출에서는 검정고시가 대상이 아니므로 no-op 성공.
+    if (!autoPublish) {
+      return { success: true, snapshotId: '', evaluatedCount: 0, skipped: 0 }
+    }
+    // 이미 발행돼 있으면 재발행/재발송 없이 성공 처리(검정고시는 재계산할 분석이 없음).
+    const { data: existingPub } = await supabase
+      .from('university_report_publications')
+      .select('id')
+      .eq('student_id', parsed.data.studentId)
+      .eq('status', 'published')
+      .maybeSingle()
+    if (!existingPub) {
+      const published = await publishManualReportAction({ studentId: parsed.data.studentId })
+      if ('error' in published) return { error: published.error }
+    }
+    revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}`)
+    revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}/analysis`)
+    return { success: true, snapshotId: '', evaluatedCount: 0, skipped: 0 }
+  }
+
   const { data: snapshot, error: snapError } = await supabase
     .from('university_report_snapshots')
     .select('id, status')
@@ -275,6 +304,19 @@ export async function publishReportAction(payload: unknown): Promise<PublishRepo
 
   const supabase = createAdminClient()
 
+  // 검정고시는 성적증명서/평가가 없으므로 합성 리포트(수동 발행) 경로로 처리한다.
+  const { data: eligibility } = await supabase
+    .from('university_report_eligibility')
+    .select('is_ged')
+    .eq('student_id', parsed.data.studentId)
+    .maybeSingle()
+  if (eligibility?.is_ged) {
+    return publishManualReportAction({
+      studentId: parsed.data.studentId,
+      comment: parsed.data.comment,
+    })
+  }
+
   const { data: snapshot, error: snapError } = await supabase
     .from('university_report_snapshots')
     .select('id, status')
@@ -350,12 +392,13 @@ export async function publishReportAction(payload: unknown): Promise<PublishRepo
 
 const publishManualReportSchema = z.object({
   studentId: z.string().uuid(),
-  comment: z.string().trim().min(1, '학생에게 전달할 코멘트를 입력해주세요.').max(2000),
+  comment: z.string().trim().max(2000).optional(),
 })
 
 /**
- * 성적증명서가 없는 학생(검정고시 등)을 위해 원장이 코멘트만으로 리포트를 발행한다.
- * 분석 데이터(snapshot/evaluations) 없이 코멘트 기반으로 학생·학부모에게 공개한다.
+ * 성적증명서가 없는 학생(검정고시 등)을 위해 원장이 리포트를 발행한다.
+ * 분석 데이터(snapshot/evaluations) 없이 발행하며, 화면에는 학생부종합전형을 제외한
+ * 전 전형을 '안정'으로 보여주는 합성 리포트가 표시된다. 코멘트는 선택사항이다.
  */
 export async function publishManualReportAction(payload: unknown): Promise<PublishReportResult> {
   const { profile } = await getAuthContext()
@@ -388,7 +431,8 @@ export async function publishManualReportAction(payload: unknown): Promise<Publi
       student_id: parsed.data.studentId,
       published_by: profile.id,
       share_token: generateShareToken(),
-      principal_comment: parsed.data.comment,
+      principal_comment:
+        parsed.data.comment && parsed.data.comment.length > 0 ? parsed.data.comment : null,
       status: 'published',
       published_at: new Date().toISOString(),
     })

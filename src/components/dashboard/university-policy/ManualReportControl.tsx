@@ -105,7 +105,7 @@ export default function ManualReportControl({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={handlePublish} disabled={isPending || comment.trim().length === 0} size="sm" className="gap-2">
+          <Button onClick={handlePublish} disabled={isPending} size="sm" className="gap-2">
             {isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             {isPublished ? '다시 공개 (내용 갱신)' : '학생에게 공개'}
           </Button>
