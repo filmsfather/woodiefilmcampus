@@ -12,10 +12,12 @@ import {
   getCutPreset,
   getProgramPreset,
   getUniversityPreset,
+  listProgramsForAnalysis,
   type ProgramAnalysisMode,
 } from '@/lib/university-policy/presets'
 import type {
   ProgramDetails,
+  ProgramPreset,
   ProgramScheduleItem,
 } from '@/lib/university-policy/presets/programs'
 import {
@@ -128,6 +130,8 @@ export interface StudentReportViewModel {
   unknownItems: ReportUniversityItem[]
   consultItems: ReportUniversityItem[]
   yedaeItems: ReportUniversityItem[]
+  // 검정고시 학생에게 "지원 불가"로 안내하는 학생부종합전형 목록 (검정고시 리포트에서만 채워짐).
+  gedExcludedItems: ReportUniversityItem[]
   hasEstimated: boolean
   recommendedCount: number
   totalCount: number
@@ -310,8 +314,135 @@ export function buildStudentReportViewModel({
     unknownItems,
     consultItems,
     yedaeItems,
+    gedExcludedItems: [],
     hasEstimated: allItems.some((i) => i.isEstimated),
     recommendedCount,
     totalCount: allItems.length,
   }
+}
+
+// ----- 검정고시 전용 리포트 -------------------------------------------------
+
+/**
+ * 검정고시는 학생부종합전형을 제외한 모든 전형이 사실상 "지원 가능(안정)"이다.
+ * (석차 산출이 불가해 대부분의 대학이 실기 기반 비교내신/환산점수로 평가하므로
+ *  내신 등급으로 컷을 비교하는 의미가 없다.)
+ *
+ * 따라서 DB 평가행(snapshot/evaluations) 없이 프리셋만으로
+ *  - 학생부종합전형(admissionTrack에 '학생부종합' 포함) → 지원 불가 그룹
+ *  - 그 외 일반대/예대 전형 → 모두 안정(safe)
+ * 으로 표시하는 합성 뷰모델을 만든다. item.id는 programKey를 사용하므로
+ * 공유링크 분류(university_report_university_wishes.evaluation_id)와도 호환된다.
+ */
+function buildPresetItem(
+  program: ProgramPreset,
+  tier: VerdictTier,
+  opts?: { analysisMode?: ProgramAnalysisMode; tierLabel?: string }
+): ReportUniversityItem {
+  const university = getUniversityPreset(program.universityId)
+  const cut = getCutPreset(program.key)
+  const schedule = program.details?.schedule ?? null
+  const practicalDate = schedule?.find((s) => s.label.includes('실기'))?.value ?? null
+
+  return {
+    id: program.key,
+    universityId: program.universityId,
+    universityName: university?.name ?? program.key,
+    shortName: university?.shortName ?? null,
+    programName: program.name,
+    programTrack: program.admissionTrack,
+    programYear: program.year,
+    tier,
+    tierLabel: opts?.tierLabel ?? VERDICT_TIER_LABELS[tier],
+    analysisMode: opts?.analysisMode ?? 'always_open',
+    isYedae: isYedaeUniversity(program.universityId),
+    recruitCount: program.recruitCount ?? null,
+    competitionRate: cut?.competitionRate ?? null,
+    fillRate: cut?.fillRate ?? null,
+    cutSourceYear: cut?.sourceYear ?? null,
+    cutSourceType: cut?.sourceType ?? 'university_official',
+    coreTrack: program.details?.coreTrack ?? null,
+    isEstimated: false,
+    details: program.details ?? null,
+    schedule,
+    practicalDate,
+    gauge: null,
+  }
+}
+
+/** admissionTrack에 '학생부종합'이 포함되면 학종으로 본다(검정고시 지원 불가). */
+export function isHaktongProgram(admissionTrack: string): boolean {
+  return admissionTrack.includes('학생부종합')
+}
+
+export interface BuildGedReportViewModelInput {
+  studentName: string
+  publication: ReportPublication | null
+}
+
+export function buildGedReportViewModel({
+  studentName,
+  publication,
+}: BuildGedReportViewModelInput): StudentReportViewModel {
+  const safeGeneral: ReportUniversityItem[] = []
+  const safeYedae: ReportUniversityItem[] = []
+  const excluded: ReportUniversityItem[] = []
+
+  for (const { program } of listProgramsForAnalysis()) {
+    if (isHaktongProgram(program.admissionTrack)) {
+      excluded.push(
+        buildPresetItem(program, 'unfit', { analysisMode: 'consult', tierLabel: '지원 불가' })
+      )
+      continue
+    }
+    const item = buildPresetItem(program, 'safe', { analysisMode: 'always_open' })
+    if (item.isYedae) safeYedae.push(item)
+    else safeGeneral.push(item)
+  }
+
+  const tierCounts: Record<VerdictTier, number> = {
+    safe: 0,
+    fit: 0,
+    reach: 0,
+    risk: 0,
+    unfit: 0,
+    consult: 0,
+    unknown: 0,
+  }
+  for (const item of [...safeGeneral, ...safeYedae]) tierCounts[item.tier] += 1
+  tierCounts.unfit += excluded.length
+
+  const recommendedGroups = groupByTiers(safeGeneral, ['safe', 'fit', 'reach'])
+  const recommendedCount = recommendedGroups.reduce((sum, g) => sum + g.items.length, 0)
+
+  return {
+    studentName,
+    principalComment: publication?.principalComment ?? null,
+    publishedAt: publication?.publishedAt ?? null,
+    computedAt: null,
+    gradeMeanApprox: null,
+    tierCounts,
+    recommendedGroups,
+    cautionGroups: [],
+    unknownItems: [],
+    consultItems: [],
+    yedaeItems: sortItems(safeYedae),
+    gedExcludedItems: sortItems(excluded),
+    hasEstimated: false,
+    recommendedCount,
+    totalCount: safeGeneral.length + safeYedae.length,
+  }
+}
+
+/**
+ * 검정고시 학생용 모집단위별 대표 tier 맵. (원장 미리보기의 희망대학 패널 등에서 사용)
+ *  - 학생부종합전형 → 'unfit'(지원 불가)
+ *  - 그 외 → 'safe'(안정)
+ */
+export function buildGedVerdictByProgramKey(): Record<string, VerdictTier> {
+  const map: Record<string, VerdictTier> = {}
+  for (const { program } of listProgramsForAnalysis()) {
+    map[program.key] = isHaktongProgram(program.admissionTrack) ? 'unfit' : 'safe'
+  }
+  return map
 }

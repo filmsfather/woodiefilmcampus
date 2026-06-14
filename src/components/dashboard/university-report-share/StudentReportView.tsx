@@ -8,6 +8,7 @@ import ReportHero from '@/components/dashboard/university-report-share/ReportHer
 import StrategyGuideSection from '@/components/dashboard/university-report-share/StrategyGuideSection'
 import UniversityVerdictCard from '@/components/dashboard/university-report-share/UniversityVerdictCard'
 import { tierStyle } from '@/components/dashboard/university-report-share/tier-styles'
+import { Badge } from '@/components/ui/badge'
 import type {
   ReportTierGroup,
   ReportUniversityItem,
@@ -131,6 +132,41 @@ export default function StudentReportView({
         hint="작년 합격선이 공개되지 않아 판정할 수 없어요"
         items={model.unknownItems}
       />
+
+      {model.gedExcludedItems.length > 0 ? (
+        <section className="space-y-3">
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-base font-semibold text-slate-900">
+              지원 불가 전형
+              <span className="ml-1.5 text-sm font-normal text-slate-400">
+                {model.gedExcludedItems.length}개
+              </span>
+            </h3>
+            <span className="text-xs text-slate-400">
+              학생부종합전형 — 검정고시는 학생부가 없어 지원이 어려워요
+            </span>
+          </div>
+          <div className="grid gap-2">
+            {model.gedExcludedItems.map((item) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-700">
+                    {item.universityName}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {item.programName}
+                    {item.programTrack ? ` · ${item.programTrack}` : ''}
+                  </p>
+                </div>
+                <Badge className="shrink-0 bg-slate-200 text-slate-600">지원 불가</Badge>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <StrategyGuideSection />
       <DisclaimerNote hasEstimated={model.hasEstimated} />

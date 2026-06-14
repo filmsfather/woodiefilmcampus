@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { GraduationCap } from 'lucide-react'
+import { Eye, GraduationCap } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import ManualReportControl from '@/components/dashboard/university-policy/ManualReportControl'
+import ShareLinkBox from '@/components/dashboard/university-report-share/ShareLinkBox'
 import EligibilitySummary from '@/components/dashboard/university-report/EligibilitySummary'
 import UniversityReportCoursesTable from '@/components/dashboard/university-report/UniversityReportCoursesTable'
 import UniversityReportEmptyState from '@/components/dashboard/university-report/UniversityReportEmptyState'
@@ -110,14 +111,21 @@ export default async function PrincipalStudentReportPage({
       {eligibility?.isGed ? (
         <>
           <Card className="border-emerald-200 bg-emerald-50 shadow-sm">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-2">
               <CardTitle className="text-base font-semibold text-emerald-900">
                 검정고시 응시자입니다.
               </CardTitle>
+              <Button asChild size="sm" variant="outline" className="gap-2">
+                <Link href={`/dashboard/principal/university-reports/${student.id}/report`}>
+                  <Eye className="size-4" />
+                  학생 화면 미리보기
+                </Link>
+              </Button>
             </CardHeader>
             <CardContent className="text-sm text-emerald-800">
-              검정고시로 지원하는 학생이라 성적증명서 업로드가 필요하지 않습니다. 아래에서 직접 작성한
-              리포트를 학생에게 공개할 수 있습니다.
+              검정고시로 지원하는 학생이라 성적증명서 업로드가 필요하지 않습니다. 학생부종합전형을
+              제외한 모든 전형이 &lsquo;안정&rsquo;으로 안내되며, 아래에서 추가 코멘트를 작성해 리포트를
+              공개할 수 있습니다.
             </CardContent>
           </Card>
           <ManualReportControl
@@ -133,6 +141,9 @@ export default async function PrincipalStudentReportPage({
                 : null
             }
           />
+          {publication?.status === 'published' ? (
+            <ShareLinkBox token={publication.shareToken} />
+          ) : null}
         </>
       ) : showResult && snapshot ? (
         <>

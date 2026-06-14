@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchEvaluationsForSnapshot } from '@/lib/university-policy/data'
 import {
+  buildGedReportViewModel,
   buildStudentReportViewModel,
   flattenClassificationItems,
 } from '@/lib/university-policy/report-view'
@@ -58,13 +59,22 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
 
   const studentName = student?.name ?? student?.email ?? '학생'
 
-  const evaluations = publication.snapshotId
-    ? await fetchEvaluationsForSnapshot(publication.snapshotId)
-    : []
-  const isManualReport = !publication.snapshotId
+  const { data: eligibility } = await supabase
+    .from('university_report_eligibility')
+    .select('is_ged')
+    .eq('student_id', publication.studentId)
+    .maybeSingle()
+  const isGed = Boolean(eligibility?.is_ged)
 
-  const reportModel =
-    !isManualReport && evaluations.length > 0
+  const evaluations =
+    !isGed && publication.snapshotId
+      ? await fetchEvaluationsForSnapshot(publication.snapshotId)
+      : []
+
+  // 검정고시는 DB 평가행 없이 프리셋 기반 합성 리포트(학종 제외 전 전형 안정)를 보여준다.
+  const reportModel = isGed
+    ? buildGedReportViewModel({ studentName, publication })
+    : evaluations.length > 0
       ? buildStudentReportViewModel({ rows: evaluations, studentName, publication })
       : null
   const classificationItems = reportModel ? flattenClassificationItems(reportModel) : []
@@ -119,15 +129,13 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
         </p>
       </header>
 
-      {isManualReport ? (
-        <Card className="border-sky-200 shadow-sm">
-          <CardContent className="space-y-4 py-6">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-              {publication.principalComment}
-            </p>
-          </CardContent>
-        </Card>
-      ) : evaluations.length === 0 ? (
+      {reportModel ? (
+        <StudentReportView
+          model={reportModel}
+          recommendation={recommendation}
+          recommendationResponse={recommendationResponse}
+        />
+      ) : (
         <Card className="border-amber-200 bg-amber-50 shadow-sm">
           <CardContent className="space-y-2 py-6 text-sm text-amber-900">
             <p className="font-medium">아직 표시할 분석 결과가 없습니다.</p>
@@ -136,13 +144,7 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
             </p>
           </CardContent>
         </Card>
-      ) : reportModel ? (
-        <StudentReportView
-          model={reportModel}
-          recommendation={recommendation}
-          recommendationResponse={recommendationResponse}
-        />
-      ) : null}
+      )}
     </SharedReportFlow>
   )
 }

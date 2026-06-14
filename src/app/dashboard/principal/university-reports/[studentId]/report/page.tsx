@@ -13,6 +13,8 @@ import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchEvaluationsForSnapshot } from '@/lib/university-policy/data'
 import {
+  buildGedReportViewModel,
+  buildGedVerdictByProgramKey,
   buildStudentReportViewModel,
   resolveItemTier,
 } from '@/lib/university-policy/report-view'
@@ -58,41 +60,54 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
   }
   if (!student) notFound()
 
-  const activeSnapshot = await fetchActiveSnapshot(student.id)
-  const fallback = activeSnapshot ? null : await fetchLatestSnapshot(student.id)
-  const snapshot = activeSnapshot ?? fallback
-
-  const evaluations =
-    snapshot && snapshot.status === 'parsed'
-      ? await fetchEvaluationsForSnapshot(snapshot.id)
-      : []
-  const publication = await fetchLatestPublicationForStudent(student.id)
-  const isPublished = publication?.status === 'published'
-
-  const wishlistDetail = await fetchWishlistDetailForStudent(student.id)
-  const wishlistCatalog = listWishlistCatalog()
-  const verdictByProgramKey = evaluations.reduce<Record<string, VerdictTier>>((acc, row) => {
-    acc[row.programKey] = resolveItemTier(row.analysisMode, row.verdicts)
-    return acc
-  }, {})
-
-  // 학생이 공유 링크에서 분류한 희망/비희망 결과를 모집단위(programKey) 기준으로 변환한다.
-  const wishByEvaluationId = await fetchLatestUniversityWishMap(student.id)
-  const wishByProgramKey = evaluations.reduce<Record<string, boolean>>((acc, row) => {
-    if (row.id in wishByEvaluationId) {
-      acc[row.programKey] = wishByEvaluationId[row.id]
-    }
-    return acc
-  }, {})
-
-  const studentName = student.name ?? student.email ?? '학생'
-
   // 사전조사(농어촌·차상위·검정고시)와 학생이 제출한 컨설팅 방향을 함께 보여준다.
   const { data: eligibility } = await supabase
     .from('university_report_eligibility')
     .select('is_ged, rural_eligible, low_income_eligible')
     .eq('student_id', student.id)
     .maybeSingle()
+  const isGed = Boolean(eligibility?.is_ged)
+
+  const activeSnapshot = isGed ? null : await fetchActiveSnapshot(student.id)
+  const fallback = isGed || activeSnapshot ? null : await fetchLatestSnapshot(student.id)
+  const snapshot = activeSnapshot ?? fallback
+
+  const evaluations =
+    !isGed && snapshot && snapshot.status === 'parsed'
+      ? await fetchEvaluationsForSnapshot(snapshot.id)
+      : []
+  const publication = await fetchLatestPublicationForStudent(student.id)
+  const isPublished = publication?.status === 'published'
+
+  const studentName = student.name ?? student.email ?? '학생'
+
+  // 검정고시는 DB 평가행 없이 프리셋 기반 합성 리포트(학종 제외 전 전형 안정)를 보여준다.
+  const reportModel = isGed
+    ? buildGedReportViewModel({ studentName, publication })
+    : evaluations.length > 0
+      ? buildStudentReportViewModel({ rows: evaluations, studentName, publication })
+      : null
+
+  const wishlistDetail = await fetchWishlistDetailForStudent(student.id)
+  const wishlistCatalog = listWishlistCatalog()
+
+  // 학생이 공유 링크에서 분류한 희망/비희망 결과를 모집단위(programKey) 기준으로 변환한다.
+  // 검정고시는 분류 결과의 evaluation_id가 곧 programKey이므로 그대로 사용한다.
+  const wishByEvaluationId = await fetchLatestUniversityWishMap(student.id)
+  const verdictByProgramKey = isGed
+    ? buildGedVerdictByProgramKey()
+    : evaluations.reduce<Record<string, VerdictTier>>((acc, row) => {
+        acc[row.programKey] = resolveItemTier(row.analysisMode, row.verdicts)
+        return acc
+      }, {})
+  const wishByProgramKey = isGed
+    ? wishByEvaluationId
+    : evaluations.reduce<Record<string, boolean>>((acc, row) => {
+        if (row.id in wishByEvaluationId) {
+          acc[row.programKey] = wishByEvaluationId[row.id]
+        }
+        return acc
+      }, {})
 
   const { data: consultRows } = await supabase
     .from('university_report_consult_requests')
@@ -116,7 +131,7 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
           fallbackHref={`/dashboard/principal/university-reports/${student.id}/analysis`}
           label="분석/공개 관리로 돌아가기"
         />
-        {evaluations.length > 0 ? <PrintReportButton /> : null}
+        {reportModel ? <PrintReportButton /> : null}
       </div>
 
       <Card className="border-sky-200 bg-sky-50 shadow-sm print:hidden">
@@ -158,21 +173,14 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
         </CardContent>
       </Card>
 
-      {evaluations.length === 0 ? (
+      {reportModel ? (
+        <StudentReportView model={reportModel} recommendation={recommendation} />
+      ) : (
         <Card className="border-amber-200 bg-amber-50 shadow-sm">
           <CardContent className="text-sm text-amber-900">
             아직 분석 결과가 없습니다. 분석/공개 관리 페이지에서 먼저 분석을 실행해 주세요.
           </CardContent>
         </Card>
-      ) : (
-        <StudentReportView
-          model={buildStudentReportViewModel({
-            rows: evaluations,
-            studentName,
-            publication,
-          })}
-          recommendation={recommendation}
-        />
       )}
     </section>
   )

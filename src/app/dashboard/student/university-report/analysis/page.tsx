@@ -6,24 +6,16 @@ import StudentReportView from '@/components/dashboard/university-report-share/St
 import { Card, CardContent } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchEvaluationsForSnapshot } from '@/lib/university-policy/data'
-import { buildStudentReportViewModel } from '@/lib/university-policy/report-view'
+import {
+  buildGedReportViewModel,
+  buildStudentReportViewModel,
+} from '@/lib/university-policy/report-view'
+import { fetchReportEligibility } from '@/lib/university-report/data'
 import { fetchPublicationForStudent } from '@/lib/university-report/publication'
 
 export const metadata: Metadata = {
   title: '지원가능대학 리포트 | 학생 대시보드',
   description: '우디쌤이 발행한 지원 가능 대학 분석 리포트를 확인합니다.',
-}
-
-function formatDateTime(iso: string) {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleString('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 export default async function StudentAnalysisReportPage() {
@@ -34,13 +26,23 @@ export default async function StudentAnalysisReportPage() {
   }
 
   const publication = await fetchPublicationForStudent(profile.id)
+  const eligibility = await fetchReportEligibility(profile.id)
+  const isGed = Boolean(eligibility?.isGed)
 
-  const evaluations = publication?.snapshotId
-    ? await fetchEvaluationsForSnapshot(publication.snapshotId)
-    : []
+  const evaluations =
+    !isGed && publication?.snapshotId
+      ? await fetchEvaluationsForSnapshot(publication.snapshotId)
+      : []
 
-  const isManualReport = !!publication && !publication.snapshotId
   const studentName = profile.name ?? profile.email ?? '학생'
+
+  // 검정고시는 발행되면 프리셋 기반 합성 리포트(학종 제외 전 전형 안정)를 보여준다.
+  const reportModel =
+    publication && isGed
+      ? buildGedReportViewModel({ studentName, publication })
+      : publication && evaluations.length > 0
+        ? buildStudentReportViewModel({ rows: evaluations, studentName, publication })
+        : null
 
   return (
     <section className="space-y-6">
@@ -52,25 +54,9 @@ export default async function StudentAnalysisReportPage() {
         {publication ? <PrintReportButton /> : null}
       </div>
 
-      {publication && isManualReport ? (
-        <Card className="border-sky-200 shadow-sm">
-          <CardContent className="space-y-4 py-6">
-            <div className="space-y-1">
-              <h2 className="text-lg font-semibold text-slate-900">
-                {studentName} 학생 지원가능대학 리포트
-              </h2>
-              {publication.publishedAt ? (
-                <p className="text-xs text-slate-500">
-                  {formatDateTime(publication.publishedAt)} 발행
-                </p>
-              ) : null}
-            </div>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-              {publication.principalComment}
-            </p>
-          </CardContent>
-        </Card>
-      ) : !publication || evaluations.length === 0 ? (
+      {reportModel ? (
+        <StudentReportView model={reportModel} />
+      ) : (
         <Card className="border-amber-200 bg-amber-50 shadow-sm">
           <CardContent className="space-y-2 text-sm text-amber-900">
             <p className="font-medium">아직 발행된 리포트가 없습니다.</p>
@@ -80,14 +66,6 @@ export default async function StudentAnalysisReportPage() {
             </p>
           </CardContent>
         </Card>
-      ) : (
-        <StudentReportView
-          model={buildStudentReportViewModel({
-            rows: evaluations,
-            studentName,
-            publication,
-          })}
-        />
       )}
     </section>
   )

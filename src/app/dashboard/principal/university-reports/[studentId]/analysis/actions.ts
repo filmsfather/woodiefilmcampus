@@ -392,13 +392,19 @@ export async function publishManualReportAction(payload: unknown): Promise<Publi
       status: 'published',
       published_at: new Date().toISOString(),
     })
-    .select('id')
+    .select('id, share_token')
     .single()
 
   if (insertError || !inserted) {
     console.error('[publish-manual-report] insert error', insertError)
     return { error: '공개에 실패했습니다.' }
   }
+
+  // 검정고시도 일반 발행과 동일하게 학생·학부모에게 공유 링크 문자를 보낸다(best-effort).
+  await notifyUniversityReportShareLink({
+    studentId: parsed.data.studentId,
+    token: inserted.share_token,
+  })
 
   revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}`)
   revalidatePath(`/dashboard/principal/university-reports/${parsed.data.studentId}/analysis`)
