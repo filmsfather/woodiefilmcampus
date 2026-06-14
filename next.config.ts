@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // mupdf는 WASM 바이너리를 포함하므로 번들러가 인라인하지 않고
+  // 런타임에 그대로 로드하도록 외부 패키지로 분리한다.
+  serverExternalPackages: ["mupdf"],
   experimental: {
     serverActions: {
       bodySizeLimit: "25mb",

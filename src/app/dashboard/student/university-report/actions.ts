@@ -7,6 +7,7 @@ import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { UNIVERSITY_REPORTS_BUCKET } from '@/lib/storage/buckets'
 import { parseTranscriptPdf } from '@/lib/university-report/parser'
+import { decryptPdfBase64, isPdfEncrypted } from '@/lib/university-report/pdf-security'
 import {
   ACHIEVEMENTS,
   COURSE_TYPES,
@@ -203,11 +204,14 @@ export async function createSnapshotFromUpload(payload: unknown): Promise<Create
 
 const parseSnapshotSchema = z.object({
   snapshotId: z.string().uuid('유효한 스냅샷 ID가 아닙니다.'),
+  password: z.string().max(256).optional(),
 })
+
+export type ParseSnapshotErrorCode = 'password_required' | 'wrong_password'
 
 export type ParseSnapshotResult =
   | { success: true; snapshotId: string; courseCount: number; warnings: string[] }
-  | { error: string }
+  | { error: string; code?: ParseSnapshotErrorCode }
 
 /**
  * Storage에서 PDF를 내려받아 Gemini 멀티모달 파싱 호출.
@@ -220,7 +224,7 @@ export async function parseSnapshot(payload: unknown): Promise<ParseSnapshotResu
     return { error: issue?.message ?? '입력값을 다시 확인해주세요.' }
   }
 
-  const { snapshotId } = parsedInput.data
+  const { snapshotId, password } = parsedInput.data
   const snapshot = await fetchSnapshotForAccess(snapshotId)
   if (!snapshot) {
     return { error: '존재하지 않는 분석 작업입니다.' }
@@ -266,7 +270,82 @@ export async function parseSnapshot(payload: unknown): Promise<ParseSnapshotResu
   }
 
   const arrayBuffer = await download.arrayBuffer()
-  const pdfBase64 = Buffer.from(arrayBuffer).toString('base64')
+  let pdfBase64 = Buffer.from(arrayBuffer).toString('base64')
+
+  // 비밀번호로 보호된 PDF면, 제출된 비밀번호로 암호를 해제한다.
+  // 해제에 성공하면 비암호화 버전으로 Storage 원본을 교체하여
+  // 이후 재분석/원본 다운로드에서 다시 비밀번호를 요구하지 않도록 한다.
+  if (isPdfEncrypted(pdfBase64)) {
+    const trimmedPassword = password?.trim() ?? ''
+
+    if (!trimmedPassword) {
+      await supabase
+        .from('university_report_snapshots')
+        .update({
+          status: 'failed' satisfies SnapshotStatus,
+          parse_error: 'PDF에 비밀번호가 설정되어 있습니다. 비밀번호를 입력한 뒤 다시 분석해 주세요.',
+        })
+        .eq('id', snapshotId)
+      pathsRevalidate(snapshot.student_id)
+      return {
+        error: 'PDF에 비밀번호가 설정되어 있습니다. 비밀번호를 입력해 주세요.',
+        code: 'password_required',
+      }
+    }
+
+    const decrypted = decryptPdfBase64(pdfBase64, trimmedPassword)
+
+    if (!decrypted.ok) {
+      if (decrypted.reason === 'wrong_password') {
+        await supabase
+          .from('university_report_snapshots')
+          .update({
+            status: 'failed' satisfies SnapshotStatus,
+            parse_error: '비밀번호가 일치하지 않습니다.',
+          })
+          .eq('id', snapshotId)
+        pathsRevalidate(snapshot.student_id)
+        return {
+          error: '비밀번호가 일치하지 않습니다. 다시 확인해 주세요.',
+          code: 'wrong_password',
+        }
+      }
+
+      if (decrypted.reason === 'not_encrypted') {
+        // /Encrypt 휴리스틱 오탐: 암호화가 아니므로 원본 그대로 진행한다.
+      } else {
+        await supabase
+          .from('university_report_snapshots')
+          .update({
+            status: 'failed' satisfies SnapshotStatus,
+            parse_error: '비밀번호 해제 중 오류가 발생했습니다. 다시 시도해 주세요.',
+          })
+          .eq('id', snapshotId)
+        pathsRevalidate(snapshot.student_id)
+        return { error: '비밀번호 해제 중 오류가 발생했습니다. 다시 시도해 주세요.' }
+      }
+    } else {
+      pdfBase64 = decrypted.pdfBase64
+
+      // 비암호화 버전으로 Storage 원본 교체 (실패해도 분석은 계속 진행).
+      const decryptedBytes = Buffer.from(pdfBase64, 'base64')
+      const { error: replaceError } = await supabase.storage
+        .from(asset.bucket)
+        .upload(asset.path, decryptedBytes, {
+          contentType: 'application/pdf',
+          upsert: true,
+        })
+
+      if (replaceError) {
+        console.error('[university-report] decrypted upload error', replaceError)
+      } else {
+        await supabase
+          .from('university_report_assets')
+          .update({ size: decryptedBytes.byteLength })
+          .eq('id', asset.id)
+      }
+    }
+  }
 
   const parseResult = await parseTranscriptPdf({ pdfBase64 })
 

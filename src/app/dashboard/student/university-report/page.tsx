@@ -56,6 +56,7 @@ export default async function StudentUniversityReportPage() {
         <h1 className="text-2xl font-semibold text-slate-900">내 성적 등록</h1>
         <p className="text-sm text-slate-600">
           정부24에서 발급받은 학교생활기록부(성적증명서) PDF를 업로드하면, AI가 학년·학기·과목 데이터를 자동으로 정리합니다.
+          비밀번호가 설정된 PDF는 업로드 후 비밀번호를 입력하면 자동으로 풀어 분석하니, 비밀번호를 따로 해제하지 않아도 됩니다.
           정리된 데이터를 기반으로 우디쌤이 지원 가능 대학 레포트를 발행합니다.
         </p>
       </div>

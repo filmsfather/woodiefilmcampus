@@ -4,6 +4,7 @@
  * 호출 측에서 DB 적재/대학별 산식 계산을 별도로 수행합니다.
  */
 
+import { isPdfEncrypted } from '@/lib/university-report/pdf-security'
 import {
   ACHIEVEMENTS,
   COURSE_TYPES,
@@ -177,16 +178,6 @@ async function callGemini(model: string, parts: GeminiPart[]): Promise<GeminiCal
   }
 
   return { ok: true, text }
-}
-
-/**
- * PDF가 비밀번호/보안으로 암호화되어 있는지 가볍게 판별한다.
- * 암호화 PDF는 trailer에 /Encrypt 항목을 두므로 바이트에 존재 여부만 확인한다.
- * (성적증명서 본문에 "/Encrypt" 문자열이 들어갈 일은 사실상 없어 오탐 위험이 낮다.)
- */
-function isPdfEncrypted(pdfBase64: string): boolean {
-  const buffer = Buffer.from(pdfBase64, 'base64')
-  return buffer.includes('/Encrypt')
 }
 
 function clampGrade(value: unknown): 1 | 2 | 3 | null {
