@@ -175,7 +175,7 @@ export async function syncEssayPostForSubmission({
 
   const { data: postRow, error: upsertError } = await admin
     .from('essay_posts')
-    .upsert(upsertPayload, { onConflict: 'student_task_id', ignoreDuplicates: false })
+    .upsert(upsertPayload, { onConflict: 'task_submission_id', ignoreDuplicates: false })
     .select('id')
     .single()
 
