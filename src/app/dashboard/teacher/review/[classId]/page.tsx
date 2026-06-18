@@ -208,6 +208,40 @@ export default async function TeacherClassReviewPage({
     }
   }
 
+  // workbook_item_media를 admin client로 로드 (RLS 우회)
+  // 워크북 소유 교사가 아니어도 문항 첨부(PDF/이미지 등)를 점검 화면에서 표시하기 위함
+  const workbookItemIds = Array.from(workbookItemMap.keys())
+  if (workbookItemIds.length > 0) {
+    const adminForMedia = createAdminClient()
+    const { data: workbookMediaRows, error: workbookMediaError } = await adminForMedia
+      .from('workbook_item_media')
+      .select('id, item_id, position, asset_id, media_assets(id, bucket, path, mime_type, metadata)')
+      .in('item_id', workbookItemIds)
+
+    if (workbookMediaError) {
+      console.error('[teacher] workbook item media fetch error', workbookMediaError)
+    }
+
+    const mediaByItem = new Map<string, Array<Record<string, unknown>>>()
+    for (const mediaRow of (workbookMediaRows ?? []) as Array<Record<string, unknown>>) {
+      const itemId = mediaRow.item_id as string | undefined
+      if (!itemId) {
+        continue
+      }
+      if (!mediaByItem.has(itemId)) {
+        mediaByItem.set(itemId, [])
+      }
+      mediaByItem.get(itemId)!.push(mediaRow)
+    }
+
+    for (const [itemId, wbItem] of workbookItemMap.entries()) {
+      const media = mediaByItem.get(itemId)
+      if (media) {
+        wbItem.workbook_item_media = media
+      }
+    }
+  }
+
   // Query 2a/2b: student_tasks를 두 병렬 쿼리로 분할
   let studentTaskRows: Array<Record<string, unknown>> = []
   let taskError: { message: string; code: string } | null = null
@@ -312,6 +346,11 @@ export default async function TeacherClassReviewPage({
   const neededAssetIds = new Set<string>()
   filteredTransforms.forEach(({ assignment }) => {
     assignment.studentTasks.forEach((task) => {
+      task.items.forEach((item) => {
+        item.workbookItem?.media.forEach((media) => {
+          if (media.assetId) neededAssetIds.add(media.assetId)
+        })
+      })
       task.submissions.forEach((sub) => {
         if (sub.mediaAssetId) neededAssetIds.add(sub.mediaAssetId)
         sub._tempAssetIds?.forEach((id) => neededAssetIds.add(id))

@@ -928,11 +928,17 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
   )
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(() => selectableStudents.map((item) => item.task.id))
   const [hasCustomSelection, setHasCustomSelection] = useState(false)
-  const [printState, setPrintState] = useState(() => ({
+  const [printState, setPrintState] = useState<{
+    desiredDate: string
+    desiredPeriod: string
+    copies: number | ''
+    colorMode: 'bw' | 'color'
+    notes: string
+  }>(() => ({
     desiredDate: '',
     desiredPeriod: '',
     copies: 1,
-    colorMode: 'bw' as 'bw' | 'color',
+    colorMode: 'bw',
     notes: '',
   }))
   const [printMessage, setPrintMessage] = useState<string | null>(null)
@@ -993,7 +999,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
         studentTaskIds: selectedTaskIds,
         desiredDate: printState.desiredDate,
         desiredPeriod: printState.desiredPeriod,
-        copies: printState.copies,
+        copies: Number(printState.copies) || 1,
         colorMode: printState.colorMode,
         notes: printState.notes,
       })
@@ -1075,7 +1081,16 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
               max={50}
               value={printState.copies}
               placeholder="부수"
-              onChange={(event) => setPrintState((prev) => ({ ...prev, copies: Number(event.target.value || 1) }))}
+              onFocus={(event) => event.currentTarget.select()}
+              onChange={(event) => {
+                const raw = event.target.value
+                setPrintState((prev) => ({ ...prev, copies: raw === '' ? '' : Number(raw) }))
+              }}
+              onBlur={(event) => {
+                if (event.target.value === '') {
+                  setPrintState((prev) => ({ ...prev, copies: 1 }))
+                }
+              }}
               className="text-sm"
             />
             <Select

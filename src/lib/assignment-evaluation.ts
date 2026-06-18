@@ -35,6 +35,13 @@ interface RawProfile {
   class_id: string | null
 }
 
+interface RawWorkbookItemMedia {
+  id: string
+  position?: number | null
+  asset_id?: string | null
+  media_assets?: MaybeArray<RawMediaAsset>
+}
+
 interface RawWorkbookItem {
   id: string
   position: number
@@ -53,6 +60,7 @@ interface RawWorkbookItem {
     content: string
     is_correct: boolean | null
   }>
+  workbook_item_media?: RawWorkbookItemMedia[]
 }
 
 interface RawStudentTaskItem {
@@ -145,6 +153,14 @@ export interface RawAssignmentRow {
   print_requests?: RawPrintRequest[]
 }
 
+export interface WorkbookItemMediaSummary {
+  id: string
+  assetId: string
+  url: string
+  filename: string
+  mimeType: string | null
+}
+
 export interface WorkbookItemSummary {
   id: string
   position: number
@@ -153,6 +169,7 @@ export interface WorkbookItemSummary {
   explanation: string | null
   shortFields: Array<{ id: string; label: string | null; answer: string; position: number }>
   choices: Array<{ id: string; label: string | null; content: string; isCorrect: boolean }>
+  media: WorkbookItemMediaSummary[]
 }
 
 export interface StudentTaskItemSummary {
@@ -342,6 +359,32 @@ export function transformAssignmentRow(row: RawAssignmentRow): AssignmentTransfo
               content: choice.content,
               isCorrect: Boolean(choice.is_correct),
             })),
+            media: (workbookItem.workbook_item_media ?? [])
+              .map((mediaRow) => {
+                const asset = Array.isArray(mediaRow.media_assets)
+                  ? mediaRow.media_assets[0]
+                  : mediaRow.media_assets
+                const assetId = asset?.id ?? mediaRow.asset_id ?? null
+                if (!assetId) {
+                  return null
+                }
+                if (asset?.id && asset.path) {
+                  mediaAssets.set(asset.id, {
+                    bucket: asset.bucket ?? 'workbook-assets',
+                    path: asset.path,
+                    mimeType: asset.mime_type ?? null,
+                    metadata: (asset.metadata as Record<string, unknown> | null) ?? null,
+                  })
+                }
+                return {
+                  id: mediaRow.id,
+                  assetId,
+                  url: '',
+                  filename: '',
+                  mimeType: asset?.mime_type ?? null,
+                }
+              })
+              .filter((value): value is WorkbookItemMediaSummary => Boolean(value)),
           }
           : null,
       }
@@ -510,6 +553,18 @@ export function applySignedAssetUrls(
   signedMap: Map<string, { url: string; filename: string; mimeType: string | null }>
 ): AssignmentDetail {
   assignment.studentTasks.forEach((task) => {
+    task.items.forEach((item) => {
+      if (item.workbookItem && item.workbookItem.media.length > 0) {
+        item.workbookItem.media = item.workbookItem.media
+          .map((mediaItem) => {
+            const info = signedMap.get(mediaItem.assetId)
+            return info
+              ? { ...mediaItem, url: info.url, filename: info.filename, mimeType: info.mimeType }
+              : null
+          })
+          .filter((value): value is WorkbookItemMediaSummary => Boolean(value))
+      }
+    })
     task.submissions.forEach((submission) => {
       // Re-construct assets list from _tempAssetIds or just use the map if we had IDs.
       // Wait, I added `_tempAssetIds` in the transform but I need to declare it in the interface or cast it.
@@ -550,6 +605,7 @@ export function cloneAssignmentDetail(assignment: AssignmentDetail): AssignmentD
             ...item.workbookItem,
             shortFields: item.workbookItem.shortFields.map((field) => ({ ...field })),
             choices: item.workbookItem.choices.map((choice) => ({ ...choice })),
+            media: item.workbookItem.media.map((mediaItem) => ({ ...mediaItem })),
           }
           : null,
       })),

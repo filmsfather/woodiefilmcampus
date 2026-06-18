@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import {
   AlertCircle,
@@ -15,7 +16,7 @@ import { AssignmentEvaluationPanel } from '@/components/dashboard/teacher/Assign
 import { deleteAssignmentTarget, updateAssignmentDates } from '@/app/dashboard/teacher/actions'
 import { useRouter, useSearchParams } from 'next/navigation'
 import DateUtil from '@/lib/date-util'
-import type { AssignmentDetail } from '@/lib/assignment-evaluation'
+import type { AssignmentDetail, WorkbookItemSummary } from '@/lib/assignment-evaluation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -119,6 +120,7 @@ export function ClassDashboard({
   const [isDeletingClass, startDeleteClass] = useTransition()
   const [isPrintRequestsOpen, setIsPrintRequestsOpen] = useState(false)
   const [isAssignmentListOpen, setIsAssignmentListOpen] = useState(false)
+  const [isContentOpen, setIsContentOpen] = useState(false)
   const router = useRouter()
   const searchParams = useSearchParams()
   const searchParamsString = searchParams.toString()
@@ -225,6 +227,21 @@ export function ClassDashboard({
       return new Map<string | null, string>()
     }
     return new Map(activeDetail.classes.map((cls) => [cls.id, cls.name]))
+  }, [activeDetail])
+
+  const workbookItems = useMemo<WorkbookItemSummary[]>(() => {
+    if (!activeDetail) {
+      return []
+    }
+    const unique = new Map<string, WorkbookItemSummary>()
+    activeDetail.studentTasks.forEach((task) => {
+      task.items.forEach((item) => {
+        if (item.workbookItem && !unique.has(item.workbookItem.id)) {
+          unique.set(item.workbookItem.id, item.workbookItem)
+        }
+      })
+    })
+    return Array.from(unique.values()).sort((a, b) => a.position - b.position)
   }, [activeDetail])
 
   const pendingTasks = useMemo<PendingTaskInfo[]>(() => {
@@ -412,7 +429,14 @@ export function ClassDashboard({
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="space-y-4">
+                    <AssignmentContentSection
+                      type={activeAssignment.type}
+                      config={activeDetail.config}
+                      items={workbookItems}
+                      isOpen={isContentOpen}
+                      onToggle={() => setIsContentOpen((prev) => !prev)}
+                    />
                     <div className="flex flex-wrap gap-2">
                       {activeDetail.studentTasks.length === 0 ? (
                         <p className="text-xs text-slate-500">학생 데이터가 없습니다.</p>
@@ -642,5 +666,270 @@ function AssignmentDateEditor({
       </PopoverContent>
     </Popover>
   )
+}
+
+interface WorkbookConfigShape {
+  srs?: { allowMultipleCorrect?: boolean }
+  pdf?: { instructions?: string }
+  writing?: { instructions?: string; maxCharacters?: number }
+  film?: { noteCount?: number; filters?: Record<string, string | null | undefined> }
+  lecture?: { youtubeUrl?: string; instructions?: string }
+  image?: { instructions?: string }
+  essay?: { topic?: string }
+}
+
+function AssignmentContentSection({
+  type,
+  config,
+  items,
+  isOpen,
+  onToggle,
+}: {
+  type: string
+  config: Record<string, unknown> | null
+  items: WorkbookItemSummary[]
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  const typed = (config ?? {}) as WorkbookConfigShape
+  const guideline = renderConfigGuideline(type, typed)
+  const hasItems = items.length > 0
+  const hasContent = Boolean(guideline) || hasItems
+
+  return (
+    <div className="rounded-md border border-slate-200">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        과제 내용
+        {hasItems && (
+          <Badge variant="secondary" className="text-[10px]">
+            문항 {items.length}개
+          </Badge>
+        )}
+      </button>
+      {isOpen && (
+        <div className="space-y-3 border-t border-slate-100 px-3 py-3 text-xs text-slate-600">
+          {!hasContent ? (
+            <p className="text-slate-500">표시할 과제 내용이 없습니다.</p>
+          ) : (
+            <>
+              {guideline}
+              {hasItems && (
+                <div className="space-y-2">
+                  <p className="text-[11px] font-medium text-slate-500">문항 목록</p>
+                  {items.map((item) => (
+                    <div key={item.id} className="rounded-md border border-slate-200 bg-white p-3">
+                      <p className="text-[11px] font-semibold text-slate-900">문항 {item.position}</p>
+                      <p className="mt-1 whitespace-pre-line text-slate-700">{item.prompt}</p>
+                      {item.choices.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {item.choices.map((choice) => (
+                            <li
+                              key={choice.id}
+                              className={`flex items-center gap-2 ${choice.isCorrect ? 'text-emerald-700' : 'text-slate-600'}`}
+                            >
+                              {choice.isCorrect ? (
+                                <Badge variant="outline" className="border-emerald-500 text-[10px] text-emerald-600">
+                                  정답
+                                </Badge>
+                              ) : (
+                                <span className="inline-block size-1.5 rounded-full bg-slate-300" />
+                              )}
+                              <span>
+                                {choice.label ? `${choice.label}. ` : ''}
+                                {choice.content}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {item.shortFields.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {item.shortFields
+                            .slice()
+                            .sort((a, b) => a.position - b.position)
+                            .map((field) => (
+                              <li key={field.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                                {field.label && <span className="font-medium text-slate-500">{field.label}: </span>}
+                                <span className="text-slate-700">{field.answer}</span>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
+                      {item.explanation && (
+                        <p className="mt-2 whitespace-pre-line text-[11px] text-slate-500">해설: {item.explanation}</p>
+                      )}
+                      {item.media.length > 0 && (
+                        <div className="mt-2 space-y-2">
+                          <p className="text-[11px] font-medium text-slate-500">첨부 파일</p>
+                          <div className="flex flex-col gap-3">
+                            {item.media.map((media) => {
+                              if (media.mimeType?.startsWith('image/')) {
+                                return (
+                                  <a
+                                    key={media.id}
+                                    href={media.url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-block w-fit"
+                                  >
+                                    <Image
+                                      src={media.url}
+                                      alt={media.filename || '첨부 이미지'}
+                                      width={320}
+                                      height={240}
+                                      unoptimized
+                                      className="max-h-48 w-auto rounded-md border border-slate-200 object-contain"
+                                    />
+                                  </a>
+                                )
+                              }
+
+                              if (media.mimeType === 'application/pdf') {
+                                return (
+                                  <div key={media.id} className="space-y-1.5">
+                                    <iframe
+                                      src={`${media.url}#pagemode=none`}
+                                      title={media.filename || '첨부 PDF'}
+                                      className="h-96 w-full rounded-md border border-slate-200 bg-white"
+                                    />
+                                    <a
+                                      href={media.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex w-fit items-center gap-1.5 text-primary"
+                                    >
+                                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                                      <span className="underline">{media.filename || '새 탭에서 열기'}</span>
+                                    </a>
+                                  </div>
+                                )
+                              }
+
+                              return (
+                                <a
+                                  key={media.id}
+                                  href={media.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex w-fit items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-primary transition-colors hover:bg-slate-100"
+                                >
+                                  <FileText className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="underline">{media.filename || '첨부파일 열기'}</span>
+                                </a>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function renderConfigGuideline(type: string, config: WorkbookConfigShape) {
+  switch (type) {
+    case 'pdf':
+      return config.pdf?.instructions ? (
+        <div>
+          <p className="font-medium text-slate-700">PDF 제출 안내</p>
+          <p className="mt-0.5 whitespace-pre-line text-slate-600">{config.pdf.instructions}</p>
+        </div>
+      ) : null
+    case 'writing':
+      return config.writing?.instructions || config.writing?.maxCharacters ? (
+        <div className="space-y-0.5">
+          {config.writing?.instructions && (
+            <p className="whitespace-pre-line">
+              <span className="font-medium text-slate-700">작성 안내:</span> {config.writing.instructions}
+            </p>
+          )}
+          {config.writing?.maxCharacters ? (
+            <p>
+              <span className="font-medium text-slate-700">글자 수 제한:</span>{' '}
+              {config.writing.maxCharacters.toLocaleString()}자
+            </p>
+          ) : null}
+        </div>
+      ) : null
+    case 'image':
+      return config.image?.instructions ? (
+        <div>
+          <p className="font-medium text-slate-700">이미지 제출 안내</p>
+          <p className="mt-0.5 whitespace-pre-line text-slate-600">{config.image.instructions}</p>
+        </div>
+      ) : null
+    case 'lecture':
+      return config.lecture?.youtubeUrl || config.lecture?.instructions ? (
+        <div className="space-y-0.5">
+          {config.lecture?.youtubeUrl && (
+            <p>
+              <span className="font-medium text-slate-700">강의 링크:</span>{' '}
+              <a
+                href={config.lecture.youtubeUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline"
+              >
+                {config.lecture.youtubeUrl}
+              </a>
+            </p>
+          )}
+          {config.lecture?.instructions && (
+            <p className="whitespace-pre-line">
+              <span className="font-medium text-slate-700">요약 안내:</span> {config.lecture.instructions}
+            </p>
+          )}
+        </div>
+      ) : null
+    case 'essay':
+      return config.essay?.topic ? (
+        <div>
+          <p className="font-medium text-slate-700">에세이 주제</p>
+          <p className="mt-0.5 whitespace-pre-line text-slate-600">{config.essay.topic}</p>
+        </div>
+      ) : null
+    case 'film': {
+      const filters = Object.entries(config.film?.filters ?? {}).filter(([, value]) => Boolean(value))
+      return (
+        <div className="space-y-1">
+          <p>
+            <span className="font-medium text-slate-700">필수 감상 노트 수:</span> {config.film?.noteCount ?? '-'}개
+          </p>
+          {filters.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {filters.map(([key, value]) => (
+                <span key={key} className="rounded bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">
+                  {key}: {String(value)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )
+    }
+    case 'srs':
+      return (
+        <div>
+          <p>
+            <span className="font-medium text-slate-700">복수 정답 허용:</span>{' '}
+            {config.srs?.allowMultipleCorrect ? '예' : '아니오'}
+          </p>
+        </div>
+      )
+    default:
+      return null
+  }
 }
 
