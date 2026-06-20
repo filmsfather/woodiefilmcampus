@@ -169,6 +169,11 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
             catalog={wishlistCatalog}
             verdictByProgramKey={verdictByProgramKey}
             wishByProgramKey={wishByProgramKey}
+            studentName={studentName}
+            consultDirection={consultDirection}
+            isGed={eligibility?.is_ged ?? false}
+            ruralEligible={eligibility?.rural_eligible ?? false}
+            lowIncomeEligible={eligibility?.low_income_eligible ?? false}
           />
         </CardContent>
       </Card>

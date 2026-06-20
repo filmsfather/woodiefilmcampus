@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Loader2, RotateCcw, Send } from 'lucide-react'
+import { CheckCircle2, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react'
 
 import ProgramPicker from '@/components/dashboard/university-wishlist/ProgramPicker'
 import WishlistItems from '@/components/dashboard/university-wishlist/WishlistItems'
@@ -29,6 +29,12 @@ interface PrincipalWishlistPanelProps {
   verdictByProgramKey?: Record<string, VerdictTier>
   /** 학생이 공유 링크에서 분류한 모집단위별 희망 여부(true=지원 희망, false=희망하지 않음). */
   wishByProgramKey?: Record<string, boolean>
+  /** AI 안내 메시지 초안 작성을 위한 학생 컨텍스트. */
+  studentName?: string
+  consultDirection?: string | null
+  isGed?: boolean
+  ruralEligible?: boolean
+  lowIncomeEligible?: boolean
 }
 
 function StatusBadge({ status }: { status: WishlistDetail['wishlist']['status'] | 'none' }) {
@@ -49,16 +55,65 @@ export default function PrincipalWishlistPanel({
   catalog,
   verdictByProgramKey,
   wishByProgramKey,
+  studentName,
+  consultDirection,
+  isGed = false,
+  ruralEligible = false,
+  lowIncomeEligible = false,
 }: PrincipalWishlistPanelProps) {
   const router = useRouter()
   const [message, setMessage] = useState('')
   const [isPending, startTransition] = useTransition()
+  const [isGenerating, setIsGenerating] = useState(false)
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null)
 
   const status = detail?.wishlist.status ?? 'none'
   const items = detail?.items ?? []
   const existingKeys = items.map((i) => i.programKey).filter((k): k is string => Boolean(k))
   const editable = status !== 'confirmed'
+
+  const handleAIGenerate = async () => {
+    if (items.length === 0) {
+      setFeedback({ kind: 'err', message: 'AI 작성을 위해 추천 대학을 먼저 추가해 주세요.' })
+      return
+    }
+    setFeedback(null)
+    setIsGenerating(true)
+    try {
+      const res = await fetch('/api/university-wishlist/generate-comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentName: studentName ?? '학생',
+          consultDirection: consultDirection ?? undefined,
+          isGed,
+          ruralEligible,
+          lowIncomeEligible,
+          extraNote: message.trim() || undefined,
+          items: items.map((item) => ({
+            category: item.category,
+            universityName: item.universityName,
+            programName: item.programName,
+            admissionTrack: item.admissionTrack,
+            region: item.region,
+          })),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) {
+        setFeedback({ kind: 'err', message: data.error ?? 'AI 코멘트 생성에 실패했습니다.' })
+        return
+      }
+      if (data.comment) {
+        setMessage(data.comment)
+        setFeedback({ kind: 'ok', message: 'AI 초안을 작성했습니다. 내용을 검토 후 전송해 주세요.' })
+      }
+    } catch {
+      setFeedback({ kind: 'err', message: 'AI 서버 연결에 실패했습니다.' })
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   const run = (
     fn: () => Promise<{ success: true } | { error: string }>,
@@ -140,7 +195,8 @@ export default function PrincipalWishlistPanel({
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             rows={2}
-            className="bg-white text-sm"
+            disabled={isGenerating}
+            className={`bg-white text-sm ${isGenerating ? 'opacity-50' : ''}`}
             placeholder={
               status === 'revising'
                 ? '학생 질문에 대한 답변을 입력해 주세요.'
@@ -148,12 +204,27 @@ export default function PrincipalWishlistPanel({
             }
           />
           <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100 hover:text-violet-800"
+              disabled={isPending || isGenerating || items.length === 0}
+              onClick={handleAIGenerate}
+            >
+              {isGenerating ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Sparkles className="size-4" />
+              )}
+              {isGenerating ? 'AI 작성 중...' : 'AI 코멘트 초안'}
+            </Button>
             {status === 'revising' ? (
               <Button
                 type="button"
                 size="sm"
                 className="gap-2"
-                disabled={isPending || message.trim().length === 0}
+                disabled={isPending || isGenerating || message.trim().length === 0}
                 onClick={() =>
                   run(
                     () => principalReplyAction({ studentId, message }),
@@ -170,7 +241,7 @@ export default function PrincipalWishlistPanel({
                 type="button"
                 size="sm"
                 className="gap-2"
-                disabled={isPending || items.length === 0}
+                disabled={isPending || isGenerating || items.length === 0}
                 onClick={() =>
                   run(
                     () => proposeWishlistAction({ studentId, message: message.trim() || undefined }),

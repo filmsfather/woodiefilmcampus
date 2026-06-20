@@ -8,6 +8,7 @@ import { getAuthContext } from '@/lib/auth'
 import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
 import { syncEssayPostForSubmission } from '@/lib/essay-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
 import { MAX_PDF_FILE_SIZE, MAX_IMAGE_FILE_SIZE, MAX_IMAGES_PER_QUESTION } from '@/lib/storage/limits'
 import { evaluateWritingSubmission, GradingCriteria } from '@/lib/gemini'
@@ -1209,10 +1210,14 @@ export async function submitPdfSubmission(formData: FormData) {
 type AnySupabaseClient = SupabaseClient
 
 async function resolveWorkbookTypeForStudentTask(
-  supabase: AnySupabaseClient,
+  _supabase: AnySupabaseClient,
   studentTaskId: string
 ): Promise<string | null> {
-  const { data, error } = await supabase
+  // Use the admin client so the nested workbook lookup is not blocked by the
+  // student's RLS policies (the student can read the assignment row but not the
+  // related workbook row, which previously made this resolve to null).
+  const admin = createAdminClient()
+  const { data, error } = await admin
     .from('student_tasks')
     .select('assignment:assignments(workbook:workbooks(type))')
     .eq('id', studentTaskId)
@@ -1226,6 +1231,7 @@ async function resolveWorkbookTypeForStudentTask(
   const assignment = Array.isArray(data?.assignment) ? data?.assignment[0] : data?.assignment
   const workbook = Array.isArray(assignment?.workbook) ? assignment?.workbook[0] : assignment?.workbook
   const type = typeof workbook?.type === 'string' ? workbook.type : null
+
   return type
 }
 

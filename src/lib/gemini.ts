@@ -599,3 +599,156 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
         return { error: 'AI 코멘트 서버 연결에 실패했습니다.' }
     }
 }
+
+export interface WishlistConsultItem {
+    category: 'general' | 'specialized' | 'karts'
+    universityName: string
+    programName: string
+    admissionTrack: string
+    region: string | null
+}
+
+export interface GenerateWishlistConsultCommentResult {
+    comment: string
+}
+
+const WISHLIST_CATEGORY_LABELS: Record<WishlistConsultItem['category'], string> = {
+    general: '일반대 (4년제)',
+    specialized: '전문대·예대',
+    karts: '한예종',
+}
+
+/**
+ * 원장이 학생에게 전할 희망대학 추천 안내 메시지(컨설팅 코멘트) 초안을 생성합니다.
+ * 학생의 컨설팅 방향, 지원 자격(검정고시/농어촌/차상위), 추천 모집단위 목록을 종합합니다.
+ */
+export async function generateWishlistConsultComment(params: {
+    studentName: string
+    consultDirection?: string | null
+    isGed: boolean
+    ruralEligible: boolean
+    lowIncomeEligible: boolean
+    items: WishlistConsultItem[]
+    extraNote?: string | null
+}): Promise<GenerateWishlistConsultCommentResult | { error: string }> {
+    if (!GEMINI_API_KEY) {
+        console.error('GEMINI_API_KEY is not set')
+        return { error: 'AI 설정이 완료되지 않았습니다. 관리자에게 문의하세요.' }
+    }
+
+    const grouped = new Map<WishlistConsultItem['category'], WishlistConsultItem[]>()
+    for (const item of params.items) {
+        const list = grouped.get(item.category) ?? []
+        list.push(item)
+        grouped.set(item.category, list)
+    }
+
+    const itemsSection =
+        params.items.length > 0
+            ? (['general', 'specialized', 'karts'] as const)
+                  .map((category) => {
+                      const list = grouped.get(category)
+                      if (!list || list.length === 0) return null
+                      const lines = list
+                          .map((item) => {
+                              const meta = [item.admissionTrack, item.region]
+                                  .filter(Boolean)
+                                  .join(' · ')
+                              return `- ${item.universityName} ${item.programName}${meta ? ` (${meta})` : ''}`
+                          })
+                          .join('\n')
+                      return `[${WISHLIST_CATEGORY_LABELS[category]}]\n${lines}`
+                  })
+                  .filter(Boolean)
+                  .join('\n\n')
+            : '(아직 추천된 대학이 없습니다.)'
+
+    const eligibilityLabels: string[] = []
+    if (params.isGed) eligibilityLabels.push('검정고시 출신')
+    eligibilityLabels.push(params.ruralEligible ? '농어촌 전형 지원 가능' : '농어촌 전형 불가')
+    eligibilityLabels.push(params.lowIncomeEligible ? '차상위 전형 지원 가능' : '차상위 전형 불가')
+
+    const directionSection = params.consultDirection?.trim()
+        ? `\n**학생이 입력한 컨설팅 방향:**\n${params.consultDirection.trim()}\n`
+        : ''
+
+    const extraSection = params.extraNote?.trim()
+        ? `\n**원장이 추가로 강조하고 싶은 키워드/메모:**\n${params.extraNote.trim()}\n`
+        : ''
+
+    const aiPrompt = `
+You are an experienced admissions consultant (원장) at a Korean film education academy, writing a guidance message to a student who is choosing which universities to apply to.
+Write a consulting comment that explains the recommended university list and ties it back to the student's stated goals and eligibility.
+
+**학생 이름:** ${params.studentName}
+
+**학생 지원 자격:**
+${eligibilityLabels.map((label) => `- ${label}`).join('\n')}
+${directionSection}
+**원장이 추천한 모집단위 목록:**
+${itemsSection}
+${extraSection}
+**작성 규칙:**
+1. 학생의 컨설팅 방향(목표·희망 지역·시기 등)을 먼저 짚어주며 추천 의도를 연결하세요.
+2. 추천한 대학·학과 목록이 왜 학생에게 적합한지 핵심 이유를 묶어서 설명하세요. 모든 대학을 한 줄씩 나열하지 말고, 의미 있게 그룹지어 정리하세요.
+3. 지원 자격(검정고시/농어촌/차상위) 제약이 추천에 어떻게 반영됐는지 자연스럽게 언급하세요.
+4. 학생이 다음에 검토하거나 결정해야 할 점을 1~2가지 제안하세요.
+5. 따뜻하면서도 신뢰감 있는 전문가 톤을 유지하고, 합니다체를 사용하세요.
+6. 전체 4~6문장 정도로 간결하게 작성하세요. 인사말·서명 줄은 넣지 마세요.
+7. 제공된 정보에 근거해서만 작성하고, 없는 사실(예: 합격 확률, 구체적 점수)을 지어내지 마세요.
+
+**Output Format:**
+Return a JSON object with the following structure:
+{
+  "comment": "생성된 안내 메시지..."
+}
+Do not include any markdown formatting (like \`\`\`json). Just the raw JSON string.
+`
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [{ text: aiPrompt }],
+                        },
+                    ],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        )
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Gemini] API error', response.status, errorText)
+            return { error: 'AI 코멘트 생성 중 오류가 발생했습니다.' }
+        }
+
+        const data = await response.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+        if (!text) {
+            console.error('[Gemini] No content in response', data)
+            return { error: 'AI 응답을 분석할 수 없습니다.' }
+        }
+
+        try {
+            const result = JSON.parse(text) as GenerateWishlistConsultCommentResult
+            return result
+        } catch (parseError) {
+            console.error('[Gemini] JSON parse error', parseError, text)
+            return { error: 'AI 응답 형식이 올바르지 않습니다.' }
+        }
+    } catch (error) {
+        console.error('[Gemini] Network or unexpected error', error)
+        return { error: 'AI 코멘트 서버 연결에 실패했습니다.' }
+    }
+}
