@@ -148,7 +148,9 @@ async function main() {
   console.log(`PDF 제출물 ${submissions.length}건 중 essay_post 누락 ${missing.length}건`)
 
   if (missing.length === 0) {
-    console.log('누락 건이 없습니다. 종료.')
+    console.log('누락 건이 없습니다. 대표자산 복구만 진행합니다.')
+    const repaired = await repairNullMediaPosts(supabase)
+    console.log(`\n완료: 0건 생성, ${repaired}건 대표자산 복구.`)
     return
   }
 
@@ -251,7 +253,64 @@ async function main() {
     created += 1
   }
 
-  console.log(`\n완료: ${created}건 생성, ${skipped}건 건너뜀.`)
+  // 8. 복구 패스: media_asset_id 가 null 인 essay_posts (대표자산 트리거로 비워진 케이스) 복구
+  const repaired = await repairNullMediaPosts(supabase)
+
+  console.log(`\n완료: ${created}건 생성, ${skipped}건 건너뜀, ${repaired}건 대표자산 복구.`)
+}
+
+// media_asset_id 가 null 인 essay_posts 를 원본 제출물의 자산으로 다시 채운다.
+async function repairNullMediaPosts(supabase) {
+  const { data: nullPosts, error: nullErr } = await supabase
+    .from('essay_posts')
+    .select('id, task_submission_id, student_id')
+    .is('media_asset_id', null)
+    .eq('is_deleted', false)
+  if (nullErr) {
+    console.error(`null-media essay_posts 조회 실패: ${nullErr.message}`)
+    return 0
+  }
+
+  let repaired = 0
+  for (const post of nullPosts ?? []) {
+    // 원본 제출물의 첨부 우선, 없으면 submission.media_asset_id
+    const { data: tsa } = await supabase
+      .from('task_submission_assets')
+      .select('media_asset_id, order_index')
+      .eq('submission_id', post.task_submission_id)
+      .order('order_index', { ascending: true })
+    let atts = (tsa ?? [])
+      .filter((a) => a.media_asset_id)
+      .map((a, i) => ({ mediaAssetId: a.media_asset_id, order: typeof a.order_index === 'number' ? a.order_index : i }))
+    if (atts.length === 0) {
+      const { data: sub } = await supabase
+        .from('task_submissions')
+        .select('media_asset_id')
+        .eq('id', post.task_submission_id)
+        .maybeSingle()
+      if (sub?.media_asset_id) atts = [{ mediaAssetId: sub.media_asset_id, order: 0 }]
+    }
+    const primary = atts[0]?.mediaAssetId ?? null
+    if (!primary) continue
+
+    // essay_post_assets 재생성 (트리거가 대표 자산을 설정)
+    await supabase.from('essay_post_assets').delete().eq('post_id', post.id)
+    const payload = atts.map((a, idx) => ({
+      post_id: post.id,
+      media_asset_id: a.mediaAssetId,
+      order_index: idx,
+      created_by: post.student_id,
+    }))
+    if (payload.length > 0) {
+      await supabase
+        .from('essay_post_assets')
+        .upsert(payload, { onConflict: 'post_id,media_asset_id', ignoreDuplicates: true })
+    }
+    // 안전망: 트리거 결과와 무관하게 대표 자산을 명시적으로 보정
+    await supabase.from('essay_posts').update({ media_asset_id: primary }).eq('id', post.id)
+    repaired += 1
+  }
+  return repaired
 }
 
 main().catch((e) => {
