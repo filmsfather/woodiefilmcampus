@@ -30,6 +30,7 @@ const TYPE_LABELS: Record<string, string> = {
   film: '영화 감상',
   lecture: '인터넷 강의',
   image: '이미지 제출',
+  essay: '에세이',
 }
 
 const STATUS_LABELS: Record<string, string> = {

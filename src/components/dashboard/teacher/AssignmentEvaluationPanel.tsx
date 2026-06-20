@@ -179,6 +179,7 @@ const TYPE_LABELS: Record<string, string> = {
   film: '영화 감상',
   lecture: '인터넷 강의',
   image: '이미지 제출',
+  essay: '에세이',
 }
 
 const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' | 'destructive'> = {
@@ -357,7 +358,7 @@ export function AssignmentEvaluationPanel({
         <PrintRequestList requests={assignment.printRequests} studentLookup={studentLookup} />
       )}
 
-      {assignment.type === 'pdf' && (
+      {(assignment.type === 'pdf' || assignment.type === 'essay') && (
         <PdfReviewPanel
           key={assignment.id}
           assignment={assignment}
@@ -365,6 +366,13 @@ export function AssignmentEvaluationPanel({
           focusStudentTaskId={focusStudentTaskId}
           onDeleteStudentTask={handleDeleteStudentTask}
           deleteState={deleteState}
+          title={assignment.type === 'essay' ? '에세이 제출 평가' : 'PDF 제출 평가'}
+          description={
+            assignment.type === 'essay'
+              ? '제출한 에세이 파일을 확인하고 인쇄를 요청하세요.'
+              : '제출 파일 확인 후 평가하세요.'
+          }
+          emptyLabel={assignment.type === 'essay' ? '에세이 제출 학생 없음' : 'PDF 제출 학생 없음'}
         />
       )}
 
@@ -909,7 +917,16 @@ function SrsReviewPanel({
   )
 }
 
-function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteStudentTask, deleteState }: ReviewPanelProps) {
+function PdfReviewPanel({
+  assignment,
+  classLookup,
+  focusStudentTaskId,
+  onDeleteStudentTask,
+  deleteState,
+  title = 'PDF 제출 평가',
+  description = '제출 파일 확인 후 평가하세요.',
+  emptyLabel = 'PDF 제출 학생 없음',
+}: ReviewPanelProps & { title?: string; description?: string; emptyLabel?: string }) {
   const printableStudents = useMemo(
     () =>
       assignment.studentTasks.map((task) => ({
@@ -1022,8 +1039,8 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
   return (
     <Card className="border-slate-200">
       <CardHeader>
-        <CardTitle className="text-lg text-slate-900">PDF 제출 평가</CardTitle>
-        <p className="text-xs text-slate-500">제출 파일 확인 후 평가하세요.</p>
+        <CardTitle className="text-lg text-slate-900">{title}</CardTitle>
+        <p className="text-xs text-slate-500">{description}</p>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* 학생 평가 카드 */}
@@ -1137,7 +1154,7 @@ function PdfReviewPanel({ assignment, classLookup, focusStudentTaskId, onDeleteS
             </div>
             <div className="flex flex-wrap gap-1">
               {selectableStudents.length === 0 ? (
-                <p className="text-xs text-slate-500">PDF 제출 학생 없음</p>
+                <p className="text-xs text-slate-500">{emptyLabel}</p>
               ) : (
                 selectableStudents.map(({ task }) => (
                   <label
