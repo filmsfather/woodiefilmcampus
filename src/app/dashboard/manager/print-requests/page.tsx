@@ -127,7 +127,7 @@ export default async function ManagerPrintRequestsPage({
       .order('desired_date', { ascending: true, nullsFirst: false })
       .order('desired_period', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
-      .limit(50),
+      .limit(1000),
     supabase
       .from('class_material_print_requests')
       .select(
@@ -155,7 +155,7 @@ export default async function ManagerPrintRequestsPage({
       .order('desired_date', { ascending: true, nullsFirst: false })
       .order('desired_period', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true })
-      .limit(50),
+      .limit(1000),
   ])
 
   if (printRequestResult.error) {
@@ -170,9 +170,6 @@ export default async function ManagerPrintRequestsPage({
     (row) => row.status !== 'canceled'
   )
 
-  // #region agent log
-  fetch('http://127.0.0.1:7245/ingest/1509f3b7-f516-4a27-9591-ebd8d9271217',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'07b4df'},body:JSON.stringify({sessionId:'07b4df',location:'print-requests/page.tsx:rawItems',message:'Raw print request items',data:{requests:rawPrintRequests.map(r=>({id:r.id,itemCount:r.print_request_items?.length??0,items:r.print_request_items?.map(i=>({id:i.id,student_task_id:i.student_task_id,asset_filename:i.asset_filename,media_asset_id:i.media_asset_id,media_asset:i.media_asset}))}))},timestamp:Date.now(),hypothesisId:'A,B'})}).catch(()=>{});
-  // #endregion
   const printRequestsUnsorted = rawPrintRequests.map((row) => {
       const teacherRecord = Array.isArray(row.teacher) ? row.teacher[0] : row.teacher
       const assignmentRecord = Array.isArray(row.assignment) ? row.assignment[0] : row.assignment
