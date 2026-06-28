@@ -22,6 +22,7 @@ import {
 export type WishlistStatus = 'draft' | 'proposed' | 'revising' | 'confirmed'
 export type WishlistAuthorRole = 'principal' | 'teacher' | 'student'
 export type WishlistProposedBy = 'principal' | 'student'
+export type RecordRequestStatus = 'none' | 'requested' | 'submitted'
 
 export const WISHLIST_STATUS_LABELS: Record<WishlistStatus, string> = {
   draft: '추천 준비 중',
@@ -68,6 +69,17 @@ export interface Wishlist {
   confirmedAt: string | null
   createdAt: string
   updatedAt: string
+  recordRequestStatus: RecordRequestStatus
+  recordRequestedAt: string | null
+  recordSubmittedAt: string | null
+}
+
+/** 학생이 제출한 생기부 파일 메타데이터 + 다운로드용 서명 URL. */
+export interface WishlistRecordFile {
+  name: string
+  mime: string | null
+  size: number | null
+  signedUrl: string | null
 }
 
 export interface WishlistDetail {
@@ -77,6 +89,8 @@ export interface WishlistDetail {
   generalCount: number
   specializedCount: number
   kartsCount: number
+  /** 제출된 생기부 파일 정보(제출 전이면 null). */
+  recordFile: WishlistRecordFile | null
 }
 
 interface WishlistRow {
@@ -88,6 +102,14 @@ interface WishlistRow {
   confirmed_at: string | null
   created_at: string
   updated_at: string
+  record_request_status: RecordRequestStatus
+  record_requested_at: string | null
+  record_submitted_at: string | null
+  record_file_bucket: string | null
+  record_file_path: string | null
+  record_file_name: string | null
+  record_file_mime: string | null
+  record_file_size: number | null
 }
 
 interface WishlistItemRow {
@@ -113,7 +135,7 @@ interface WishlistMessageRow {
 }
 
 const WISHLIST_COLUMNS =
-  'id, student_id, snapshot_id, status, created_by, confirmed_at, created_at, updated_at'
+  'id, student_id, snapshot_id, status, created_by, confirmed_at, created_at, updated_at, record_request_status, record_requested_at, record_submitted_at, record_file_bucket, record_file_path, record_file_name, record_file_mime, record_file_size'
 const ITEM_COLUMNS =
   'id, wishlist_id, program_key, university_id, university_label, category, proposed_by, sort_order, note, created_at'
 const MESSAGE_COLUMNS = 'id, wishlist_id, author_id, author_role, body, created_at'
@@ -128,6 +150,9 @@ function toWishlist(row: WishlistRow): Wishlist {
     confirmedAt: row.confirmed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    recordRequestStatus: row.record_request_status ?? 'none',
+    recordRequestedAt: row.record_requested_at,
+    recordSubmittedAt: row.record_submitted_at,
   }
 }
 
@@ -184,7 +209,27 @@ export async function fetchWishlistDetailForStudent(
   }
   if (!wishlistRow) return null
 
-  const wishlist = toWishlist(wishlistRow as WishlistRow)
+  const row = wishlistRow as WishlistRow
+  const wishlist = toWishlist(row)
+
+  let recordFile: WishlistRecordFile | null = null
+  if (row.record_request_status === 'submitted' && row.record_file_bucket && row.record_file_path) {
+    let signedUrl: string | null = null
+    try {
+      const { data: signed } = await supabase.storage
+        .from(row.record_file_bucket)
+        .createSignedUrl(row.record_file_path, 60 * 30)
+      signedUrl = signed?.signedUrl ?? null
+    } catch (signedError) {
+      console.error('[university-wishlist] record file signed url error', signedError)
+    }
+    recordFile = {
+      name: row.record_file_name ?? row.record_file_path.split('/').pop() ?? '생기부 파일',
+      mime: row.record_file_mime,
+      size: row.record_file_size,
+      signedUrl,
+    }
+  }
 
   const [itemsResult, messagesResult] = await Promise.all([
     supabase
@@ -230,6 +275,7 @@ export async function fetchWishlistDetailForStudent(
     generalCount: items.filter((i) => i.category === 'general').length,
     specializedCount: items.filter((i) => i.category === 'specialized').length,
     kartsCount: items.filter((i) => i.category === 'karts').length,
+    recordFile,
   }
 }
 

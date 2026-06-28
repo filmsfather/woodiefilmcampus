@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react'
+import { CheckCircle2, Download, FileText, Loader2, RotateCcw, Send, Sparkles } from 'lucide-react'
 
 import ProgramPicker from '@/components/dashboard/university-wishlist/ProgramPicker'
 import WishlistItems from '@/components/dashboard/university-wishlist/WishlistItems'
@@ -14,6 +14,7 @@ import {
   principalReplyAction,
   proposeWishlistAction,
   reopenWishlistAction,
+  requestStudentRecordAction,
 } from '@/lib/university-wishlist/actions'
 import {
   WISHLIST_STATUS_LABELS,
@@ -71,6 +72,8 @@ export default function PrincipalWishlistPanel({
   const items = detail?.items ?? []
   const existingKeys = items.map((i) => i.programKey).filter((k): k is string => Boolean(k))
   const editable = status !== 'confirmed'
+  const recordStatus = detail?.wishlist.recordRequestStatus ?? 'none'
+  const recordFile = detail?.recordFile ?? null
 
   const handleAIGenerate = async () => {
     if (items.length === 0) {
@@ -164,6 +167,43 @@ export default function PrincipalWishlistPanel({
         canRemove={editable ? () => true : undefined}
       />
 
+      <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-slate-600">
+            <FileText className="size-3.5" />
+            생기부 제출
+          </p>
+          {recordStatus === 'submitted' ? (
+            <Badge className="bg-emerald-100 text-emerald-700">제출 완료</Badge>
+          ) : recordStatus === 'requested' ? (
+            <Badge className="bg-amber-100 text-amber-800">제출 대기 중</Badge>
+          ) : (
+            <Badge className="bg-slate-200 text-slate-600">요청 전</Badge>
+          )}
+        </div>
+        {recordStatus === 'submitted' && recordFile ? (
+          recordFile.signedUrl ? (
+            <a
+              href={recordFile.signedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:underline"
+            >
+              <Download className="size-3.5" />
+              {recordFile.name}
+            </a>
+          ) : (
+            <p className="text-xs text-slate-500">{recordFile.name} (다운로드 링크 생성 실패)</p>
+          )
+        ) : recordStatus === 'requested' ? (
+          <p className="text-xs text-slate-500">학생의 생기부 제출을 기다리고 있습니다.</p>
+        ) : (
+          <p className="text-xs text-slate-500">
+            학생에게 생기부 제출을 요청할 수 있습니다.
+          </p>
+        )}
+      </div>
+
       {detail && detail.messages.length > 0 ? (
         <div className="space-y-2">
           <p className="text-xs font-medium text-slate-500">의견·질문</p>
@@ -218,6 +258,22 @@ export default function PrincipalWishlistPanel({
                 <Sparkles className="size-4" />
               )}
               {isGenerating ? 'AI 작성 중...' : 'AI 코멘트 초안'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 hover:text-sky-800"
+              disabled={isPending || isGenerating}
+              onClick={() =>
+                run(
+                  () => requestStudentRecordAction({ studentId }),
+                  '학생에게 생기부 제출을 요청했습니다.'
+                )
+              }
+            >
+              {isPending ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+              {recordStatus === 'none' ? '생기부 제출 요청' : '생기부 다시 요청'}
             </Button>
             {status === 'revising' ? (
               <Button

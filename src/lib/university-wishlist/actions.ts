@@ -400,3 +400,116 @@ export async function reopenWishlistAction(payload: unknown): Promise<WishlistAc
   revalidateForStudent(parsed.data.studentId)
   return { success: true }
 }
+
+// ── 원장: 생기부 제출 요청 ───────────────────────────────────────────────────
+
+const requestRecordSchema = z.object({ studentId: z.string().uuid() })
+
+/**
+ * 학생에게 생기부(학교생활기록부) 제출을 요청한다. 협의 세션이 없으면 생성한다.
+ * 이미 제출된 상태에서 다시 요청하면 기존 파일 메타데이터를 비우고 'requested'로 되돌린다.
+ */
+export async function requestStudentRecordAction(payload: unknown): Promise<WishlistActionResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal' && profile.role !== 'manager' && profile.role !== 'teacher') {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const parsed = requestRecordSchema.safeParse(payload)
+  if (!parsed.success) return { error: '잘못된 요청입니다.' }
+
+  const supabase = createAdminClient()
+  const wishlist = await ensureWishlist(supabase, parsed.data.studentId, profile.id)
+  if (!wishlist) return { error: '협의를 시작하지 못했습니다.' }
+
+  const { error } = await supabase
+    .from('university_wishlists')
+    .update({
+      record_request_status: 'requested',
+      record_requested_at: new Date().toISOString(),
+      record_submitted_at: null,
+      record_file_bucket: null,
+      record_file_path: null,
+      record_file_name: null,
+      record_file_mime: null,
+      record_file_size: null,
+    })
+    .eq('id', wishlist.id)
+
+  if (error) {
+    console.error('[university-wishlist] requestStudentRecordAction error', error)
+    return { error: '생기부 제출 요청에 실패했습니다.' }
+  }
+
+  revalidateForStudent(parsed.data.studentId)
+  return { success: true }
+}
+
+// ── 학생: 생기부 제출 (파일 업로드는 클라이언트에서 선행) ─────────────────────
+
+const submitRecordSchema = z.object({
+  studentId: z.string().uuid(),
+  bucket: z.string().min(1),
+  path: z.string().min(1),
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().max(255).optional(),
+  size: z.number().int().nonnegative().optional(),
+})
+
+/**
+ * 학생이 업로드한 생기부 파일 메타데이터를 협의에 저장하고 'submitted'로 전환한다.
+ * 제출 시 협의 스레드에 학생 메시지를 1건 남겨 원장 화면 및 워크플로우에 노출되도록 한다.
+ */
+export async function submitStudentRecordAction(payload: unknown): Promise<WishlistActionResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'student') return { error: '학생만 제출할 수 있습니다.' }
+
+  const parsed = submitRecordSchema.safeParse(payload)
+  if (!parsed.success) return { error: '잘못된 요청입니다.' }
+  if (profile.id !== parsed.data.studentId) return { error: '권한이 없습니다.' }
+
+  // 업로드 경로는 본인 폴더(첫 세그먼트 = studentId)여야 한다(스토리지 RLS와 동일 가드).
+  if (parsed.data.path.split('/')[0] !== parsed.data.studentId) {
+    return { error: '잘못된 업로드 경로입니다.' }
+  }
+
+  const supabase = createAdminClient()
+  const { data: wishlist } = await supabase
+    .from('university_wishlists')
+    .select('id, status, record_request_status')
+    .eq('student_id', parsed.data.studentId)
+    .maybeSingle()
+
+  if (!wishlist) return { error: '아직 생기부 제출 요청이 도착하지 않았습니다.' }
+
+  const { error } = await supabase
+    .from('university_wishlists')
+    .update({
+      record_request_status: 'submitted',
+      record_submitted_at: new Date().toISOString(),
+      record_file_bucket: parsed.data.bucket,
+      record_file_path: parsed.data.path,
+      record_file_name: parsed.data.fileName,
+      record_file_mime: parsed.data.mimeType ?? null,
+      record_file_size: parsed.data.size ?? null,
+    })
+    .eq('id', wishlist.id)
+
+  if (error) {
+    console.error('[university-wishlist] submitStudentRecordAction error', error)
+    return { error: '생기부 제출에 실패했습니다.' }
+  }
+
+  // 협의 스레드에 제출 완료 메시지를 남긴다(원장 화면 의견·질문 + 워크플로우 노출).
+  await supabase.from('university_wishlist_messages').insert({
+    wishlist_id: wishlist.id,
+    author_id: profile.id,
+    author_role: 'student',
+    body: '생기부를 제출했습니다.',
+  })
+
+  revalidateForStudent(parsed.data.studentId)
+  return { success: true }
+}

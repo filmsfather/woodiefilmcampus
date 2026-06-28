@@ -1,21 +1,158 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Clock, Loader2, Send, ThumbsUp } from 'lucide-react'
+import { CheckCircle2, Clock, Download, FileText, Loader2, Send, ThumbsUp, Upload } from 'lucide-react'
 
 import ProgramPicker from '@/components/dashboard/university-wishlist/ProgramPicker'
 import WishlistItems from '@/components/dashboard/university-wishlist/WishlistItems'
 import WishlistThread from '@/components/dashboard/university-wishlist/WishlistThread'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { studentRespondAction } from '@/lib/university-wishlist/actions'
-import type { WishlistCatalogEntry, WishlistDetail, WishlistItem } from '@/lib/university-wishlist/data'
+import { STUDENT_RECORDS_BUCKET } from '@/lib/storage/buckets'
+import {
+  buildRandomizedFileName,
+  uploadFileToStorageViaClient,
+} from '@/lib/storage-upload'
+import { studentRespondAction, submitStudentRecordAction } from '@/lib/university-wishlist/actions'
+import type {
+  RecordRequestStatus,
+  WishlistCatalogEntry,
+  WishlistDetail,
+  WishlistItem,
+  WishlistRecordFile,
+} from '@/lib/university-wishlist/data'
 
 interface StudentWishlistPanelProps {
   studentId: string
   detail: WishlistDetail | null
   catalog: WishlistCatalogEntry[]
+}
+
+const MAX_RECORD_SIZE = 20 * 1024 * 1024 // 20MB
+
+function StudentRecordSubmission({
+  studentId,
+  recordStatus,
+  recordFile,
+}: {
+  studentId: string
+  recordStatus: RecordRequestStatus
+  recordFile: WishlistRecordFile | null
+}) {
+  const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null)
+
+  if (recordStatus === 'none') return null
+
+  const handleSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (file.size > MAX_RECORD_SIZE) {
+      setFeedback({ kind: 'err', message: '파일 크기는 최대 20MB까지 업로드할 수 있습니다.' })
+      if (inputRef.current) inputRef.current.value = ''
+      return
+    }
+
+    setFeedback(null)
+    setIsUploading(true)
+    try {
+      const path = `${studentId}/${buildRandomizedFileName(file.name)}`
+      const uploaded = await uploadFileToStorageViaClient({
+        bucket: STUDENT_RECORDS_BUCKET,
+        file,
+        path,
+        maxSizeBytes: MAX_RECORD_SIZE,
+      })
+
+      const result = await submitStudentRecordAction({
+        studentId,
+        bucket: STUDENT_RECORDS_BUCKET,
+        path: uploaded.path,
+        fileName: uploaded.originalName,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+      })
+
+      if ('error' in result) {
+        setFeedback({ kind: 'err', message: result.error })
+        return
+      }
+      setFeedback({ kind: 'ok', message: '생기부를 제출했습니다.' })
+      router.refresh()
+    } catch (error) {
+      console.error('[university-wishlist] record upload error', error)
+      setFeedback({ kind: 'err', message: '생기부 업로드에 실패했습니다. 다시 시도해 주세요.' })
+    } finally {
+      setIsUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const submitted = recordStatus === 'submitted'
+
+  return (
+    <div className="space-y-3 rounded-lg border border-sky-200 bg-sky-50 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-sky-900">
+        <FileText className="size-4 shrink-0" />
+        생기부(학교생활기록부) 제출
+      </div>
+      {submitted ? (
+        <div className="space-y-2 text-sm text-emerald-800">
+          <p className="flex items-center gap-1.5 font-medium">
+            <CheckCircle2 className="size-4" />
+            생기부를 제출했습니다.
+          </p>
+          {recordFile?.signedUrl ? (
+            <a
+              href={recordFile.signedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-700 hover:underline"
+            >
+              <Download className="size-3.5" />
+              {recordFile.name}
+            </a>
+          ) : null}
+          <p className="text-xs text-emerald-700">
+            다시 제출하려면 아래에서 파일을 새로 업로드해 주세요.
+          </p>
+        </div>
+      ) : (
+        <p className="text-sm text-sky-900">
+          원장 선생님이 생기부 제출을 요청했습니다. 생기부 파일(PDF 또는 이미지)을 업로드해 주세요.
+        </p>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".pdf,image/*"
+        className="hidden"
+        onChange={handleSelect}
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant={submitted ? 'outline' : 'default'}
+        className="gap-2"
+        disabled={isUploading}
+        onClick={() => inputRef.current?.click()}
+      >
+        {isUploading ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+        {submitted ? '생기부 다시 제출' : '생기부 파일 제출'}
+      </Button>
+
+      {feedback ? (
+        <p className={`text-xs ${feedback.kind === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>
+          {feedback.message}
+        </p>
+      ) : null}
+    </div>
+  )
 }
 
 export default function StudentWishlistPanel({
@@ -31,12 +168,21 @@ export default function StudentWishlistPanel({
   const status = detail?.wishlist.status ?? 'none'
   const items = detail?.items ?? []
   const existingKeys = items.map((i) => i.programKey).filter((k): k is string => Boolean(k))
+  const recordStatus = detail?.wishlist.recordRequestStatus ?? 'none'
+  const recordFile = detail?.recordFile ?? null
 
   if (!detail || status === 'draft' || status === 'none') {
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-        아직 원장 선생님이 추천 대학을 보내지 않았습니다. 추천이 도착하면 이곳에서 확인하고 응답할 수
-        있어요.
+      <div className="space-y-5">
+        <StudentRecordSubmission
+          studentId={studentId}
+          recordStatus={recordStatus}
+          recordFile={recordFile}
+        />
+        <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+          아직 원장 선생님이 추천 대학을 보내지 않았습니다. 추천이 도착하면 이곳에서 확인하고 응답할 수
+          있어요.
+        </div>
       </div>
     )
   }
@@ -68,6 +214,12 @@ export default function StudentWishlistPanel({
 
   return (
     <div className="space-y-5">
+      <StudentRecordSubmission
+        studentId={studentId}
+        recordStatus={recordStatus}
+        recordFile={recordFile}
+      />
+
       {status === 'confirmed' ? (
         <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           <CheckCircle2 className="size-5 shrink-0" />

@@ -118,11 +118,13 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
   // 희망대학 협의(wishlist) 상태
   const { data: wishlistRows } = await supabase
     .from('university_wishlists')
-    .select('student_id, status')
+    .select('student_id, status, record_request_status')
     .in('student_id', studentIds)
   const wishlistStatusByStudent = new Map<string, string>()
+  const recordSubmittedSet = new Set<string>()
   for (const row of wishlistRows ?? []) {
     wishlistStatusByStudent.set(row.student_id, row.status)
+    if (row.record_request_status === 'submitted') recordSubmittedSet.add(row.student_id)
   }
 
   const rows = students
@@ -151,11 +153,13 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
       // 새 의견은 "원장이 아직 응답하지 않은 새 입력"이 있을 때만 표시한다.
       //  - 학생이 추천을 보고 수정 요청을 한 경우(wishlist='revising')
       //  - 또는 원장 추천 전 단계에서 컨설팅 방향이 제출된 경우
+      //  - 또는 학생이 생기부를 제출한 경우(record_request_status='submitted')
       // 원장이 추천을 (다시) 전송하면 wishlist 상태가 'proposed'로 바뀌어 해소되고,
       // 확정(confirmed) 이후에는 항상 제외한다.
       const stage5NewOpinion =
         !stage6Confirmed &&
         (wishlistStatus === 'revising' ||
+          recordSubmittedSet.has(student.id) ||
           (consultRequestedSet.has(student.id) && !stage4Recommended))
 
       return {
