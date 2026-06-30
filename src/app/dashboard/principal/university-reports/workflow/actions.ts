@@ -4,7 +4,10 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { notifyUniversityReportWishReselect } from '@/lib/university-report/notifications'
+import {
+  notifyUniversityConsultOpinionRequest,
+  notifyUniversityReportWishReselect,
+} from '@/lib/university-report/notifications'
 import {
   publishReportAction,
   runAnalysisAction,
@@ -73,6 +76,45 @@ export async function publishBulkReportAction(payload: unknown): Promise<BulkRes
       if (!result.errors.includes(r.error)) result.errors.push(r.error)
     } else {
       result.ok += 1
+    }
+  }
+
+  return { success: true, ...result }
+}
+
+/**
+ * 선택한 학생들에게 "희망대학 선택·의견 작성" 독려 문자를 일괄 발송한다.
+ * 발행된 공유 링크가 있고 연락처가 있는 학생에게만 발송되며(best-effort),
+ * 발송에 성공한 인원(ok)과 발송하지 못한 인원(failed)을 합산해 반환한다.
+ */
+export async function sendConsultOpinionRequestSmsAction(payload: unknown): Promise<BulkResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal') return { error: '원장만 발송할 수 있습니다.' }
+
+  const parsed = bulkSchema.safeParse(payload)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '잘못된 요청입니다.' }
+  }
+
+  const result: BulkActionResult = { ok: 0, failed: 0, errors: [] }
+  for (const studentId of parsed.data.studentIds) {
+    try {
+      const { sent } = await notifyUniversityConsultOpinionRequest({ studentId })
+      if (sent > 0) {
+        result.ok += 1
+      } else {
+        result.failed += 1
+        if (!result.errors.includes('발행된 공유 링크 또는 연락처가 없어 발송하지 못한 학생이 있습니다.')) {
+          result.errors.push('발행된 공유 링크 또는 연락처가 없어 발송하지 못한 학생이 있습니다.')
+        }
+      }
+    } catch (error) {
+      console.error('[workflow] sendConsultOpinionRequestSmsAction error', error)
+      result.failed += 1
+      if (!result.errors.includes('문자 발송 중 오류가 발생했습니다.')) {
+        result.errors.push('문자 발송 중 오류가 발생했습니다.')
+      }
     }
   }
 

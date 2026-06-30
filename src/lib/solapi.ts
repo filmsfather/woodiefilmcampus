@@ -246,6 +246,67 @@ export async function sendUniversityWishReselectSMS({
   }
 }
 
+/**
+ * 분석·발행은 됐지만 아직 컨설팅 방향(희망대학 선택·의견)을 제출하지 않은 학생에게
+ * 작성을 독려하는 안내 문자. 희망대학 선택이 컨설팅 참고용임을 함께 안내한다.
+ */
+export async function sendUniversityConsultOpinionRequestSMS({
+  phoneNumber,
+  studentName,
+  shareUrl,
+}: SendUniversityReportLinkParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 컨설팅 의견 요청 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 컨설팅 의견 요청 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const safeShareUrl = shareUrl.trim()
+
+  if (!safeShareUrl) {
+    console.warn('[solapi] 공유 링크가 비어 있어 컨설팅 의견 요청 문자 발송을 건너뜁니다.')
+    return false
+  }
+
+  const displayName = studentName?.trim() || '학생'
+  const messageLines = [
+    '[우디필름캠퍼스 지원가능대학 리포트]',
+    `${displayName} 학생, 컨설팅 진행을 위해 희망 대학 선택과 의견 작성이 필요합니다.`,
+    `작성하기: ${safeShareUrl}`,
+    '링크에서 희망 대학을 선택하고 의견을 남겨 주셔야 컨설팅을 진행할 수 있습니다.',
+    '※ 희망대학은 컨설팅 참고용이며, 최종 지원 대학 여부와는 무관합니다.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 컨설팅 의견 요청 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
 export async function sendUniversityRecommendationSMS({
   phoneNumber,
   studentName,

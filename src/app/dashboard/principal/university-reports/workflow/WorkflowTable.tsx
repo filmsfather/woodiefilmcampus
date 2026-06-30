@@ -4,17 +4,21 @@ import type { ReactNode } from 'react'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Check, Loader2, Minus, Play, RefreshCw, Send } from 'lucide-react'
+import { AlertTriangle, Check, Loader2, MessageSquare, Minus, Play, RefreshCw, Send } from 'lucide-react'
+
+import { Search } from 'lucide-react'
 
 import AnalysisRunButton from '@/components/dashboard/university-policy/AnalysisRunButton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import type { StudentWorkflowRow } from '@/lib/university-report/workflow'
 import {
   backfillMissingEvaluationsAction,
   publishBulkReportAction,
   runBulkAnalysisAction,
+  sendConsultOpinionRequestSmsAction,
   type BulkResult,
 } from '@/app/dashboard/principal/university-reports/workflow/actions'
 
@@ -37,8 +41,20 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; message: string } | null>(null)
+  const [search, setSearch] = useState('')
 
-  const rowIds = useMemo(() => rows.map((r) => r.studentId), [rows])
+  const filteredRows = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    if (!keyword) return rows
+    return rows.filter((row) => {
+      const name = row.name?.toLowerCase() ?? ''
+      const email = row.email?.toLowerCase() ?? ''
+      const className = row.className?.toLowerCase() ?? ''
+      return name.includes(keyword) || email.includes(keyword) || className.includes(keyword)
+    })
+  }, [rows, search])
+
+  const rowIds = useMemo(() => filteredRows.map((r) => r.studentId), [filteredRows])
   const selectedIds = useMemo(
     () => rowIds.filter((id) => selected.has(id)),
     [rowIds, selected]
@@ -83,6 +99,18 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
       setSelected(new Set())
       router.refresh()
     })
+  }
+
+  const runConsultSms = () => {
+    if (selectedIds.length === 0) return
+    if (
+      !window.confirm(
+        `선택한 ${selectedIds.length}명에게 "희망 대학 선택·의견 작성" 요청 문자를 발송합니다.\n발행된 공유 링크와 연락처가 있는 학생·학부모에게만 발송됩니다.\n진행할까요?`
+      )
+    ) {
+      return
+    }
+    runBulk(sendConsultOpinionRequestSmsAction, '컨설팅 의견 요청 문자')
   }
 
   const runBackfill = () => {
@@ -147,6 +175,21 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
             type="button"
             size="sm"
             variant="outline"
+            className="gap-2 border-sky-300 text-sky-700 hover:bg-sky-50"
+            disabled={isPending || selectedIds.length === 0}
+            onClick={runConsultSms}
+          >
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <MessageSquare className="size-4" />
+            )}
+            컨설팅 의견 요청 문자
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
             className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
             disabled={isPending}
             onClick={runBackfill}
@@ -161,6 +204,18 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
         </div>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+        <Input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="학생 이름·이메일·반 검색"
+          className="pl-9"
+          aria-label="학생 검색"
+        />
+      </div>
+
       {feedback ? (
         <p className={`text-xs ${feedback.kind === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>
           {feedback.message}
@@ -169,8 +224,10 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
 
       <Card className="border-slate-200 shadow-sm">
         <CardContent className="p-0">
-          {rows.length === 0 ? (
-            <div className="p-8 text-center text-sm text-slate-500">{emptyMessage}</div>
+          {filteredRows.length === 0 ? (
+            <div className="p-8 text-center text-sm text-slate-500">
+              {rows.length === 0 ? emptyMessage : '검색 결과가 없습니다.'}
+            </div>
           ) : (
             <div className="divide-y divide-slate-100">
               <div className="grid grid-cols-[auto_1.6fr_minmax(0,2fr)_auto] items-center gap-3 bg-slate-50 px-4 py-2 text-xs font-medium text-slate-500 sm:grid-cols-[auto_1.6fr_0.9fr_minmax(0,2fr)_auto] sm:px-6">
@@ -186,7 +243,7 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
                 <div className="text-center">진행 단계</div>
                 <div className="text-right">작업</div>
               </div>
-              {rows.map((row) => (
+              {filteredRows.map((row) => (
                 <StudentRow
                   key={row.studentId}
                   row={row}
@@ -304,7 +361,6 @@ function StudentRow({
  * 우선순위: 새 의견 확인 → 성적표 업로드 → 분석 실행 → 발행/공유 → 원장 추천 → (확정 대기/완료).
  */
 function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detailHref: string }) {
-  const analysisHref = `${detailHref}/analysis`
   const reportHref = `${detailHref}/report`
 
   if (row.stage5NewOpinion) {
@@ -335,7 +391,7 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
   if (!row.stage3ConsultSubmitted) {
     return (
       <Button asChild size="sm" variant="outline">
-        <Link href={analysisHref}>발행·공유 링크</Link>
+        <Link href={reportHref}>발행·공유 링크</Link>
       </Button>
     )
   }
@@ -349,12 +405,26 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
   }
 
   if (!row.stage6Confirmed) {
-    return <span className="text-xs text-slate-400">학생 확정 대기</span>
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-400">학생 확정 대기</span>
+        <Button asChild size="sm" variant="outline">
+          <Link href={reportHref}>리포트 보기</Link>
+        </Button>
+      </div>
+    )
   }
 
   return (
-    <span className="flex items-center gap-1 text-xs text-emerald-600">
-      <Check className="size-3.5" /> 완료
-    </span>
+    <Button
+      asChild
+      size="sm"
+      variant="outline"
+      className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+    >
+      <Link href={reportHref}>
+        <Check className="size-3.5" /> 완료
+      </Link>
+    </Button>
   )
 }

@@ -108,13 +108,22 @@ export default async function UniversityReportWorkflowPage({ searchParams }: Wor
             분석·발행할 수도 있습니다.
           </p>
         </div>
-        <Link
-          href="/dashboard/principal/university-reports"
-          className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-        >
-          레포트 관리(목록)
-          <ChevronRight className="size-4" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/dashboard/principal/university-reports/wishlists"
+            className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100"
+          >
+            확정 대학 리스트
+            <ChevronRight className="size-4" />
+          </Link>
+          <Link
+            href="/dashboard/principal/university-reports"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          >
+            레포트 관리(목록)
+            <ChevronRight className="size-4" />
+          </Link>
+        </div>
       </header>
 
       <Card className={isSmsReady ? 'border-emerald-200' : 'border-amber-300'}>
