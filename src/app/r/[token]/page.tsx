@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
+import SharedRecordSubmission from '@/components/dashboard/university-report-share/SharedRecordSubmission'
 import SharedReportFlow from '@/components/dashboard/university-report-share/SharedReportFlow'
 import StudentReportView from '@/components/dashboard/university-report-share/StudentReportView'
 import { Card, CardContent } from '@/components/ui/card'
@@ -25,6 +26,10 @@ export const metadata: Metadata = {
 }
 
 export const maxDuration = 300
+
+// 원장의 추천 전송/답변은 studentId만 알고 share token을 몰라 이 경로를 revalidate하지 못한다.
+// 협의 상태가 실시간으로 바뀌는 학생별 페이지이므로 항상 최신 데이터를 렌더링한다.
+export const dynamic = 'force-dynamic'
 
 interface SharedReportPageProps {
   params: Promise<{ token: string }>
@@ -91,6 +96,10 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
   const consultDirection = consultRows?.[0]?.direction ?? null
   const recommendation = buildReportRecommendation(wishlistDetail, consultDirection)
 
+  // 원장이 생기부 제출을 요청했다면(추천 전송 여부와 무관) 학생이 이 화면에서 직접 제출할 수 있게 한다.
+  const recordRequestStatus = wishlistDetail?.wishlist.recordRequestStatus ?? 'none'
+  const recordFile = wishlistDetail?.recordFile ?? null
+
   // 학생이 공유 링크에서 직접 응답(지원 확정 / 질문·다른 대학 선택)할 수 있도록 컨텍스트를 넘긴다.
   const recommendationResponse = recommendation
     ? {
@@ -128,6 +137,12 @@ export default async function SharedReportPage({ params }: SharedReportPageProps
           {formatDateTime(publication.publishedAt)} 발행
         </p>
       </header>
+
+      <SharedRecordSubmission
+        token={token}
+        recordStatus={recordRequestStatus}
+        recordFile={recordFile}
+      />
 
       {reportModel ? (
         <StudentReportView

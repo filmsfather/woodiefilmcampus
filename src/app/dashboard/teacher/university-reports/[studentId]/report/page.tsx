@@ -16,6 +16,10 @@ import {
 } from '@/lib/university-policy/report-view'
 import { fetchReportEligibility } from '@/lib/university-report/data'
 import { fetchPublicationForStudent } from '@/lib/university-report/publication'
+import {
+  buildReportRecommendation,
+  fetchWishlistDetailForStudent,
+} from '@/lib/university-wishlist/data'
 
 export const metadata: Metadata = {
   title: '학생 대학 리포트 | 교사 대시보드',
@@ -78,6 +82,17 @@ export default async function TeacherStudentReportPage({ params }: TeacherReport
         ? buildStudentReportViewModel({ rows: evaluations, studentName, publication })
         : null
 
+  // 원장이 추천을 전송(proposed 이상)했다면 추천 대학·코멘트를 학생 공개 화면과 동일하게 보여준다.
+  const wishlistDetail = await fetchWishlistDetailForStudent(student.id)
+  const { data: consultRows } = await admin
+    .from('university_report_consult_requests')
+    .select('direction, created_at')
+    .eq('student_id', student.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const consultDirection = consultRows?.[0]?.direction ?? null
+  const recommendation = buildReportRecommendation(wishlistDetail, consultDirection)
+
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
@@ -95,7 +110,7 @@ export default async function TeacherStudentReportPage({ params }: TeacherReport
       </div>
 
       {reportModel ? (
-        <StudentReportView model={reportModel} />
+        <StudentReportView model={reportModel} recommendation={recommendation} />
       ) : (
         <Card className="border-amber-200 bg-amber-50 shadow-sm">
           <CardContent className="space-y-2 text-sm text-amber-900">
