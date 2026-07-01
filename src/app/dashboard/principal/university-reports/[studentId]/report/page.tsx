@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { Eye } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
+import PdfDownloadButton from '@/components/dashboard/university-report/PdfDownloadButton'
 import PrincipalWishlistPanel from '@/components/dashboard/university-wishlist/PrincipalWishlistPanel'
 import PrintReportButton from '@/components/dashboard/university-report-share/PrintReportButton'
 import StudentReportView from '@/components/dashboard/university-report-share/StudentReportView'
@@ -159,6 +160,7 @@ export default async function ReportPreviewPage({ params }: ReportPreviewPagePro
             studentName={studentName}
             photoUrl={photoUrl}
             consultDirection={consultDirection}
+            snapshotId={snapshot?.id ?? null}
             isGed={eligibility?.is_ged ?? false}
             ruralEligible={eligibility?.rural_eligible ?? false}
             lowIncomeEligible={eligibility?.low_income_eligible ?? false}
@@ -195,6 +197,7 @@ function StudentInfoBlock({
   studentName,
   photoUrl,
   consultDirection,
+  snapshotId,
   isGed,
   ruralEligible,
   lowIncomeEligible,
@@ -202,41 +205,45 @@ function StudentInfoBlock({
   studentName: string
   photoUrl: string | null
   consultDirection: string | null
+  snapshotId: string | null
   isGed: boolean
   ruralEligible: boolean
   lowIncomeEligible: boolean
 }) {
   return (
     <div className="space-y-3 rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex items-start gap-4">
-        {photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={photoUrl}
-            alt={`${studentName} 학생 사진`}
-            className="size-20 shrink-0 rounded-lg border border-slate-200 object-cover"
-          />
-        ) : (
-          <div className="flex size-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
-            사진 없음
-          </div>
-        )}
-        <div className="min-w-0 space-y-1.5">
-          <p className="text-lg font-semibold text-slate-900">{studentName}</p>
-          <div className="flex flex-wrap gap-1.5">
-            {isGed ? <Badge className="bg-emerald-100 text-emerald-700">검정고시</Badge> : null}
-            {ruralEligible ? (
-              <Badge className="bg-lime-100 text-lime-700">농어촌 지원 가능</Badge>
-            ) : (
-              <Badge className="bg-slate-100 text-slate-500">농어촌 불가</Badge>
-            )}
-            {lowIncomeEligible ? (
-              <Badge className="bg-amber-100 text-amber-700">차상위 지원 가능</Badge>
-            ) : (
-              <Badge className="bg-slate-100 text-slate-500">차상위 불가</Badge>
-            )}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          {photoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={photoUrl}
+              alt={`${studentName} 학생 사진`}
+              className="size-20 shrink-0 rounded-lg border border-slate-200 object-cover"
+            />
+          ) : (
+            <div className="flex size-20 shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400">
+              사진 없음
+            </div>
+          )}
+          <div className="min-w-0 space-y-1.5">
+            <p className="text-lg font-semibold text-slate-900">{studentName}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {isGed ? <Badge className="bg-emerald-100 text-emerald-700">검정고시</Badge> : null}
+              {ruralEligible ? (
+                <Badge className="bg-lime-100 text-lime-700">농어촌 지원 가능</Badge>
+              ) : (
+                <Badge className="bg-slate-100 text-slate-500">농어촌 불가</Badge>
+              )}
+              {lowIncomeEligible ? (
+                <Badge className="bg-amber-100 text-amber-700">차상위 지원 가능</Badge>
+              ) : (
+                <Badge className="bg-slate-100 text-slate-500">차상위 불가</Badge>
+              )}
+            </div>
           </div>
         </div>
+        {snapshotId ? <PdfDownloadButton snapshotId={snapshotId} /> : null}
       </div>
 
       <div className="space-y-1">
