@@ -16,6 +16,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchFinalConfirmedStudentIds } from '@/lib/university-confirmation/data'
 
 export interface StudentWorkflowRow {
   studentId: string
@@ -29,6 +30,8 @@ export interface StudentWorkflowRow {
   stage4Recommended: boolean
   stage5NewOpinion: boolean
   stage6Confirmed: boolean
+  /** 최종 확정 폼(/confirm) 제출 완료 여부. */
+  stage7FinalConfirmed: boolean
 }
 
 export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow[]> {
@@ -52,11 +55,41 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
     return []
   }
 
-  const classIds = Array.from(new Set(students.map((s) => s.class_id).filter(Boolean) as string[]))
+  // 반 배정의 진실 원천은 class_students(다대다) 테이블이다. 과거 데이터 호환을 위해
+  // profiles.class_id도 보조로 함께 조회한다.
+  const { data: classStudentRows } = await supabase
+    .from('class_students')
+    .select('student_id, class_id')
+    .in('student_id', studentIds)
+
+  const classIdsFromMembership = (classStudentRows ?? []).map((row) => row.class_id)
+  const classIdsFromProfile = students.map((s) => s.class_id).filter(Boolean) as string[]
+  const classIds = Array.from(new Set([...classIdsFromMembership, ...classIdsFromProfile]))
+
   let classNameMap = new Map<string, string>()
   if (classIds.length > 0) {
     const { data: classes } = await supabase.from('classes').select('id, name').in('id', classIds)
     classNameMap = new Map((classes ?? []).map((c) => [c.id, c.name]))
+  }
+
+  // 학생별 소속 반 이름 목록(중복 제거, 이름순)을 만들어 둔다.
+  const classNamesByStudent = new Map<string, string[]>()
+  for (const row of classStudentRows ?? []) {
+    const name = classNameMap.get(row.class_id)
+    if (!name) continue
+    const names = classNamesByStudent.get(row.student_id) ?? []
+    if (!names.includes(name)) {
+      names.push(name)
+    }
+    classNamesByStudent.set(row.student_id, names)
+  }
+
+  const resolveClassName = (student: { id: string; class_id: string | null }): string | null => {
+    const names = classNamesByStudent.get(student.id)
+    if (names && names.length > 0) {
+      return names.slice().sort((a, b) => a.localeCompare(b, 'ko')).join(', ')
+    }
+    return student.class_id ? classNameMap.get(student.class_id) ?? null : null
   }
 
   // 사전조사(검정고시)
@@ -127,6 +160,9 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
     if (row.record_request_status === 'submitted') recordSubmittedSet.add(row.student_id)
   }
 
+  // 최종 확정(/confirm 폼) 제출 완료 학생 집합
+  const finalConfirmedSet = await fetchFinalConfirmedStudentIds(studentIds)
+
   const rows = students
     .map<StudentWorkflowRow>((student) => {
       const isGed = gedSet.has(student.id)
@@ -166,7 +202,7 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
         studentId: student.id,
         name: student.name,
         email: student.email,
-        className: student.class_id ? classNameMap.get(student.class_id) ?? null : null,
+        className: resolveClassName(student),
         isGed,
         stage1Submitted,
         stage2Analyzed,
@@ -174,6 +210,7 @@ export async function fetchStudentWorkflowStatuses(): Promise<StudentWorkflowRow
         stage4Recommended,
         stage5NewOpinion,
         stage6Confirmed,
+        stage7FinalConfirmed: finalConfirmedSet.has(student.id),
       }
     })
     .sort((a, b) => (a.name ?? a.email).localeCompare(b.name ?? b.email, 'ko'))

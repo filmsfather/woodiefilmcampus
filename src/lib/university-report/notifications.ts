@@ -8,6 +8,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   sendUniversityConsultOpinionRequestSMS,
+  sendUniversityFinalConfirmationSMS,
   sendUniversityRecommendationReplySMS,
   sendUniversityRecommendationSMS,
   sendUniversityReportShareLinkSMS,
@@ -161,6 +162,42 @@ export async function notifyUniversityConsultOpinionRequest({
       phoneNumber,
       studentName: targets.studentName,
       shareUrl,
+    })
+    if (ok) sent += 1
+  }
+
+  return { sent }
+}
+
+/**
+ * 컨설팅을 마친 학생에게 지원 대학 최종 확정 폼(/confirm/[token]) 링크를 문자로 보낸다.
+ * 확정 전용 토큰이 이미 발급돼 있어야 하며(호출자가 ensureFinalConfirmation로 확보), best-effort로 동작한다.
+ */
+export async function notifyUniversityFinalConfirmationRequest({
+  studentId,
+  token,
+}: NotifyParams): Promise<{ sent: number }> {
+  const origin = resolveSiteOrigin()
+  if (!origin || !token) {
+    return { sent: 0 }
+  }
+
+  const targets = await fetchNotifyTargets(studentId)
+  if (!targets || targets.phones.length === 0) {
+    if (targets) {
+      console.warn('[university-report] 학생·학부모 연락처가 없어 최종 확정 문자 발송을 건너뜁니다.', studentId)
+    }
+    return { sent: 0 }
+  }
+
+  const confirmUrl = `${origin}/confirm/${token}`
+
+  let sent = 0
+  for (const phoneNumber of targets.phones) {
+    const ok = await sendUniversityFinalConfirmationSMS({
+      phoneNumber,
+      studentName: targets.studentName,
+      shareUrl: confirmUrl,
     })
     if (ok) sent += 1
   }

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Card, CardContent } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
-import { fetchConfirmedWishlistSummaries } from '@/lib/university-wishlist/data'
+import { fetchConfirmedFinalSummaries } from '@/lib/university-confirmation/data'
 import ConfirmedWishlistView from '@/app/dashboard/principal/university-reports/wishlists/ConfirmedWishlistView'
 
 export const metadata: Metadata = {
@@ -14,10 +14,11 @@ export const metadata: Metadata = {
 export default async function ConfirmedWishlistsPage() {
   await requireAuthForDashboard('principal')
 
-  const summaries = await fetchConfirmedWishlistSummaries()
+  const summaries = await fetchConfirmedFinalSummaries()
 
   const totalApplications = summaries.reduce(
-    (sum, s) => sum + s.generalItems.length + s.specializedItems.length + s.kartsItems.length,
+    (sum, s) =>
+      sum + s.generalItems.length + s.specializedItems.length + (s.kartsApply ? 1 : 0),
     0
   )
 

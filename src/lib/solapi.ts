@@ -423,6 +423,65 @@ export async function sendUniversityRecommendationReplySMS({
   }
 }
 
+/**
+ * 컨설팅을 마친 학생에게 지원 대학 최종 확정 폼(/confirm/[token]) 링크를 발송하는 안내 문자.
+ */
+export async function sendUniversityFinalConfirmationSMS({
+  phoneNumber,
+  studentName,
+  shareUrl,
+}: SendUniversityReportLinkParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 최종 확정 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 최종 확정 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const safeShareUrl = shareUrl.trim()
+
+  if (!safeShareUrl) {
+    console.warn('[solapi] 확정 링크가 비어 있어 최종 확정 문자 발송을 건너뜁니다.')
+    return false
+  }
+
+  const displayName = studentName?.trim() || '학생'
+  const messageLines = [
+    '[우디필름캠퍼스 지원 대학 최종 확정]',
+    `${displayName} 학생, 컨설팅을 마치고 지원할 대학과 수업 희망 요일을 확정할 차례입니다.`,
+    `확정하기: ${safeShareUrl}`,
+    '링크에서 수시 6장(일반대)·전문대/예대·한예종 지원 여부와 수업 희망 요일을 선택해 확정해 주세요.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 최종 확정 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
 function formatCounselingDateTime(date: string, time: string) {
   try {
     const base = new Date(`${date}T${time}+09:00`)

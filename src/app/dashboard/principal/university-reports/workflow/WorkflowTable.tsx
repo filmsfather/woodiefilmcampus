@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Check, Loader2, MessageSquare, Minus, Play, RefreshCw, Send } from 'lucide-react'
+import { AlertTriangle, Check, ClipboardCheck, Loader2, MessageSquare, Minus, Play, RefreshCw, Send } from 'lucide-react'
 
 import { Search } from 'lucide-react'
 
@@ -19,6 +19,7 @@ import {
   publishBulkReportAction,
   runBulkAnalysisAction,
   sendConsultOpinionRequestSmsAction,
+  sendFinalConfirmationRequestSmsAction,
   type BulkResult,
 } from '@/app/dashboard/principal/university-reports/workflow/actions'
 
@@ -29,6 +30,7 @@ const STAGES = [
   { key: 'stage4Recommended', short: '4', label: '원장 추천' },
   { key: 'stage5NewOpinion', short: '5', label: '새 의견', attention: true },
   { key: 'stage6Confirmed', short: '6', label: '대학 확정' },
+  { key: 'stage7FinalConfirmed', short: '7', label: '최종 확정' },
 ] as const
 
 interface WorkflowTableProps {
@@ -113,6 +115,18 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
     runBulk(sendConsultOpinionRequestSmsAction, '컨설팅 의견 요청 문자')
   }
 
+  const runFinalConfirmationSms = () => {
+    if (selectedIds.length === 0) return
+    if (
+      !window.confirm(
+        `선택한 ${selectedIds.length}명에게 "지원 대학 최종 확정" 폼 링크 문자를 발송합니다.\n연락처가 있는 학생·학부모에게만 발송됩니다.\n진행할까요?`
+      )
+    ) {
+      return
+    }
+    runBulk(sendFinalConfirmationRequestSmsAction, '최종 확정 요청 문자')
+  }
+
   const runBackfill = () => {
     if (
       !window.confirm(
@@ -185,6 +199,21 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
               <MessageSquare className="size-4" />
             )}
             컨설팅 의견 요청 문자
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+            disabled={isPending || selectedIds.length === 0}
+            onClick={runFinalConfirmationSms}
+          >
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ClipboardCheck className="size-4" />
+            )}
+            최종 확정 요청 문자
           </Button>
           <Button
             type="button"
@@ -348,6 +377,7 @@ function StudentRow({
         <StageDot stage={STAGES[3]} done={row.stage4Recommended} />
         <StageDot stage={STAGES[4]} done={row.stage5NewOpinion} />
         <StageDot stage={STAGES[5]} done={row.stage6Confirmed} />
+        <StageDot stage={STAGES[6]} done={row.stage7FinalConfirmed} />
       </div>
       <div className="flex justify-end">
         <StudentRowAction row={row} detailHref={detailHref} />
@@ -415,6 +445,10 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
     )
   }
 
+  if (!row.stage7FinalConfirmed) {
+    return <span className="text-xs text-slate-400">최종 확정 대기</span>
+  }
+
   return (
     <Button
       asChild
@@ -422,8 +456,8 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
       variant="outline"
       className="gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
     >
-      <Link href={reportHref}>
-        <Check className="size-3.5" /> 완료
+      <Link href="/dashboard/principal/university-reports/wishlists">
+        <Check className="size-3.5" /> 최종 확정 완료
       </Link>
     </Button>
   )

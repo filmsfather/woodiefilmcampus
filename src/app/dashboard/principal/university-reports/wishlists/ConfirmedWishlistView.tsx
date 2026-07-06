@@ -7,7 +7,9 @@ import { ArrowDownUp, Search, Users } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import type { ConfirmedWishlistSummary, WishlistCategory } from '@/lib/university-wishlist/data'
+import { weekdayPreferenceLabel } from '@/lib/university-confirmation/constants'
+import type { ConfirmedFinalSummary } from '@/lib/university-confirmation/data'
+import type { WishlistCategory } from '@/lib/university-policy/yedae'
 
 type ViewMode = 'university' | 'student'
 type SortKey = 'nameAsc' | 'nameDesc' | 'countDesc' | 'countAsc'
@@ -31,6 +33,7 @@ interface FlatRow {
   email: string
   className: string | null
   confirmedAt: string | null
+  weekdayPreferences: string[]
   category: WishlistCategory
   universityId: string | null
   universityName: string
@@ -39,23 +42,40 @@ interface FlatRow {
   region: string | null
 }
 
-function flatten(summaries: ConfirmedWishlistSummary[]): FlatRow[] {
+function flatten(summaries: ConfirmedFinalSummary[]): FlatRow[] {
   const rows: FlatRow[] = []
   for (const s of summaries) {
-    const all = [...s.generalItems, ...s.specializedItems, ...s.kartsItems]
-    for (const item of all) {
+    for (const item of [...s.generalItems, ...s.specializedItems]) {
       rows.push({
         studentId: s.studentId,
         studentName: s.studentName,
         email: s.email,
         className: s.className,
         confirmedAt: s.confirmedAt,
+        weekdayPreferences: s.weekdayPreferences,
         category: item.category,
         universityId: item.universityId,
         universityName: item.universityName,
         shortName: item.shortName,
         programName: item.programName,
         region: item.region,
+      })
+    }
+    // 한예종은 지원 여부(토글)이므로 지원하는 학생만 합성 항목으로 노출한다.
+    if (s.kartsApply) {
+      rows.push({
+        studentId: s.studentId,
+        studentName: s.studentName,
+        email: s.email,
+        className: s.className,
+        confirmedAt: s.confirmedAt,
+        weekdayPreferences: s.weekdayPreferences,
+        category: 'karts',
+        universityId: 'karts',
+        universityName: '한국예술종합학교',
+        shortName: '한예종',
+        programName: '지원',
+        region: '서울',
       })
     }
   }
@@ -65,7 +85,7 @@ function flatten(summaries: ConfirmedWishlistSummary[]): FlatRow[] {
 export default function ConfirmedWishlistView({
   summaries,
 }: {
-  summaries: ConfirmedWishlistSummary[]
+  summaries: ConfirmedFinalSummary[]
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>('university')
   const [sortKey, setSortKey] = useState<SortKey>('countDesc')
@@ -324,6 +344,7 @@ interface StudentGroup {
   studentName: string
   email: string
   className: string | null
+  weekdayPreferences: string[]
   items: FlatRow[]
 }
 
@@ -340,6 +361,7 @@ function StudentView({ rows, sortKey }: { rows: FlatRow[]; sortKey: SortKey }) {
           studentName: row.studentName,
           email: row.email,
           className: row.className,
+          weekdayPreferences: row.weekdayPreferences,
           items: [row],
         })
       }
@@ -385,6 +407,16 @@ function StudentView({ rows, sortKey }: { rows: FlatRow[]; sortKey: SortKey }) {
                 {group.items.length}개 대학
               </Badge>
             </div>
+            {group.weekdayPreferences.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-slate-400">수업 희망 요일</span>
+                {group.weekdayPreferences.map((value) => (
+                  <Badge key={value} className="bg-slate-100 text-slate-600">
+                    {weekdayPreferenceLabel(value)}
+                  </Badge>
+                ))}
+              </div>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {group.items.map((item, idx) => (
                 <Badge

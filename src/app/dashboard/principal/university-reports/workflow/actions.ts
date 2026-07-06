@@ -4,8 +4,10 @@ import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { ensureFinalConfirmation } from '@/lib/university-confirmation/data'
 import {
   notifyUniversityConsultOpinionRequest,
+  notifyUniversityFinalConfirmationRequest,
   notifyUniversityReportWishReselect,
 } from '@/lib/university-report/notifications'
 import {
@@ -111,6 +113,57 @@ export async function sendConsultOpinionRequestSmsAction(payload: unknown): Prom
       }
     } catch (error) {
       console.error('[workflow] sendConsultOpinionRequestSmsAction error', error)
+      result.failed += 1
+      if (!result.errors.includes('문자 발송 중 오류가 발생했습니다.')) {
+        result.errors.push('문자 발송 중 오류가 발생했습니다.')
+      }
+    }
+  }
+
+  return { success: true, ...result }
+}
+
+/**
+ * 선택한 학생들에게 "지원 대학 최종 확정" 폼 링크(/confirm/[token]) 문자를 일괄 발송한다.
+ * 학생별로 확정 세션·토큰을 확보(ensureFinalConfirmation)한 뒤, 연락처가 있는 학생·학부모에게만
+ * 발송한다(best-effort). 발송에 성공한 인원(ok)과 실패 인원(failed)을 합산해 반환한다.
+ */
+export async function sendFinalConfirmationRequestSmsAction(payload: unknown): Promise<BulkResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal') return { error: '원장만 발송할 수 있습니다.' }
+
+  const parsed = bulkSchema.safeParse(payload)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '잘못된 요청입니다.' }
+  }
+
+  const result: BulkActionResult = { ok: 0, failed: 0, errors: [] }
+  for (const studentId of parsed.data.studentIds) {
+    try {
+      const confirmation = await ensureFinalConfirmation(studentId, profile.id)
+      if (!confirmation) {
+        result.failed += 1
+        if (!result.errors.includes('확정 링크를 준비하지 못한 학생이 있습니다.')) {
+          result.errors.push('확정 링크를 준비하지 못한 학생이 있습니다.')
+        }
+        continue
+      }
+
+      const { sent } = await notifyUniversityFinalConfirmationRequest({
+        studentId,
+        token: confirmation.shareToken,
+      })
+      if (sent > 0) {
+        result.ok += 1
+      } else {
+        result.failed += 1
+        if (!result.errors.includes('연락처가 없어 발송하지 못한 학생이 있습니다.')) {
+          result.errors.push('연락처가 없어 발송하지 못한 학생이 있습니다.')
+        }
+      }
+    } catch (error) {
+      console.error('[workflow] sendFinalConfirmationRequestSmsAction error', error)
       result.failed += 1
       if (!result.errors.includes('문자 발송 중 오류가 발생했습니다.')) {
         result.errors.push('문자 발송 중 오류가 발생했습니다.')

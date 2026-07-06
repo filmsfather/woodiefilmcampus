@@ -19,6 +19,7 @@ const FILTERS = [
   { key: 's5', label: '새 의견 있음' },
   { key: 's6', label: '미확정' },
   { key: 's7', label: '대학 확정' },
+  { key: 's8', label: '최종 확정' },
 ] as const
 
 type FilterKey = (typeof FILTERS)[number]['key']
@@ -41,6 +42,8 @@ function matchesFilter(row: StudentWorkflowRow, filter: FilterKey): boolean {
       return row.stage4Recommended && !row.stage6Confirmed
     case 's7':
       return row.stage6Confirmed
+    case 's8':
+      return row.stage7FinalConfirmed
     case 'all':
     default:
       return true
@@ -76,10 +79,11 @@ export default async function UniversityReportWorkflowPage({ searchParams }: Wor
       if (row.stage3ConsultSubmitted) acc.consult += 1
       if (row.stage4Recommended) acc.recommended += 1
       if (row.stage6Confirmed) acc.confirmed += 1
+      if (row.stage7FinalConfirmed) acc.finalConfirmed += 1
       if (row.stage5NewOpinion) acc.newOpinion += 1
       return acc
     },
-    { total: 0, analyzed: 0, consult: 0, recommended: 0, confirmed: 0, newOpinion: 0 }
+    { total: 0, analyzed: 0, consult: 0, recommended: 0, confirmed: 0, finalConfirmed: 0, newOpinion: 0 }
   )
 
   const emptyMessage =
@@ -152,12 +156,13 @@ export default async function UniversityReportWorkflowPage({ searchParams }: Wor
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-7">
         <SummaryStat label="총 학생" value={summary.total} />
         <SummaryStat label="분석 완료" value={summary.analyzed} tone="emerald" />
         <SummaryStat label="컨설팅 제출" value={summary.consult} tone="emerald" />
         <SummaryStat label="원장 추천" value={summary.recommended} tone="emerald" />
         <SummaryStat label="대학 확정" value={summary.confirmed} tone="emerald" />
+        <SummaryStat label="최종 확정" value={summary.finalConfirmed} tone="emerald" />
         <SummaryStat label="새 의견" value={summary.newOpinion} tone="amber" />
       </div>
 
