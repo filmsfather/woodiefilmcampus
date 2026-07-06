@@ -39,7 +39,8 @@ function matchesFilter(row: StudentWorkflowRow, filter: FilterKey): boolean {
     case 's5':
       return row.stage5NewOpinion
     case 's6':
-      return row.stage4Recommended && !row.stage6Confirmed
+      // 미확정 = 원장 추천은 됐지만 최종 확정 폼(/confirm)을 아직 제출하지 않은 학생
+      return row.stage4Recommended && !row.stage7FinalConfirmed
     case 's7':
       return row.stage6Confirmed
     case 's8':
