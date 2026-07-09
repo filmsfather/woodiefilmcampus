@@ -344,11 +344,32 @@ export async function fetchConfirmedFinalSummaries(): Promise<ConfirmedFinalSumm
   const confirmationIds = confirmations.map((c) => c.id)
   const studentIds = Array.from(new Set(confirmations.map((c) => c.student_id)))
 
-  const [itemsResult, studentsResult] = await Promise.all([
-    supabase
-      .from('university_final_confirmation_items')
-      .select(ITEM_COLUMNS)
-      .in('confirmation_id', confirmationIds),
+  // Supabase는 쿼리당 기본 1000행까지만 반환하므로, 확정 항목이 그보다 많으면
+  // 일부 학생의 지원 대학이 조용히 누락된다. range 페이지네이션으로 전부 가져온다.
+  const fetchAllItems = async (): Promise<ConfirmationItemRow[]> => {
+    const PAGE_SIZE = 1000
+    const rows: ConfirmationItemRow[] = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error: pageError } = await supabase
+        .from('university_final_confirmation_items')
+        .select(ITEM_COLUMNS)
+        .in('confirmation_id', confirmationIds)
+        .order('id', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1)
+
+      if (pageError) {
+        console.error('[final-confirmation] fetchConfirmedFinalSummaries items error', pageError)
+        break
+      }
+      const page = (data as ConfirmationItemRow[] | null) ?? []
+      rows.push(...page)
+      if (page.length < PAGE_SIZE) break
+    }
+    return rows
+  }
+
+  const [itemRows, studentsResult] = await Promise.all([
+    fetchAllItems(),
     supabase.from('profiles').select('id, name, email, class_id').in('id', studentIds),
   ])
 
@@ -377,7 +398,7 @@ export async function fetchConfirmedFinalSummaries(): Promise<ConfirmedFinalSumm
   )
 
   const itemsByConfirmation = new Map<string, FinalConfirmationItem[]>()
-  for (const row of (itemsResult.data as ConfirmationItemRow[]) ?? []) {
+  for (const row of itemRows) {
     const list = itemsByConfirmation.get(row.confirmation_id) ?? []
     list.push(enrichItem(row))
     itemsByConfirmation.set(row.confirmation_id, list)

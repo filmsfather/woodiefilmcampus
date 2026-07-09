@@ -437,9 +437,12 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
 
   if (!row.stage1Submitted) {
     return (
-      <Button asChild size="sm" variant="outline">
-        <Link href={detailHref}>성적표 업로드</Link>
-      </Button>
+      <div className="flex items-center gap-2">
+        <Button asChild size="sm" variant="outline">
+          <Link href={detailHref}>성적표 업로드</Link>
+        </Button>
+        <PrincipalConfirmButton row={row} />
+      </div>
     )
   }
 

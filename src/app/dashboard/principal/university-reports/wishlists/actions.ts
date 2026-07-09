@@ -10,6 +10,7 @@ import {
   createGroupSchema,
   createPlanSchema,
   renamePlanSchema,
+  reorderGroupMembersSchema,
   unassignStudentSchema,
   updateGroupSchema,
 } from '@/lib/validation/class-formation'
@@ -189,6 +190,18 @@ export async function assignStudentAction(input: unknown): Promise<FormationActi
   }
 
   const supabase = createAdminClient()
+
+  // 새로 배치되는 학생은 대상 반의 맨 뒤에 놓는다.
+  const { data: maxRow } = await supabase
+    .from('class_formation_members')
+    .select('sort_order')
+    .eq('group_id', parsed.data.groupId)
+    .order('sort_order', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const nextSort = ((maxRow?.sort_order as number | undefined) ?? -1) + 1
+
   const { error } = await supabase
     .from('class_formation_members')
     .upsert(
@@ -196,6 +209,7 @@ export async function assignStudentAction(input: unknown): Promise<FormationActi
         plan_id: parsed.data.planId,
         group_id: parsed.data.groupId,
         student_id: parsed.data.studentId,
+        sort_order: nextSort,
       },
       { onConflict: 'plan_id,student_id' }
     )
@@ -203,6 +217,39 @@ export async function assignStudentAction(input: unknown): Promise<FormationActi
   if (error) {
     console.error('[class-formation] assignStudentAction error', error)
     return fail('학생 배치 중 오류가 발생했습니다.')
+  }
+
+  revalidatePath(WORKSPACE_PATH)
+  return { ok: true }
+}
+
+export async function reorderGroupMembersAction(input: unknown): Promise<FormationActionResult> {
+  const profile = await requireManager()
+  if (!profile) return fail('학생 순서를 변경할 권한이 없습니다.')
+
+  const parsed = reorderGroupMembersSchema.safeParse(input)
+  if (!parsed.success) {
+    return fail(parsed.error.issues[0]?.message ?? '입력값을 확인해주세요.')
+  }
+
+  const supabase = createAdminClient()
+  const { planId, groupId, orderedStudentIds } = parsed.data
+
+  const results = await Promise.all(
+    orderedStudentIds.map((studentId, index) =>
+      supabase
+        .from('class_formation_members')
+        .update({ sort_order: index })
+        .eq('plan_id', planId)
+        .eq('group_id', groupId)
+        .eq('student_id', studentId)
+    )
+  )
+
+  const failed = results.find((result) => result.error)
+  if (failed?.error) {
+    console.error('[class-formation] reorderGroupMembersAction error', failed.error)
+    return fail('학생 순서를 저장하지 못했습니다.')
   }
 
   revalidatePath(WORKSPACE_PATH)

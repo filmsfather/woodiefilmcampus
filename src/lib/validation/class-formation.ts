@@ -68,6 +68,14 @@ export const unassignStudentSchema = z.object({
   studentId: uuidField,
 })
 
+export const reorderGroupMembersSchema = z.object({
+  planId: uuidField,
+  groupId: uuidField,
+  orderedStudentIds: z
+    .array(uuidField)
+    .min(1, { message: '정렬할 학생 목록이 비어 있습니다.' }),
+})
+
 export type CreatePlanInput = z.infer<typeof createPlanSchema>
 export type CreateGroupInput = z.infer<typeof createGroupSchema>
 export type UpdateGroupInput = z.infer<typeof updateGroupSchema>

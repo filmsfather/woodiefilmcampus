@@ -1,6 +1,20 @@
 'use client'
 
-import { CalendarDays, MoreVertical, Pencil, Trash2, TriangleAlert, UserPlus, X } from 'lucide-react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import {
+  CalendarDays,
+  GripVertical,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+  TriangleAlert,
+  UserPlus,
+  X,
+} from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { prepareFinalConfirmationFormAction } from '@/app/dashboard/principal/university-reports/workflow/actions'
 import { weekdayPreferenceLabel, type WeekdayPreference } from '@/lib/university-confirmation/constants'
 import type { WishlistCategory } from '@/lib/university-policy/yedae'
 import type { ClassFormationGroup, FormationStudent } from '@/types/class-formation'
@@ -27,6 +42,46 @@ export const CATEGORY_TONE: Record<WishlistCategory, string> = {
   general: 'bg-sky-100 text-sky-700',
   specialized: 'bg-amber-100 text-amber-800',
   karts: 'bg-violet-100 text-violet-700',
+}
+
+/**
+ * 학생의 최종 확정 폼(/confirm/[token])으로 이동하는 미니 버튼.
+ * 워크플로 화면의 "원장 확정" 버튼과 동일한 동작을 반 편성 카드에서 바로 실행한다.
+ */
+function ConfirmFormMiniButton({ studentId }: { studentId: string }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+
+  const handleClick = () => {
+    startTransition(async () => {
+      const result = await prepareFinalConfirmationFormAction({ studentId })
+      if ('error' in result) {
+        window.alert(result.error)
+        return
+      }
+      router.push(`/confirm/${result.token}`)
+    })
+  }
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className="h-5 gap-0.5 rounded px-1.5 text-[10px] border-violet-300 text-violet-700 hover:bg-violet-50"
+      disabled={isPending}
+      onClick={handleClick}
+      onMouseDown={(event) => event.stopPropagation()}
+      title="원장 확정 폼으로 이동"
+    >
+      {isPending ? (
+        <Loader2 className="size-3 animate-spin" />
+      ) : (
+        <ShieldCheck className="size-3" />
+      )}
+      확정
+    </Button>
+  )
 }
 
 function UniversityBadges({ student }: { student: FormationStudent }) {
@@ -81,7 +136,14 @@ export function StudentPoolCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-sm font-semibold text-slate-900">{student.studentName}</span>
+              <Link
+                href={`/dashboard/principal/university-reports/${student.studentId}/report`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm font-semibold text-slate-900 underline-offset-2 hover:text-sky-600 hover:underline"
+              >
+                {student.studentName}
+              </Link>
               {student.className ? (
                 <Badge variant="outline" className="text-[10px] text-slate-500">
                   {student.className}
@@ -168,6 +230,7 @@ export function GroupCard({
   onDelete,
   onMoveStudent,
   onRemoveStudent,
+  onReorderMembers,
 }: {
   group: ClassFormationGroup
   members: FormationStudent[]
@@ -178,9 +241,60 @@ export function GroupCard({
   onDelete: () => void
   onMoveStudent: (studentId: string, targetGroupId: string) => void
   onRemoveStudent: (studentId: string) => void
+  onReorderMembers: (orderedStudentIds: string[]) => void
 }) {
   const commonUniversities = computeCommonUniversities(members)
   const otherGroups = allGroups.filter((g) => g.id !== group.id)
+
+  const memberIdsKey = members.map((member) => member.studentId).join('|')
+  const [order, setOrder] = useState<string[]>(() =>
+    members.map((member) => member.studentId)
+  )
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
+  // 서버 갱신(router.refresh) 등으로 멤버 구성이 바뀌면 로컬 순서를 동기화한다.
+  useEffect(() => {
+    setOrder(memberIdsKey ? memberIdsKey.split('|') : [])
+  }, [memberIdsKey])
+
+  const membersById = useMemo(() => {
+    const map = new Map<string, FormationStudent>()
+    for (const member of members) map.set(member.studentId, member)
+    return map
+  }, [members])
+
+  const orderedMembers = order
+    .map((id) => membersById.get(id))
+    .filter((member): member is FormationStudent => Boolean(member))
+
+  const handleDragStart = (event: React.DragEvent, studentId: string) => {
+    event.dataTransfer.effectAllowed = 'move'
+    // Safari는 setData 없이는 드래그를 시작하지 않는다.
+    event.dataTransfer.setData('text/plain', studentId)
+    setDraggingId(studentId)
+  }
+
+  const handleDragOver = (event: React.DragEvent, overId: string) => {
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    if (!draggingId || draggingId === overId) return
+    setOrder((prev) => {
+      const from = prev.indexOf(draggingId)
+      const to = prev.indexOf(overId)
+      if (from < 0 || to < 0 || from === to) return prev
+      const next = [...prev]
+      next.splice(from, 1)
+      next.splice(to, 0, draggingId)
+      return next
+    })
+  }
+
+  const handleDragEnd = () => {
+    if (draggingId && order.join('|') !== memberIdsKey) {
+      onReorderMembers(order)
+    }
+    setDraggingId(null)
+  }
 
   return (
     <Card className="border-slate-200 shadow-sm">
@@ -252,36 +366,58 @@ export function GroupCard({
           </p>
         ) : (
           <div className="space-y-1.5">
-            {members.map((member) => {
+            {orderedMembers.map((member) => {
               const mismatch = group.weekday && !member.weekdayPreferences.includes(group.weekday)
+              const isDragging = draggingId === member.studentId
               return (
                 <div
                   key={member.studentId}
-                  className="flex items-start justify-between gap-2 rounded-md border border-slate-100 bg-white px-2.5 py-2"
+                  draggable={!disabled}
+                  onDragStart={(event) => handleDragStart(event, member.studentId)}
+                  onDragOver={(event) => handleDragOver(event, member.studentId)}
+                  onDrop={(event) => event.preventDefault()}
+                  onDragEnd={handleDragEnd}
+                  className={`flex items-start justify-between gap-2 rounded-md border bg-white px-2.5 py-2 ${
+                    isDragging
+                      ? 'border-sky-300 opacity-60 shadow-sm'
+                      : 'border-slate-100'
+                  } ${disabled ? '' : 'cursor-grab active:cursor-grabbing'}`}
                 >
-                  <div className="min-w-0 space-y-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-sm font-medium text-slate-800">{member.studentName}</span>
-                      {member.className ? (
-                        <span className="text-[10px] text-slate-400">{member.className}</span>
-                      ) : null}
-                      {mismatch ? (
-                        <Badge className="gap-1 bg-rose-100 text-rose-700">
-                          <TriangleAlert className="size-3" /> 요일 불일치
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {member.universities.slice(0, 4).map((u) => (
-                        <Badge key={u.key} className={`${CATEGORY_TONE[u.category]} text-[10px]`}>
-                          {u.shortName ?? u.universityName}
-                        </Badge>
-                      ))}
-                      {member.universities.length > 4 ? (
-                        <span className="text-[10px] text-slate-400">
-                          +{member.universities.length - 4}
-                        </span>
-                      ) : null}
+                  <div className="flex min-w-0 items-start gap-1.5">
+                    <GripVertical className="mt-0.5 size-3.5 shrink-0 text-slate-300" />
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Link
+                          href={`/dashboard/principal/university-reports/${member.studentId}/report`}
+                          target="_blank"
+                          rel="noreferrer"
+                          draggable={false}
+                          className="text-sm font-medium text-slate-800 underline-offset-2 hover:text-sky-600 hover:underline"
+                        >
+                          {member.studentName}
+                        </Link>
+                        <ConfirmFormMiniButton studentId={member.studentId} />
+                        {member.className ? (
+                          <span className="text-[10px] text-slate-400">{member.className}</span>
+                        ) : null}
+                        {mismatch ? (
+                          <Badge className="gap-1 bg-rose-100 text-rose-700">
+                            <TriangleAlert className="size-3" /> 요일 불일치
+                          </Badge>
+                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {member.universities.slice(0, 4).map((u) => (
+                          <Badge key={u.key} className={`${CATEGORY_TONE[u.category]} text-[10px]`}>
+                            {u.shortName ?? u.universityName}
+                          </Badge>
+                        ))}
+                        {member.universities.length > 4 ? (
+                          <span className="text-[10px] text-slate-400">
+                            +{member.universities.length - 4}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                   <DropdownMenu>

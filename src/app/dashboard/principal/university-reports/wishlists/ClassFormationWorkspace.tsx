@@ -43,6 +43,7 @@ import {
   deletePlanAction,
   materializePlanAction,
   renamePlanAction,
+  reorderGroupMembersAction,
   unassignStudentAction,
   updateGroupAction,
   type FormationActionResult,
@@ -224,6 +225,11 @@ export default function ClassFormationWorkspace({
   const handleUnassign = (studentId: string) => {
     if (!activePlanId) return
     run(() => unassignStudentAction({ planId: activePlanId, studentId }))
+  }
+
+  const handleReorderMembers = (groupId: string, orderedStudentIds: string[]) => {
+    if (!activePlanId) return
+    run(() => reorderGroupMembersAction({ planId: activePlanId, groupId, orderedStudentIds }))
   }
 
   const handleMaterialize = () => {
@@ -616,6 +622,7 @@ export default function ClassFormationWorkspace({
                   onDelete={() => handleDeleteGroup(group.id)}
                   onMoveStudent={(studentId, targetGroupId) => handleAssign(studentId, targetGroupId)}
                   onRemoveStudent={(studentId) => handleUnassign(studentId)}
+                  onReorderMembers={(orderedStudentIds) => handleReorderMembers(group.id, orderedStudentIds)}
                 />
               ))}
             </div>

@@ -50,6 +50,7 @@ interface GroupRow {
 interface MemberRow {
   group_id: string
   student_id: string
+  sort_order: number
 }
 
 function toPlan(row: PlanRow): ClassFormationPlan {
@@ -177,8 +178,9 @@ export async function fetchClassFormationBoard(
       .order('sort_order', { ascending: true }),
     supabase
       .from('class_formation_members')
-      .select('group_id, student_id')
-      .eq('plan_id', planId),
+      .select('group_id, student_id, sort_order')
+      .eq('plan_id', planId)
+      .order('sort_order', { ascending: true }),
     fetchFormationStudents(),
   ])
 
