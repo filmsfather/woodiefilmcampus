@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import type { StudentWorkflowRow } from '@/lib/university-report/workflow'
 import {
   backfillMissingEvaluationsAction,
+  prepareFinalConfirmationFormAction,
   principalConfirmFinalAction,
   publishBulkReportAction,
   runBulkAnalysisAction,
@@ -498,8 +499,10 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
 }
 
 /**
- * 확정 기간이 지난 학생을 원장 권한으로 최종 확정하는 개별 버튼.
- * 컨설팅 추천 확정본 기준으로 확정되며, 학생은 이후에도 확정 링크에서 수정할 수 있다.
+ * 원장이 학생의 최종 확정 폼(/confirm/[token])으로 직접 들어가는 개별 버튼.
+ * 폼에서 지원 대학과 수업 희망 요일을 원장이 직접 수정·확정할 수 있으며,
+ * 원장이 제출하면 confirmed_source='principal'로 기록되고 학생·학부모에게
+ * 수정 가능한 확정 링크 안내 문자가 발송된다.
  */
 function PrincipalConfirmButton({ row }: { row: StudentWorkflowRow }) {
   const router = useRouter()
@@ -507,25 +510,14 @@ function PrincipalConfirmButton({ row }: { row: StudentWorkflowRow }) {
   const [error, setError] = useState<string | null>(null)
 
   const handleClick = () => {
-    if (
-      !window.confirm(
-        `${row.name ?? row.email} 학생을 원장 권한으로 최종 확정합니다.\n컨설팅 추천 대학 기준으로 확정되며, 학생·학부모에게 수정 가능한 확정 링크 안내 문자가 발송됩니다.\n진행할까요?`
-      )
-    ) {
-      return
-    }
     setError(null)
     startTransition(async () => {
-      const result = await principalConfirmFinalAction({ studentIds: [row.studentId] })
+      const result = await prepareFinalConfirmationFormAction({ studentId: row.studentId })
       if ('error' in result) {
         setError(result.error)
         return
       }
-      if (result.failed > 0) {
-        setError(result.errors[0] ?? '확정 처리에 실패했습니다.')
-        return
-      }
-      router.refresh()
+      router.push(`/confirm/${result.token}`)
     })
   }
 

@@ -261,6 +261,35 @@ export async function principalConfirmFinalAction(payload: unknown): Promise<Bul
   return { success: true, ...result }
 }
 
+const singleStudentSchema = z.object({ studentId: z.string().uuid() })
+
+export type PrepareConfirmationFormResult = { success: true; token: string } | { error: string }
+
+/**
+ * 원장이 학생의 최종 확정 폼(/confirm/[token])에 직접 들어가 대학·수업 요일을
+ * 수정·확정할 수 있도록, 확정 세션을 확보(없으면 컨설팅 추천본 복사 생성)하고
+ * 공유 토큰을 반환한다. 확정 자체는 폼 제출 시 이루어진다.
+ */
+export async function prepareFinalConfirmationFormAction(
+  payload: unknown
+): Promise<PrepareConfirmationFormResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal') return { error: '원장만 실행할 수 있습니다.' }
+
+  const parsed = singleStudentSchema.safeParse(payload)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '잘못된 요청입니다.' }
+  }
+
+  const confirmation = await ensureFinalConfirmation(parsed.data.studentId, profile.id)
+  if (!confirmation) {
+    return { error: '확정 세션을 준비하지 못했습니다.' }
+  }
+
+  return { success: true, token: confirmation.shareToken }
+}
+
 export interface BackfillResult extends BulkActionResult {
   candidates: number
   notified: number

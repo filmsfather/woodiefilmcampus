@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 
+import { ShieldCheck } from 'lucide-react'
+
 import ConfirmationDeadlineBanner from '@/components/dashboard/university-confirmation/ConfirmationDeadlineBanner'
 import FinalConfirmationForm, {
   type FinalConfirmationRecommendation,
 } from '@/components/dashboard/university-confirmation/FinalConfirmationForm'
+import { getAuthContext } from '@/lib/auth'
 import { fetchFinalConfirmationByToken } from '@/lib/university-confirmation/data'
 import { fetchWishlistDetailForStudent, listWishlistCatalog } from '@/lib/university-wishlist/data'
 
@@ -28,6 +31,10 @@ export default async function FinalConfirmationPage({ params }: FinalConfirmatio
   if (!detail) {
     notFound()
   }
+
+  // 원장이 로그인한 상태로 들어오면 원장 확정 모드임을 안내한다.
+  const { profile } = await getAuthContext()
+  const isPrincipal = profile?.role === 'principal'
 
   const catalog = listWishlistCatalog()
 
@@ -70,6 +77,17 @@ export default async function FinalConfirmationPage({ params }: FinalConfirmatio
           컨설팅을 마친 뒤 실제 지원할 대학과 수업 희망 요일을 확정해 주세요.
         </p>
       </header>
+
+      {isPrincipal ? (
+        <div className="mt-5 flex items-start gap-2 rounded-lg border border-violet-200 bg-violet-50 p-3 text-sm text-violet-800">
+          <ShieldCheck className="mt-0.5 size-4 shrink-0 text-violet-600" />
+          <p className="leading-relaxed">
+            원장 권한으로 접속 중입니다. 여기서 지원 대학과 수업 희망 요일을 수정해 확정하면
+            <span className="font-semibold"> 원장 확정</span>으로 기록되고, 학생·학부모에게 수정
+            가능한 확정 링크 안내 문자가 발송됩니다.
+          </p>
+        </div>
+      ) : null}
 
       <div className="mt-5">
         <ConfirmationDeadlineBanner />

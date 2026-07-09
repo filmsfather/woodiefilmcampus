@@ -3,10 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
+import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getProgramPreset } from '@/lib/university-policy/presets'
 import { resolveWishlistCategory } from '@/lib/university-policy/yedae'
 import { WEEKDAY_PREFERENCE_VALUES } from '@/lib/university-confirmation/constants'
+import { notifyUniversityPrincipalConfirmed } from '@/lib/university-report/notifications'
 
 export type SubmitFinalConfirmationResult = { success: true } | { error: string }
 
@@ -22,11 +24,14 @@ const submitSchema = z.object({
 })
 
 /**
- * 공유 링크(/confirm/[token])에서 로그인하지 않은 학생·학부모가 최종 지원 대학과
- * 수업 희망 요일을 확정한다. 토큰을 먼저 검증하고 service role로 저장한다.
+ * 공유 링크(/confirm/[token])에서 최종 지원 대학과 수업 희망 요일을 확정한다.
+ * 토큰을 먼저 검증하고 service role로 저장한다.
  *  - 일반대는 수시 6장 정원에 포함되므로 최대 6개.
  *  - 한예종은 지원 여부(karts_apply) 토글로 저장(항목 테이블에는 넣지 않음).
  *  - 제출 시 기존 항목을 교체하고 status를 confirmed로 전환한다.
+ *  - 원장이 로그인한 상태로 제출하면 confirmed_source='principal'로 기록하고
+ *    학생·학부모에게 수정 가능한 확정 링크 안내 문자를 발송한다(best-effort).
+ *    이후 학생이 재제출하면 'student'로 승격된다.
  */
 export async function submitFinalConfirmationAction(
   payload: unknown
@@ -102,6 +107,10 @@ export async function submitFinalConfirmationAction(
     }
   }
 
+  // 원장이 로그인한 상태로 폼을 제출하면 원장 확정으로 기록한다.
+  const { profile } = await getAuthContext()
+  const isPrincipal = profile?.role === 'principal'
+
   const { error: updateError } = await supabase
     .from('university_final_confirmations')
     .update({
@@ -109,14 +118,26 @@ export async function submitFinalConfirmationAction(
       karts_apply: parsed.data.kartsApply,
       weekday_preferences: parsed.data.weekdayPreferences,
       confirmed_at: new Date().toISOString(),
-      // 원장 임의 확정(principal) 후 학생이 재제출하면 student로 승격된다.
-      confirmed_source: 'student',
+      // 원장 확정(principal) 후 학생이 재제출하면 student로 승격된다.
+      confirmed_source: isPrincipal ? 'principal' : 'student',
     })
     .eq('id', confirmation.id)
 
   if (updateError) {
     console.error('[final-confirmation] submit update error', updateError)
     return { error: '처리에 실패했습니다. 잠시 후 다시 시도해 주세요.' }
+  }
+
+  // 원장 확정 시 학생·학부모에게 수정 가능한 확정 링크 안내 문자를 발송한다(best-effort).
+  if (isPrincipal) {
+    try {
+      await notifyUniversityPrincipalConfirmed({
+        studentId: confirmation.student_id,
+        token: parsed.data.token,
+      })
+    } catch (error) {
+      console.error('[final-confirmation] principal confirmed notify error', error)
+    }
   }
 
   revalidatePath('/dashboard/principal/university-reports/wishlists')
