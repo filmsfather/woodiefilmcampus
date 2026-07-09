@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   sendUniversityConsultOpinionRequestSMS,
   sendUniversityFinalConfirmationSMS,
+  sendUniversityPrincipalConfirmedSMS,
   sendUniversityRecommendationReplySMS,
   sendUniversityRecommendationSMS,
   sendUniversityReportShareLinkSMS,
@@ -195,6 +196,42 @@ export async function notifyUniversityFinalConfirmationRequest({
   let sent = 0
   for (const phoneNumber of targets.phones) {
     const ok = await sendUniversityFinalConfirmationSMS({
+      phoneNumber,
+      studentName: targets.studentName,
+      shareUrl: confirmUrl,
+    })
+    if (ok) sent += 1
+  }
+
+  return { sent }
+}
+
+/**
+ * 원장이 확정 기간 경과로 최종 확정을 임의 처리했을 때, 학생·학부모에게
+ * 확정 내역 확인·수정 링크(/confirm/[token])를 문자로 보낸다. (best-effort)
+ */
+export async function notifyUniversityPrincipalConfirmed({
+  studentId,
+  token,
+}: NotifyParams): Promise<{ sent: number }> {
+  const origin = resolveSiteOrigin()
+  if (!origin || !token) {
+    return { sent: 0 }
+  }
+
+  const targets = await fetchNotifyTargets(studentId)
+  if (!targets || targets.phones.length === 0) {
+    if (targets) {
+      console.warn('[university-report] 학생·학부모 연락처가 없어 원장 확정 안내 문자 발송을 건너뜁니다.', studentId)
+    }
+    return { sent: 0 }
+  }
+
+  const confirmUrl = `${origin}/confirm/${token}`
+
+  let sent = 0
+  for (const phoneNumber of targets.phones) {
+    const ok = await sendUniversityPrincipalConfirmedSMS({
       phoneNumber,
       studentName: targets.studentName,
       shareUrl: confirmUrl,

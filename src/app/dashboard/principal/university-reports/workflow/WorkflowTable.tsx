@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle, Check, ClipboardCheck, Loader2, MessageSquare, Minus, Play, RefreshCw, Send } from 'lucide-react'
+import { AlertTriangle, Check, ClipboardCheck, Loader2, MessageSquare, Minus, Play, RefreshCw, Send, ShieldCheck } from 'lucide-react'
 
 import { Search } from 'lucide-react'
 
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import type { StudentWorkflowRow } from '@/lib/university-report/workflow'
 import {
   backfillMissingEvaluationsAction,
+  principalConfirmFinalAction,
   publishBulkReportAction,
   runBulkAnalysisAction,
   sendConsultOpinionRequestSmsAction,
@@ -127,6 +128,18 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
     runBulk(sendFinalConfirmationRequestSmsAction, '최종 확정 요청 문자')
   }
 
+  const runPrincipalConfirm = () => {
+    if (selectedIds.length === 0) return
+    if (
+      !window.confirm(
+        `선택한 ${selectedIds.length}명을 원장 권한으로 최종 확정합니다.\n컨설팅 추천 대학 기준으로 확정되며, 학생·학부모에게 수정 가능한 확정 링크 안내 문자가 발송됩니다.\n이미 확정한 학생은 건너뜁니다. 진행할까요?`
+      )
+    ) {
+      return
+    }
+    runBulk(principalConfirmFinalAction, '원장 임의 확정')
+  }
+
   const runBackfill = () => {
     if (
       !window.confirm(
@@ -214,6 +227,21 @@ export default function WorkflowTable({ rows, emptyMessage }: WorkflowTableProps
               <ClipboardCheck className="size-4" />
             )}
             최종 확정 요청 문자
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-2 border-violet-300 text-violet-700 hover:bg-violet-50"
+            disabled={isPending || selectedIds.length === 0}
+            onClick={runPrincipalConfirm}
+          >
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ShieldCheck className="size-4" />
+            )}
+            선택 임의 확정
           </Button>
           <Button
             type="button"
@@ -441,12 +469,18 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
         <Button asChild size="sm" variant="outline">
           <Link href={reportHref}>리포트 보기</Link>
         </Button>
+        <PrincipalConfirmButton row={row} />
       </div>
     )
   }
 
   if (!row.stage7FinalConfirmed) {
-    return <span className="text-xs text-slate-400">최종 확정 대기</span>
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-slate-400">최종 확정 대기</span>
+        <PrincipalConfirmButton row={row} />
+      </div>
+    )
   }
 
   return (
@@ -460,5 +494,59 @@ function StudentRowAction({ row, detailHref }: { row: StudentWorkflowRow; detail
         <Check className="size-3.5" /> 최종 확정 완료
       </Link>
     </Button>
+  )
+}
+
+/**
+ * 확정 기간이 지난 학생을 원장 권한으로 최종 확정하는 개별 버튼.
+ * 컨설팅 추천 확정본 기준으로 확정되며, 학생은 이후에도 확정 링크에서 수정할 수 있다.
+ */
+function PrincipalConfirmButton({ row }: { row: StudentWorkflowRow }) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  const handleClick = () => {
+    if (
+      !window.confirm(
+        `${row.name ?? row.email} 학생을 원장 권한으로 최종 확정합니다.\n컨설팅 추천 대학 기준으로 확정되며, 학생·학부모에게 수정 가능한 확정 링크 안내 문자가 발송됩니다.\n진행할까요?`
+      )
+    ) {
+      return
+    }
+    setError(null)
+    startTransition(async () => {
+      const result = await principalConfirmFinalAction({ studentIds: [row.studentId] })
+      if ('error' in result) {
+        setError(result.error)
+        return
+      }
+      if (result.failed > 0) {
+        setError(result.errors[0] ?? '확정 처리에 실패했습니다.')
+        return
+      }
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        className="gap-1 border-violet-300 text-violet-700 hover:bg-violet-50"
+        disabled={isPending}
+        onClick={handleClick}
+      >
+        {isPending ? (
+          <Loader2 className="size-3.5 animate-spin" />
+        ) : (
+          <ShieldCheck className="size-3.5" />
+        )}
+        원장 확정
+      </Button>
+      {error ? <span className="text-[11px] text-red-600">{error}</span> : null}
+    </div>
   )
 }

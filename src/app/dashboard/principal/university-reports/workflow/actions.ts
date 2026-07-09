@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
@@ -8,6 +9,7 @@ import { ensureFinalConfirmation } from '@/lib/university-confirmation/data'
 import {
   notifyUniversityConsultOpinionRequest,
   notifyUniversityFinalConfirmationRequest,
+  notifyUniversityPrincipalConfirmed,
   notifyUniversityReportWishReselect,
 } from '@/lib/university-report/notifications'
 import {
@@ -170,6 +172,91 @@ export async function sendFinalConfirmationRequestSmsAction(payload: unknown): P
       }
     }
   }
+
+  return { success: true, ...result }
+}
+
+/**
+ * 확정 기간이 지나도록 최종 확정 폼을 제출하지 않은 학생을 원장 권한으로 임의 확정한다.
+ *
+ * 학생별로 확정 세션을 확보(ensureFinalConfirmation — 없으면 컨설팅 추천 확정본을 복사해 생성)한 뒤
+ * status를 confirmed로 전환하고 confirmed_source='principal'로 기록한다.
+ * 이미 확정된 학생은 덮어쓰지 않고 건너뛴다.
+ *
+ * 확정 후 학생·학부모에게 기존 확정 링크(/confirm/[token])로 "원장이 임의 확정했으니
+ * 수정하려면 링크에서 재확정하라"는 안내 문자를 발송한다(best-effort — 폼은 재제출을
+ * 허용하므로 학생이 이후 직접 수정하면 confirmed_source가 student로 승격된다).
+ */
+export async function principalConfirmFinalAction(payload: unknown): Promise<BulkResult> {
+  const { profile } = await getAuthContext()
+  if (!profile) return { error: '로그인이 필요합니다.' }
+  if (profile.role !== 'principal') return { error: '원장만 실행할 수 있습니다.' }
+
+  const parsed = bulkSchema.safeParse(payload)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '잘못된 요청입니다.' }
+  }
+
+  const supabase = createAdminClient()
+  const result: BulkActionResult = { ok: 0, failed: 0, errors: [] }
+
+  for (const studentId of parsed.data.studentIds) {
+    try {
+      const confirmation = await ensureFinalConfirmation(studentId, profile.id)
+      if (!confirmation) {
+        result.failed += 1
+        if (!result.errors.includes('확정 세션을 준비하지 못한 학생이 있습니다.')) {
+          result.errors.push('확정 세션을 준비하지 못한 학생이 있습니다.')
+        }
+        continue
+      }
+
+      // 이미 학생이 확정한 경우 원장 확정으로 덮어쓰지 않는다.
+      if (confirmation.status === 'confirmed') {
+        result.failed += 1
+        if (!result.errors.includes('이미 최종 확정된 학생은 건너뛰었습니다.')) {
+          result.errors.push('이미 최종 확정된 학생은 건너뛰었습니다.')
+        }
+        continue
+      }
+
+      const { error: updateError } = await supabase
+        .from('university_final_confirmations')
+        .update({
+          status: 'confirmed',
+          confirmed_at: new Date().toISOString(),
+          confirmed_source: 'principal',
+        })
+        .eq('id', confirmation.id)
+        .eq('status', 'pending')
+
+      if (updateError) {
+        console.error('[workflow] principalConfirmFinalAction update error', updateError)
+        result.failed += 1
+        if (!result.errors.includes('확정 처리 중 오류가 발생했습니다.')) {
+          result.errors.push('확정 처리 중 오류가 발생했습니다.')
+        }
+        continue
+      }
+
+      result.ok += 1
+
+      // 안내 문자는 best-effort: 실패해도 확정 자체는 유지한다.
+      await notifyUniversityPrincipalConfirmed({
+        studentId,
+        token: confirmation.shareToken,
+      })
+    } catch (error) {
+      console.error('[workflow] principalConfirmFinalAction error', error)
+      result.failed += 1
+      if (!result.errors.includes('확정 처리 중 오류가 발생했습니다.')) {
+        result.errors.push('확정 처리 중 오류가 발생했습니다.')
+      }
+    }
+  }
+
+  revalidatePath('/dashboard/principal/university-reports/workflow')
+  revalidatePath('/dashboard/principal/university-reports/wishlists')
 
   return { success: true, ...result }
 }

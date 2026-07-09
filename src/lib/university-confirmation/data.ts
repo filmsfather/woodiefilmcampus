@@ -14,6 +14,8 @@ import { getProgramPreset, getUniversityPreset } from '@/lib/university-policy/p
 import { resolveWishlistCategory } from '@/lib/university-policy/yedae'
 
 export type FinalConfirmationStatus = 'pending' | 'confirmed'
+/** 확정 주체: 학생 직접 제출(student) / 확정 기간 경과 후 원장 임의 확정(principal). */
+export type FinalConfirmationSource = 'student' | 'principal'
 /** 확정 폼에 담기는 대학 카테고리(한예종은 별도 토글로 관리). */
 export type FinalConfirmationCategory = 'general' | 'specialized'
 
@@ -40,6 +42,7 @@ export interface FinalConfirmation {
   kartsApply: boolean
   weekdayPreferences: string[]
   confirmedAt: string | null
+  confirmedSource: FinalConfirmationSource | null
   createdAt: string
   updatedAt: string
 }
@@ -60,6 +63,7 @@ interface ConfirmationRow {
   karts_apply: boolean
   weekday_preferences: string[] | null
   confirmed_at: string | null
+  confirmed_source: FinalConfirmationSource | null
   created_at: string
   updated_at: string
 }
@@ -76,7 +80,7 @@ interface ConfirmationItemRow {
 }
 
 const CONFIRMATION_COLUMNS =
-  'id, student_id, share_token, status, karts_apply, weekday_preferences, confirmed_at, created_at, updated_at'
+  'id, student_id, share_token, status, karts_apply, weekday_preferences, confirmed_at, confirmed_source, created_at, updated_at'
 const ITEM_COLUMNS =
   'id, confirmation_id, program_key, university_id, university_label, category, sort_order, note'
 
@@ -89,6 +93,7 @@ function toConfirmation(row: ConfirmationRow): FinalConfirmation {
     kartsApply: row.karts_apply,
     weekdayPreferences: row.weekday_preferences ?? [],
     confirmedAt: row.confirmed_at,
+    confirmedSource: row.confirmed_source,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

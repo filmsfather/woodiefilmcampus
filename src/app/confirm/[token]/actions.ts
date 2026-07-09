@@ -109,6 +109,8 @@ export async function submitFinalConfirmationAction(
       karts_apply: parsed.data.kartsApply,
       weekday_preferences: parsed.data.weekdayPreferences,
       confirmed_at: new Date().toISOString(),
+      // 원장 임의 확정(principal) 후 학생이 재제출하면 student로 승격된다.
+      confirmed_source: 'student',
     })
     .eq('id', confirmation.id)
 
