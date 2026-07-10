@@ -63,6 +63,7 @@ const BASE_PATH = '/dashboard/principal/university-reports/wishlists'
 
 type WeekdayFilter = 'all' | WeekdayPreference
 type CategoryFilter = 'all' | WishlistCategory
+type ConfirmationFilter = 'all' | 'confirmed' | 'unconfirmed'
 
 interface UniversityOption {
   key: string
@@ -102,6 +103,7 @@ export default function ClassFormationWorkspace({
 
   const [weekdayFilter, setWeekdayFilter] = useState<WeekdayFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
+  const [confirmationFilter, setConfirmationFilter] = useState<ConfirmationFilter>('all')
   const [classFilter, setClassFilter] = useState<string>('all')
   const [search, setSearch] = useState('')
   const [selectedUniversities, setSelectedUniversities] = useState<Set<string>>(new Set())
@@ -277,6 +279,10 @@ export default function ClassFormationWorkspace({
   }, [students])
 
   const assignedCount = Object.keys(assignments).length
+  const unconfirmedCount = useMemo(
+    () => students.filter((student) => !student.isConfirmed).length,
+    [students]
+  )
   const unassignedStudents = useMemo(
     () => students.filter((student) => !assignments[student.studentId]),
     [students, assignments]
@@ -290,6 +296,12 @@ export default function ClassFormationWorkspace({
           return false
         }
         if (categoryFilter !== 'all' && !student.universities.some((u) => u.category === categoryFilter)) {
+          return false
+        }
+        if (confirmationFilter === 'confirmed' && !student.isConfirmed) {
+          return false
+        }
+        if (confirmationFilter === 'unconfirmed' && student.isConfirmed) {
           return false
         }
         if (classFilter !== 'all' && student.className !== classFilter) {
@@ -314,7 +326,13 @@ export default function ClassFormationWorkspace({
         return true
       })
       .sort((a, b) => a.studentName.localeCompare(b.studentName, 'ko'))
-  }, [unassignedStudents, weekdayFilter, categoryFilter, classFilter, selectedUniversities, search])
+  }, [unassignedStudents, weekdayFilter, categoryFilter, confirmationFilter, classFilter, selectedUniversities, search])
+
+  // 요일 필터는 편성 반 카드에도 적용한다(요일 미지정 반은 필터 시 숨김).
+  const filteredGroups = useMemo(() => {
+    if (weekdayFilter === 'all') return groups
+    return groups.filter((group) => group.weekday === weekdayFilter)
+  }, [groups, weekdayFilter])
 
   const groupDialogInitial = useMemo<GroupFormValues>(() => {
     if (groupDialog.mode === 'edit' && groupDialog.editingId) {
@@ -336,6 +354,7 @@ export default function ClassFormationWorkspace({
   const hasActiveFilters =
     weekdayFilter !== 'all' ||
     categoryFilter !== 'all' ||
+    confirmationFilter !== 'all' ||
     classFilter !== 'all' ||
     search.trim() !== '' ||
     selectedUniversities.size > 0
@@ -343,6 +362,7 @@ export default function ClassFormationWorkspace({
   const resetFilters = () => {
     setWeekdayFilter('all')
     setCategoryFilter('all')
+    setConfirmationFilter('all')
     setClassFilter('all')
     setSearch('')
     setSelectedUniversities(new Set())
@@ -444,6 +464,9 @@ export default function ClassFormationWorkspace({
           </Badge>
           <Badge className="bg-emerald-100 text-emerald-700">배치 {assignedCount}</Badge>
           <Badge className="bg-amber-100 text-amber-800">미배치 {students.length - assignedCount}</Badge>
+          {unconfirmedCount > 0 ? (
+            <Badge className="bg-rose-100 text-rose-700">미확정 {unconfirmedCount}</Badge>
+          ) : null}
           <Button
             type="button"
             size="sm"
@@ -503,6 +526,20 @@ export default function ClassFormationWorkspace({
             <SelectItem value="general">{CATEGORY_LABELS.general}</SelectItem>
             <SelectItem value="specialized">{CATEGORY_LABELS.specialized}</SelectItem>
             <SelectItem value="karts">{CATEGORY_LABELS.karts}</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={confirmationFilter}
+          onValueChange={(value) => setConfirmationFilter(value as ConfirmationFilter)}
+        >
+          <SelectTrigger className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">확정 전체</SelectItem>
+            <SelectItem value="confirmed">확정 완료</SelectItem>
+            <SelectItem value="unconfirmed">미확정</SelectItem>
           </SelectContent>
         </Select>
 
@@ -590,7 +627,9 @@ export default function ClassFormationWorkspace({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between px-1">
-            <h2 className="text-sm font-semibold text-slate-700">편성 반 ({groups.length})</h2>
+            <h2 className="text-sm font-semibold text-slate-700">
+              편성 반 ({weekdayFilter === 'all' ? groups.length : `${filteredGroups.length}/${groups.length}`})
+            </h2>
           </div>
           {groups.length === 0 ? (
             <Card className="border-dashed border-slate-200 shadow-none">
@@ -606,9 +645,15 @@ export default function ClassFormationWorkspace({
                 </Button>
               </CardContent>
             </Card>
+          ) : filteredGroups.length === 0 ? (
+            <Card className="border-dashed border-slate-200 shadow-none">
+              <CardContent className="p-6 text-center text-xs text-slate-400">
+                선택한 요일에 해당하는 반이 없습니다.
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {groups.map((group) => (
+              {filteredGroups.map((group) => (
                 <GroupCard
                   key={group.id}
                   group={group}

@@ -4,7 +4,9 @@ import { DashboardCard } from '@/components/dashboard/DashboardCard'
 import { StudentTimetableViewer } from '@/components/dashboard/student/StudentTimetableViewer'
 import { UnreadNoticeBanner } from '@/components/dashboard/notice/UnreadNoticeBanner'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { fetchStudentExamList, fetchStudentReviewTasks } from '@/lib/exams'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { TimetableSummary } from '@/types/timetable'
@@ -59,6 +61,12 @@ const TODO_ACTIONS: DashboardActionItem[] = [
     href: '/dashboard/student/tasks',
     description: '이번 주 배정된 문제집으로 바로 이동해 과제를 마무리합니다.',
     variant: 'secondary',
+  },
+  {
+    label: '시험 응시 / 오답노트',
+    href: '/dashboard/student/exams',
+    description: '출제된 시험에 응시하고, 배정된 오답노트 과제를 작성합니다.',
+    variant: 'default',
   },
   {
     label: '공지사항 게시판',
@@ -127,6 +135,22 @@ export default async function StudentDashboardPage() {
   }
 
   const displayName = profile.name ?? profile.email ?? '학생'
+
+  const [examList, reviewTaskList] = await Promise.all([
+    fetchStudentExamList(profile.id),
+    fetchStudentReviewTasks(profile.id),
+  ])
+
+  const nowMs = Date.now()
+  const actionableExams = examList.filter(
+    (exam) =>
+      exam.sessionStatus === 'open' &&
+      !exam.attempt?.submittedAt &&
+      nowMs <= new Date(exam.closesAt).getTime()
+  )
+  const actionableReviewTasks = reviewTaskList.filter(
+    (task) => task.status === 'assigned' || task.status === 'partial'
+  )
 
   const supabase = await createServerSupabase()
 
@@ -452,6 +476,65 @@ export default async function StudentDashboardPage() {
         <h1 className="text-2xl font-semibold text-slate-900">학생 대시보드</h1>
         <p className="text-sm text-slate-600">{displayName}님, 필요한 학습 메뉴를 선택해 다음 단계를 준비해 보세요.</p>
       </div>
+
+      {(actionableExams.length > 0 || actionableReviewTasks.length > 0) && (
+        <DashboardCard
+          title="시험"
+          description="지금 응시해야 할 시험과 작성해야 할 오답노트 과제입니다."
+        >
+          <div className="space-y-3">
+            {actionableExams.map((exam) => (
+              <div
+                key={exam.sessionId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50/60 p-3"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-900">{exam.examTitle}</span>
+                    <Badge className="bg-amber-100 text-amber-700">
+                      {exam.attempt?.startedAt ? '응시 중' : '응시 대기'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    제한 {exam.durationMinutes}분 · 마감{' '}
+                    {new Date(exam.closesAt).toLocaleString('ko-KR', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}
+                  </p>
+                </div>
+                <Button asChild size="sm">
+                  <Link href={`/dashboard/student/exams/${exam.sessionId}`}>
+                    {exam.attempt?.startedAt ? '이어서 응시' : '응시하기'}
+                  </Link>
+                </Button>
+              </div>
+            ))}
+            {actionableReviewTasks.map((task) => (
+              <div
+                key={task.reviewTaskId}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-rose-200 bg-rose-50/60 p-3"
+              >
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-900">{task.examTitle} 오답노트</span>
+                    <Badge className="bg-rose-100 text-rose-700">
+                      {task.status === 'partial' ? '재작성 필요' : '작성 필요'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    문항 {task.itemCount}개
+                    {task.status === 'partial' && task.nonpassCount > 0 && ` · 재작성 ${task.nonpassCount}개`}
+                  </p>
+                </div>
+                <Button asChild size="sm" variant="secondary">
+                  <Link href={`/dashboard/student/exams/review/${task.reviewTaskId}`}>작성하기</Link>
+                </Button>
+              </div>
+            ))}
+          </div>
+        </DashboardCard>
+      )}
 
       <DashboardCard
         title="반 정보"

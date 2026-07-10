@@ -72,6 +72,22 @@ export default async function PrincipalDashboardPage() {
         </Card>
         <Card className="border-slate-200 shadow-sm">
           <CardHeader>
+            <CardTitle className="text-lg text-slate-900">시험 출제</CardTitle>
+            <CardDescription>
+              반을 선택해 시험을 출제하고, 결과 판정과 오답노트 과제까지 한 흐름으로 관리하세요.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap justify-end gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/principal/exams">오답노트 확인</Link>
+            </Button>
+            <Button asChild size="sm">
+              <Link href="/dashboard/principal/exams/new">출제하기</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
             <CardTitle className="text-lg text-slate-900">지원가능대학 레포트</CardTitle>
             <CardDescription>
               학생별 지원 가능 대학 레포트를 확인하고, 산식·컷 프리셋이 의도대로 계산되는지 검증하세요.

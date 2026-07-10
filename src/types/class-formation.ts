@@ -23,7 +23,7 @@ export interface FormationStudentUniversity {
   region: string | null
 }
 
-/** /confirm 폼 제출을 완료한 편성 대상 학생. */
+/** 편성 대상 학생(확정 완료 여부와 무관하게 승인된 학생 전체). */
 export interface FormationStudent {
   studentId: string
   studentName: string
@@ -33,6 +33,8 @@ export interface FormationStudent {
   weekdayPreferences: WeekdayPreference[]
   kartsApply: boolean
   universities: FormationStudentUniversity[]
+  /** /confirm 폼 제출(최종 확정)을 완료했는지 여부. */
+  isConfirmed: boolean
 }
 
 export interface ClassFormationGroup {
@@ -52,7 +54,7 @@ export interface ClassFormationGroup {
 export interface ClassFormationBoard {
   plan: ClassFormationPlan
   groups: ClassFormationGroup[]
-  /** 편성 대상 학생 풀(확정 완료 학생 전체). */
+  /** 편성 대상 학생 풀(승인된 학생 전체, isConfirmed로 확정 여부 구분). */
   students: FormationStudent[]
   /** studentId → groupId (배치 조회 편의). */
   assignments: Record<string, string>

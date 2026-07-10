@@ -149,6 +149,12 @@ export function StudentPoolCard({
                   {student.className}
                 </Badge>
               ) : null}
+              {!student.isConfirmed ? (
+                <Badge className="gap-1 bg-rose-100 text-[10px] text-rose-700">
+                  <TriangleAlert className="size-3" /> 미확정
+                </Badge>
+              ) : null}
+              {!student.isConfirmed ? <ConfirmFormMiniButton studentId={student.studentId} /> : null}
             </div>
           </div>
           <DropdownMenu>
@@ -399,6 +405,11 @@ export function GroupCard({
                         <ConfirmFormMiniButton studentId={member.studentId} />
                         {member.className ? (
                           <span className="text-[10px] text-slate-400">{member.className}</span>
+                        ) : null}
+                        {!member.isConfirmed ? (
+                          <Badge className="gap-1 bg-rose-100 text-rose-700">
+                            <TriangleAlert className="size-3" /> 미확정
+                          </Badge>
                         ) : null}
                         {mismatch ? (
                           <Badge className="gap-1 bg-rose-100 text-rose-700">

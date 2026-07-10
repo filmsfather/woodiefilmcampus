@@ -1,8 +1,9 @@
 /**
  * 반편성(class formation) 워크스페이스 조회 헬퍼.
  *
- * 편성 대상 풀은 /confirm 폼 제출을 완료한(status='confirmed') 학생이며,
- * `fetchConfirmedFinalSummaries()`를 단일 출처로 재사용한다.
+ * 편성 대상 풀은 승인(approved)된 학생 전체다. /confirm 폼 제출을 완료한(status='confirmed')
+ * 학생은 `fetchConfirmedFinalSummaries()`를 단일 출처로 재사용해 지원 대학·요일 정보를 채우고,
+ * 미확정 학생은 빈 지원 정보로 포함해 isConfirmed=false로 구분한다.
  * 모든 조회는 admin(service role)로 수행하고 접근 제어는 호출 페이지의 역할 검증에 맡긴다.
  */
 
@@ -104,12 +105,65 @@ export function mapFormationStudent(summary: ConfirmedFinalSummary): FormationSt
     weekdayPreferences: normalizeWeekdays(summary.weekdayPreferences),
     kartsApply: summary.kartsApply,
     universities,
+    isConfirmed: true,
   }
+}
+
+/** 최종 확정을 아직 완료하지 않은 승인 학생을 빈 지원 정보로 조회한다. */
+async function fetchUnconfirmedStudents(
+  confirmedStudentIds: Set<string>
+): Promise<FormationStudent[]> {
+  const supabase = createAdminClient()
+  const { data: students, error } = await supabase
+    .from('profiles')
+    .select('id, name, email, class_id')
+    .eq('role', 'student')
+    .eq('status', 'approved')
+
+  if (error || !students) {
+    if (error) {
+      console.error('[class-formation] fetchUnconfirmedStudents error', error)
+    }
+    return []
+  }
+
+  const unconfirmed = students.filter((s) => !confirmedStudentIds.has(s.id as string))
+  if (unconfirmed.length === 0) return []
+
+  const classIds = Array.from(
+    new Set(
+      unconfirmed
+        .map((s) => s.class_id as string | null)
+        .filter((id): id is string => Boolean(id))
+    )
+  )
+  const classNameMap = new Map<string, string>()
+  if (classIds.length > 0) {
+    const { data: classes } = await supabase.from('classes').select('id, name').in('id', classIds)
+    for (const c of classes ?? []) classNameMap.set(c.id as string, c.name as string)
+  }
+
+  return unconfirmed.map((s) => ({
+    studentId: s.id as string,
+    studentName: (s.name as string | null) ?? (s.email as string) ?? '학생',
+    email: (s.email as string | null) ?? '',
+    className: s.class_id ? classNameMap.get(s.class_id as string) ?? null : null,
+    weekdayPreferences: [],
+    kartsApply: false,
+    universities: [],
+    isConfirmed: false,
+  }))
 }
 
 export async function fetchFormationStudents(): Promise<FormationStudent[]> {
   const summaries = await fetchConfirmedFinalSummaries()
-  return summaries.map(mapFormationStudent)
+  const confirmed = summaries.map(mapFormationStudent)
+  const unconfirmed = await fetchUnconfirmedStudents(
+    new Set(confirmed.map((s) => s.studentId))
+  )
+  return [...confirmed, ...unconfirmed].sort((a, b) =>
+    a.studentName.localeCompare(b.studentName, 'ko')
+  )
 }
 
 export async function fetchClassFormationPlans(): Promise<ClassFormationPlan[]> {
@@ -202,8 +256,8 @@ export async function fetchClassFormationBoard(
     assignments[row.student_id] = row.group_id
   }
 
-  const groups: ClassFormationGroup[] = ((groupsResult.data as GroupRow[] | null) ?? []).map(
-    (row) => ({
+  const groups: ClassFormationGroup[] = ((groupsResult.data as GroupRow[] | null) ?? [])
+    .map((row) => ({
       id: row.id,
       planId: row.plan_id,
       name: row.name,
@@ -213,8 +267,9 @@ export async function fetchClassFormationBoard(
       sortOrder: row.sort_order,
       note: row.note,
       memberIds: membersByGroup.get(row.id) ?? [],
-    })
-  )
+    }))
+    // 편성 반 카드는 반 이름 가나다순으로 노출한다.
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
 
   return {
     plan: toPlan(planData as PlanRow),
