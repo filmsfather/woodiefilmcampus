@@ -33,7 +33,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
     <div className="min-h-screen bg-slate-50">
       <NavigationProgress />
       <div className="flex min-h-screen">
-        <aside className="hidden w-72 border-r border-slate-200 lg:block">
+        <aside className="hidden w-72 border-r border-slate-200 lg:block print:hidden">
           <DashboardSidebar
             role={profile.role}
             profileName={profile.name}
@@ -42,7 +42,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
           />
         </aside>
         <div className="flex flex-1 flex-col">
-          <header className="border-b border-slate-200 bg-white">
+          <header className="border-b border-slate-200 bg-white print:hidden">
             <div className="mx-auto flex w-full max-w-full items-center justify-between px-4 py-4 sm:px-6 lg:max-w-5xl">
               <div className="flex items-center gap-3">
                 {isMounted ? (

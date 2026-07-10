@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
@@ -8,6 +9,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Printer,
   RotateCcw,
   Search,
   Trash2,
@@ -467,6 +469,11 @@ export default function ClassFormationWorkspace({
           {unconfirmedCount > 0 ? (
             <Badge className="bg-rose-100 text-rose-700">미확정 {unconfirmedCount}</Badge>
           ) : null}
+          <Button asChild size="sm" variant="outline" className="gap-1">
+            <Link href={`${BASE_PATH}/print?plan=${activePlan.id}`} target="_blank" rel="noreferrer">
+              <Printer className="size-4" /> 인쇄 / PDF
+            </Link>
+          </Button>
           <Button
             type="button"
             size="sm"
