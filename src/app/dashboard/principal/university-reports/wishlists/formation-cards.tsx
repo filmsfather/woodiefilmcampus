@@ -417,6 +417,28 @@ export function GroupCard({
                           </Badge>
                         ) : null}
                       </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400">희망</span>
+                        {member.weekdayPreferences.length === 0 ? (
+                          <Badge variant="outline" className="gap-1 border-slate-200 text-[10px] text-slate-400">
+                            <TriangleAlert className="size-3" /> 미선택
+                          </Badge>
+                        ) : (
+                          member.weekdayPreferences.map((value) => (
+                            <Badge
+                              key={value}
+                              variant="outline"
+                              className={`gap-1 text-[10px] ${
+                                group.weekday && group.weekday === value
+                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                  : 'border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <CalendarDays className="size-3" /> {weekdayPreferenceLabel(value)}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
                       <div className="flex flex-wrap gap-1">
                         {member.universities.slice(0, 4).map((u) => (
                           <Badge key={u.key} className={`${CATEGORY_TONE[u.category]} text-[10px]`}>

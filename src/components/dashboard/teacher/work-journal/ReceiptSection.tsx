@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { TEACHER_RECEIPTS_BUCKET } from '@/lib/storage/buckets'
 import { buildRandomizedFileName, uploadFileToStorageViaClient } from '@/lib/storage-upload'
 import { saveReceipt, deleteReceipt } from '@/app/dashboard/teacher/work-journal/receipt-actions'
-import { RECEIPT_REVIEW_STATUS_LABEL, type Receipt } from '@/lib/receipts'
+import { RECEIPT_REVIEW_STATUS_LABEL, type Receipt, type ReceiptReviewStatus } from '@/lib/receipts'
 
 interface ReceiptSectionProps {
   monthToken: string
@@ -180,6 +180,17 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
 
   const totalAmount = receipts.reduce((sum, r) => sum + r.amount, 0)
 
+  const statusSummaries = (Object.keys(RECEIPT_REVIEW_STATUS_LABEL) as ReceiptReviewStatus[])
+    .map((status) => {
+      const items = receipts.filter((r) => r.reviewStatus === status)
+      return {
+        status,
+        count: items.length,
+        amount: items.reduce((sum, r) => sum + r.amount, 0),
+      }
+    })
+    .filter((summary) => summary.count > 0)
+
   return (
     <Card className="border-slate-200">
       <CardHeader>
@@ -187,6 +198,33 @@ export function ReceiptSection({ monthToken, teacherId, initialReceipts }: Recei
         <CardDescription>개인 지출 영수증을 등록하면 월급 정산 시 반영됩니다.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {receipts.length > 0 && (
+          <div className="space-y-2 rounded-md border border-slate-200 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
+              <span className="font-medium text-slate-700">이번 달 지출 증빙 {receipts.length}건</span>
+              <span className="font-semibold text-slate-900">합계 {formatCurrency(totalAmount)}원</span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {statusSummaries.map(({ status, count, amount }) => (
+                <Badge
+                  key={status}
+                  variant={
+                    status === 'approved' ? 'default'
+                    : status === 'rejected' ? 'destructive'
+                    : status === 'paid' ? 'default'
+                    : 'secondary'
+                  }
+                  className={cn(
+                    status === 'pending' && 'bg-amber-100 text-amber-900',
+                    status === 'paid' && 'bg-blue-100 text-blue-900',
+                  )}
+                >
+                  {RECEIPT_REVIEW_STATUS_LABEL[status]} {count}건 · {formatCurrency(amount)}원
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="space-y-4 rounded-md border border-slate-200 bg-slate-50/50 p-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">

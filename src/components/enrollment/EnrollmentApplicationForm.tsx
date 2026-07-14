@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import DateUtil from '@/lib/date-util'
 import type { LearningJournalAnnualSchedule } from '@/types/learning-journal'
 
-type DesiredClass = 'weekday' | 'saturday' | 'sunday' | 'regular' | 'online'
+type DesiredClass = 'weekday' | 'saturday' | 'sunday' | 'regular' | 'online' | 'earlybird'
 
 type ClassSchedule = {
   label: string
@@ -80,6 +80,16 @@ const CLASS_OPTIONS: Record<DesiredClass, ClassSchedule> = {
       },
     ],
     selectionNote: '정확한 시간은 등록후 조율합니다.',
+  },
+  earlybird: {
+    label: '고2 얼리버드반',
+    tagline: '고2 대상',
+    sections: [
+      {
+        title: '수업 일정',
+        lines: ['개강 일정 및 세부 시간표는 상담 시 안내됩니다.'],
+      },
+    ],
   },
 }
 
