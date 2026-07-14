@@ -1,87 +1,28 @@
 import { z } from 'zod'
 
 const uuid = z.string().uuid()
-const trimmedName = z
+const timeValue = z
   .string()
-  .trim()
-  .min(1, '이름을 입력해주세요.')
-  .max(120, '이름은 120자 이내로 입력해주세요.')
+  .regex(/^\d{2}:\d{2}$/, '시간은 HH:MM 형식으로 입력해주세요.')
 
-const periodName = z
-  .string()
-  .trim()
-  .min(1, '교시 이름을 입력해주세요.')
-  .max(120, '교시 이름은 120자 이내로 입력해주세요.')
+export const upsertClassScheduleEntrySchema = z
+  .object({
+    entryId: uuid.optional(),
+    classId: uuid,
+    dayOfWeek: z.number().int().min(0, '요일을 선택해주세요.').max(6, '요일을 선택해주세요.'),
+    period: z.number().int().min(1, '교시는 1 이상이어야 합니다.').max(20, '교시는 20 이하여야 합니다.'),
+    startTime: timeValue,
+    endTime: timeValue,
+    teacherId: uuid.nullable(),
+  })
+  .refine((value) => value.startTime < value.endTime, {
+    message: '종료 시간은 시작 시간보다 늦어야 합니다.',
+  })
 
-export const createTimetableSchema = z.object({
-  name: trimmedName,
+export type UpsertClassScheduleEntryInput = z.infer<typeof upsertClassScheduleEntrySchema>
+
+export const deleteClassScheduleEntrySchema = z.object({
+  entryId: uuid,
 })
 
-export type CreateTimetableInput = z.infer<typeof createTimetableSchema>
-
-export const updateTimetableNameSchema = z.object({
-  timetableId: uuid,
-  name: trimmedName,
-})
-
-export type UpdateTimetableNameInput = z.infer<typeof updateTimetableNameSchema>
-
-export const addTimetableTeacherSchema = z.object({
-  timetableId: uuid,
-  teacherId: uuid,
-})
-
-export type AddTimetableTeacherInput = z.infer<typeof addTimetableTeacherSchema>
-
-export const removeTimetableTeacherSchema = z.object({
-  timetableTeacherId: uuid,
-})
-
-export type RemoveTimetableTeacherInput = z.infer<typeof removeTimetableTeacherSchema>
-
-export const createTimetablePeriodSchema = z.object({
-  timetableId: uuid,
-  name: periodName,
-})
-
-export type CreateTimetablePeriodInput = z.infer<typeof createTimetablePeriodSchema>
-
-export const updateTimetablePeriodSchema = z.object({
-  periodId: uuid,
-  name: periodName,
-})
-
-export type UpdateTimetablePeriodInput = z.infer<typeof updateTimetablePeriodSchema>
-
-export const deleteTimetablePeriodSchema = z.object({
-  periodId: uuid,
-})
-
-export type DeleteTimetablePeriodInput = z.infer<typeof deleteTimetablePeriodSchema>
-
-export const setTimetableCellAssignmentsSchema = z.object({
-  timetableId: uuid,
-  teacherColumnId: uuid,
-  periodId: uuid,
-  classIds: z
-    .array(uuid)
-    .nonempty('반을 최소 한 개 이상 선택해주세요.')
-    .max(10, '한 교시에 10개 이상의 반을 배정할 수 없습니다.')
-    .transform((ids) => Array.from(new Set(ids))),
-})
-
-export type SetTimetableCellAssignmentsInput = z.infer<typeof setTimetableCellAssignmentsSchema>
-
-export const clearTimetableCellAssignmentsSchema = z.object({
-  timetableId: uuid,
-  teacherColumnId: uuid,
-  periodId: uuid,
-})
-
-export type ClearTimetableCellAssignmentsInput = z.infer<typeof clearTimetableCellAssignmentsSchema>
-
-export const deleteTimetableSchema = z.object({
-  timetableId: uuid,
-})
-
-export type DeleteTimetableInput = z.infer<typeof deleteTimetableSchema>
+export type DeleteClassScheduleEntryInput = z.infer<typeof deleteClassScheduleEntrySchema>

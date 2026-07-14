@@ -1,16 +1,11 @@
-'use client'
-
-import { useMemo, useState } from 'react'
-
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { cn } from '@/lib/utils'
-import type { TimetableAssignment, TimetablePeriod, TimetableSummary, TimetableTeacherColumn } from '@/types/timetable'
-
-export interface TimetableForTeacher extends TimetableSummary {
-  teacherColumnIds: string[]
-}
+import {
+  compareScheduleEntries,
+  DAY_OF_WEEK_LABELS,
+  formatScheduleTimeRange,
+  type ClassScheduleEntry,
+} from '@/types/timetable'
 
 export interface TeacherClassSummary {
   id: string
@@ -21,154 +16,50 @@ export interface TeacherClassSummary {
 }
 
 interface TeacherTimetableViewerProps {
-  timetables: TimetableForTeacher[]
+  entries: ClassScheduleEntry[]
   classes: TeacherClassSummary[]
 }
 
-function sortColumns(columns: TimetableTeacherColumn[]) {
-  return [...columns].sort((a, b) => a.position - b.position)
-}
+export function TeacherTimetableViewer({ entries, classes }: TeacherTimetableViewerProps) {
+  const sorted = [...entries].sort(compareScheduleEntries)
 
-function sortPeriods(periods: TimetablePeriod[]) {
-  return [...periods].sort((a, b) => a.position - b.position)
-}
-
-export function TeacherTimetableViewer({ timetables, classes }: TeacherTimetableViewerProps) {
-  const [selectedTimetableId, setSelectedTimetableId] = useState<string | null>(timetables[0]?.id ?? null)
-
-  const selectedTimetable = useMemo(() => {
-    if (!selectedTimetableId) {
-      return timetables[0] ?? null
-    }
-
-    return timetables.find((item) => item.id === selectedTimetableId) ?? timetables[0] ?? null
-  }, [selectedTimetableId, timetables])
-
-  const assignmentsByCell = useMemo(() => {
-    const map = new Map<string, TimetableAssignment[]>()
-
-    if (!selectedTimetable) {
-      return map
-    }
-
-    for (const assignment of selectedTimetable.assignments) {
-      const key = `${assignment.teacherColumnId}:${assignment.periodId}`
-      const current = map.get(key) ?? []
-      current.push(assignment)
-      map.set(key, current)
-    }
-
-    for (const [, assignments] of map) {
-      assignments.sort((a, b) => a.className.localeCompare(b.className, 'ko'))
-    }
-
-    return map
-  }, [selectedTimetable])
+  const byDay = new Map<number, ClassScheduleEntry[]>()
+  for (const entry of sorted) {
+    const current = byDay.get(entry.dayOfWeek) ?? []
+    current.push(entry)
+    byDay.set(entry.dayOfWeek, current)
+  }
 
   return (
     <section className="space-y-8">
       <div className="space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">시간표</h2>
-            <p className="text-sm text-slate-500">등록된 시간표를 선택해 전체 일정을 확인하세요.</p>
-          </div>
-          {timetables.length > 1 ? (
-            <Select
-              value={selectedTimetable?.id ?? ''}
-              onValueChange={(value) => setSelectedTimetableId(value)}
-            >
-              <SelectTrigger className="w-full sm:w-60">
-                <SelectValue placeholder="시간표를 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {timetables.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">내 수업 시간표</h2>
+          <p className="text-sm text-slate-500">담당 수업을 요일별로 확인하세요.</p>
         </div>
 
-        {selectedTimetable ? (
-          <div className="overflow-auto">
-            <table className="w-full min-w-[720px] table-fixed border-collapse">
-              <thead>
-                <tr>
-                  <th className="w-40 border border-slate-200 bg-slate-50 px-4 py-2 text-left text-sm font-medium text-slate-700">
-                    교시 이름
-                  </th>
-                  {sortColumns(selectedTimetable.teacherColumns).map((column) => {
-                    const isMyColumn = selectedTimetable.teacherColumnIds.includes(column.id)
-
-                    return (
-                      <th
-                        key={column.id}
-                        className={cn(
-                          'min-w-[180px] border border-slate-200 bg-slate-50 px-4 py-2 text-left text-sm font-medium text-slate-700',
-                          isMyColumn && 'bg-emerald-50 text-emerald-800',
-                        )}
-                      >
-                        <div className="space-y-1">
-                          <div>{column.teacherName ?? column.teacherEmail ?? '이름 없음'}</div>
-                          {isMyColumn ? (
-                            <Badge variant="outline" className="border-emerald-400 text-emerald-700">
-                              내 수업
-                            </Badge>
-                          ) : null}
-                        </div>
-                      </th>
-                    )
-                  })}
-                </tr>
-              </thead>
-              <tbody>
-                {sortPeriods(selectedTimetable.periods).map((period) => (
-                  <tr key={period.id}>
-                    <td className="border border-slate-200 px-4 py-3 align-top">
-                      <div className="whitespace-pre-line text-sm font-medium text-slate-800">{period.name}</div>
-                    </td>
-                    {sortColumns(selectedTimetable.teacherColumns).map((column) => {
-                      const key = `${column.id}:${period.id}`
-                      const assignments = assignmentsByCell.get(key) ?? []
-                      const isMyColumn = selectedTimetable.teacherColumnIds.includes(column.id)
-
-                      return (
-                        <td
-                          key={column.id}
-                          className={cn(
-                            'border border-slate-200 px-3 py-3 align-top',
-                            isMyColumn && 'bg-emerald-50/40',
-                          )}
-                        >
-                          {assignments.length === 0 ? (
-                            <div className="rounded-md border border-dashed border-slate-200 px-3 py-6 text-center text-xs text-slate-400">
-                              배정 없음
-                            </div>
-                          ) : (
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap gap-2">
-                                {assignments.map((assignment) => (
-                                  <Badge key={assignment.id} variant="secondary">
-                                    {assignment.className}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {sorted.length === 0 ? (
+          <div className="rounded-md border border-dashed border-slate-200 px-4 py-16 text-center text-sm text-slate-500">
+            아직 배정된 수업이 없습니다.
           </div>
         ) : (
-          <div className="rounded-md border border-dashed border-slate-200 px-4 py-16 text-center text-sm text-slate-500">
-            아직 확인할 수 있는 시간표가 없습니다.
+          <div className="space-y-3">
+            {Array.from(byDay.entries()).map(([dayOfWeek, dayEntries]) => (
+              <div key={dayOfWeek} className="rounded-lg border border-slate-200">
+                <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-800">
+                  {DAY_OF_WEEK_LABELS[dayOfWeek]}요일
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {dayEntries.map((entry) => (
+                    <div key={entry.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 text-sm">
+                      <span className="w-14 shrink-0 font-medium text-slate-900">{entry.period}교시</span>
+                      <span className="w-28 shrink-0 text-slate-600">{formatScheduleTimeRange(entry)}</span>
+                      <span className="font-medium text-slate-800">{entry.className}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

@@ -2,11 +2,11 @@ import Link from 'next/link'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ClassesManager } from '@/components/dashboard/manager/classes/ClassesManager'
-import { TimetableManager } from '@/components/dashboard/manager/classes/TimetableManager'
+import { ClassScheduleManager } from '@/components/dashboard/manager/classes/ClassScheduleManager'
 import { createClient } from '@/lib/supabase/server'
 import { requireAuthForDashboard } from '@/lib/auth'
 import type { ClassSummary, ProfileOption } from '@/types/class'
-import type { TimetableSummary } from '@/types/timetable'
+import type { ClassScheduleEntry } from '@/types/timetable'
 import { Button } from '@/components/ui/button'
 
 type SearchParams = Record<string, string | string[] | undefined>
@@ -132,125 +132,33 @@ export default async function ManagerClassesPage(props: {
   const studentOptionMap = new Map(studentOptions.map((option) => [option.id, option]))
   const classNameMap = new Map(classRows.map((row) => [row.id, row.name]))
 
-  const { data: timetableRowsData, error: timetableError } = await supabase
-    .from('timetables')
-    .select('id, name, created_at, updated_at')
-    .order('created_at', { ascending: true })
+  let scheduleEntries: ClassScheduleEntry[] = []
 
-  if (timetableError) {
-    console.error('Failed to load timetables', timetableError)
-  }
+  if (classIds.length > 0) {
+    const { data: scheduleRowsData, error: scheduleError } = await supabase
+      .from('class_schedule_entries')
+      .select('id, class_id, day_of_week, period, start_time, end_time, teacher_id')
+      .in('class_id', classIds)
 
-  const timetableRows = timetableRowsData ?? []
-  const timetableIds = timetableRows.map((row) => row.id)
-
-  let timetableTeacherRows: Array<{ id: string; timetable_id: string; teacher_id: string; position: number }> = []
-  let timetablePeriodRows: Array<{ id: string; timetable_id: string; name: string; position: number }> = []
-  let timetableAssignmentRows: Array<{
-    id: string
-    timetable_id: string
-    teacher_column_id: string
-    period_id: string
-    class_id: string
-  }> = []
-
-  if (timetableIds.length > 0) {
-    const [{ data: teacherRowsData, error: teacherRowsError }, { data: periodRowsData, error: periodRowsError }, { data: assignmentRowsData, error: assignmentRowsError }] =
-      await Promise.all([
-        supabase
-          .from('timetable_teachers')
-          .select('id, timetable_id, teacher_id, position')
-          .in('timetable_id', timetableIds)
-          .order('position', { ascending: true }),
-        supabase
-          .from('timetable_periods')
-          .select('id, timetable_id, name, position')
-          .in('timetable_id', timetableIds)
-          .order('position', { ascending: true }),
-        supabase
-          .from('timetable_assignments')
-          .select('id, timetable_id, teacher_column_id, period_id, class_id')
-          .in('timetable_id', timetableIds),
-      ])
-
-    if (teacherRowsError) {
-      console.error('Failed to load timetable teacher columns', teacherRowsError)
+    if (scheduleError) {
+      console.error('Failed to load class schedule entries', scheduleError)
     }
 
-    if (periodRowsError) {
-      console.error('Failed to load timetable periods', periodRowsError)
-    }
-
-    if (assignmentRowsError) {
-      console.error('Failed to load timetable assignments', assignmentRowsError)
-    }
-
-    timetableTeacherRows = teacherRowsData ?? []
-    timetablePeriodRows = periodRowsData ?? []
-    timetableAssignmentRows = assignmentRowsData ?? []
-  }
-
-  const timetableTeacherGroups = new Map<string, typeof timetableTeacherRows>()
-  const timetablePeriodGroups = new Map<string, typeof timetablePeriodRows>()
-  const timetableAssignmentGroups = new Map<string, typeof timetableAssignmentRows>()
-
-  for (const row of timetableTeacherRows) {
-    const current = timetableTeacherGroups.get(row.timetable_id) ?? []
-    current.push(row)
-    timetableTeacherGroups.set(row.timetable_id, current)
-  }
-
-  for (const row of timetablePeriodRows) {
-    const current = timetablePeriodGroups.get(row.timetable_id) ?? []
-    current.push(row)
-    timetablePeriodGroups.set(row.timetable_id, current)
-  }
-
-  for (const row of timetableAssignmentRows) {
-    const current = timetableAssignmentGroups.get(row.timetable_id) ?? []
-    current.push(row)
-    timetableAssignmentGroups.set(row.timetable_id, current)
-  }
-
-  const timetables: TimetableSummary[] = timetableRows.map((row) => {
-    const teacherColumns = (timetableTeacherGroups.get(row.id) ?? []).map((teacherRow) => {
-      const profile = teacherOptionMap.get(teacherRow.teacher_id)
+    scheduleEntries = (scheduleRowsData ?? []).map((row) => {
+      const teacher = row.teacher_id ? teacherOptionMap.get(row.teacher_id) : null
       return {
-        id: teacherRow.id,
-        timetableId: teacherRow.timetable_id,
-        position: teacherRow.position,
-        teacherId: teacherRow.teacher_id,
-        teacherName: profile?.name ?? null,
-        teacherEmail: profile?.email ?? null,
+        id: row.id,
+        classId: row.class_id,
+        className: classNameMap.get(row.class_id) ?? '이름 없는 반',
+        dayOfWeek: row.day_of_week,
+        period: row.period,
+        startTime: row.start_time,
+        endTime: row.end_time,
+        teacherId: row.teacher_id ?? null,
+        teacherName: teacher?.name ?? teacher?.email ?? null,
       }
     })
-
-    const periods = (timetablePeriodGroups.get(row.id) ?? []).map((periodRow) => ({
-      id: periodRow.id,
-      timetableId: periodRow.timetable_id,
-      position: periodRow.position,
-      name: periodRow.name,
-    }))
-
-    const assignments = (timetableAssignmentGroups.get(row.id) ?? []).map((assignmentRow) => ({
-      id: assignmentRow.id,
-      timetableId: assignmentRow.timetable_id,
-      teacherColumnId: assignmentRow.teacher_column_id,
-      periodId: assignmentRow.period_id,
-      classId: assignmentRow.class_id,
-      className: classNameMap.get(assignmentRow.class_id) ?? '이름 없는 반',
-    }))
-
-    return {
-      id: row.id,
-      name: row.name,
-      createdAt: row.created_at,
-      updatedAt: row.updated_at,
-      teacherColumns,
-      periods,
-      assignments,
-    }
-  })
+  }
 
   const classTeachersMap = new Map<string, Array<{ teacher_id: string; is_homeroom: boolean | null }>>()
   const classStudentsMap = new Map<string, Array<{ student_id: string }>>()
@@ -338,10 +246,10 @@ export default async function ManagerClassesPage(props: {
         </div>
       </div>
 
-      <TimetableManager
-        timetables={timetables}
+      <ClassScheduleManager
         classes={classSummaries}
         teacherOptions={teacherOptions}
+        entries={scheduleEntries}
       />
 
       <ClassesManager

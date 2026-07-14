@@ -29,12 +29,14 @@ export interface AnnualScheduleData {
 }
 
 export interface TimetableScheduleItem {
-  periodName: string
-  className: string | null
+  dayOfWeek: number
+  period: number
+  startTime: string
+  endTime: string
+  className: string
 }
 
 export interface TimetableData {
-  timetableName: string | null
   schedule: TimetableScheduleItem[]
 }
 
@@ -94,75 +96,25 @@ export async function fetchTimetableData(
   supabase: SupabaseClient,
   profileId: string
 ): Promise<TimetableData> {
-  // 1. Find timetables for this teacher
-  const { data: teacherColumnsData } = await supabase
-    .from('timetable_teachers')
-    .select('id, timetable_id, timetables(id, name, created_at)')
+  const { data: entryRows } = await supabase
+    .from('class_schedule_entries')
+    .select('day_of_week, period, start_time, end_time, class_id, classes(name)')
     .eq('teacher_id', profileId)
+    .order('day_of_week', { ascending: true })
+    .order('period', { ascending: true })
 
-  if (!teacherColumnsData || teacherColumnsData.length === 0) {
-    return { timetableName: null, schedule: [] }
-  }
-
-  type TeacherColumn = {
-    id: string
-    timetable_id: string
-    timetables: { id: string; name: string; created_at: string } | null
-  }
-
-  // Sort by created_at desc to get the latest
-  const sortedColumns = (teacherColumnsData as unknown as TeacherColumn[]).sort((a, b) => {
-    const dateA = a.timetables?.created_at ? new Date(a.timetables.created_at).getTime() : 0
-    const dateB = b.timetables?.created_at ? new Date(b.timetables.created_at).getTime() : 0
-    return dateB - dateA
+  const schedule: TimetableScheduleItem[] = (entryRows ?? []).map((row) => {
+    const classInfo = Array.isArray(row.classes) ? row.classes[0] : row.classes
+    return {
+      dayOfWeek: row.day_of_week,
+      period: row.period,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      className: (classInfo as { name?: string } | null)?.name ?? '이름 없는 반',
+    }
   })
 
-  const latestColumn = sortedColumns[0]
-  const timetableId = latestColumn.timetable_id
-  const teacherColumnId = latestColumn.id
-  const timetableName = latestColumn.timetables?.name ?? '시간표'
-
-  // 2. Fetch assignments and periods in parallel
-  const [assignmentsResult, periodsResult] = await Promise.all([
-    supabase
-      .from('timetable_assignments')
-      .select('period_id, class_id, classes(name)')
-      .eq('teacher_column_id', teacherColumnId),
-    supabase
-      .from('timetable_periods')
-      .select('id, name, position')
-      .eq('timetable_id', timetableId)
-      .order('position', { ascending: true }),
-  ])
-
-  const assignments = assignmentsResult.data ?? []
-  const periods = periodsResult.data ?? []
-
-  // 3. Map assignments to periods
-  const schedule = periods.map((period) => {
-    const periodAssignments = assignments.filter((a) => a.period_id === period.id)
-
-    if (periodAssignments.length === 0) {
-      return {
-        periodName: period.name,
-        className: null,
-      }
-    }
-
-    const classNames = periodAssignments
-      // @ts-ignore
-      .map((a) => a.classes?.name)
-      .filter((name): name is string => !!name)
-      .sort((a, b) => a.localeCompare(b, 'ko'))
-      .join(', ')
-
-    return {
-      periodName: period.name,
-      className: classNames,
-    }
-  }).filter(item => item.className !== null)
-
-  return { timetableName, schedule }
+  return { schedule }
 }
 
 export async function fetchWorkJournalData(

@@ -1,34 +1,31 @@
-export interface TimetableTeacherColumn {
-  id: string
-  timetableId: string
-  position: number
-  teacherId: string
-  teacherName: string | null
-  teacherEmail: string | null
-}
+export const DAY_OF_WEEK_LABELS = ['월', '화', '수', '목', '금', '토', '일'] as const
 
-export interface TimetablePeriod {
+export interface ClassScheduleEntry {
   id: string
-  timetableId: string
-  position: number
-  name: string
-}
-
-export interface TimetableAssignment {
-  id: string
-  timetableId: string
-  teacherColumnId: string
-  periodId: string
   classId: string
   className: string
+  dayOfWeek: number
+  period: number
+  startTime: string
+  endTime: string
+  teacherId: string | null
+  teacherName: string | null
 }
 
-export interface TimetableSummary {
-  id: string
-  name: string
-  createdAt: string
-  updatedAt: string
-  teacherColumns: TimetableTeacherColumn[]
-  periods: TimetablePeriod[]
-  assignments: TimetableAssignment[]
+export function formatTimeLabel(value: string) {
+  return value.slice(0, 5)
+}
+
+export function formatScheduleTimeRange(entry: Pick<ClassScheduleEntry, 'startTime' | 'endTime'>) {
+  return `${formatTimeLabel(entry.startTime)}~${formatTimeLabel(entry.endTime)}`
+}
+
+export function compareScheduleEntries(a: ClassScheduleEntry, b: ClassScheduleEntry) {
+  if (a.dayOfWeek !== b.dayOfWeek) {
+    return a.dayOfWeek - b.dayOfWeek
+  }
+  if (a.period !== b.period) {
+    return a.period - b.period
+  }
+  return a.startTime.localeCompare(b.startTime)
 }
