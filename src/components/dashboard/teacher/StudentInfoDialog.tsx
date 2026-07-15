@@ -4,12 +4,13 @@ import { useRef, useState, useTransition } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, Camera, FileText, GraduationCap, Loader2, Phone, Trash2, User, X, ZoomIn } from 'lucide-react'
+import { CalendarDays, Camera, GraduationCap, Loader2, Phone, ShieldCheck, Trash2, User, X, ZoomIn } from 'lucide-react'
 
 import { compressImageFile, isImageFile } from '@/lib/image-compress'
 import { PROFILE_PHOTOS_BUCKET } from '@/lib/storage/buckets'
 import { createClient } from '@/lib/supabase/client'
 import { updateStudentPhoto, deleteStudentPhoto } from '@/app/dashboard/teacher/actions'
+import { prepareFinalConfirmationFormAction } from '@/app/dashboard/principal/university-reports/workflow/actions'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -52,6 +53,7 @@ export function StudentInfoDialog({ student, children, assignedClassNames, hasPu
 
     const [isUploading, startUploadTransition] = useTransition()
     const [isDeleting, startDeleteTransition] = useTransition()
+    const [isOpeningConfirmForm, startConfirmFormTransition] = useTransition()
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
     const [previewUrl, setPreviewUrl] = useState<string | null>(null)
     const [isPhotoExpanded, setIsPhotoExpanded] = useState(false)
@@ -152,6 +154,18 @@ export function StudentInfoDialog({ student, children, assignedClassNames, hasPu
                 console.error('[StudentInfoDialog] delete error', error)
                 setFeedback({ type: 'error', message: '사진 삭제에 실패했습니다.' })
             }
+        })
+    }
+
+    // 원장 확정 폼(/confirm/[token])으로 이동 — 반 편성 카드의 "확정" 버튼과 동일한 동작
+    const handleOpenConfirmForm = () => {
+        startConfirmFormTransition(async () => {
+            const result = await prepareFinalConfirmationFormAction({ studentId: student.id })
+            if ('error' in result) {
+                window.alert(result.error)
+                return
+            }
+            router.push(`/confirm/${result.token}`)
         })
     }
 
@@ -289,11 +303,19 @@ export function StudentInfoDialog({ student, children, assignedClassNames, hasPu
                 </div>
                 <DialogFooter className="flex-col gap-2 sm:flex-row">
                     {hasPublishedReport ? (
-                        <Button asChild variant="default" className="w-full sm:w-auto">
-                            <Link href={`/dashboard/teacher/university-reports/${student.id}/report`}>
-                                <FileText className="mr-2 h-4 w-4" />
-                                대학 리포트 보기
-                            </Link>
+                        <Button
+                            type="button"
+                            variant="default"
+                            className="w-full sm:w-auto"
+                            onClick={handleOpenConfirmForm}
+                            disabled={isOpeningConfirmForm}
+                        >
+                            {isOpeningConfirmForm ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <ShieldCheck className="mr-2 h-4 w-4" />
+                            )}
+                            확정대학 보기
                         </Button>
                     ) : null}
                     <Button asChild variant="outline" className="w-full sm:w-auto">

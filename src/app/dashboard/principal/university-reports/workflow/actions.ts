@@ -266,16 +266,19 @@ const singleStudentSchema = z.object({ studentId: z.string().uuid() })
 export type PrepareConfirmationFormResult = { success: true; token: string } | { error: string }
 
 /**
- * 원장이 학생의 최종 확정 폼(/confirm/[token])에 직접 들어가 대학·수업 요일을
- * 수정·확정할 수 있도록, 확정 세션을 확보(없으면 컨설팅 추천본 복사 생성)하고
+ * 학생의 최종 확정 폼(/confirm/[token])에 직접 들어가 대학·수업 요일을
+ * 확인·수정·확정할 수 있도록, 확정 세션을 확보(없으면 컨설팅 추천본 복사 생성)하고
  * 공유 토큰을 반환한다. 확정 자체는 폼 제출 시 이루어진다.
+ * 원장 워크플로 외에 교사 대시보드의 "확정대학 보기"에서도 사용하므로 교사·실장도 허용한다.
  */
 export async function prepareFinalConfirmationFormAction(
   payload: unknown
 ): Promise<PrepareConfirmationFormResult> {
   const { profile } = await getAuthContext()
   if (!profile) return { error: '로그인이 필요합니다.' }
-  if (profile.role !== 'principal') return { error: '원장만 실행할 수 있습니다.' }
+  if (!['teacher', 'manager', 'principal'].includes(profile.role)) {
+    return { error: '교사·실장·원장 계정으로만 실행할 수 있습니다.' }
+  }
 
   const parsed = singleStudentSchema.safeParse(payload)
   if (!parsed.success) {

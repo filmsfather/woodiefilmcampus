@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 
-import ConfirmationDeadlineBanner from '@/components/dashboard/university-confirmation/ConfirmationDeadlineBanner'
 import FinalConfirmationForm, {
   type FinalConfirmationRecommendation,
 } from '@/components/dashboard/university-confirmation/FinalConfirmationForm'
@@ -72,10 +71,6 @@ export default function FinalConfirmationPreviewPage() {
           컨설팅을 마친 뒤 실제 지원할 대학과 수업 희망 요일을 확정해 주세요.
         </p>
       </header>
-
-      <div className="mt-5">
-        <ConfirmationDeadlineBanner />
-      </div>
 
       <div className="mt-6">
         <FinalConfirmationForm

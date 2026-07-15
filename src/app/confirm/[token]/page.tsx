@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation'
 
 import { ShieldCheck } from 'lucide-react'
 
-import ConfirmationDeadlineBanner from '@/components/dashboard/university-confirmation/ConfirmationDeadlineBanner'
 import FinalConfirmationForm, {
   type FinalConfirmationRecommendation,
 } from '@/components/dashboard/university-confirmation/FinalConfirmationForm'
@@ -88,10 +87,6 @@ export default async function FinalConfirmationPage({ params }: FinalConfirmatio
           </p>
         </div>
       ) : null}
-
-      <div className="mt-5">
-        <ConfirmationDeadlineBanner />
-      </div>
 
       <div className="mt-6">
         <FinalConfirmationForm
