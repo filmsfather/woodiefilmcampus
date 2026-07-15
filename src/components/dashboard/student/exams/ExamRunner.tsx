@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import { ALLOW_LATE_SUBMISSION } from '@/lib/exam-settings'
 import type { StudentExamRunnerData } from '@/types/exam'
 
 const AUTOSAVE_INTERVAL_MS = 30 * 1000
@@ -110,7 +111,7 @@ export function ExamRunner({ data }: ExamRunnerProps) {
     const tick = () => {
       const remaining = deadlineMs - (Date.now() - skewMs)
       setRemainingMs(remaining)
-      if (remaining <= 0 && !autoSubmittedRef.current) {
+      if (remaining <= 0 && !ALLOW_LATE_SUBMISSION && !autoSubmittedRef.current) {
         autoSubmittedRef.current = true
         handleSubmit(true)
       }
@@ -146,7 +147,9 @@ export function ExamRunner({ data }: ExamRunnerProps) {
 
   const now = Date.now() - skewMs
   const notYetOpen = now < new Date(data.opensAt).getTime()
-  const alreadyClosed = data.sessionStatus !== 'open' || now > new Date(data.closesAt).getTime()
+  const alreadyClosed =
+    data.sessionStatus !== 'open' ||
+    (!ALLOW_LATE_SUBMISSION && now > new Date(data.closesAt).getTime())
 
   // 제출 완료 화면
   if (isSubmitted && attempt) {

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 import { getAuthContext } from '@/lib/auth'
+import { ALLOW_LATE_SUBMISSION } from '@/lib/exam-settings'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { EXAM_ASSETS_BUCKET } from '@/lib/storage/buckets'
 import { sanitizeStorageFileName } from '@/lib/storage-upload'
@@ -100,7 +101,7 @@ export async function startExamAttemptAction(sessionId: string): Promise<ActionR
   if (now < new Date(sessionRow.opens_at)) {
     return { error: '아직 응시 시작 전입니다.' }
   }
-  if (now > new Date(sessionRow.closes_at)) {
+  if (!ALLOW_LATE_SUBMISSION && now > new Date(sessionRow.closes_at)) {
     return { error: '응시 기간이 종료되었습니다.' }
   }
 
@@ -206,7 +207,7 @@ export async function submitExamAnswersAction(input: SubmitExamAnswersInput): Pr
     new Date(session.closes_at).getTime()
   )
 
-  if (parsed.data.submit && now > deadline + SUBMIT_GRACE_MS) {
+  if (!ALLOW_LATE_SUBMISSION && parsed.data.submit && now > deadline + SUBMIT_GRACE_MS) {
     return { error: '제한시간이 지나 제출할 수 없습니다.' }
   }
 
