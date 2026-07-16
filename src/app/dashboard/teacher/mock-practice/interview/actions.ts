@@ -1,0 +1,1035 @@
+'use server'
+
+import { randomUUID } from 'node:crypto'
+import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+
+import { getAuthContext } from '@/lib/auth'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { INTERVIEW_ASSETS_BUCKET, INTERVIEW_RECORDINGS_BUCKET } from '@/lib/storage/buckets'
+import { sanitizeStorageFileName } from '@/lib/storage-upload'
+import {
+  addInterviewReviewQuestionSchema,
+  completeInterviewRecordingSchema,
+  createInterviewSessionSchema,
+  createInterviewSetSchema,
+  updateInterviewSetSchema,
+  type AddInterviewReviewQuestionInput,
+  type CompleteInterviewRecordingInput,
+  type CreateInterviewSessionInput,
+  type CreateInterviewSetInput,
+  type UpdateInterviewSetInput,
+} from '@/lib/validation/interview'
+import type { UserProfile } from '@/lib/supabase'
+
+type ActionResult = {
+  success?: boolean
+  error?: string
+  id?: string
+}
+
+const INTERVIEW_BASE_PATH = '/dashboard/teacher/mock-practice/interview'
+const REVIEW_TASK_DUE_DAYS = 7
+
+const STAFF_ROLES = new Set<UserProfile['role']>(['teacher', 'manager', 'principal'])
+
+async function ensureStaffProfile() {
+  const { profile } = await getAuthContext()
+  if (!profile || !STAFF_ROLES.has(profile.role)) {
+    return null
+  }
+  return profile
+}
+
+function revalidateInterviews(extraPaths: string[] = []) {
+  revalidatePath(INTERVIEW_BASE_PATH)
+  for (const path of extraPaths) {
+    revalidatePath(path)
+  }
+}
+
+type QuestionImageInput = CreateInterviewSetInput['questions'][number]['images'][number]
+
+async function attachQuestionImages(params: {
+  setId: string
+  questionId: string
+  ownerId: string
+  images: QuestionImageInput[]
+}) {
+  const { setId, questionId, ownerId, images } = params
+  const admin = createAdminClient()
+
+  for (let index = 0; index < images.length; index += 1) {
+    const image = images[index]
+
+    let mediaAssetId: string
+
+    if ('mediaAssetId' in image) {
+      mediaAssetId = image.mediaAssetId
+    } else {
+      if (image.bucket !== INTERVIEW_ASSETS_BUCKET) {
+        throw new Error('허용되지 않은 저장소 경로가 감지되었습니다.')
+      }
+
+      const finalPath = `sets/${setId}/questions/${questionId}/${randomUUID()}-${sanitizeStorageFileName(image.originalName)}`
+
+      if (image.path !== finalPath) {
+        const { error: moveError } = await admin.storage
+          .from(INTERVIEW_ASSETS_BUCKET)
+          .move(image.path, finalPath)
+        if (moveError) {
+          console.error('[interviews] failed to move question image', moveError)
+          throw new Error('문항 이미지를 저장하지 못했습니다.')
+        }
+      }
+
+      const { data: mediaAsset, error: mediaError } = await admin
+        .from('media_assets')
+        .insert({
+          owner_id: ownerId,
+          scope: 'interview',
+          bucket: INTERVIEW_ASSETS_BUCKET,
+          path: finalPath,
+          mime_type: image.mimeType,
+          size: image.size,
+          metadata: { originalName: sanitizeStorageFileName(image.originalName) },
+        })
+        .select('id')
+        .single()
+
+      if (mediaError || !mediaAsset?.id) {
+        console.error('[interviews] failed to insert question media asset', mediaError)
+        throw new Error('문항 이미지 정보를 저장하지 못했습니다.')
+      }
+
+      mediaAssetId = mediaAsset.id as string
+    }
+
+    const { error: linkError } = await admin.from('interview_question_assets').insert({
+      question_id: questionId,
+      media_asset_id: mediaAssetId,
+      order_index: index,
+    })
+
+    if (linkError) {
+      console.error('[interviews] failed to link question image', linkError)
+      throw new Error('문항 이미지 연결에 실패했습니다.')
+    }
+  }
+}
+
+async function insertQuestions(params: {
+  setId: string
+  ownerId: string
+  questions: CreateInterviewSetInput['questions']
+}) {
+  const { setId, ownerId, questions } = params
+  const admin = createAdminClient()
+
+  for (let index = 0; index < questions.length; index += 1) {
+    const question = questions[index]
+
+    const { data: questionRow, error: questionError } = await admin
+      .from('interview_questions')
+      .insert({
+        set_id: setId,
+        order_index: index,
+        prompt: question.prompt,
+      })
+      .select('id')
+      .single()
+
+    if (questionError || !questionRow?.id) {
+      console.error('[interviews] failed to insert question', questionError)
+      throw new Error('면접 문항 저장에 실패했습니다.')
+    }
+
+    await attachQuestionImages({
+      setId,
+      questionId: questionRow.id as string,
+      ownerId,
+      images: question.images,
+    })
+  }
+}
+
+async function insertReviewWorkbookItems(
+  workbookId: string,
+  reviewQuestions: CreateInterviewSetInput['reviewQuestions']
+) {
+  const admin = createAdminClient()
+
+  const { error } = await admin.from('workbook_items').insert(
+    reviewQuestions.map((question, index) => ({
+      workbook_id: workbookId,
+      position: index + 1,
+      prompt: question.prompt,
+      answer_type: 'writing',
+    }))
+  )
+
+  if (error) {
+    console.error('[interviews] failed to insert review workbook items', error)
+    throw new Error('피드백 템플릿 문항 저장에 실패했습니다.')
+  }
+}
+
+export async function createInterviewSetAction(input: CreateInterviewSetInput): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '모의 면접을 만들 권한이 없습니다.' }
+  }
+
+  const parsed = createInterviewSetSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  // 복기 과제용 짝꿍 문제집 생성 (서술형)
+  const { data: workbookRow, error: workbookError } = await admin
+    .from('workbooks')
+    .insert({
+      teacher_id: profile.id,
+      title: `[모의 면접 복기] ${parsed.data.title}`,
+      subject: '통합',
+      type: 'writing',
+      tags: ['모의면접'],
+      description: parsed.data.description || null,
+      config: {
+        writing: {
+          instructions: '모의 면접 영상을 다시 보면서 각 문항에 복기 내용을 작성해주세요.',
+        },
+      },
+    })
+    .select('id')
+    .single()
+
+  if (workbookError || !workbookRow?.id) {
+    console.error('[interviews] failed to insert paired workbook', workbookError)
+    return { error: '피드백 템플릿 저장에 실패했습니다.' }
+  }
+
+  const workbookId = workbookRow.id as string
+
+  const { data: setRow, error: setError } = await admin
+    .from('interview_sets')
+    .insert({
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+      created_by: profile.id,
+      workbook_id: workbookId,
+    })
+    .select('id')
+    .single()
+
+  if (setError || !setRow?.id) {
+    console.error('[interviews] failed to insert interview set', setError)
+    await admin.from('workbooks').delete().eq('id', workbookId)
+    return { error: '면접 세트 저장에 실패했습니다.' }
+  }
+
+  const setId = setRow.id as string
+
+  try {
+    await insertReviewWorkbookItems(workbookId, parsed.data.reviewQuestions)
+    await insertQuestions({ setId, ownerId: profile.id, questions: parsed.data.questions })
+  } catch (err) {
+    await admin.from('interview_sets').delete().eq('id', setId)
+    await admin.from('workbooks').delete().eq('id', workbookId)
+    return { error: err instanceof Error ? err.message : '면접 세트 저장 중 문제가 발생했습니다.' }
+  }
+
+  revalidateInterviews()
+  return { success: true, id: setId }
+}
+
+export async function updateInterviewSetAction(input: UpdateInterviewSetInput): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '모의 면접을 수정할 권한이 없습니다.' }
+  }
+
+  const parsed = updateInterviewSetSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  const admin = createAdminClient()
+  const setId = parsed.data.setId
+
+  const { data: setRow, error: setFetchError } = await admin
+    .from('interview_sets')
+    .select('id, workbook_id')
+    .eq('id', setId)
+    .maybeSingle()
+
+  if (setFetchError || !setRow) {
+    return { error: '면접 세트를 찾을 수 없습니다.' }
+  }
+
+  const { count: sessionCount } = await admin
+    .from('interview_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('set_id', setId)
+
+  if ((sessionCount ?? 0) > 0) {
+    return { error: '이미 출제된 세트는 수정할 수 없습니다. 새 세트를 만들어주세요.' }
+  }
+
+  const { error: updateError } = await admin
+    .from('interview_sets')
+    .update({
+      title: parsed.data.title,
+      description: parsed.data.description || null,
+    })
+    .eq('id', setId)
+
+  if (updateError) {
+    console.error('[interviews] failed to update interview set', updateError)
+    return { error: '면접 세트 수정에 실패했습니다.' }
+  }
+
+  let workbookId = setRow.workbook_id as string | null
+
+  if (workbookId) {
+    const { error: workbookUpdateError } = await admin
+      .from('workbooks')
+      .update({
+        title: `[모의 면접 복기] ${parsed.data.title}`,
+        description: parsed.data.description || null,
+      })
+      .eq('id', workbookId)
+
+    if (workbookUpdateError) {
+      console.error('[interviews] failed to update paired workbook', workbookUpdateError)
+      return { error: '피드백 템플릿 수정에 실패했습니다.' }
+    }
+
+    const { error: itemDeleteError } = await admin
+      .from('workbook_items')
+      .delete()
+      .eq('workbook_id', workbookId)
+
+    if (itemDeleteError) {
+      console.error('[interviews] failed to reset review items', itemDeleteError)
+      return { error: '기존 피드백 템플릿 정리에 실패했습니다.' }
+    }
+  } else {
+    const { data: workbookRow, error: workbookInsertError } = await admin
+      .from('workbooks')
+      .insert({
+        teacher_id: profile.id,
+        title: `[모의 면접 복기] ${parsed.data.title}`,
+        subject: '통합',
+        type: 'writing',
+        tags: ['모의면접'],
+        description: parsed.data.description || null,
+        config: {
+          writing: {
+            instructions: '모의 면접 영상을 다시 보면서 각 문항에 복기 내용을 작성해주세요.',
+          },
+        },
+      })
+      .select('id')
+      .single()
+
+    if (workbookInsertError || !workbookRow?.id) {
+      console.error('[interviews] failed to insert paired workbook on update', workbookInsertError)
+      return { error: '피드백 템플릿 저장에 실패했습니다.' }
+    }
+
+    workbookId = workbookRow.id as string
+    await admin.from('interview_sets').update({ workbook_id: workbookId }).eq('id', setId)
+  }
+
+  const { error: questionDeleteError } = await admin
+    .from('interview_questions')
+    .delete()
+    .eq('set_id', setId)
+
+  if (questionDeleteError) {
+    console.error('[interviews] failed to reset questions', questionDeleteError)
+    return { error: '기존 문항 정리에 실패했습니다.' }
+  }
+
+  try {
+    await insertReviewWorkbookItems(workbookId, parsed.data.reviewQuestions)
+    await insertQuestions({ setId, ownerId: profile.id, questions: parsed.data.questions })
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : '문항 저장 중 문제가 발생했습니다.' }
+  }
+
+  revalidateInterviews()
+  return { success: true, id: setId }
+}
+
+export async function deleteInterviewSetAction(setId: string): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '모의 면접을 삭제할 권한이 없습니다.' }
+  }
+
+  const idParse = z.string().uuid().safeParse(setId)
+  if (!idParse.success) {
+    return { error: '잘못된 요청입니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { count: sessionCount } = await admin
+    .from('interview_sessions')
+    .select('id', { count: 'exact', head: true })
+    .eq('set_id', setId)
+
+  if ((sessionCount ?? 0) > 0) {
+    return { error: '이미 출제된 세트는 삭제할 수 없습니다.' }
+  }
+
+  const { data: setRow } = await admin
+    .from('interview_sets')
+    .select('id, workbook_id')
+    .eq('id', setId)
+    .maybeSingle()
+
+  if (!setRow) {
+    return { error: '면접 세트를 찾을 수 없습니다.' }
+  }
+
+  const { error } = await admin.from('interview_sets').delete().eq('id', setId)
+  if (error) {
+    console.error('[interviews] failed to delete interview set', error)
+    return { error: '면접 세트 삭제에 실패했습니다.' }
+  }
+
+  if (setRow.workbook_id) {
+    // 아직 과제로 쓰이지 않은 짝꿍 문제집만 정리
+    const { count: assignmentCount } = await admin
+      .from('assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('workbook_id', setRow.workbook_id)
+
+    if ((assignmentCount ?? 0) === 0) {
+      await admin.from('workbooks').delete().eq('id', setRow.workbook_id)
+    }
+  }
+
+  revalidateInterviews()
+  return { success: true }
+}
+
+export async function createInterviewSessionAction(input: CreateInterviewSessionInput): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '모의 면접을 출제할 권한이 없습니다.' }
+  }
+
+  const parsed = createInterviewSessionSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: setRow } = await admin
+    .from('interview_sets')
+    .select('id')
+    .eq('id', parsed.data.setId)
+    .maybeSingle()
+
+  if (!setRow) {
+    return { error: '면접 세트를 찾을 수 없습니다.' }
+  }
+
+  // 교사는 담당 반 범위 내에서만 출제 가능
+  const accessibleClassIds = new Set<string>()
+
+  if (profile.role === 'teacher') {
+    const { data: teacherClasses, error: teacherClassesError } = await admin
+      .from('class_teachers')
+      .select('class_id')
+      .eq('teacher_id', profile.id)
+
+    if (teacherClassesError) {
+      console.error('[interviews] failed to load teacher classes', teacherClassesError)
+      return { error: '반 정보를 불러오지 못했습니다.' }
+    }
+
+    teacherClasses?.forEach((row) => {
+      if (row?.class_id) {
+        accessibleClassIds.add(row.class_id)
+      }
+    })
+  } else {
+    const { data: allClasses, error: allClassesError } = await admin.from('classes').select('id')
+
+    if (allClassesError) {
+      console.error('[interviews] failed to load classes', allClassesError)
+      return { error: '반 정보를 불러오지 못했습니다.' }
+    }
+
+    allClasses?.forEach((row) => {
+      if (row?.id) {
+        accessibleClassIds.add(row.id)
+      }
+    })
+  }
+
+  const invalidClassId = parsed.data.targetClassIds.find((classId) => !accessibleClassIds.has(classId))
+  if (invalidClassId) {
+    return { error: '선택한 반 중 접근할 수 없는 반이 있습니다.' }
+  }
+
+  // 대상 학생 집합 계산
+  let classStudents: Array<{ class_id: string; student_id: string }> = []
+  if (accessibleClassIds.size > 0) {
+    const { data: classStudentRows, error: classStudentsError } = await admin
+      .from('class_students')
+      .select('class_id, student_id')
+      .in('class_id', Array.from(accessibleClassIds))
+
+    if (classStudentsError) {
+      console.error('[interviews] failed to load class students', classStudentsError)
+      return { error: '반 학생 정보를 불러오지 못했습니다.' }
+    }
+
+    classStudents = (classStudentRows ?? []) as Array<{ class_id: string; student_id: string }>
+  }
+
+  const studentsByClass = new Map<string, Set<string>>()
+  for (const row of classStudents) {
+    const current = studentsByClass.get(row.class_id) ?? new Set<string>()
+    current.add(row.student_id)
+    studentsByClass.set(row.class_id, current)
+  }
+
+  const accessibleStudentIds = new Set<string>()
+  for (const students of studentsByClass.values()) {
+    students.forEach((studentId) => accessibleStudentIds.add(studentId))
+  }
+
+  const invalidStudentId = parsed.data.targetStudentIds.find((studentId) => !accessibleStudentIds.has(studentId))
+  if (invalidStudentId) {
+    return { error: '선택한 학생 중 담당 반에 속하지 않은 학생이 있습니다.' }
+  }
+
+  const studentIdsForAttempts = new Set<string>()
+  for (const classId of parsed.data.targetClassIds) {
+    studentsByClass.get(classId)?.forEach((studentId) => studentIdsForAttempts.add(studentId))
+  }
+  parsed.data.targetStudentIds.forEach((studentId) => studentIdsForAttempts.add(studentId))
+
+  if (studentIdsForAttempts.size === 0) {
+    return { error: '선택한 대상에 학생이 없습니다. 반 구성원을 확인해주세요.' }
+  }
+
+  const { data: sessionRow, error: sessionError } = await admin
+    .from('interview_sessions')
+    .insert({
+      set_id: parsed.data.setId,
+      created_by: profile.id,
+      status: 'open',
+    })
+    .select('id')
+    .single()
+
+  if (sessionError || !sessionRow?.id) {
+    console.error('[interviews] failed to create session', sessionError)
+    return { error: '출제에 실패했습니다.' }
+  }
+
+  const sessionId = sessionRow.id as string
+
+  const classStudentSet = new Set<string>()
+  for (const classId of parsed.data.targetClassIds) {
+    studentsByClass.get(classId)?.forEach((studentId) => classStudentSet.add(studentId))
+  }
+
+  const targetRows: Array<{ session_id: string; class_id?: string; student_id?: string }> = []
+  parsed.data.targetClassIds.forEach((classId) => {
+    targetRows.push({ session_id: sessionId, class_id: classId })
+  })
+  parsed.data.targetStudentIds.forEach((studentId) => {
+    if (!classStudentSet.has(studentId)) {
+      targetRows.push({ session_id: sessionId, student_id: studentId })
+    }
+  })
+
+  const { error: targetError } = await admin.from('interview_session_targets').insert(targetRows)
+
+  if (targetError) {
+    console.error('[interviews] failed to insert session targets', targetError)
+    await admin.from('interview_sessions').delete().eq('id', sessionId)
+    return { error: '출제 대상 저장에 실패했습니다.' }
+  }
+
+  const { error: attemptError } = await admin.from('interview_attempts').insert(
+    Array.from(studentIdsForAttempts).map((studentId) => ({
+      session_id: sessionId,
+      student_id: studentId,
+      status: 'assigned',
+    }))
+  )
+
+  if (attemptError) {
+    console.error('[interviews] failed to insert attempts', attemptError)
+    await admin.from('interview_sessions').delete().eq('id', sessionId)
+    return { error: '학생별 면접 생성에 실패했습니다.' }
+  }
+
+  revalidateInterviews(['/dashboard/student/interviews'])
+  return { success: true, id: sessionId }
+}
+
+export async function closeInterviewSessionAction(sessionId: string): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const idParse = z.string().uuid().safeParse(sessionId)
+  if (!idParse.success) {
+    return { error: '잘못된 요청입니다.' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('interview_sessions')
+    .update({ status: 'closed' })
+    .eq('id', sessionId)
+
+  if (error) {
+    console.error('[interviews] failed to close session', error)
+    return { error: '세션 마감에 실패했습니다.' }
+  }
+
+  revalidateInterviews([`${INTERVIEW_BASE_PATH}/sessions/${sessionId}`])
+  return { success: true }
+}
+
+export async function completeInterviewRecordingAction(
+  input: CompleteInterviewRecordingInput
+): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '녹화를 저장할 권한이 없습니다.' }
+  }
+
+  const parsed = completeInterviewRecordingSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  if (parsed.data.video.bucket !== INTERVIEW_RECORDINGS_BUCKET) {
+    return { error: '허용되지 않은 저장소 경로가 감지되었습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  type AttemptRow = {
+    id: string
+    session_id: string
+    student_id: string
+    status: string
+    interview_sessions:
+      | { id: string; set_id: string; interview_sets: { id: string; title: string; workbook_id: string | null } | { id: string; title: string; workbook_id: string | null }[] | null }
+      | Array<{ id: string; set_id: string; interview_sets: { id: string; title: string; workbook_id: string | null } | { id: string; title: string; workbook_id: string | null }[] | null }>
+      | null
+  }
+
+  const { data: attemptData, error: attemptError } = await admin
+    .from('interview_attempts')
+    .select(
+      `id, session_id, student_id, status,
+       interview_sessions(id, set_id, interview_sets(id, title, workbook_id))`
+    )
+    .eq('id', parsed.data.attemptId)
+    .maybeSingle()
+
+  if (attemptError || !attemptData) {
+    if (attemptError) console.error('[interviews] failed to fetch attempt', attemptError)
+    return { error: '면접 대상 정보를 찾을 수 없습니다.' }
+  }
+
+  const attempt = attemptData as unknown as AttemptRow
+
+  if (attempt.status === 'task_created') {
+    return { error: '이미 녹화가 완료된 학생입니다.' }
+  }
+
+  const session = Array.isArray(attempt.interview_sessions)
+    ? attempt.interview_sessions[0]
+    : attempt.interview_sessions
+  const set = session
+    ? Array.isArray(session.interview_sets)
+      ? session.interview_sets[0]
+      : session.interview_sets
+    : null
+
+  if (!session || !set) {
+    return { error: '면접 세트 정보를 찾을 수 없습니다.' }
+  }
+
+  if (!set.workbook_id) {
+    return { error: '피드백 템플릿이 없는 세트입니다. 세트를 다시 저장해주세요.' }
+  }
+
+  // 0. 템플릿 문제집을 학생별 스냅샷으로 복제 (개별 문항 추가를 위해)
+  const { data: templateWorkbook, error: templateError } = await admin
+    .from('workbooks')
+    .select('id, subject, type, description, config')
+    .eq('id', set.workbook_id)
+    .maybeSingle()
+
+  if (templateError || !templateWorkbook) {
+    console.error('[interviews] failed to load template workbook', templateError)
+    return { error: '피드백 템플릿을 불러오지 못했습니다.' }
+  }
+
+  const { data: templateItems, error: templateItemsError } = await admin
+    .from('workbook_items')
+    .select('position, prompt, answer_type, explanation')
+    .eq('workbook_id', set.workbook_id)
+    .order('position')
+
+  if (templateItemsError) {
+    console.error('[interviews] failed to load template items', templateItemsError)
+    return { error: '피드백 템플릿 문항을 불러오지 못했습니다.' }
+  }
+
+  const { data: studentProfile } = await admin
+    .from('profiles')
+    .select('name, email')
+    .eq('id', attempt.student_id)
+    .maybeSingle()
+
+  const studentLabel = studentProfile?.name ?? studentProfile?.email ?? '학생'
+
+  const { data: snapshotWorkbook, error: snapshotError } = await admin
+    .from('workbooks')
+    .insert({
+      teacher_id: profile.id,
+      title: `[모의 면접 복기] ${set.title} - ${studentLabel}`,
+      subject: templateWorkbook.subject ?? '통합',
+      type: templateWorkbook.type ?? 'writing',
+      tags: ['모의면접', '개별복기'],
+      description: templateWorkbook.description ?? null,
+      config: templateWorkbook.config ?? {
+        writing: {
+          instructions: '모의 면접 영상을 다시 보면서 각 문항에 복기 내용을 작성해주세요.',
+        },
+      },
+    })
+    .select('id')
+    .single()
+
+  if (snapshotError || !snapshotWorkbook?.id) {
+    console.error('[interviews] failed to clone workbook snapshot', snapshotError)
+    return { error: '학생별 피드백 템플릿 생성에 실패했습니다.' }
+  }
+
+  const snapshotWorkbookId = snapshotWorkbook.id as string
+
+  const rollbackSnapshot = async () => {
+    await admin.from('workbooks').delete().eq('id', snapshotWorkbookId)
+  }
+
+  if (templateItems && templateItems.length > 0) {
+    const { error: cloneItemsError } = await admin.from('workbook_items').insert(
+      templateItems.map((item) => ({
+        workbook_id: snapshotWorkbookId,
+        position: item.position,
+        prompt: item.prompt,
+        answer_type: item.answer_type ?? 'writing',
+        explanation: item.explanation ?? null,
+      }))
+    )
+
+    if (cloneItemsError) {
+      console.error('[interviews] failed to clone workbook items', cloneItemsError)
+      await rollbackSnapshot()
+      return { error: '학생별 피드백 문항 생성에 실패했습니다.' }
+    }
+  }
+
+  // 1. 영상을 정식 경로로 이동 후 media_assets 등록
+  const finalPath = `sessions/${attempt.session_id}/${attempt.id}/${randomUUID()}-${sanitizeStorageFileName(parsed.data.video.originalName)}`
+
+  if (parsed.data.video.path !== finalPath) {
+    const { error: moveError } = await admin.storage
+      .from(INTERVIEW_RECORDINGS_BUCKET)
+      .move(parsed.data.video.path, finalPath)
+
+    if (moveError) {
+      console.error('[interviews] failed to move recording', moveError)
+      await rollbackSnapshot()
+      return { error: '녹화 영상을 저장하지 못했습니다.' }
+    }
+  }
+
+  const { data: mediaAsset, error: mediaError } = await admin
+    .from('media_assets')
+    .insert({
+      owner_id: profile.id,
+      scope: 'interview',
+      bucket: INTERVIEW_RECORDINGS_BUCKET,
+      path: finalPath,
+      mime_type: parsed.data.video.mimeType,
+      size: parsed.data.video.size,
+      metadata: { originalName: sanitizeStorageFileName(parsed.data.video.originalName) },
+    })
+    .select('id')
+    .single()
+
+  if (mediaError || !mediaAsset?.id) {
+    console.error('[interviews] failed to insert recording media asset', mediaError)
+    await rollbackSnapshot()
+    return { error: '녹화 영상 정보를 저장하지 못했습니다.' }
+  }
+
+  // 2. 복기 과제 생성 (학생별 스냅샷 문제집 기반, 해당 학생 1명 대상)
+  const now = new Date()
+  const dueAt = new Date(now.getTime() + REVIEW_TASK_DUE_DAYS * 24 * 60 * 60 * 1000)
+
+  const { data: assignmentRow, error: assignmentError } = await admin
+    .from('assignments')
+    .insert({
+      workbook_id: snapshotWorkbookId,
+      assigned_by: profile.id,
+      due_at: dueAt.toISOString(),
+      published_at: now.toISOString(),
+      comment: `[모의 면접] ${set.title} 복기 과제입니다. 면접 영상을 다시 보면서 작성해주세요.`,
+      target_scope: 'student',
+    })
+    .select('id')
+    .single()
+
+  if (assignmentError || !assignmentRow?.id) {
+    console.error('[interviews] failed to insert review assignment', assignmentError)
+    await rollbackSnapshot()
+    return { error: '복기 과제 생성에 실패했습니다.' }
+  }
+
+  const assignmentId = assignmentRow.id as string
+
+  const rollbackAssignment = async () => {
+    await admin.from('assignments').delete().eq('id', assignmentId)
+    await rollbackSnapshot()
+  }
+
+  const { error: targetInsertError } = await admin.from('assignment_targets').insert({
+    assignment_id: assignmentId,
+    student_id: attempt.student_id,
+  })
+
+  if (targetInsertError) {
+    console.error('[interviews] failed to insert assignment target', targetInsertError)
+    await rollbackAssignment()
+    return { error: '복기 과제 대상 저장에 실패했습니다.' }
+  }
+
+  // 학생의 소속 반 (첫 번째)
+  const { data: classRow } = await admin
+    .from('class_students')
+    .select('class_id')
+    .eq('student_id', attempt.student_id)
+    .limit(1)
+    .maybeSingle()
+
+  const { data: taskRow, error: taskError } = await admin
+    .from('student_tasks')
+    .insert({
+      assignment_id: assignmentId,
+      student_id: attempt.student_id,
+      class_id: classRow?.class_id ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (taskError || !taskRow?.id) {
+    console.error('[interviews] failed to insert student task', taskError)
+    await rollbackAssignment()
+    return { error: '학생 복기 과제 생성에 실패했습니다.' }
+  }
+
+  const studentTaskId = taskRow.id as string
+
+  const { data: workbookItems, error: workbookItemsError } = await admin
+    .from('workbook_items')
+    .select('id')
+    .eq('workbook_id', snapshotWorkbookId)
+    .order('position')
+
+  if (workbookItemsError) {
+    console.error('[interviews] failed to load review workbook items', workbookItemsError)
+    await rollbackAssignment()
+    return { error: '피드백 템플릿 문항을 불러오지 못했습니다.' }
+  }
+
+  if (workbookItems && workbookItems.length > 0) {
+    const { error: taskItemsError } = await admin.from('student_task_items').insert(
+      workbookItems.map((item) => ({ student_task_id: studentTaskId, item_id: item.id }))
+    )
+
+    if (taskItemsError) {
+      console.error('[interviews] failed to insert student task items', taskItemsError)
+      await rollbackAssignment()
+      return { error: '복기 과제 문항 생성에 실패했습니다.' }
+    }
+  }
+
+  // 3. attempt 갱신
+  const { error: attemptUpdateError } = await admin
+    .from('interview_attempts')
+    .update({
+      status: 'task_created',
+      video_media_asset_id: mediaAsset.id as string,
+      student_task_id: studentTaskId,
+      recorded_by: profile.id,
+      recorded_at: now.toISOString(),
+    })
+    .eq('id', attempt.id)
+
+  if (attemptUpdateError) {
+    console.error('[interviews] failed to update attempt', attemptUpdateError)
+    await rollbackAssignment()
+    return { error: '녹화 상태 저장에 실패했습니다.' }
+  }
+
+  revalidateInterviews([
+    `${INTERVIEW_BASE_PATH}/sessions/${attempt.session_id}`,
+    '/dashboard/student/interviews',
+    '/dashboard/student/tasks',
+  ])
+  return { success: true, id: studentTaskId }
+}
+
+export async function addInterviewReviewQuestionAction(
+  input: AddInterviewReviewQuestionInput
+): Promise<ActionResult> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '문항을 추가할 권한이 없습니다.' }
+  }
+
+  const parsed = addInterviewReviewQuestionSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: attemptData, error: attemptError } = await admin
+    .from('interview_attempts')
+    .select(
+      `id, session_id, student_id, status, student_task_id,
+       interview_sessions(id, interview_sets(workbook_id))`
+    )
+    .eq('id', parsed.data.attemptId)
+    .maybeSingle()
+
+  if (attemptError || !attemptData) {
+    if (attemptError) console.error('[interviews] failed to fetch attempt for question add', attemptError)
+    return { error: '면접 대상 정보를 찾을 수 없습니다.' }
+  }
+
+  const attempt = attemptData as unknown as {
+    id: string
+    session_id: string
+    status: string
+    student_task_id: string | null
+    interview_sessions:
+      | { interview_sets: { workbook_id: string | null } | Array<{ workbook_id: string | null }> | null }
+      | Array<{ interview_sets: { workbook_id: string | null } | Array<{ workbook_id: string | null }> | null }>
+      | null
+  }
+
+  if (attempt.status !== 'task_created' || !attempt.student_task_id) {
+    return { error: '녹화가 완료된 학생에게만 문항을 추가할 수 있습니다.' }
+  }
+
+  const { data: taskRow, error: taskError } = await admin
+    .from('student_tasks')
+    .select('id, status, assignment_id, assignments(id, workbook_id)')
+    .eq('id', attempt.student_task_id)
+    .maybeSingle()
+
+  if (taskError || !taskRow) {
+    if (taskError) console.error('[interviews] failed to fetch student task for question add', taskError)
+    return { error: '복기 과제를 찾을 수 없습니다.' }
+  }
+
+  const assignment = Array.isArray(taskRow.assignments) ? taskRow.assignments[0] : taskRow.assignments
+  const targetWorkbookId = (assignment as { workbook_id?: string | null } | null)?.workbook_id ?? null
+
+  if (!targetWorkbookId) {
+    return { error: '복기 과제의 문제집을 찾을 수 없습니다.' }
+  }
+
+  // 스냅샷 방식 도입 전에 생성된 과제(세트 공용 템플릿을 직접 참조)는 개별 추가를 막는다
+  const sessionRel = Array.isArray(attempt.interview_sessions)
+    ? attempt.interview_sessions[0]
+    : attempt.interview_sessions
+  const setRel = sessionRel
+    ? Array.isArray(sessionRel.interview_sets)
+      ? sessionRel.interview_sets[0]
+      : sessionRel.interview_sets
+    : null
+
+  if (setRel?.workbook_id && setRel.workbook_id === targetWorkbookId) {
+    return { error: '이 과제는 공용 템플릿을 사용 중이라 개별 문항을 추가할 수 없습니다. 새로 녹화된 과제부터 지원됩니다.' }
+  }
+
+  const { data: lastItem } = await admin
+    .from('workbook_items')
+    .select('position')
+    .eq('workbook_id', targetWorkbookId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const nextPosition = ((lastItem?.position as number | null) ?? 0) + 1
+
+  const { data: newItem, error: itemError } = await admin
+    .from('workbook_items')
+    .insert({
+      workbook_id: targetWorkbookId,
+      position: nextPosition,
+      prompt: parsed.data.prompt,
+      answer_type: 'writing',
+    })
+    .select('id')
+    .single()
+
+  if (itemError || !newItem?.id) {
+    console.error('[interviews] failed to insert additional review item', itemError)
+    return { error: '문항 추가에 실패했습니다.' }
+  }
+
+  const { error: taskItemError } = await admin.from('student_task_items').insert({
+    student_task_id: attempt.student_task_id,
+    item_id: newItem.id as string,
+  })
+
+  if (taskItemError) {
+    console.error('[interviews] failed to insert additional task item', taskItemError)
+    await admin.from('workbook_items').delete().eq('id', newItem.id as string)
+    return { error: '학생 과제에 문항을 연결하지 못했습니다.' }
+  }
+
+  // 이미 제출 완료된 과제라면 새 문항에 답할 수 있도록 진행 중 상태로 되돌린다
+  if (taskRow.status === 'completed') {
+    await admin
+      .from('student_tasks')
+      .update({ status: 'in_progress', completion_at: null })
+      .eq('id', attempt.student_task_id)
+  }
+
+  revalidateInterviews([
+    `${INTERVIEW_BASE_PATH}/sessions/${attempt.session_id}`,
+    '/dashboard/student/tasks',
+    `/dashboard/student/tasks/${attempt.student_task_id}`,
+  ])
+  return { success: true, id: newItem.id as string }
+}

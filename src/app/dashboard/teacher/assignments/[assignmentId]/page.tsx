@@ -1,11 +1,15 @@
 import { notFound } from 'next/navigation'
 
+import { Video } from 'lucide-react'
+
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import DateUtil from '@/lib/date-util'
 import { AssignmentReview } from '@/components/dashboard/teacher/AssignmentReview'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createAssetSignedUrlMap } from '@/lib/assignment-assets'
 import { applySignedAssetUrls, transformAssignmentRow, type RawAssignmentRow } from '@/lib/assignment-evaluation'
+import { fetchInterviewVideosForAssignment } from '@/lib/interviews'
 
 interface PageProps {
   params: Promise<{
@@ -100,6 +104,8 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
   const signedMap = mediaAssets.size > 0 ? await createAssetSignedUrlMap(mediaAssets) : new Map()
   const assignment = applySignedAssetUrls(transformed, signedMap)
 
+  const interviewVideos = await fetchInterviewVideosForAssignment(assignmentId)
+
 
 
   const resolvedSearchParams = await searchParams
@@ -110,12 +116,59 @@ export default async function TeacherAssignmentReviewPage({ params, searchParams
     : null
 
   return (
-    <AssignmentReview
-      teacherName={profile.name ?? profile.email ?? null}
-      assignment={assignment}
-      generatedAt={DateUtil.nowUTC().toISOString()}
-      focusStudentTaskId={focusStudentTaskId}
-      classContext={classContext ? { id: classContext.id, name: classContext.name } : null}
-    />
+    <div className="space-y-6">
+      {interviewVideos.length > 0 && (
+        <Card className="border-slate-200">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base text-slate-900">
+              <Video className="h-4 w-4" /> 모의 면접 영상
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {interviewVideos.map((video) => (
+              <div key={video.attemptId} className="space-y-2">
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold">{video.studentName}</span> · {video.setTitle}
+                  {video.recordedAt && (
+                    <span className="text-slate-500">
+                      {' '}
+                      · 녹화{' '}
+                      {DateUtil.formatForDisplay(video.recordedAt, {
+                        locale: 'ko-KR',
+                        timeZone: 'Asia/Seoul',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  )}
+                </p>
+                {video.videoUrl ? (
+                  <video
+                    src={video.videoUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="aspect-video w-full max-w-2xl rounded-md border border-slate-200 bg-black"
+                  />
+                ) : (
+                  <p className="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">
+                    영상을 불러올 수 없습니다.
+                  </p>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+      <AssignmentReview
+        teacherName={profile.name ?? profile.email ?? null}
+        assignment={assignment}
+        generatedAt={DateUtil.nowUTC().toISOString()}
+        focusStudentTaskId={focusStudentTaskId}
+        classContext={classContext ? { id: classContext.id, name: classContext.name } : null}
+      />
+    </div>
   )
 }

@@ -156,6 +156,14 @@ const teacherSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'teacher-mock-practice',
+    title: '모의실기',
+    items: [
+      { label: '모의 면접 관리', href: '/dashboard/teacher/mock-practice/interview' },
+      { label: '면접 문제 만들기', href: '/dashboard/teacher/mock-practice/interview/new' },
+    ],
+  },
+  {
     id: 'teacher-assignments',
     title: '과제 관리',
     items: [
@@ -202,6 +210,7 @@ const studentSections: NavigationSection[] = [
       { label: '연간 학습 일정', href: '/dashboard/learning-journal/annual-schedule' },
       { label: '이번달 학습 계획', href: '/dashboard/student/monthly-plan' },
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
+      { label: '모의 면접', href: '/dashboard/student/interviews' },
       { label: '공지사항 게시판', href: '/dashboard/student/notices' },
       { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
       { label: '사진일기', href: '/dashboard/student/photo-diary' },

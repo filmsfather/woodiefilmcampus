@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, Calendar, CheckCircle2, Clock, ListChecks, MessageSquareText } from 'lucide-react'
+import { AlertTriangle, Calendar, CheckCircle2, Clock, ListChecks, MessageSquareText, Video } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ImageTaskRunner } from '@/components/dashboard/student/tasks/ImageTaskRunner'
@@ -14,6 +14,7 @@ import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { fetchInterviewVideoForTask } from '@/lib/interviews'
 import { fetchStudentTaskDetail } from '@/lib/student-tasks'
 import { WORKBOOK_TITLES, WORKBOOK_TYPE_DESCRIPTIONS } from '@/lib/validation/workbook'
 import { submitSrsAnswer } from '@/app/dashboard/student/tasks/actions'
@@ -58,6 +59,9 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
   if (!task) {
     notFound()
   }
+
+  // 모의 면접 복기 과제인 경우 본인 면접 영상 정보 조회
+  const interviewVideo = await fetchInterviewVideoForTask(task.id, profile.id)
 
   const workbook = task.assignment?.workbook
   const workbookType = (workbook?.type ?? 'unknown') as keyof typeof WORKBOOK_TITLES | 'unknown'
@@ -344,6 +348,33 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
           </CardHeader>
           <CardContent className="whitespace-pre-wrap text-sm text-blue-700">
             {task.assignment.comment}
+          </CardContent>
+        </Card>
+      )}
+
+      {interviewVideo && (
+        <Card className="border-slate-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base text-slate-800">
+              <Video className="h-4 w-4" />
+              내 모의 면접 영상
+            </CardTitle>
+            <p className="text-xs text-slate-500">
+              {interviewVideo.setTitle}
+              {interviewVideo.recordedAt ? ` · 녹화일 ${formatDate(interviewVideo.recordedAt)}` : ''}
+            </p>
+          </CardHeader>
+          <CardContent>
+            {interviewVideo.videoUrl ? (
+              <video
+                controls
+                playsInline
+                src={interviewVideo.videoUrl}
+                className="w-full rounded-md border border-slate-200"
+              />
+            ) : (
+              <p className="text-sm text-slate-500">영상을 불러올 수 없습니다. 선생님께 문의해주세요.</p>
+            )}
           </CardContent>
         </Card>
       )}

@@ -28,6 +28,23 @@ type TeacherDashboardSection = {
 const TEACHER_SECTIONS: TeacherDashboardSection[] = [
 
   {
+    title: '모의실기',
+    description: '모의 면접을 출제하고 웹캠으로 녹화해 복기 과제를 만들어주세요.',
+    actions: [
+      {
+        label: '모의 면접 관리',
+        href: '/dashboard/teacher/mock-practice/interview',
+        description: '면접 세트와 출제된 회차를 관리하세요.',
+      },
+      {
+        label: '면접 문제 만들기',
+        href: '/dashboard/teacher/mock-practice/interview/new',
+        description: '면접 문항과 피드백 템플릿을 만듭니다.',
+        variant: 'outline',
+      },
+    ],
+  },
+  {
     title: '과제관리',
     description: '반과 학생에게 과제를 배정하고 평가 흐름을 관리하세요.',
     actions: [
