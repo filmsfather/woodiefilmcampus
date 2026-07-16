@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Video } from 'lucide-react'
+import { ClipboardList, PenLine, Video } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Button } from '@/components/ui/button'
@@ -44,6 +44,48 @@ export default async function MockPracticePage() {
             </Button>
             <Button asChild variant="outline" className="w-full">
               <Link href="/dashboard/teacher/mock-practice/interview/new">시험문제 만들기</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+              <PenLine className="h-5 w-5" />
+              모의 작문
+            </CardTitle>
+            <CardDescription className="text-sm text-slate-500">
+              제한시간을 설정해 출제하면 학생이 집에서 시험을 시작하고, 손글씨 원고 사진을 제출하면 AI가 텍스트로
+              변환합니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button asChild className="w-full">
+              <Link href="/dashboard/teacher/mock-practice/writing">모의 작문 관리</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/dashboard/teacher/mock-practice/writing/new">시험문제 만들기</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+              <ClipboardList className="h-5 w-5" />
+              면접지
+            </CardTitle>
+            <CardDescription className="text-sm text-slate-500">
+              학생마다 면접지 1장이 제공됩니다. 학생 스스로 질문과 답변을 채우고, 선생님이 질문을 추가하거나
+              답변에 피드백을 남길 수 있습니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button asChild className="w-full">
+              <Link href="/dashboard/teacher/mock-practice/interview-sheet">면접지 관리</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/dashboard/teacher/mock-practice/interview-sheet/templates">템플릿 관리</Link>
             </Button>
           </CardContent>
         </Card>

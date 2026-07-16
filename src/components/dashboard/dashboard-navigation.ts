@@ -161,6 +161,10 @@ const teacherSections: NavigationSection[] = [
     items: [
       { label: '모의 면접 관리', href: '/dashboard/teacher/mock-practice/interview' },
       { label: '면접 문제 만들기', href: '/dashboard/teacher/mock-practice/interview/new' },
+      { label: '모의 작문 관리', href: '/dashboard/teacher/mock-practice/writing' },
+      { label: '작문 문제 만들기', href: '/dashboard/teacher/mock-practice/writing/new' },
+      { label: '면접지 관리', href: '/dashboard/teacher/mock-practice/interview-sheet' },
+      { label: '면접지 템플릿', href: '/dashboard/teacher/mock-practice/interview-sheet/templates' },
     ],
   },
   {
@@ -211,6 +215,8 @@ const studentSections: NavigationSection[] = [
       { label: '이번달 학습 계획', href: '/dashboard/student/monthly-plan' },
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
       { label: '모의 면접', href: '/dashboard/student/interviews' },
+      { label: '모의 작문', href: '/dashboard/student/writing' },
+      { label: '내 면접지', href: '/dashboard/student/interview-sheet' },
       { label: '공지사항 게시판', href: '/dashboard/student/notices' },
       { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
       { label: '사진일기', href: '/dashboard/student/photo-diary' },

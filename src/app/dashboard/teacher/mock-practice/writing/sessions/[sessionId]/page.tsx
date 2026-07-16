@@ -1,21 +1,20 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Video } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
-import { InterviewSessionCloseButton } from '@/components/dashboard/mock-practice/InterviewActionButtons'
-import { InterviewAttemptReviewPanel } from '@/components/dashboard/mock-practice/InterviewAttemptReviewPanel'
+import { WritingSessionCloseButton } from '@/components/dashboard/mock-practice/WritingActionButtons'
+import { WritingAttemptReviewPanel } from '@/components/dashboard/mock-practice/WritingAttemptReviewPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
-import { fetchInterviewSheetOverviews } from '@/lib/interview-sheets'
-import { fetchInterviewSessionDetail } from '@/lib/interviews'
+import { fetchWritingSessionDetail } from '@/lib/writings'
+import type { WritingAttemptStatus } from '@/types/writing'
 
 export const metadata: Metadata = {
-  title: '면접 회차 현황 | Woodie Film Campus',
+  title: '작문 회차 현황 | Woodie Film Campus',
 }
 
 function formatDateTime(value: string | null) {
@@ -32,7 +31,20 @@ function formatDateTime(value: string | null) {
   })
 }
 
-export default async function InterviewSessionPage({
+const STATUS_LABELS: Record<WritingAttemptStatus, string> = {
+  assigned: '시작 전',
+  in_progress: '응시 중',
+  submitted: '제출됨',
+  task_created: '오답노트 발부됨',
+}
+
+function statusBadgeVariant(status: WritingAttemptStatus): 'default' | 'secondary' | 'outline' {
+  if (status === 'task_created') return 'default'
+  if (status === 'submitted') return 'secondary'
+  return 'outline'
+}
+
+export default async function WritingSessionPage({
   params,
 }: {
   params: Promise<{ sessionId: string }>
@@ -44,7 +56,7 @@ export default async function InterviewSessionPage({
   }
 
   const { sessionId } = await params
-  const detail = await fetchInterviewSessionDetail(sessionId)
+  const detail = await fetchWritingSessionDetail(sessionId)
 
   if (!detail) {
     notFound()
@@ -52,15 +64,13 @@ export default async function InterviewSessionPage({
 
   const { session, set, rows } = detail
 
-  const sheetOverviews = await fetchInterviewSheetOverviews(rows.map((row) => row.studentId))
-
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-3">
           <DashboardBackLink
-            fallbackHref="/dashboard/teacher/mock-practice/interview"
-            label="모의 면접으로 돌아가기"
+            fallbackHref="/dashboard/teacher/mock-practice/writing"
+            label="모의 작문으로 돌아가기"
           />
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -70,17 +80,17 @@ export default async function InterviewSessionPage({
               </Badge>
             </div>
             <p className="text-sm text-slate-600">
-              대상: {session.targetLabels.join(', ') || '없음'} · 출제일 {formatDateTime(session.createdAt)} · 녹화
-              완료 {session.recordedCount}/{session.totalStudents}
+              대상: {session.targetLabels.join(', ') || '없음'} · 제한시간 {set.timeLimitMinutes}분 · 출제일{' '}
+              {formatDateTime(session.createdAt)} · 제출 완료 {session.submittedCount}/{session.totalStudents}
             </p>
           </div>
         </div>
-        {session.status === 'open' && <InterviewSessionCloseButton sessionId={session.id} />}
+        {session.status === 'open' && <WritingSessionCloseButton sessionId={session.id} />}
       </div>
 
       <Card className="border-slate-200">
         <CardHeader>
-          <CardTitle className="text-base text-slate-900">면접 문항</CardTitle>
+          <CardTitle className="text-base text-slate-900">작문 문항</CardTitle>
         </CardHeader>
         <CardContent>
           <ol className="list-decimal space-y-3 pl-5 text-sm text-slate-700">
@@ -112,7 +122,7 @@ export default async function InterviewSessionPage({
         <CardHeader>
           <CardTitle className="text-base text-slate-900">학생별 진행 현황</CardTitle>
           <p className="text-xs text-slate-500">
-            녹화 시작을 누르면 웹캠 녹화 화면으로 이동합니다. 녹화가 끝나면 복기 과제가 자동 생성됩니다.
+            학생이 원고를 제출하면 사진 원본과 AI가 변환한 텍스트를 확인하고 오답노트를 발부할 수 있습니다.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -128,39 +138,25 @@ export default async function InterviewSessionPage({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-slate-900">{row.studentName}</p>
                       {row.className && <span className="text-xs text-slate-500">{row.className}</span>}
-                      <Badge variant={row.status === 'task_created' ? 'default' : 'outline'}>
-                        {row.status === 'task_created' ? '녹화 완료 · 과제 생성됨' : '출제됨'}
-                      </Badge>
+                      <Badge variant={statusBadgeVariant(row.status)}>{STATUS_LABELS[row.status]}</Badge>
                       {row.status === 'task_created' && row.taskStatus === 'completed' && (
-                        <Badge variant="secondary">복기 제출 완료</Badge>
+                        <Badge variant="secondary">오답노트 제출 완료</Badge>
                       )}
                     </div>
-                    {row.recordedAt && (
-                      <p className="text-xs text-slate-500">녹화 완료: {formatDateTime(row.recordedAt)}</p>
-                    )}
+                    <p className="text-xs text-slate-500">
+                      {row.startedAt && `시작: ${formatDateTime(row.startedAt)}`}
+                      {row.deadlineAt && ` · 마감: ${formatDateTime(row.deadlineAt)}`}
+                      {row.submittedAt && ` · 제출: ${formatDateTime(row.submittedAt)}`}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {row.status === 'task_created' ? (
-                      row.assignmentId && (
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/dashboard/teacher/assignments/${row.assignmentId}`}>복기 과제 확인</Link>
-                        </Button>
-                      )
-                    ) : (
-                      session.status === 'open' && (
-                        <Button asChild size="sm">
-                          <Link
-                            href={`/dashboard/teacher/mock-practice/interview/sessions/${session.id}/record/${row.attemptId}`}
-                          >
-                            <Video className="mr-1 h-4 w-4" /> 녹화 시작
-                          </Link>
-                        </Button>
-                      )
-                    )}
-                  </div>
+                  {row.status === 'task_created' && row.assignmentId && (
+                    <Button asChild size="sm" variant="outline">
+                      <Link href={`/dashboard/teacher/assignments/${row.assignmentId}`}>오답노트 과제 확인</Link>
+                    </Button>
+                  )}
                 </div>
-                {row.status === 'task_created' && (
-                  <InterviewAttemptReviewPanel row={row} sheet={sheetOverviews[row.studentId] ?? null} />
+                {(row.status === 'submitted' || row.status === 'task_created') && (
+                  <WritingAttemptReviewPanel row={row} templateQuestionCount={set.reviewQuestions.length} />
                 )}
               </div>
             ))

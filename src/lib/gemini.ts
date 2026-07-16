@@ -193,6 +193,106 @@ Do not include any markdown formatting (like \`\`\`json). Just the raw JSON stri
     }
 }
 
+export interface TranscribeHandwrittenImagesResult {
+    text: string
+}
+
+/**
+ * 손글씨 원고 사진(여러 장, 페이지 순서대로)을 텍스트로 전사합니다.
+ */
+export async function transcribeHandwrittenImages(
+    images: Array<{ mimeType: string; base64Data: string }>
+): Promise<TranscribeHandwrittenImagesResult | { error: string }> {
+    if (!GEMINI_API_KEY) {
+        console.error('GEMINI_API_KEY is not set')
+        return { error: 'AI 설정이 완료되지 않았습니다. 관리자에게 문의하세요.' }
+    }
+
+    if (images.length === 0) {
+        return { error: '전사할 이미지가 없습니다.' }
+    }
+
+    const aiPrompt = `
+You are a careful transcriptionist converting a student's handwritten Korean essay manuscript into text.
+The images are the pages of one essay, provided in page order.
+
+**Instructions:**
+1. Transcribe the handwriting EXACTLY as written, in the original language (Korean).
+2. Do NOT correct spelling, grammar, or punctuation. Do NOT summarize, rephrase, or add anything.
+3. Preserve paragraph breaks and line structure as faithfully as possible.
+4. Concatenate all pages in order into a single continuous text.
+5. If a word or section is illegible, write [판독불가] in its place.
+6. Ignore stray marks, margins, and page numbers that are not part of the essay body.
+
+**Output Format:**
+Return a JSON object with the following structure:
+{
+  "text": "The full transcription..."
+}
+Do not include any markdown formatting (like \`\`\`json). Just the raw JSON string.
+`
+
+    const parts: Array<Record<string, unknown>> = [{ text: aiPrompt }]
+    for (const image of images) {
+        parts.push({
+            inline_data: {
+                mime_type: image.mimeType,
+                data: image.base64Data,
+            },
+        })
+    }
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts,
+                        },
+                    ],
+                    generationConfig: {
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        )
+
+        if (!response.ok) {
+            const errorText = await response.text()
+            console.error('[Gemini] API error', response.status, errorText)
+            return { error: 'AI 텍스트 변환 중 오류가 발생했습니다.' }
+        }
+
+        const data = await response.json()
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+        if (!text) {
+            console.error('[Gemini] No content in response', data)
+            return { error: 'AI 응답을 분석할 수 없습니다.' }
+        }
+
+        try {
+            const result = JSON.parse(text) as TranscribeHandwrittenImagesResult
+            if (typeof result.text !== 'string') {
+                return { error: 'AI 응답 형식이 올바르지 않습니다.' }
+            }
+            return result
+        } catch (parseError) {
+            console.error('[Gemini] JSON parse error', parseError, text)
+            return { error: 'AI 응답 형식이 올바르지 않습니다.' }
+        }
+    } catch (error) {
+        console.error('[Gemini] Network or unexpected error', error)
+        return { error: 'AI 서버 연결에 실패했습니다.' }
+    }
+}
+
 export interface GeneratedQuestion {
     prompt: string
 }

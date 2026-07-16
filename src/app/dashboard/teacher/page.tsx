@@ -29,7 +29,7 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
 
   {
     title: '모의실기',
-    description: '모의 면접을 출제하고 웹캠으로 녹화해 복기 과제를 만들어주세요.',
+    description: '모의 면접과 모의 작문을 출제하고 학생별 진행 상황을 관리하세요.',
     actions: [
       {
         label: '모의 면접 관리',
@@ -40,6 +40,28 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         label: '면접 문제 만들기',
         href: '/dashboard/teacher/mock-practice/interview/new',
         description: '면접 문항과 피드백 템플릿을 만듭니다.',
+        variant: 'outline',
+      },
+      {
+        label: '모의 작문 관리',
+        href: '/dashboard/teacher/mock-practice/writing',
+        description: '작문 세트와 학생 제출물을 관리하세요.',
+      },
+      {
+        label: '작문 문제 만들기',
+        href: '/dashboard/teacher/mock-practice/writing/new',
+        description: '제한시간이 있는 작문 문항을 만듭니다.',
+        variant: 'outline',
+      },
+      {
+        label: '면접지 관리',
+        href: '/dashboard/teacher/mock-practice/interview-sheet',
+        description: '학생별 면접지에 질문을 추가하고 피드백을 남기세요.',
+      },
+      {
+        label: '면접지 템플릿',
+        href: '/dashboard/teacher/mock-practice/interview-sheet/templates',
+        description: '면접지 기본 질문 템플릿을 관리합니다.',
         variant: 'outline',
       },
     ],
