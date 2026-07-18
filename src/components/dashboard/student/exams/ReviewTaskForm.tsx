@@ -14,6 +14,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  groupReviewItemsByQuestion,
+  ReviewOriginalQuestion,
+} from '@/components/dashboard/exams/ReviewOriginalQuestion'
 import { EXAM_ASSETS_BUCKET } from '@/lib/storage/buckets'
 import { buildPendingStoragePath, uploadFileToStorageViaClient } from '@/lib/storage-upload'
 import type { ExamReviewTaskView } from '@/types/exam'
@@ -180,141 +184,147 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
         </div>
       )}
 
-      {task.items.map((item, index) => {
-        const badge = ITEM_BADGE[item.result] ?? ITEM_BADGE.pending
-        const editable = isItemEditable(item.result)
+      {groupReviewItemsByQuestion(task.items).map((group) => (
+        <div key={group.key} className="space-y-3">
+          {group.question && <ReviewOriginalQuestion question={group.question} />}
 
-        return (
-          <Card key={item.id} className="border-slate-200">
-            <CardHeader className="flex flex-row items-start justify-between gap-2">
-              <CardTitle className="text-sm font-medium text-slate-900">
-                문항 {index + 1}. <span className="whitespace-pre-wrap font-normal">{item.prompt}</span>
-                {item.requiresImage && (
-                  <span className="ml-1 text-xs font-normal text-blue-600">(이미지 제출 필요)</span>
-                )}
-              </CardTitle>
-              <Badge className={badge.className}>{badge.label}</Badge>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {item.feedback && (
-                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 whitespace-pre-wrap">
-                  <span className="font-medium">원장 피드백:</span> {item.feedback}
-                </div>
-              )}
+          {group.items.map(({ item, index }) => {
+            const badge = ITEM_BADGE[item.result] ?? ITEM_BADGE.pending
+            const editable = isItemEditable(item.result)
 
-              <Textarea
-                value={answers.get(item.id) ?? ''}
-                onChange={(event) =>
-                  setAnswers((prev) => {
-                    const next = new Map(prev)
-                    next.set(item.id, event.target.value)
-                    return next
-                  })
-                }
-                placeholder={editable ? '답안을 작성하세요' : ''}
-                rows={5}
-                disabled={!editable || isPending}
-              />
-
-              {item.requiresImage && (
-                <div className="space-y-3">
-                  <p className="text-xs font-medium text-slate-500">이미지 및 해설</p>
-                  {item.assets.length > 0 && (
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {item.assets.map((asset, assetIndex) => (
-                        <div key={asset.id} className="space-y-2 rounded-md border border-slate-200 p-2">
-                          {asset.url ? (
-                            <a href={asset.url} target="_blank" rel="noreferrer">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={asset.url}
-                                alt={`이미지 ${assetIndex + 1}`}
-                                className="max-h-56 w-full rounded object-contain"
-                              />
-                            </a>
-                          ) : (
-                            <div className="rounded border border-slate-200 p-4 text-xs text-slate-400">
-                              이미지를 불러오지 못했습니다.
-                            </div>
-                          )}
-                          <Textarea
-                            value={captionDrafts.get(asset.id) ?? ''}
-                            onChange={(event) =>
-                              setCaptionDrafts((prev) => {
-                                const next = new Map(prev)
-                                next.set(asset.id, event.target.value)
-                                return next
-                              })
-                            }
-                            placeholder="이미지에 대한 해설을 작성하세요"
-                            rows={3}
-                            disabled={!editable || isPending}
-                          />
-                          {editable && (
-                            <div className="flex justify-between">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="text-red-600 hover:text-red-700"
-                                disabled={isPending}
-                                onClick={() => handleDeleteImage(asset.id)}
-                              >
-                                <Trash2 className="mr-1 h-4 w-4" /> 삭제
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={isPending}
-                                onClick={() => handleSaveCaption(asset.id)}
-                              >
-                                해설 저장
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      ))}
+            return (
+              <Card key={item.id} className="border-slate-200">
+                <CardHeader className="flex flex-row items-start justify-between gap-2">
+                  <CardTitle className="text-sm font-medium text-slate-900">
+                    문항 {index + 1}. <span className="whitespace-pre-wrap font-normal">{item.prompt}</span>
+                    {item.requiresImage && (
+                      <span className="ml-1 text-xs font-normal text-blue-600">(이미지 제출 필요)</span>
+                    )}
+                  </CardTitle>
+                  <Badge className={badge.className}>{badge.label}</Badge>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {item.feedback && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 whitespace-pre-wrap">
+                      <span className="font-medium">원장 피드백:</span> {item.feedback}
                     </div>
                   )}
 
-                  {editable && (
-                    <>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        ref={(element) => {
-                          if (element) {
-                            fileInputRefs.current.set(item.id, element)
-                          } else {
-                            fileInputRefs.current.delete(item.id)
-                          }
-                        }}
-                        onChange={(event) => handleImageSelect(item.id, event)}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isPending || uploadingItemId === item.id}
-                        onClick={() => fileInputRefs.current.get(item.id)?.click()}
-                      >
-                        {uploadingItemId === item.id ? (
-                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                        ) : (
-                          <ImagePlus className="mr-1 h-4 w-4" />
-                        )}
-                        이미지 추가
-                      </Button>
-                    </>
+                  <Textarea
+                    value={answers.get(item.id) ?? ''}
+                    onChange={(event) =>
+                      setAnswers((prev) => {
+                        const next = new Map(prev)
+                        next.set(item.id, event.target.value)
+                        return next
+                      })
+                    }
+                    placeholder={editable ? '답안을 작성하세요' : ''}
+                    rows={5}
+                    disabled={!editable || isPending}
+                  />
+
+                  {item.requiresImage && (
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-slate-500">이미지 및 해설</p>
+                      {item.assets.length > 0 && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {item.assets.map((asset, assetIndex) => (
+                            <div key={asset.id} className="space-y-2 rounded-md border border-slate-200 p-2">
+                              {asset.url ? (
+                                <a href={asset.url} target="_blank" rel="noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={asset.url}
+                                    alt={`이미지 ${assetIndex + 1}`}
+                                    className="max-h-56 w-full rounded object-contain"
+                                  />
+                                </a>
+                              ) : (
+                                <div className="rounded border border-slate-200 p-4 text-xs text-slate-400">
+                                  이미지를 불러오지 못했습니다.
+                                </div>
+                              )}
+                              <Textarea
+                                value={captionDrafts.get(asset.id) ?? ''}
+                                onChange={(event) =>
+                                  setCaptionDrafts((prev) => {
+                                    const next = new Map(prev)
+                                    next.set(asset.id, event.target.value)
+                                    return next
+                                  })
+                                }
+                                placeholder="이미지에 대한 해설을 작성하세요"
+                                rows={3}
+                                disabled={!editable || isPending}
+                              />
+                              {editable && (
+                                <div className="flex justify-between">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700"
+                                    disabled={isPending}
+                                    onClick={() => handleDeleteImage(asset.id)}
+                                  >
+                                    <Trash2 className="mr-1 h-4 w-4" /> 삭제
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isPending}
+                                    onClick={() => handleSaveCaption(asset.id)}
+                                  >
+                                    해설 저장
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {editable && (
+                        <>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            ref={(element) => {
+                              if (element) {
+                                fileInputRefs.current.set(item.id, element)
+                              } else {
+                                fileInputRefs.current.delete(item.id)
+                              }
+                            }}
+                            onChange={(event) => handleImageSelect(item.id, event)}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={isPending || uploadingItemId === item.id}
+                            onClick={() => fileInputRefs.current.get(item.id)?.click()}
+                          >
+                            {uploadingItemId === item.id ? (
+                              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                            ) : (
+                              <ImagePlus className="mr-1 h-4 w-4" />
+                            )}
+                            이미지 추가
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )
-      })}
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      ))}
 
       {!isTaskLocked && (
         <div className="flex justify-end gap-2">

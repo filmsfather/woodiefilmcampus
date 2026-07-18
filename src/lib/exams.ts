@@ -397,6 +397,15 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
 
   const admin = createAdminClient()
 
+  type TaskRow = {
+    id: string
+    attempt_id: string
+    status: 'assigned' | 'submitted' | 'partial' | 'pass'
+    assigned_at: string
+    submitted_at: string | null
+    evaluated_at: string | null
+  }
+
   const { data: taskRows, error: taskError } = await admin
     .from('exam_review_tasks')
     .select('id, attempt_id, status, assigned_at, submitted_at, evaluated_at')
@@ -406,6 +415,8 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
     console.error('[exams] failed to fetch review tasks', taskError)
     return result
   }
+
+  const tasks = (taskRows ?? []) as TaskRow[]
 
   const { data: itemRows, error: itemError } = await admin
     .from('exam_review_items')
@@ -419,6 +430,11 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
 
   const items = (itemRows ?? []) as RawReviewItemRow[]
   const itemIds = items.map((item) => item.id)
+  const questionIds = Array.from(
+    new Set(items.map((item) => item.exam_question_id).filter((id): id is string => Boolean(id)))
+  )
+  const attemptIdByTask = new Map(tasks.map((row) => [row.id, row.attempt_id]))
+  const attemptIds = Array.from(new Set(tasks.map((row) => row.attempt_id)))
 
   let assetRows: RawReviewItemAssetRow[] = []
   if (itemIds.length > 0) {
@@ -434,10 +450,57 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
     assetRows = (data ?? []) as unknown as RawReviewItemAssetRow[]
   }
 
-  const mediaRows: AssetRow[] = assetRows.map((row) => {
-    const media = Array.isArray(row.media_assets) ? row.media_assets[0] : row.media_assets
-    return { id: row.id, bucket: media?.bucket ?? null, path: media?.path ?? null }
-  })
+  // 원본 시험 문항 + 문항 이미지 + 응시 당시 답안
+  type QuestionRow = { id: string; order_index: number; prompt: string }
+  type AnswerRow = { attempt_id: string; question_id: string; content: string | null }
+
+  let questionRows: QuestionRow[] = []
+  let questionAssetRows: RawQuestionAssetRow[] = []
+  let answerRows: AnswerRow[] = []
+
+  if (questionIds.length > 0) {
+    const [questionResult, questionAssetResult, answerResult] = await Promise.all([
+      admin
+        .from('exam_questions')
+        .select('id, order_index, prompt')
+        .in('id', questionIds),
+      admin
+        .from('exam_question_assets')
+        .select('id, question_id, media_asset_id, order_index, media_assets(id, bucket, path)')
+        .in('question_id', questionIds)
+        .order('order_index', { ascending: true }),
+      admin
+        .from('exam_answers')
+        .select('attempt_id, question_id, content')
+        .in('attempt_id', attemptIds)
+        .in('question_id', questionIds),
+    ])
+
+    if (questionResult.error) {
+      console.error('[exams] failed to fetch original questions for review', questionResult.error)
+    }
+    if (questionAssetResult.error) {
+      console.error('[exams] failed to fetch original question assets for review', questionAssetResult.error)
+    }
+    if (answerResult.error) {
+      console.error('[exams] failed to fetch original answers for review', answerResult.error)
+    }
+
+    questionRows = (questionResult.data ?? []) as QuestionRow[]
+    questionAssetRows = (questionAssetResult.data ?? []) as unknown as RawQuestionAssetRow[]
+    answerRows = (answerResult.data ?? []) as AnswerRow[]
+  }
+
+  const mediaRows: AssetRow[] = [
+    ...assetRows.map((row) => {
+      const media = Array.isArray(row.media_assets) ? row.media_assets[0] : row.media_assets
+      return { id: row.id, bucket: media?.bucket ?? null, path: media?.path ?? null }
+    }),
+    ...questionAssetRows.map((row) => {
+      const media = Array.isArray(row.media_assets) ? row.media_assets[0] : row.media_assets
+      return { id: row.id, bucket: media?.bucket ?? null, path: media?.path ?? null }
+    }),
+  ]
   const urlMap = await createSignedUrlMap(mediaRows)
 
   const assetsByItem = new Map<string, ExamReviewTaskView['items'][number]['assets']>()
@@ -453,8 +516,28 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
     assetsByItem.set(row.item_id, list)
   }
 
+  const questionAssetsByQuestion = new Map<string, ExamQuestion['assets']>()
+  for (const row of questionAssetRows) {
+    const list = questionAssetsByQuestion.get(row.question_id) ?? []
+    list.push({
+      id: row.id,
+      mediaAssetId: row.media_asset_id,
+      orderIndex: row.order_index,
+      url: urlMap.get(row.id) ?? null,
+    })
+    questionAssetsByQuestion.set(row.question_id, list)
+  }
+
+  const questionById = new Map(questionRows.map((row) => [row.id, row]))
+  const answerByAttemptQuestion = new Map(
+    answerRows.map((row) => [`${row.attempt_id}:${row.question_id}`, row.content])
+  )
+
   const itemsByTask = new Map<string, ExamReviewTaskView['items']>()
   for (const row of items) {
+    const question = row.exam_question_id ? questionById.get(row.exam_question_id) : null
+    const attemptId = attemptIdByTask.get(row.review_task_id)
+
     const list = itemsByTask.get(row.review_task_id) ?? []
     list.push({
       id: row.id,
@@ -466,20 +549,22 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
       result: row.result,
       feedback: row.feedback,
       assets: assetsByItem.get(row.id) ?? [],
+      examQuestion: question
+        ? {
+            orderIndex: question.order_index,
+            prompt: question.prompt,
+            assets: questionAssetsByQuestion.get(question.id) ?? [],
+            originalAnswer:
+              attemptId && row.exam_question_id
+                ? answerByAttemptQuestion.get(`${attemptId}:${row.exam_question_id}`) ?? null
+                : null,
+          }
+        : null,
     })
     itemsByTask.set(row.review_task_id, list)
   }
 
-  type TaskRow = {
-    id: string
-    attempt_id: string
-    status: 'assigned' | 'submitted' | 'partial' | 'pass'
-    assigned_at: string
-    submitted_at: string | null
-    evaluated_at: string | null
-  }
-
-  for (const row of (taskRows ?? []) as TaskRow[]) {
+  for (const row of tasks) {
     result.set(row.id, {
       id: row.id,
       attemptId: row.attempt_id,

@@ -73,6 +73,14 @@ export interface ExamReviewItemAssetView {
   url: string | null
 }
 
+export interface ExamReviewItemQuestionContext {
+  orderIndex: number
+  prompt: string
+  assets: ExamQuestionAsset[]
+  /** 학생이 시험 응시 당시 제출한 답안 */
+  originalAnswer: string | null
+}
+
 export interface ExamReviewItemView {
   id: string
   examQuestionId: string | null
@@ -83,6 +91,8 @@ export interface ExamReviewItemView {
   result: ExamAttemptResult
   feedback: string | null
   assets: ExamReviewItemAssetView[]
+  /** 원본 시험 문항 정보 (원장이 직접 추가한 문항 등은 null) */
+  examQuestion: ExamReviewItemQuestionContext | null
 }
 
 export interface ExamReviewTaskView {
