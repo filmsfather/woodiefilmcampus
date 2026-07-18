@@ -648,7 +648,7 @@ export async function fetchExamSessionDetail(sessionId: string): Promise<ExamSes
   }
 }
 
-export async function fetchPrincipalReviewTasks(): Promise<PrincipalReviewTaskListItem[]> {
+export async function fetchPrincipalReviewTasks(examId?: string): Promise<PrincipalReviewTaskListItem[]> {
   const admin = createAdminClient()
 
   type Row = {
@@ -664,8 +664,8 @@ export async function fetchPrincipalReviewTasks(): Promise<PrincipalReviewTaskLi
           session_id: string
           profiles: { name: string | null; email: string | null } | { name: string | null; email: string | null }[] | null
           exam_sessions:
-            | { id: string; exams: { title: string } | { title: string }[] | null }
-            | Array<{ id: string; exams: { title: string } | { title: string }[] | null }>
+            | { id: string; exam_id: string; exams: { id: string; title: string } | { id: string; title: string }[] | null }
+            | Array<{ id: string; exam_id: string; exams: { id: string; title: string } | { id: string; title: string }[] | null }>
             | null
         }
       | Array<{
@@ -674,24 +674,30 @@ export async function fetchPrincipalReviewTasks(): Promise<PrincipalReviewTaskLi
           session_id: string
           profiles: { name: string | null; email: string | null } | { name: string | null; email: string | null }[] | null
           exam_sessions:
-            | { id: string; exams: { title: string } | { title: string }[] | null }
-            | Array<{ id: string; exams: { title: string } | { title: string }[] | null }>
+            | { id: string; exam_id: string; exams: { id: string; title: string } | { id: string; title: string }[] | null }
+            | Array<{ id: string; exam_id: string; exams: { id: string; title: string } | { id: string; title: string }[] | null }>
             | null
         }>
       | null
   }
 
-  const { data, error } = await admin
+  let query = admin
     .from('exam_review_tasks')
     .select(
       `id, status, assigned_at, submitted_at,
        exam_review_items(id),
-       exam_attempts(
+       exam_attempts!inner(
          id, student_id, session_id,
          profiles:profiles!exam_attempts_student_id_fkey(name, email),
-         exam_sessions(id, exams(title))
+         exam_sessions!inner(id, exam_id, exams(id, title))
        )`
     )
+
+  if (examId) {
+    query = query.eq('exam_attempts.exam_sessions.exam_id', examId)
+  }
+
+  const { data, error } = await query
     .order('submitted_at', { ascending: false, nullsFirst: false })
     .order('assigned_at', { ascending: false })
 
@@ -716,6 +722,7 @@ export async function fetchPrincipalReviewTasks(): Promise<PrincipalReviewTaskLi
 
     return {
       reviewTaskId: row.id,
+      examId: exam?.id ?? session?.exam_id ?? '',
       examTitle: exam?.title ?? '제목 없음',
       sessionId: attempt?.session_id ?? '',
       studentId: attempt?.student_id ?? '',

@@ -169,6 +169,7 @@ export interface StudentExamRunnerData {
 
 export interface PrincipalReviewTaskListItem {
   reviewTaskId: string
+  examId: string
   examTitle: string
   sessionId: string
   studentId: string

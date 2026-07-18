@@ -8,10 +8,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
-import { fetchClassOptionsForExam, fetchExamDetail } from '@/lib/exams'
+import { fetchClassOptionsForExam, fetchExamDetail, fetchPrincipalReviewTasks } from '@/lib/exams'
 
 export const metadata: Metadata = {
   title: '시험 세트 상세 | 시험 출제',
+}
+
+const REVIEW_STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  assigned: { label: '작성 대기', className: 'bg-slate-100 text-slate-700' },
+  submitted: { label: '확인 필요', className: 'bg-amber-100 text-amber-700' },
+  partial: { label: '부분 통과', className: 'bg-blue-100 text-blue-700' },
+  pass: { label: '통과', className: 'bg-emerald-100 text-emerald-700' },
 }
 
 function formatDateTime(value: string) {
@@ -22,11 +29,18 @@ export default async function ExamDetailPage(props: { params: Promise<{ examId: 
   await requireAuthForDashboard('principal')
 
   const { examId } = await props.params
-  const [exam, classOptions] = await Promise.all([fetchExamDetail(examId), fetchClassOptionsForExam()])
+  const [exam, classOptions, reviewTasks] = await Promise.all([
+    fetchExamDetail(examId),
+    fetchClassOptionsForExam(),
+    fetchPrincipalReviewTasks(examId),
+  ])
 
   if (!exam) {
     notFound()
   }
+
+  const pendingReviewTasks = reviewTasks.filter((task) => task.status === 'submitted')
+  const otherReviewTasks = reviewTasks.filter((task) => task.status !== 'submitted')
 
   return (
     <section className="space-y-6">
@@ -143,6 +157,46 @@ export default async function ExamDetailPage(props: { params: Promise<{ examId: 
               )}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-lg text-slate-900">오답노트 확인</CardTitle>
+          <CardDescription>
+            이 시험에 배정된 오답노트를 확인하고 문항별 부분 통과 또는 전체 통과를 결정하세요.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {reviewTasks.length === 0 ? (
+            <p className="py-2 text-sm text-slate-500">배정된 오답노트가 없습니다.</p>
+          ) : (
+            [...pendingReviewTasks, ...otherReviewTasks].map((task) => {
+              const badge = REVIEW_STATUS_BADGE[task.status] ?? REVIEW_STATUS_BADGE.assigned
+              return (
+                <div
+                  key={task.reviewTaskId}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 p-4"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-900">{task.studentName}</span>
+                      <Badge className={badge.className}>{badge.label}</Badge>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      문항 {task.itemCount}개 ·{' '}
+                      {task.submittedAt
+                        ? `${formatDateTime(task.submittedAt)} 제출`
+                        : `${formatDateTime(task.assignedAt)} 배정`}
+                    </p>
+                  </div>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/dashboard/principal/exams/reviews/${task.reviewTaskId}`}>오답노트 확인</Link>
+                  </Button>
+                </div>
+              )
+            })
+          )}
         </CardContent>
       </Card>
     </section>
