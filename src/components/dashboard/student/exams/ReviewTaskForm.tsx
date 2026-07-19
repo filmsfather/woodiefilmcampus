@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
 
 import {
+  autosaveReviewItemAction,
   deleteReviewItemImageAction,
   saveReviewTaskAction,
   updateReviewItemImageCaptionAction,
@@ -57,6 +58,16 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
   })
   const fileInputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
+  // 마지막으로 서버에 저장된 값 (변경 없는 blur에서는 저장 요청을 생략)
+  const lastSavedAnswersRef = useRef<Map<string, string>>(
+    new Map(task.items.map((item) => [item.id, item.answerContent ?? '']))
+  )
+  const lastSavedCaptionsRef = useRef<Map<string, string>>(
+    new Map(task.items.flatMap((item) => item.assets.map((asset) => [asset.id, asset.caption ?? ''] as const)))
+  )
+  const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [autosaveSavedAt, setAutosaveSavedAt] = useState<Date | null>(null)
+
   const isTaskLocked = task.status === 'pass'
   // partial 상태에서는 nonpass 문항만 수정 가능
   const isItemEditable = (result: string) => {
@@ -66,21 +77,74 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
     return true
   }
 
+  const markAutosaveSuccess = () => {
+    setAutosaveState('saved')
+    setAutosaveSavedAt(new Date())
+  }
+
+  const autosaveAnswer = async (itemId: string) => {
+    const value = answers.get(itemId) ?? ''
+    if (lastSavedAnswersRef.current.get(itemId) === value) return
+
+    setAutosaveState('saving')
+    try {
+      const result = await autosaveReviewItemAction({
+        reviewTaskId: task.id,
+        itemId,
+        answerContent: value,
+      })
+      if (result.success) {
+        lastSavedAnswersRef.current.set(itemId, value)
+        markAutosaveSuccess()
+      } else {
+        setAutosaveState('error')
+      }
+    } catch (err) {
+      console.error('[exams] review answer autosave failed', err)
+      setAutosaveState('error')
+    }
+  }
+
+  const autosaveCaption = async (assetLinkId: string) => {
+    const value = captionDrafts.get(assetLinkId) ?? ''
+    if (lastSavedCaptionsRef.current.get(assetLinkId) === value) return
+
+    setAutosaveState('saving')
+    try {
+      const result = await updateReviewItemImageCaptionAction(
+        { assetLinkId, caption: value },
+        { skipRevalidate: true }
+      )
+      if (result.success) {
+        lastSavedCaptionsRef.current.set(assetLinkId, value)
+        markAutosaveSuccess()
+      } else {
+        setAutosaveState('error')
+      }
+    } catch (err) {
+      console.error('[exams] review caption autosave failed', err)
+      setAutosaveState('error')
+    }
+  }
+
   const save = (submit: boolean) => {
     if (submit && !window.confirm('오답노트를 제출할까요?')) return
     setError(null)
     startTransition(async () => {
+      const editableItems = task.items.filter((item) => isItemEditable(item.result))
       const result = await saveReviewTaskAction({
         reviewTaskId: task.id,
         submit,
-        items: task.items
-          .filter((item) => isItemEditable(item.result))
-          .map((item) => ({
-            itemId: item.id,
-            answerContent: answers.get(item.id) ?? '',
-          })),
+        items: editableItems.map((item) => ({
+          itemId: item.id,
+          answerContent: answers.get(item.id) ?? '',
+        })),
       })
       if (result.success) {
+        for (const item of editableItems) {
+          lastSavedAnswersRef.current.set(item.id, answers.get(item.id) ?? '')
+        }
+        setAutosaveState('idle')
         router.refresh()
       } else {
         setError(result.error ?? '저장에 실패했습니다.')
@@ -155,11 +219,13 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
   const handleSaveCaption = (assetLinkId: string) => {
     setError(null)
     startTransition(async () => {
+      const caption = captionDrafts.get(assetLinkId) ?? ''
       const result = await updateReviewItemImageCaptionAction({
         assetLinkId,
-        caption: captionDrafts.get(assetLinkId) ?? '',
+        caption,
       })
       if (result.success) {
+        lastSavedCaptionsRef.current.set(assetLinkId, caption)
         router.refresh()
       } else {
         setError(result.error ?? '해설 저장에 실패했습니다.')
@@ -219,6 +285,9 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
                         return next
                       })
                     }
+                    onBlur={() => {
+                      if (editable) void autosaveAnswer(item.id)
+                    }}
                     placeholder={editable ? '답안을 작성하세요' : ''}
                     rows={5}
                     disabled={!editable || isPending}
@@ -254,6 +323,9 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
                                     return next
                                   })
                                 }
+                                onBlur={() => {
+                                  if (editable) void autosaveCaption(asset.id)
+                                }}
                                 placeholder="이미지에 대한 해설을 작성하세요"
                                 rows={3}
                                 disabled={!editable || isPending}
@@ -327,7 +399,20 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
       ))}
 
       {!isTaskLocked && (
-        <div className="flex justify-end gap-2">
+        <div className="flex items-center justify-end gap-3">
+          {autosaveState === 'saving' && (
+            <span className="flex items-center gap-1 text-xs text-slate-500">
+              <Loader2 className="h-3 w-3 animate-spin" /> 자동 저장 중...
+            </span>
+          )}
+          {autosaveState === 'saved' && autosaveSavedAt && (
+            <span className="text-xs text-emerald-600">
+              자동 저장됨 ({autosaveSavedAt.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })})
+            </span>
+          )}
+          {autosaveState === 'error' && (
+            <span className="text-xs text-red-600">자동 저장 실패 — 임시저장 버튼을 눌러주세요</span>
+          )}
           <Button variant="outline" disabled={isPending} onClick={() => save(false)}>
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             임시저장

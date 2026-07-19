@@ -280,6 +280,52 @@ async function loadReviewTaskOwnership(reviewTaskId: string): Promise<ReviewTask
   return { taskId: row.id, status: row.status, studentId: attempt.student_id }
 }
 
+const autosaveReviewItemSchema = z.object({
+  reviewTaskId: z.string().uuid(),
+  itemId: z.string().uuid(),
+  answerContent: z.string(),
+})
+
+// 포커스 아웃 시 단일 문항 답안만 조용히 저장한다. (revalidate 없이 DB 반영만)
+export async function autosaveReviewItemAction(
+  input: z.infer<typeof autosaveReviewItemSchema>
+): Promise<ActionResult> {
+  const profile = await ensureStudentProfile()
+  if (!profile) {
+    return { error: '학생 계정으로 로그인해주세요.' }
+  }
+
+  const parsed = autosaveReviewItemSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: '입력값이 올바르지 않습니다.' }
+  }
+
+  const ownership = await loadReviewTaskOwnership(parsed.data.reviewTaskId)
+  if (!ownership || ownership.studentId !== profile.id) {
+    return { error: '본인의 오답노트만 작성할 수 있습니다.' }
+  }
+
+  if (ownership.status === 'pass') {
+    return { error: '이미 통과된 오답노트입니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { error } = await admin
+    .from('exam_review_items')
+    .update({ answer_content: parsed.data.answerContent })
+    .eq('id', parsed.data.itemId)
+    .eq('review_task_id', parsed.data.reviewTaskId)
+    .neq('result', 'pass')
+
+  if (error) {
+    console.error('[exams] failed to autosave review item answer', error)
+    return { error: '자동 저장에 실패했습니다.' }
+  }
+
+  return { success: true }
+}
+
 export async function saveReviewTaskAction(input: SubmitReviewTaskInput): Promise<ActionResult> {
   const profile = await ensureStudentProfile()
   if (!profile) {
@@ -539,7 +585,8 @@ export async function deleteReviewItemImageAction(assetLinkId: string): Promise<
 }
 
 export async function updateReviewItemImageCaptionAction(
-  input: z.infer<typeof updateReviewItemImageCaptionSchema>
+  input: z.infer<typeof updateReviewItemImageCaptionSchema>,
+  options?: { skipRevalidate?: boolean }
 ): Promise<ActionResult> {
   const profile = await ensureStudentProfile()
   if (!profile) {
@@ -607,7 +654,7 @@ export async function updateReviewItemImageCaptionAction(
     return { error: '해설 저장에 실패했습니다.' }
   }
 
-  if (item) {
+  if (item && !options?.skipRevalidate) {
     revalidateStudentExams(undefined, item.review_task_id)
   }
   return { success: true }
