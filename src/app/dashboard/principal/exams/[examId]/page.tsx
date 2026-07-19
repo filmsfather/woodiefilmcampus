@@ -62,7 +62,7 @@ export default async function ExamDetailPage(props: { params: Promise<{ examId: 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg text-slate-900">출제하기</CardTitle>
-          <CardDescription>대상 반과 제한시간, 응시 기간을 지정해 이 시험을 출제합니다.</CardDescription>
+          <CardDescription>대상 반 또는 개별 학생과 제한시간, 응시 기간을 지정해 이 시험을 출제합니다.</CardDescription>
         </CardHeader>
         <CardContent>
           <ExamSessionCreateForm examId={exam.id} classOptions={classOptions} />
@@ -85,7 +85,7 @@ export default async function ExamDetailPage(props: { params: Promise<{ examId: 
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-slate-900">
-                      {session.classNames.join(', ') || '대상 반 없음'}
+                      {[...session.classNames, ...session.studentNames].join(', ') || '대상 없음'}
                     </span>
                     <Badge
                       className={

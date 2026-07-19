@@ -214,8 +214,13 @@ type RawSessionRow = {
   created_at: string
   exams: { id: string; title: string } | { id: string; title: string }[] | null
   exam_session_targets: Array<{
-    class_id: string
+    class_id: string | null
+    student_id: string | null
     classes: { id: string; name: string | null } | { id: string; name: string | null }[] | null
+    profiles:
+      | { id: string; name: string | null; email: string | null }
+      | { id: string; name: string | null; email: string | null }[]
+      | null
   }> | null
 }
 
@@ -225,7 +230,9 @@ async function buildSessionSummaries(rows: RawSessionRow[]): Promise<ExamSession
   const classIdSet = new Set<string>()
   for (const row of rows) {
     for (const target of row.exam_session_targets ?? []) {
-      classIdSet.add(target.class_id)
+      if (target.class_id) {
+        classIdSet.add(target.class_id)
+      }
     }
   }
 
@@ -277,15 +284,22 @@ async function buildSessionSummaries(rows: RawSessionRow[]): Promise<ExamSession
   return rows.map((row) => {
     const exam = Array.isArray(row.exams) ? row.exams[0] : row.exams
     const classNames: string[] = []
+    const studentNames: string[] = []
     const studentIdSet = new Set<string>()
 
     for (const target of row.exam_session_targets ?? []) {
-      const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
-      if (cls?.name) {
-        classNames.push(cls.name)
-      }
-      for (const studentId of memberByClass.get(target.class_id) ?? []) {
-        studentIdSet.add(studentId)
+      if (target.class_id) {
+        const cls = Array.isArray(target.classes) ? target.classes[0] : target.classes
+        if (cls?.name) {
+          classNames.push(cls.name)
+        }
+        for (const studentId of memberByClass.get(target.class_id) ?? []) {
+          studentIdSet.add(studentId)
+        }
+      } else if (target.student_id) {
+        const profile = Array.isArray(target.profiles) ? target.profiles[0] : target.profiles
+        studentNames.push(profile?.name ?? profile?.email ?? '이름 없음')
+        studentIdSet.add(target.student_id)
       }
     }
 
@@ -301,6 +315,7 @@ async function buildSessionSummaries(rows: RawSessionRow[]): Promise<ExamSession
       closesAt: row.closes_at,
       status: row.status,
       classNames: classNames.sort((a, b) => a.localeCompare(b, 'ko')),
+      studentNames: studentNames.sort((a, b) => a.localeCompare(b, 'ko')),
       totalStudents: studentIdSet.size,
       submittedCount: submitted.length,
       pendingEvaluationCount: submitted.filter((attempt) => attempt.result === 'pending').length,
@@ -311,7 +326,7 @@ async function buildSessionSummaries(rows: RawSessionRow[]): Promise<ExamSession
 
 const SESSION_SELECT = `id, exam_id, duration_minutes, opens_at, closes_at, status, created_at,
   exams(id, title),
-  exam_session_targets(class_id, classes(id, name))`
+  exam_session_targets(class_id, student_id, classes(id, name), profiles:profiles!exam_session_targets_student_id_fkey(id, name, email))`
 
 export async function fetchExamSessionSummaries(): Promise<ExamSessionSummary[]> {
   const admin = createAdminClient()
@@ -609,7 +624,9 @@ export async function fetchExamSessionDetail(sessionId: string): Promise<ExamSes
   const questions = questionMap.get(examId) ?? []
 
   // 대상 반 학생 로스터
-  const classIds = (raw.exam_session_targets ?? []).map((target) => target.class_id)
+  const classIds = (raw.exam_session_targets ?? [])
+    .map((target) => target.class_id)
+    .filter((id): id is string => Boolean(id))
   type MemberRow = {
     class_id: string
     student_id: string
@@ -704,6 +721,35 @@ export async function fetchExamSessionDetail(sessionId: string): Promise<ExamSes
       studentId: member.student_id,
       studentName: profile?.name ?? profile?.email ?? '이름 없음',
       className: cls?.name ?? null,
+      startedAt: attempt?.started_at ?? null,
+      submittedAt: attempt?.submitted_at ?? null,
+      result: attempt?.result ?? 'pending',
+      answers: attempt
+        ? (answersByAttempt.get(attempt.id) ?? []).map((answer) => ({
+            questionId: answer.question_id,
+            content: answer.content,
+          }))
+        : [],
+      reviewTask: reviewTask
+        ? { id: reviewTask.id, status: reviewTask.status, submittedAt: reviewTask.submitted_at }
+        : null,
+    })
+  }
+
+  // 개별 지정 학생 로스터
+  for (const target of raw.exam_session_targets ?? []) {
+    if (!target.student_id || seenStudents.has(target.student_id)) continue
+    seenStudents.add(target.student_id)
+
+    const profile = Array.isArray(target.profiles) ? target.profiles[0] : target.profiles
+    const attempt = attemptByStudent.get(target.student_id) ?? null
+    const reviewTask = attempt ? reviewByAttempt.get(attempt.id) ?? null : null
+
+    rows.push({
+      attemptId: attempt?.id ?? null,
+      studentId: target.student_id,
+      studentName: profile?.name ?? profile?.email ?? '이름 없음',
+      className: '개별 출제',
       startedAt: attempt?.started_at ?? null,
       submittedAt: attempt?.submitted_at ?? null,
       result: attempt?.result ?? 'pending',
@@ -888,14 +934,16 @@ async function fetchStudentClassIds(studentId: string): Promise<string[]> {
 export async function fetchStudentExamList(studentId: string): Promise<StudentExamListItem[]> {
   const admin = createAdminClient()
   const classIds = await fetchStudentClassIds(studentId)
-  if (classIds.length === 0) {
-    return []
+
+  const orFilters = [`student_id.eq.${studentId}`]
+  if (classIds.length > 0) {
+    orFilters.push(`class_id.in.(${classIds.join(',')})`)
   }
 
   const { data: targetRows, error: targetError } = await admin
     .from('exam_session_targets')
     .select('session_id')
-    .in('class_id', classIds)
+    .or(orFilters.join(','))
 
   if (targetError) {
     console.error('[exams] failed to fetch session targets for student', targetError)
@@ -1048,15 +1096,17 @@ export async function fetchStudentExamRunnerData(
   const admin = createAdminClient()
 
   const classIds = await fetchStudentClassIds(studentId)
-  if (classIds.length === 0) {
-    return null
+
+  const orFilters = [`student_id.eq.${studentId}`]
+  if (classIds.length > 0) {
+    orFilters.push(`class_id.in.(${classIds.join(',')})`)
   }
 
   const { data: targetRow } = await admin
     .from('exam_session_targets')
     .select('id')
     .eq('session_id', sessionId)
-    .in('class_id', classIds)
+    .or(orFilters.join(','))
     .limit(1)
     .maybeSingle()
 
@@ -1200,12 +1250,18 @@ export async function fetchStudentReviewTaskDetail(
   }
 }
 
-export async function fetchClassOptionsForExam(): Promise<Array<{ id: string; name: string; studentCount: number }>> {
+export interface ExamClassOption {
+  id: string
+  name: string
+  students: Array<{ id: string; name: string }>
+}
+
+export async function fetchClassOptionsForExam(): Promise<ExamClassOption[]> {
   const admin = createAdminClient()
 
   const { data: classRows, error } = await admin
     .from('classes')
-    .select('id, name, class_students(id)')
+    .select('id, name, class_students(student_id, profiles:profiles!class_students_student_id_fkey(id, name, email))')
     .order('name', { ascending: true })
 
   if (error) {
@@ -1213,11 +1269,29 @@ export async function fetchClassOptionsForExam(): Promise<Array<{ id: string; na
     return []
   }
 
-  type Row = { id: string; name: string | null; class_students: { id: string }[] | null }
+  type Row = {
+    id: string
+    name: string | null
+    class_students: Array<{
+      student_id: string
+      profiles:
+        | { id: string; name: string | null; email: string | null }
+        | { id: string; name: string | null; email: string | null }[]
+        | null
+    }> | null
+  }
 
-  return ((classRows ?? []) as Row[]).map((row) => ({
+  return ((classRows ?? []) as unknown as Row[]).map((row) => ({
     id: row.id,
     name: row.name ?? '이름 없는 반',
-    studentCount: row.class_students?.length ?? 0,
+    students: (row.class_students ?? [])
+      .map((member) => {
+        const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles
+        return {
+          id: member.student_id,
+          name: profile?.name ?? profile?.email ?? '이름 없음',
+        }
+      })
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko')),
   }))
 }

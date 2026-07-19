@@ -56,15 +56,17 @@ async function isSessionTarget(sessionId: string, studentId: string): Promise<bo
     .eq('student_id', studentId)
 
   const classIds = (classRows ?? []).map((row) => row.class_id).filter(Boolean)
-  if (classIds.length === 0) {
-    return false
+
+  const orFilters = [`student_id.eq.${studentId}`]
+  if (classIds.length > 0) {
+    orFilters.push(`class_id.in.(${classIds.join(',')})`)
   }
 
   const { data: targetRow } = await admin
     .from('exam_session_targets')
     .select('id')
     .eq('session_id', sessionId)
-    .in('class_id', classIds)
+    .or(orFilters.join(','))
     .limit(1)
     .maybeSingle()
 

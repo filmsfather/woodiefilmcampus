@@ -45,6 +45,8 @@ export interface ExamSessionSummary {
   closesAt: string
   status: ExamSessionStatus
   classNames: string[]
+  /** 개별 출제 대상 학생 이름 목록 */
+  studentNames: string[]
   totalStudents: number
   submittedCount: number
   pendingEvaluationCount: number

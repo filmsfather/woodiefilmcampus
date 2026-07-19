@@ -111,7 +111,8 @@ export default async function PrincipalExamsPage() {
                     </Badge>
                   </div>
                   <p className="text-xs text-slate-500">
-                    {session.classNames.join(', ') || '대상 반 없음'} · 제한 {session.durationMinutes}분 ·{' '}
+                    {[...session.classNames, ...session.studentNames].join(', ') || '대상 없음'} · 제한{' '}
+                    {session.durationMinutes}분 ·{' '}
                     {formatDateTime(session.opensAt)} ~ {formatDateTime(session.closesAt)}
                   </p>
                   <p className="text-xs text-slate-500">

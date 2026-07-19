@@ -441,17 +441,25 @@ export async function createExamSessionAction(input: CreateExamSessionInput): Pr
 
   const sessionId = sessionRow.id as string
 
-  const { error: targetError } = await admin.from('exam_session_targets').insert(
-    parsed.data.classIds.map((classId) => ({
+  const targetRows = [
+    ...parsed.data.classIds.map((classId) => ({
       session_id: sessionId,
       class_id: classId,
-    }))
-  )
+      student_id: null as string | null,
+    })),
+    ...parsed.data.studentIds.map((studentId) => ({
+      session_id: sessionId,
+      class_id: null as string | null,
+      student_id: studentId,
+    })),
+  ]
+
+  const { error: targetError } = await admin.from('exam_session_targets').insert(targetRows)
 
   if (targetError) {
     console.error('[exams] failed to insert session targets', targetError)
     await admin.from('exam_sessions').delete().eq('id', sessionId)
-    return { error: '대상 반 지정에 실패했습니다.' }
+    return { error: '출제 대상 지정에 실패했습니다.' }
   }
 
   revalidateExams([`${EXAMS_BASE_PATH}/${parsed.data.examId}`, '/dashboard/student'])

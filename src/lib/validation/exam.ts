@@ -41,7 +41,8 @@ export const updateExamSchema = createExamSchema.extend({
 export const createExamSessionSchema = z
   .object({
     examId: z.string().uuid(),
-    classIds: z.array(z.string().uuid()).min(1, '대상 반을 1개 이상 선택해주세요.'),
+    classIds: z.array(z.string().uuid()).default([]),
+    studentIds: z.array(z.string().uuid()).default([]),
     durationMinutes: z
       .number()
       .int()
@@ -51,6 +52,13 @@ export const createExamSessionSchema = z
     closesAt: z.string().datetime({ offset: true }),
   })
   .superRefine((value, ctx) => {
+    if (value.classIds.length === 0 && value.studentIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '대상 반 또는 학생을 1개 이상 선택해주세요.',
+        path: ['classIds'],
+      })
+    }
     if (new Date(value.closesAt) <= new Date(value.opensAt)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
