@@ -541,38 +541,91 @@ export async function evaluateAttemptAction(input: EvaluateAttemptInput): Promis
       .eq('attempt_id', parsed.data.attemptId)
       .maybeSingle()
 
-    if (!existingTask) {
-      const { data: taskRow, error: taskError } = await admin
-        .from('exam_review_tasks')
-        .insert({
-          attempt_id: parsed.data.attemptId,
-          status: 'assigned',
-          assigned_by: profile.id,
-          assigned_at: now,
-        })
+    // 이미 배정된 오답노트가 있으면 제출 이미지까지 정리한 뒤 삭제하고 새로 배정(덮어쓰기)
+    if (existingTask) {
+      const { data: itemRows } = await admin
+        .from('exam_review_items')
         .select('id')
-        .single()
+        .eq('review_task_id', existingTask.id)
 
-      if (taskError || !taskRow?.id) {
-        console.error('[exams] failed to create review task', taskError)
-        return { error: '오답노트 과제 생성에 실패했습니다.' }
+      const itemIds = (itemRows ?? []).map((row) => row.id as string)
+
+      if (itemIds.length > 0) {
+        type AssetLinkRow = {
+          media_asset_id: string | null
+          media_assets:
+            | { id: string; bucket: string | null; path: string | null }
+            | { id: string; bucket: string | null; path: string | null }[]
+            | null
+        }
+
+        const { data: assetLinks } = await admin
+          .from('exam_review_item_assets')
+          .select('media_asset_id, media_assets(id, bucket, path)')
+          .in('item_id', itemIds)
+
+        const storagePaths: string[] = []
+        const mediaAssetIds: string[] = []
+
+        for (const link of (assetLinks ?? []) as AssetLinkRow[]) {
+          const asset = Array.isArray(link.media_assets) ? link.media_assets[0] : link.media_assets
+          if (asset?.path) {
+            storagePaths.push(asset.path)
+          }
+          if (link.media_asset_id) {
+            mediaAssetIds.push(link.media_asset_id)
+          }
+        }
+
+        if (storagePaths.length > 0) {
+          await admin.storage.from(EXAM_ASSETS_BUCKET).remove(storagePaths)
+        }
+        if (mediaAssetIds.length > 0) {
+          await admin.from('media_assets').delete().in('id', mediaAssetIds)
+        }
       }
 
-      const { error: itemError } = await admin.from('exam_review_items').insert(
-        parsed.data.reviewItems.map((item, index) => ({
-          review_task_id: taskRow.id as string,
-          exam_question_id: item.examQuestionId ?? null,
-          order_index: index,
-          prompt: item.prompt,
-          requires_image: item.requiresImage,
-        }))
-      )
+      const { error: deleteError } = await admin
+        .from('exam_review_tasks')
+        .delete()
+        .eq('id', existingTask.id)
 
-      if (itemError) {
-        console.error('[exams] failed to insert review items', itemError)
-        await admin.from('exam_review_tasks').delete().eq('id', taskRow.id)
-        return { error: '오답노트 문항 생성에 실패했습니다.' }
+      if (deleteError) {
+        console.error('[exams] failed to delete existing review task', deleteError)
+        return { error: '기존 오답노트 삭제에 실패했습니다.' }
       }
+    }
+
+    const { data: taskRow, error: taskError } = await admin
+      .from('exam_review_tasks')
+      .insert({
+        attempt_id: parsed.data.attemptId,
+        status: 'assigned',
+        assigned_by: profile.id,
+        assigned_at: now,
+      })
+      .select('id')
+      .single()
+
+    if (taskError || !taskRow?.id) {
+      console.error('[exams] failed to create review task', taskError)
+      return { error: '오답노트 과제 생성에 실패했습니다.' }
+    }
+
+    const { error: itemError } = await admin.from('exam_review_items').insert(
+      parsed.data.reviewItems.map((item, index) => ({
+        review_task_id: taskRow.id as string,
+        exam_question_id: item.examQuestionId ?? null,
+        order_index: index,
+        prompt: item.prompt,
+        requires_image: item.requiresImage,
+      }))
+    )
+
+    if (itemError) {
+      console.error('[exams] failed to insert review items', itemError)
+      await admin.from('exam_review_tasks').delete().eq('id', taskRow.id)
+      return { error: '오답노트 문항 생성에 실패했습니다.' }
     }
   }
 

@@ -258,6 +258,14 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
             </DialogDescription>
           </DialogHeader>
 
+          {nonpassRow?.reviewTask && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              이미 배정된 오답노트(
+              {REVIEW_STATUS_LABEL[nonpassRow.reviewTask.status] ?? nonpassRow.reviewTask.status}
+              )가 있습니다. 배정하면 기존 오답노트와 학생이 작성한 내용이 삭제되고 새로 배정됩니다.
+            </div>
+          )}
+
           <div className="space-y-3">
             {questions.map((question, index) => (
               <label
