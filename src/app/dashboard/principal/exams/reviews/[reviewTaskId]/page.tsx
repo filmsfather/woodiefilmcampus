@@ -5,7 +5,7 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ReviewTaskEvaluation } from '@/components/dashboard/exams/ReviewTaskEvaluation'
 import { Badge } from '@/components/ui/badge'
 import { requireAuthForDashboard } from '@/lib/auth'
-import { fetchReviewTaskDetailForPrincipal } from '@/lib/exams'
+import { fetchReferenceAnswerPool, fetchReviewTaskDetailForPrincipal } from '@/lib/exams'
 
 export const metadata: Metadata = {
   title: '오답노트 확인 | 시험 출제',
@@ -32,6 +32,13 @@ export default async function ReviewTaskDetailPage(props: {
 
   const badge = STATUS_BADGE[detail.task.status] ?? STATUS_BADGE.assigned
 
+  const poolMap = await fetchReferenceAnswerPool(
+    detail.task.items
+      .map((item) => item.reviewQuestionId)
+      .filter((id): id is string => Boolean(id))
+  )
+  const referencePool = Array.from(poolMap.values()).flat()
+
   return (
     <section className="space-y-6">
       <DashboardBackLink
@@ -49,11 +56,16 @@ export default async function ReviewTaskDetailPage(props: {
         <p className="text-sm text-slate-600">{detail.examTitle}</p>
         <p className="text-xs text-slate-500">
           문항별로 PASS / NON-PASS를 지정하거나, 전체 통과 버튼으로 일괄 통과시킬 수 있습니다. NON-PASS 문항은
-          학생이 다시 작성해 재제출합니다.
+          학생이 다시 작성해 재제출합니다. 잘 쓴 답안은 참고자료로 저장해 같은 문항을 재작성하는 다른 학생에게
+          제공할 수 있습니다.
         </p>
       </header>
 
-      <ReviewTaskEvaluation task={detail.task} />
+      <ReviewTaskEvaluation
+        task={detail.task}
+        studentId={detail.studentId}
+        referencePool={referencePool}
+      />
     </section>
   )
 }

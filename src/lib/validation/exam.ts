@@ -76,6 +76,7 @@ export const evaluateAttemptSchema = z
       .array(
         z.object({
           examQuestionId: z.string().uuid().nullable().optional(),
+          reviewQuestionId: z.string().uuid().nullable().optional(),
           prompt: z.string().trim().min(1).max(2000),
           requiresImage: z.boolean().default(false),
         })
@@ -134,6 +135,18 @@ export const uploadReviewItemImageSchema = z.object({
   caption: z.string().trim().max(2000).optional().nullable(),
 })
 
+export const saveReferenceAnswerSchema = z.object({
+  itemId: z.string().uuid(),
+  label: z.string().trim().max(100).optional().nullable(),
+  note: z.string().trim().max(2000).optional().nullable(),
+  showStudentName: z.boolean().default(true),
+})
+
+export const attachReferenceAnswersSchema = z.object({
+  itemId: z.string().uuid(),
+  referenceAnswerIds: z.array(z.string().uuid()).max(20),
+})
+
 export const updateReviewItemImageCaptionSchema = z.object({
   assetLinkId: z.string().uuid(),
   caption: z.string().trim().max(2000),
@@ -147,3 +160,5 @@ export type EvaluateReviewTaskInput = z.infer<typeof evaluateReviewTaskSchema>
 export type SubmitExamAnswersInput = z.infer<typeof submitExamAnswersSchema>
 export type SubmitReviewTaskInput = z.infer<typeof submitReviewTaskSchema>
 export type UploadReviewItemImageInput = z.infer<typeof uploadReviewItemImageSchema>
+export type SaveReferenceAnswerInput = z.infer<typeof saveReferenceAnswerSchema>
+export type AttachReferenceAnswersInput = z.infer<typeof attachReferenceAnswersSchema>

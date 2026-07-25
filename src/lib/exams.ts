@@ -5,6 +5,8 @@ import type {
   ExamSessionDetail,
   ExamSessionSummary,
   ExamSummary,
+  ExamReviewReferenceAnswerPoolItem,
+  ExamReviewReferenceAnswerView,
   ExamReviewTaskView,
   PrincipalReviewTaskListItem,
   ReviewTaskDetailForPrincipal,
@@ -387,6 +389,7 @@ type RawReviewItemRow = {
   id: string
   review_task_id: string
   exam_question_id: string | null
+  review_question_id: string | null
   order_index: number
   prompt: string
   requires_image: boolean
@@ -394,6 +397,26 @@ type RawReviewItemRow = {
   result: 'pending' | 'pass' | 'nonpass'
   feedback: string | null
 }
+
+/** 참고자료를 익명으로 저장한 경우 학생에게 보여줄 표기 */
+const ANONYMOUS_REFERENCE_AUTHOR = '다른 학생'
+
+type RawReferenceAnswerRow = {
+  id: string
+  review_question_id: string
+  source_item_id: string | null
+  source_student_id: string | null
+  source_student_name: string
+  show_student_name: boolean
+  prompt: string
+  content: string
+  label: string | null
+  note: string | null
+  created_at: string
+}
+
+const REFERENCE_ANSWER_SELECT =
+  'id, review_question_id, source_item_id, source_student_id, source_student_name, show_student_name, prompt, content, label, note, created_at'
 
 type RawReviewItemAssetRow = {
   id: string
@@ -435,7 +458,9 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
 
   const { data: itemRows, error: itemError } = await admin
     .from('exam_review_items')
-    .select('id, review_task_id, exam_question_id, order_index, prompt, requires_image, answer_content, result, feedback')
+    .select(
+      'id, review_task_id, exam_question_id, review_question_id, order_index, prompt, requires_image, answer_content, result, feedback'
+    )
     .in('review_task_id', taskIds)
     .order('order_index', { ascending: true })
 
@@ -463,6 +488,79 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
       console.error('[exams] failed to fetch review item assets', error)
     }
     assetRows = (data ?? []) as unknown as RawReviewItemAssetRow[]
+  }
+
+  // 문항에 붙여준 참고자료 + 이 문항 답안이 이미 참고자료로 저장됐는지
+  const referencesByItem = new Map<string, ExamReviewReferenceAnswerView[]>()
+  const savedReferenceItemIds = new Set<string>()
+
+  if (itemIds.length > 0) {
+    const [linkResult, savedResult] = await Promise.all([
+      admin
+        .from('exam_review_item_references')
+        .select('item_id, reference_answer_id')
+        .in('item_id', itemIds),
+      admin
+        .from('exam_review_reference_answers')
+        .select('source_item_id')
+        .in('source_item_id', itemIds)
+        .eq('is_active', true),
+    ])
+
+    if (linkResult.error) {
+      console.error('[exams] failed to fetch review item references', linkResult.error)
+    }
+    if (savedResult.error) {
+      console.error('[exams] failed to fetch saved reference flags', savedResult.error)
+    }
+
+    for (const row of (savedResult.data ?? []) as Array<{ source_item_id: string | null }>) {
+      if (row.source_item_id) {
+        savedReferenceItemIds.add(row.source_item_id)
+      }
+    }
+
+    const links = (linkResult.data ?? []) as Array<{ item_id: string; reference_answer_id: string }>
+    const referenceIds = Array.from(new Set(links.map((row) => row.reference_answer_id)))
+
+    if (referenceIds.length > 0) {
+      const { data: referenceRows, error: referenceError } = await admin
+        .from('exam_review_reference_answers')
+        .select(REFERENCE_ANSWER_SELECT)
+        .in('id', referenceIds)
+        .eq('is_active', true)
+
+      if (referenceError) {
+        console.error('[exams] failed to fetch reference answers', referenceError)
+      }
+
+      const referenceById = new Map(
+        ((referenceRows ?? []) as RawReferenceAnswerRow[]).map((row) => [row.id, row])
+      )
+
+      for (const link of links) {
+        const reference = referenceById.get(link.reference_answer_id)
+        if (!reference) continue
+
+        const list = referencesByItem.get(link.item_id) ?? []
+        list.push({
+          id: reference.id,
+          studentName: reference.show_student_name
+            ? reference.source_student_name
+            : ANONYMOUS_REFERENCE_AUTHOR,
+          prompt: reference.prompt,
+          content: reference.content,
+          label: reference.label,
+          note: reference.note,
+          createdAt: reference.created_at,
+        })
+        referencesByItem.set(link.item_id, list)
+      }
+
+      for (const list of referencesByItem.values()) {
+        list.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      }
+    }
   }
 
   // 원본 시험 문항 + 문항 이미지 + 응시 당시 답안
@@ -557,6 +655,7 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
     list.push({
       id: row.id,
       examQuestionId: row.exam_question_id,
+      reviewQuestionId: row.review_question_id,
       orderIndex: row.order_index,
       prompt: row.prompt,
       requiresImage: row.requires_image,
@@ -575,6 +674,8 @@ async function fetchReviewTaskViews(taskIds: string[]): Promise<Map<string, Exam
                 : null,
           }
         : null,
+      references: referencesByItem.get(row.id) ?? [],
+      savedAsReference: savedReferenceItemIds.has(row.id),
     })
     itemsByTask.set(row.review_task_id, list)
   }
@@ -912,8 +1013,56 @@ export async function fetchReviewTaskDetailForPrincipal(
     task,
     examTitle: exam?.title ?? '제목 없음',
     sessionId: attempt.session_id,
+    studentId: attempt.student_id,
     studentName: profile?.name ?? profile?.email ?? '이름 없음',
   }
+}
+
+/**
+ * 오답노트 문항 템플릿 단위로 저장된 참고자료를 모아온다.
+ * 원장 채점 화면에서 학생 문항에 붙일 후보 목록으로 쓴다.
+ */
+export async function fetchReferenceAnswerPool(
+  reviewQuestionIds: string[]
+): Promise<Map<string, ExamReviewReferenceAnswerPoolItem[]>> {
+  const result = new Map<string, ExamReviewReferenceAnswerPoolItem[]>()
+  const ids = Array.from(new Set(reviewQuestionIds.filter(Boolean)))
+  if (ids.length === 0) {
+    return result
+  }
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from('exam_review_reference_answers')
+    .select(REFERENCE_ANSWER_SELECT)
+    .in('review_question_id', ids)
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[exams] failed to fetch reference answer pool', error)
+    return result
+  }
+
+  for (const row of (data ?? []) as RawReferenceAnswerRow[]) {
+    const list = result.get(row.review_question_id) ?? []
+    list.push({
+      id: row.id,
+      reviewQuestionId: row.review_question_id,
+      sourceItemId: row.source_item_id,
+      sourceStudentId: row.source_student_id,
+      studentName: row.source_student_name,
+      showStudentName: row.show_student_name,
+      prompt: row.prompt,
+      content: row.content,
+      label: row.label,
+      note: row.note,
+      createdAt: row.created_at,
+    })
+    result.set(row.review_question_id, list)
+  }
+
+  return result
 }
 
 async function fetchStudentClassIds(studentId: string): Promise<string[]> {

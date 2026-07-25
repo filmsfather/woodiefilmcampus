@@ -9,15 +9,19 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { EXAM_ASSETS_BUCKET } from '@/lib/storage/buckets'
 import { sanitizeStorageFileName } from '@/lib/storage-upload'
 import {
+  attachReferenceAnswersSchema,
   createExamSchema,
   createExamSessionSchema,
   evaluateAttemptSchema,
   evaluateReviewTaskSchema,
+  saveReferenceAnswerSchema,
   updateExamSchema,
+  type AttachReferenceAnswersInput,
   type CreateExamInput,
   type CreateExamSessionInput,
   type EvaluateAttemptInput,
   type EvaluateReviewTaskInput,
+  type SaveReferenceAnswerInput,
   type UpdateExamInput,
 } from '@/lib/validation/exam'
 
@@ -616,6 +620,7 @@ export async function evaluateAttemptAction(input: EvaluateAttemptInput): Promis
       parsed.data.reviewItems.map((item, index) => ({
         review_task_id: taskRow.id as string,
         exam_question_id: item.examQuestionId ?? null,
+        review_question_id: item.reviewQuestionId ?? null,
         order_index: index,
         prompt: item.prompt,
         requires_image: item.requiresImage,
@@ -701,6 +706,236 @@ export async function evaluateReviewTaskAction(input: EvaluateReviewTaskInput): 
   }
 
   revalidateExams([`${EXAMS_BASE_PATH}/reviews/${parsed.data.reviewTaskId}`])
+  return { success: true }
+}
+
+type ReviewItemContext = {
+  id: string
+  reviewTaskId: string
+  reviewQuestionId: string
+  prompt: string
+  answerContent: string | null
+  studentId: string
+  studentName: string
+}
+
+/**
+ * 참고자료 저장·연결에 필요한 문항 컨텍스트를 모아온다.
+ * 학생 이름은 학생 화면에 그대로 노출되므로 이메일로 대체하지 않는다.
+ */
+async function loadReviewItemContext(itemId: string): Promise<ReviewItemContext | string> {
+  const admin = createAdminClient()
+
+  const { data: itemRow, error: itemError } = await admin
+    .from('exam_review_items')
+    .select('id, review_task_id, review_question_id, prompt, answer_content')
+    .eq('id', itemId)
+    .maybeSingle()
+
+  if (itemError || !itemRow) {
+    if (itemError) console.error('[exams] failed to load review item', itemError)
+    return '문항을 찾을 수 없습니다.'
+  }
+
+  if (!itemRow.review_question_id) {
+    return '시험 세트의 오답노트 문항이 아니어서 참고자료로 다룰 수 없습니다.'
+  }
+
+  const { data: taskRow, error: taskError } = await admin
+    .from('exam_review_tasks')
+    .select('attempt_id')
+    .eq('id', itemRow.review_task_id as string)
+    .maybeSingle()
+
+  if (taskError || !taskRow) {
+    if (taskError) console.error('[exams] failed to load review task', taskError)
+    return '오답노트를 찾을 수 없습니다.'
+  }
+
+  const { data: attemptRow, error: attemptError } = await admin
+    .from('exam_attempts')
+    .select('student_id')
+    .eq('id', taskRow.attempt_id as string)
+    .maybeSingle()
+
+  if (attemptError || !attemptRow) {
+    if (attemptError) console.error('[exams] failed to load attempt', attemptError)
+    return '응시 기록을 찾을 수 없습니다.'
+  }
+
+  const { data: profileRow } = await admin
+    .from('profiles')
+    .select('name')
+    .eq('id', attemptRow.student_id as string)
+    .maybeSingle()
+
+  const studentName = (profileRow?.name as string | null)?.trim() ?? ''
+
+  return {
+    id: itemRow.id as string,
+    reviewTaskId: itemRow.review_task_id as string,
+    reviewQuestionId: itemRow.review_question_id as string,
+    prompt: itemRow.prompt as string,
+    answerContent: (itemRow.answer_content as string | null) ?? null,
+    studentId: attemptRow.student_id as string,
+    studentName,
+  }
+}
+
+export async function saveReferenceAnswerAction(
+  input: SaveReferenceAnswerInput
+): Promise<ActionResult> {
+  const profile = await ensurePrincipalProfile()
+  if (!profile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const parsed = saveReferenceAnswerSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  const context = await loadReviewItemContext(parsed.data.itemId)
+  if (typeof context === 'string') {
+    return { error: context }
+  }
+
+  const content = context.answerContent?.trim() ?? ''
+  if (!content) {
+    return { error: '답안이 비어 있어 참고자료로 저장할 수 없습니다.' }
+  }
+
+  if (!context.studentName) {
+    return { error: '학생 이름이 등록되어 있지 않습니다. 프로필에 이름을 먼저 등록해주세요.' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('exam_review_reference_answers').upsert(
+    {
+      review_question_id: context.reviewQuestionId,
+      source_item_id: context.id,
+      source_student_id: context.studentId,
+      source_student_name: context.studentName,
+      prompt: context.prompt,
+      content,
+      label: parsed.data.label?.trim() || null,
+      note: parsed.data.note?.trim() || null,
+      show_student_name: parsed.data.showStudentName,
+      is_active: true,
+      created_by: profile.id,
+    },
+    { onConflict: 'source_item_id' }
+  )
+
+  if (error) {
+    console.error('[exams] failed to save reference answer', error)
+    return { error: '참고자료 저장에 실패했습니다.' }
+  }
+
+  revalidateExams([`${EXAMS_BASE_PATH}/reviews/${context.reviewTaskId}`])
+  return { success: true }
+}
+
+export async function attachReferenceAnswersAction(
+  input: AttachReferenceAnswersInput
+): Promise<ActionResult> {
+  const profile = await ensurePrincipalProfile()
+  if (!profile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const parsed = attachReferenceAnswersSchema.safeParse(input)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '입력값이 올바르지 않습니다.' }
+  }
+
+  const context = await loadReviewItemContext(parsed.data.itemId)
+  if (typeof context === 'string') {
+    return { error: context }
+  }
+
+  const admin = createAdminClient()
+  const requestedIds = Array.from(new Set(parsed.data.referenceAnswerIds))
+  let allowedIds: string[] = []
+
+  if (requestedIds.length > 0) {
+    // 같은 오답노트 문항의 활성 참고자료만 허용하고, 본인 답안은 제외한다.
+    const { data: candidateRows, error: candidateError } = await admin
+      .from('exam_review_reference_answers')
+      .select('id, source_student_id')
+      .in('id', requestedIds)
+      .eq('review_question_id', context.reviewQuestionId)
+      .eq('is_active', true)
+
+    if (candidateError) {
+      console.error('[exams] failed to validate reference answers', candidateError)
+      return { error: '참고자료 확인에 실패했습니다.' }
+    }
+
+    allowedIds = (candidateRows ?? [])
+      .filter((row) => row.source_student_id !== context.studentId)
+      .map((row) => row.id as string)
+
+    if (allowedIds.length !== requestedIds.length) {
+      return { error: '선택할 수 없는 참고자료가 포함되어 있습니다.' }
+    }
+  }
+
+  const { error: deleteError } = await admin
+    .from('exam_review_item_references')
+    .delete()
+    .eq('item_id', context.id)
+
+  if (deleteError) {
+    console.error('[exams] failed to reset item references', deleteError)
+    return { error: '참고자료 연결 갱신에 실패했습니다.' }
+  }
+
+  if (allowedIds.length > 0) {
+    const { error: insertError } = await admin.from('exam_review_item_references').insert(
+      allowedIds.map((referenceAnswerId) => ({
+        item_id: context.id,
+        reference_answer_id: referenceAnswerId,
+        attached_by: profile.id,
+      }))
+    )
+
+    if (insertError) {
+      console.error('[exams] failed to attach reference answers', insertError)
+      return { error: '참고자료 연결에 실패했습니다.' }
+    }
+  }
+
+  revalidateExams([`${EXAMS_BASE_PATH}/reviews/${context.reviewTaskId}`])
+  revalidatePath(`/dashboard/student/exams/review/${context.reviewTaskId}`)
+  return { success: true }
+}
+
+export async function deactivateReferenceAnswerAction(
+  referenceAnswerId: string
+): Promise<ActionResult> {
+  const profile = await ensurePrincipalProfile()
+  if (!profile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const idParse = z.string().uuid().safeParse(referenceAnswerId)
+  if (!idParse.success) {
+    return { error: '잘못된 요청입니다.' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('exam_review_reference_answers')
+    .update({ is_active: false })
+    .eq('id', referenceAnswerId)
+
+  if (error) {
+    console.error('[exams] failed to deactivate reference answer', error)
+    return { error: '참고자료 삭제에 실패했습니다.' }
+  }
+
+  revalidateExams()
   return { success: true }
 }
 

@@ -80,7 +80,12 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
     if (!nonpassRow?.attemptId) return
     setError(null)
 
-    const reviewItems: Array<{ examQuestionId: string | null; prompt: string; requiresImage: boolean }> = []
+    const reviewItems: Array<{
+      examQuestionId: string | null
+      reviewQuestionId: string | null
+      prompt: string
+      requiresImage: boolean
+    }> = []
 
     for (const question of questions) {
       if (!selectedQuestionIds.has(question.id)) continue
@@ -88,6 +93,7 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
         for (const template of question.reviewQuestions) {
           reviewItems.push({
             examQuestionId: question.id,
+            reviewQuestionId: template.id,
             prompt: template.prompt,
             requiresImage: template.requiresImage,
           })
@@ -95,6 +101,7 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
       } else {
         reviewItems.push({
           examQuestionId: question.id,
+          reviewQuestionId: null,
           prompt: `다음 문제를 오답노트로 다시 풀어오세요.\n\n${question.prompt}`,
           requiresImage: false,
         })
@@ -103,7 +110,12 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
 
     for (const item of customItems) {
       if (item.prompt.trim()) {
-        reviewItems.push({ examQuestionId: null, prompt: item.prompt.trim(), requiresImage: item.requiresImage })
+        reviewItems.push({
+          examQuestionId: null,
+          reviewQuestionId: null,
+          prompt: item.prompt.trim(),
+          requiresImage: item.requiresImage,
+        })
       }
     }
 

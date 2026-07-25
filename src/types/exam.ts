@@ -83,9 +83,25 @@ export interface ExamReviewItemQuestionContext {
   originalAnswer: string | null
 }
 
+/**
+ * 참고자료로 저장된 다른 학생의 답안.
+ * 학생 화면에 그대로 노출되므로 작성자 식별자(source_student_id)는 담지 않는다.
+ */
+export interface ExamReviewReferenceAnswerView {
+  id: string
+  studentName: string
+  prompt: string
+  content: string
+  label: string | null
+  note: string | null
+  createdAt: string
+}
+
 export interface ExamReviewItemView {
   id: string
   examQuestionId: string | null
+  /** 참고자료 풀을 묶는 오답노트 문항 템플릿 id */
+  reviewQuestionId: string | null
   orderIndex: number
   prompt: string
   requiresImage: boolean
@@ -95,6 +111,10 @@ export interface ExamReviewItemView {
   assets: ExamReviewItemAssetView[]
   /** 원본 시험 문항 정보 (원장이 직접 추가한 문항 등은 null) */
   examQuestion: ExamReviewItemQuestionContext | null
+  /** 이 문항에 붙여준 참고자료 */
+  references: ExamReviewReferenceAnswerView[]
+  /** 이 문항의 답안이 이미 참고자료로 저장되어 있는지 (원장 화면 전용) */
+  savedAsReference: boolean
 }
 
 export interface ExamReviewTaskView {
@@ -192,10 +212,29 @@ export interface PrincipalReviewTaskListItem {
   itemCount: number
 }
 
+/**
+ * 원장 채점 화면의 참고자료 선택 목록. 학생 화면과 달리 출처 학생 id를 포함해
+ * 본인 답안을 걸러내고 실명 공개 여부를 보여준다.
+ */
+export interface ExamReviewReferenceAnswerPoolItem {
+  id: string
+  reviewQuestionId: string
+  sourceItemId: string | null
+  sourceStudentId: string | null
+  studentName: string
+  showStudentName: boolean
+  prompt: string
+  content: string
+  label: string | null
+  note: string | null
+  createdAt: string
+}
+
 export interface ReviewTaskDetailForPrincipal {
   task: ExamReviewTaskView
   examTitle: string
   sessionId: string
+  studentId: string
   studentName: string
 }
 

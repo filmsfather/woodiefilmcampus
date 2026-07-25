@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
+import { BookOpen, ChevronDown, ImagePlus, Loader2, Trash2 } from 'lucide-react'
 
 import {
   autosaveReviewItemAction,
@@ -67,6 +67,20 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
   )
   const [autosaveState, setAutosaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [autosaveSavedAt, setAutosaveSavedAt] = useState<Date | null>(null)
+  // 스스로 먼저 작성하도록 참고자료는 접힌 상태로 시작한다.
+  const [openReferenceItemIds, setOpenReferenceItemIds] = useState<Set<string>>(new Set())
+
+  const toggleReferences = (itemId: string) => {
+    setOpenReferenceItemIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(itemId)) {
+        next.delete(itemId)
+      } else {
+        next.add(itemId)
+      }
+      return next
+    })
+  }
 
   const isTaskLocked = task.status === 'pass'
   // partial 상태에서는 nonpass 문항만 수정 가능
@@ -273,6 +287,58 @@ export function ReviewTaskForm({ task }: ReviewTaskFormProps) {
                   {item.feedback && (
                     <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 whitespace-pre-wrap">
                       <span className="font-medium">원장 피드백:</span> {item.feedback}
+                    </div>
+                  )}
+
+                  {item.references.length > 0 && (
+                    <div className="rounded-md border border-blue-200 bg-blue-50/60 p-3">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-2 text-left"
+                        onClick={() => toggleReferences(item.id)}
+                      >
+                        <span className="flex items-center gap-1.5 text-sm font-medium text-blue-900">
+                          <BookOpen className="h-4 w-4" />
+                          참고 답안 보기 ({item.references.length})
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 text-blue-700 transition-transform ${
+                            openReferenceItemIds.has(item.id) ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {openReferenceItemIds.has(item.id) ? (
+                        <div className="mt-3 space-y-3">
+                          {item.references.map((reference) => (
+                            <div
+                              key={reference.id}
+                              className="rounded-md border border-blue-200 bg-white p-3"
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge className="bg-blue-100 text-blue-800">
+                                  {reference.studentName} 학생 답안
+                                </Badge>
+                                {reference.label && (
+                                  <span className="text-xs text-blue-700">{reference.label}</span>
+                                )}
+                              </div>
+                              <p className="mt-2 select-none whitespace-pre-wrap text-sm text-slate-700">
+                                {reference.content}
+                              </p>
+                              {reference.note && (
+                                <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-800 whitespace-pre-wrap">
+                                  {reference.note}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-xs text-blue-700">
+                          먼저 스스로 답안을 작성해본 뒤 열어보면 더 도움이 됩니다.
+                        </p>
+                      )}
                     </div>
                   )}
 
