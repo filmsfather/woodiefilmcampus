@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronDown, ChevronUp, ExternalLink, Loader2, Plus } from 'lucide-react'
+import { ChevronDown, ChevronUp, ExternalLink, Loader2, Plus, RotateCcw } from 'lucide-react'
 
 import { addInterviewReviewQuestionAction } from '@/app/dashboard/teacher/mock-practice/interview/actions'
 import { addInterviewSheetQuestionAction } from '@/app/dashboard/teacher/mock-practice/interview-sheet/actions'
@@ -22,9 +22,13 @@ const SHEET_SOURCE_LABELS: Record<InterviewSheetItemSource, string> = {
 export function InterviewAttemptReviewPanel({
   row,
   sheet,
+  sessionId,
+  sessionStatus,
 }: {
   row: InterviewAttemptRow
   sheet: InterviewSheetOverview | null
+  sessionId: string
+  sessionStatus: 'open' | 'closed'
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
@@ -61,6 +65,20 @@ export function InterviewAttemptReviewPanel({
         setError(result.error ?? '문항 추가에 실패했습니다.')
       }
     })
+  }
+
+  const handleRetake = () => {
+    if (
+      !window.confirm(
+        '이 학생의 면접을 다시 녹화할까요? 기존 영상은 삭제되고 새 영상으로 교체됩니다. 복기 과제와 학생이 작성한 답변은 그대로 유지됩니다.'
+      )
+    ) {
+      return
+    }
+
+    router.push(
+      `/dashboard/teacher/mock-practice/interview/sessions/${sessionId}/record/${row.attemptId}?retake=1`
+    )
   }
 
   const handleAddSheetQuestion = () => {
@@ -115,6 +133,17 @@ export function InterviewAttemptReviewPanel({
             <p className="rounded-md border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500">
               영상을 불러올 수 없습니다. 페이지를 새로고침해주세요.
             </p>
+          )}
+
+          {sessionStatus === 'open' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleRetake}>
+                <RotateCcw className="mr-1 h-4 w-4" /> 다시 녹화
+              </Button>
+              <span className="text-xs text-slate-500">
+                기존 영상은 삭제되고 새 영상으로 교체됩니다. 복기 과제와 학생 답변은 유지됩니다.
+              </span>
+            </div>
           )}
 
           <div className="grid gap-4 md:grid-cols-2">

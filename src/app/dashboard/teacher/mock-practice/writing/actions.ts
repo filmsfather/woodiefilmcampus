@@ -23,6 +23,7 @@ import {
   type RetryWritingOcrInput,
   type UpdateWritingSetInput,
 } from '@/lib/validation/writing'
+import { WRITING_REVIEW_WORKBOOK_ORIGIN } from '@/lib/validation/workbook'
 import type { UserProfile } from '@/lib/supabase'
 
 type ActionResult = {
@@ -188,6 +189,7 @@ function buildTemplateWorkbookPayload(teacherId: string, title: string, descript
     subject: '통합',
     type: 'writing',
     tags: ['모의작문'],
+    origin: WRITING_REVIEW_WORKBOOK_ORIGIN,
     description,
     config: {
       writing: {
@@ -754,6 +756,7 @@ export async function issueWritingReviewTaskAction(input: IssueWritingReviewTask
       subject: templateWorkbook.subject ?? '통합',
       type: templateWorkbook.type ?? 'writing',
       tags: ['모의작문', '오답노트'],
+      origin: WRITING_REVIEW_WORKBOOK_ORIGIN,
       description: templateWorkbook.description ?? null,
       config: templateWorkbook.config ?? {
         writing: {

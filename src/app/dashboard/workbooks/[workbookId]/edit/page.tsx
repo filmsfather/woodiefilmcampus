@@ -45,6 +45,9 @@ type WorkbookConfig = {
   essay?: {
     topic?: string
   }
+  worksheet?: {
+    instructions?: string
+  }
 }
 
 export const metadata: Metadata = {
@@ -151,7 +154,7 @@ export default async function WorkbookEditPage({ params }: WorkbookEditPageProps
         <WorkbookMetadataForm workbookId={workbook.id} defaultValues={formDefaults} teachers={teachers} />
         <WorkbookItemsEditor
           workbookId={workbook.id}
-          workbookType={workbook.type as 'srs' | 'pdf' | 'writing' | 'film' | 'lecture' | 'image' | 'essay'}
+          workbookType={workbook.type as 'srs' | 'pdf' | 'writing' | 'film' | 'lecture' | 'image' | 'essay' | 'worksheet'}
           allowMultipleCorrect={allowMultipleCorrect}
           items={itemsForEditor}
         />
@@ -234,6 +237,9 @@ const buildMetadataFormDefaults = (workbook: WorkbookRecord): WorkbookMetadataFo
     },
     essaySettings: {
       topic: config.essay?.topic ?? '',
+    },
+    worksheetSettings: {
+      instructions: config.worksheet?.instructions ?? '',
     },
   }
 }

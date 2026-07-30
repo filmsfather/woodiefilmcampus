@@ -268,6 +268,16 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
         />
       )
       break
+    case 'worksheet':
+      taskContent = (
+        <ImageTaskRunner
+          task={task}
+          instructions={
+            (workbookConfig as { worksheet?: { instructions?: string | null } }).worksheet?.instructions ?? null
+          }
+        />
+      )
+      break
     default:
       taskContent = (
         <Card className="border-dashed border-slate-300 bg-slate-50">

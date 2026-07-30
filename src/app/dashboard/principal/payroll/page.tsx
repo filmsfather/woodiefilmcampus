@@ -7,6 +7,7 @@ import {
   fetchTeacherDirectory,
   loadPayrollRunDetails,
   loadPayrollRuns,
+  normalizeAdjustments,
 } from '@/lib/payroll/queries'
 import { calculatePayroll } from '@/lib/payroll/calculate'
 import { buildPayrollMessage, createMessageContext } from '@/lib/payroll/messages'
@@ -30,31 +31,6 @@ interface PrincipalPayrollTeacherEntry {
   messagePreview: string
   adjustments: PayrollAdjustmentInput[]
   requestNote: string | null
-}
-
-function normalizeAdjustments(value: unknown): PayrollAdjustmentInput[] {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const results: PayrollAdjustmentInput[] = []
-  for (const entry of value) {
-    if (!entry || typeof entry !== 'object') {
-      continue
-    }
-    const record = entry as Record<string, unknown>
-    const label = typeof record.label === 'string' ? record.label : null
-    if (!label) {
-      continue
-    }
-    const rawAmount = record.amount
-    const amount = typeof rawAmount === 'number' ? rawAmount : Number.parseFloat(String(rawAmount))
-    if (Number.isNaN(amount)) {
-      continue
-    }
-    const isDeduction = Boolean(record.isDeduction)
-    results.push({ label, amount, isDeduction })
-  }
-  return results
 }
 
 export default async function PrincipalPayrollPage(props: {

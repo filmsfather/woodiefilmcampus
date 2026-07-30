@@ -82,6 +82,12 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
         variant: 'outline',
       },
       {
+        label: '학생 워크시트 보드',
+        href: '/dashboard/teacher/worksheet',
+        description: '영화연구 워크시트 사진을 확인하고 우수작을 선정하세요.',
+        variant: 'outline',
+      },
+      {
         label: '문제집 만들기',
         href: '/dashboard/workbooks/new',
         description: '새 문제집을 작성하는 마법사로 이동합니다.',
@@ -131,6 +137,21 @@ const TEACHER_SECTIONS: TeacherDashboardSection[] = [
   },
 ]
 
+// 원장이 운영하는 시험 화면을 교사에게 열람 전용으로 제공한다. 실장은 접근 대상이 아니다.
+const TEACHER_EXAM_SECTIONS: TeacherDashboardSection[] = [
+  {
+    title: '시험',
+    description: '원장이 출제한 시험을 열람 전용으로 확인하세요.',
+    actions: [
+      {
+        label: '시험 열람',
+        href: '/dashboard/principal/exams',
+        description: '시험 세트와 회차별 응시 현황, 오답노트 판정 결과를 확인합니다.',
+      },
+    ],
+  },
+]
+
 export default async function TeacherDashboardPage() {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
   const isManager = profile?.role === 'manager'
@@ -146,6 +167,8 @@ export default async function TeacherDashboardPage() {
     new Set(dashboardData.assignedClasses.flatMap((c) => c.students.map((s) => s.id)))
   )
   const publishedStudentIds = await fetchPublishedStudentIds(assignedStudentIds)
+
+  const sections = isManager ? TEACHER_SECTIONS : [...TEACHER_SECTIONS, ...TEACHER_EXAM_SECTIONS]
 
   return (
     <section className="mx-auto flex max-w-4xl flex-col gap-6">
@@ -169,7 +192,7 @@ export default async function TeacherDashboardPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2">
-        {TEACHER_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <Card key={section.title} className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
             <CardHeader className="space-y-2">
               <CardTitle className="text-lg text-slate-900">{section.title}</CardTitle>

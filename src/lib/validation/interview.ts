@@ -59,6 +59,8 @@ export const createInterviewSessionSchema = z
 export const completeInterviewRecordingSchema = z.object({
   attemptId: z.string().uuid(),
   video: interviewUploadedMetaSchema,
+  /** retake: 기존 영상만 교체하고 복기 과제는 그대로 둔다 */
+  mode: z.enum(['create', 'retake']).default('create'),
 })
 
 export const addInterviewReviewQuestionSchema = z.object({
@@ -69,5 +71,5 @@ export const addInterviewReviewQuestionSchema = z.object({
 export type CreateInterviewSetInput = z.infer<typeof createInterviewSetSchema>
 export type UpdateInterviewSetInput = z.infer<typeof updateInterviewSetSchema>
 export type CreateInterviewSessionInput = z.infer<typeof createInterviewSessionSchema>
-export type CompleteInterviewRecordingInput = z.infer<typeof completeInterviewRecordingSchema>
+export type CompleteInterviewRecordingInput = z.input<typeof completeInterviewRecordingSchema>
 export type AddInterviewReviewQuestionInput = z.infer<typeof addInterviewReviewQuestionSchema>

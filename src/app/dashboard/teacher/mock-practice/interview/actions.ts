@@ -20,6 +20,7 @@ import {
   type CreateInterviewSetInput,
   type UpdateInterviewSetInput,
 } from '@/lib/validation/interview'
+import { INTERVIEW_REVIEW_WORKBOOK_ORIGIN } from '@/lib/validation/workbook'
 import type { UserProfile } from '@/lib/supabase'
 
 type ActionResult = {
@@ -196,6 +197,7 @@ export async function createInterviewSetAction(input: CreateInterviewSetInput): 
       subject: '통합',
       type: 'writing',
       tags: ['모의면접'],
+      origin: INTERVIEW_REVIEW_WORKBOOK_ORIGIN,
       description: parsed.data.description || null,
       config: {
         writing: {
@@ -325,6 +327,7 @@ export async function updateInterviewSetAction(input: UpdateInterviewSetInput): 
         subject: '통합',
         type: 'writing',
         tags: ['모의면접'],
+        origin: INTERVIEW_REVIEW_WORKBOOK_ORIGIN,
         description: parsed.data.description || null,
         config: {
           writing: {
@@ -608,6 +611,106 @@ export async function closeInterviewSessionAction(sessionId: string): Promise<Ac
   return { success: true }
 }
 
+/**
+ * 재녹화: 복기 과제(assignment/student_task/학생 답변)는 그대로 두고 영상만 새 것으로 교체한다.
+ * 새 영상이 attempt에 반영된 뒤에 예전 영상을 지워, 중간에 실패해도 영상이 사라지지 않도록 한다.
+ */
+async function replaceInterviewRecording(params: {
+  attempt: { id: string; sessionId: string; videoMediaAssetId: string | null }
+  video: CompleteInterviewRecordingInput['video']
+  uploaderId: string
+}): Promise<ActionResult> {
+  const { attempt, video, uploaderId } = params
+  const admin = createAdminClient()
+
+  let previousAsset: { bucket: string | null; path: string | null } | null = null
+
+  if (attempt.videoMediaAssetId) {
+    const { data } = await admin
+      .from('media_assets')
+      .select('bucket, path')
+      .eq('id', attempt.videoMediaAssetId)
+      .maybeSingle()
+
+    previousAsset = (data as { bucket: string | null; path: string | null } | null) ?? null
+  }
+
+  const finalPath = `sessions/${attempt.sessionId}/${attempt.id}/${randomUUID()}-${sanitizeStorageFileName(video.originalName)}`
+
+  if (video.path !== finalPath) {
+    const { error: moveError } = await admin.storage
+      .from(INTERVIEW_RECORDINGS_BUCKET)
+      .move(video.path, finalPath)
+
+    if (moveError) {
+      console.error('[interviews] failed to move retake recording', moveError)
+      return { error: '녹화 영상을 저장하지 못했습니다.' }
+    }
+  }
+
+  const { data: mediaAsset, error: mediaError } = await admin
+    .from('media_assets')
+    .insert({
+      owner_id: uploaderId,
+      scope: 'interview',
+      bucket: INTERVIEW_RECORDINGS_BUCKET,
+      path: finalPath,
+      mime_type: video.mimeType,
+      size: video.size,
+      metadata: { originalName: sanitizeStorageFileName(video.originalName) },
+    })
+    .select('id')
+    .single()
+
+  if (mediaError || !mediaAsset?.id) {
+    console.error('[interviews] failed to insert retake media asset', mediaError)
+    await admin.storage.from(INTERVIEW_RECORDINGS_BUCKET).remove([finalPath])
+    return { error: '녹화 영상 정보를 저장하지 못했습니다.' }
+  }
+
+  const newAssetId = mediaAsset.id as string
+
+  const { error: updateError } = await admin
+    .from('interview_attempts')
+    .update({
+      video_media_asset_id: newAssetId,
+      recorded_by: uploaderId,
+      recorded_at: new Date().toISOString(),
+    })
+    .eq('id', attempt.id)
+
+  if (updateError) {
+    console.error('[interviews] failed to update attempt with retake recording', updateError)
+    await admin.from('media_assets').delete().eq('id', newAssetId)
+    await admin.storage.from(INTERVIEW_RECORDINGS_BUCKET).remove([finalPath])
+    return { error: '녹화 영상 교체에 실패했습니다.' }
+  }
+
+  // 여기부터는 새 영상이 이미 반영된 상태라, 정리에 실패해도 로그만 남기고 성공으로 처리한다
+  if (attempt.videoMediaAssetId) {
+    if (previousAsset?.bucket === INTERVIEW_RECORDINGS_BUCKET && previousAsset.path) {
+      const { error: removeError } = await admin.storage
+        .from(INTERVIEW_RECORDINGS_BUCKET)
+        .remove([previousAsset.path])
+
+      if (removeError) {
+        console.error('[interviews] failed to remove previous recording file', removeError)
+      }
+    }
+
+    const { error: deleteAssetError } = await admin
+      .from('media_assets')
+      .delete()
+      .eq('id', attempt.videoMediaAssetId)
+
+    if (deleteAssetError) {
+      console.error('[interviews] failed to delete previous recording asset', deleteAssetError)
+    }
+  }
+
+  return { success: true, id: newAssetId }
+}
+
 export async function completeInterviewRecordingAction(
   input: CompleteInterviewRecordingInput
 ): Promise<ActionResult> {
@@ -627,22 +730,36 @@ export async function completeInterviewRecordingAction(
 
   const admin = createAdminClient()
 
+  type SessionRel = {
+    id: string
+    set_id: string
+    status: string
+    interview_sets:
+      | { id: string; title: string; workbook_id: string | null }
+      | { id: string; title: string; workbook_id: string | null }[]
+      | null
+  }
+
   type AttemptRow = {
     id: string
     session_id: string
     student_id: string
     status: string
-    interview_sessions:
-      | { id: string; set_id: string; interview_sets: { id: string; title: string; workbook_id: string | null } | { id: string; title: string; workbook_id: string | null }[] | null }
-      | Array<{ id: string; set_id: string; interview_sets: { id: string; title: string; workbook_id: string | null } | { id: string; title: string; workbook_id: string | null }[] | null }>
+    video_media_asset_id: string | null
+    student_task_id: string | null
+    interview_sessions: SessionRel | SessionRel[] | null
+    student_tasks:
+      | { assignment_id: string | null }
+      | { assignment_id: string | null }[]
       | null
   }
 
   const { data: attemptData, error: attemptError } = await admin
     .from('interview_attempts')
     .select(
-      `id, session_id, student_id, status,
-       interview_sessions(id, set_id, interview_sets(id, title, workbook_id))`
+      `id, session_id, student_id, status, video_media_asset_id, student_task_id,
+       interview_sessions(id, set_id, status, interview_sets(id, title, workbook_id)),
+       student_tasks:student_tasks!interview_attempts_student_task_id_fkey(assignment_id)`
     )
     .eq('id', parsed.data.attemptId)
     .maybeSingle()
@@ -654,13 +771,48 @@ export async function completeInterviewRecordingAction(
 
   const attempt = attemptData as unknown as AttemptRow
 
+  const session = Array.isArray(attempt.interview_sessions)
+    ? attempt.interview_sessions[0]
+    : attempt.interview_sessions
+
+  if (parsed.data.mode === 'retake') {
+    if (attempt.status !== 'task_created') {
+      return { error: '아직 녹화되지 않은 학생입니다. 녹화 시작으로 진행해주세요.' }
+    }
+
+    if (session?.status === 'closed') {
+      return { error: '마감된 회차는 다시 녹화할 수 없습니다.' }
+    }
+
+    const result = await replaceInterviewRecording({
+      attempt: {
+        id: attempt.id,
+        sessionId: attempt.session_id,
+        videoMediaAssetId: attempt.video_media_asset_id,
+      },
+      video: parsed.data.video,
+      uploaderId: profile.id,
+    })
+
+    if (result.success) {
+      const task = Array.isArray(attempt.student_tasks) ? attempt.student_tasks[0] : attempt.student_tasks
+
+      revalidateInterviews([
+        `${INTERVIEW_BASE_PATH}/sessions/${attempt.session_id}`,
+        '/dashboard/student/interviews',
+        '/dashboard/student/tasks',
+        ...(attempt.student_task_id ? [`/dashboard/student/tasks/${attempt.student_task_id}`] : []),
+        ...(task?.assignment_id ? [`/dashboard/teacher/assignments/${task.assignment_id}`] : []),
+      ])
+    }
+
+    return result
+  }
+
   if (attempt.status === 'task_created') {
     return { error: '이미 녹화가 완료된 학생입니다.' }
   }
 
-  const session = Array.isArray(attempt.interview_sessions)
-    ? attempt.interview_sessions[0]
-    : attempt.interview_sessions
   const set = session
     ? Array.isArray(session.interview_sets)
       ? session.interview_sets[0]
@@ -714,6 +866,7 @@ export async function completeInterviewRecordingAction(
       subject: templateWorkbook.subject ?? '통합',
       type: templateWorkbook.type ?? 'writing',
       tags: ['모의면접', '개별복기'],
+      origin: INTERVIEW_REVIEW_WORKBOOK_ORIGIN,
       description: templateWorkbook.description ?? null,
       config: templateWorkbook.config ?? {
         writing: {

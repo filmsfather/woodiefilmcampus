@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { ReviewTaskEvaluation } from '@/components/dashboard/exams/ReviewTaskEvaluation'
+import { ReviewTaskReadOnlyView } from '@/components/dashboard/exams/ReviewTaskReadOnlyView'
 import { Badge } from '@/components/ui/badge'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchReferenceAnswerPool, fetchReviewTaskDetailForPrincipal } from '@/lib/exams'
@@ -21,7 +22,8 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 export default async function ReviewTaskDetailPage(props: {
   params: Promise<{ reviewTaskId: string }>
 }) {
-  await requireAuthForDashboard('principal')
+  const { profile } = await requireAuthForDashboard(['principal', 'teacher'])
+  const canManage = profile?.role === 'principal'
 
   const { reviewTaskId } = await props.params
   const detail = await fetchReviewTaskDetailForPrincipal(reviewTaskId)
@@ -32,12 +34,14 @@ export default async function ReviewTaskDetailPage(props: {
 
   const badge = STATUS_BADGE[detail.task.status] ?? STATUS_BADGE.assigned
 
-  const poolMap = await fetchReferenceAnswerPool(
-    detail.task.items
-      .map((item) => item.reviewQuestionId)
-      .filter((id): id is string => Boolean(id))
-  )
-  const referencePool = Array.from(poolMap.values()).flat()
+  const poolMap = canManage
+    ? await fetchReferenceAnswerPool(
+        detail.task.items
+          .map((item) => item.reviewQuestionId)
+          .filter((id): id is string => Boolean(id))
+      )
+    : null
+  const referencePool = poolMap ? Array.from(poolMap.values()).flat() : []
 
   return (
     <section className="space-y-6">
@@ -55,17 +59,21 @@ export default async function ReviewTaskDetailPage(props: {
         </div>
         <p className="text-sm text-slate-600">{detail.examTitle}</p>
         <p className="text-xs text-slate-500">
-          문항별로 PASS / NON-PASS를 지정하거나, 전체 통과 버튼으로 일괄 통과시킬 수 있습니다. NON-PASS 문항은
-          학생이 다시 작성해 재제출합니다. 잘 쓴 답안은 참고자료로 저장해 같은 문항을 재작성하는 다른 학생에게
-          제공할 수 있습니다.
+          {canManage
+            ? '문항별로 PASS / NON-PASS를 지정하거나, 전체 통과 버튼으로 일괄 통과시킬 수 있습니다. NON-PASS 문항은 학생이 다시 작성해 재제출합니다. 잘 쓴 답안은 참고자료로 저장해 같은 문항을 재작성하는 다른 학생에게 제공할 수 있습니다.'
+            : '열람 전용입니다. 학생 답안과 문항별 판정 결과를 확인할 수 있고, 판정과 참고자료 관리는 원장 계정에서 진행됩니다.'}
         </p>
       </header>
 
-      <ReviewTaskEvaluation
-        task={detail.task}
-        studentId={detail.studentId}
-        referencePool={referencePool}
-      />
+      {canManage ? (
+        <ReviewTaskEvaluation
+          task={detail.task}
+          studentId={detail.studentId}
+          referencePool={referencePool}
+        />
+      ) : (
+        <ReviewTaskReadOnlyView task={detail.task} />
+      )}
     </section>
   )
 }

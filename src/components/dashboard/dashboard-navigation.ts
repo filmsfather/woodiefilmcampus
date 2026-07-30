@@ -117,6 +117,7 @@ const managerSections: NavigationSection[] = [
     items: [
       { label: '선생님 아틀리에', href: '/dashboard/teacher/atelier' },
       { label: '선생님 에세이 보드', href: '/dashboard/teacher/essay' },
+      { label: '선생님 워크시트 보드', href: '/dashboard/teacher/worksheet' },
       { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
     ],
   },
@@ -153,6 +154,7 @@ const teacherSections: NavigationSection[] = [
       { label: '과제 출제하기', href: '/dashboard/assignments/new' },
       { label: '과제 검사하기', href: '/dashboard/teacher/review' },
       { label: '학습일지 작성', href: '/dashboard/teacher/learning-journal' },
+      { label: '시험 열람', href: '/dashboard/principal/exams' },
     ],
   },
   {
@@ -173,6 +175,7 @@ const teacherSections: NavigationSection[] = [
     items: [
       { label: '학생 아틀리에', href: '/dashboard/teacher/atelier' },
       { label: '학생 에세이 보드', href: '/dashboard/teacher/essay' },
+      { label: '학생 워크시트 보드', href: '/dashboard/teacher/worksheet' },
       { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
       { label: '모두의 사진일기', href: '/dashboard/shared-photo-diary' },
       { label: '문제집 만들기', href: '/dashboard/workbooks/new' },
@@ -233,6 +236,7 @@ const studentSections: NavigationSection[] = [
       { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },
       { label: '에세이 보드', href: '/dashboard/student/essay' },
+      { label: '워크시트 보드', href: '/dashboard/student/worksheet' },
       { label: '우디쌤 인터넷강의', href: '/dashboard/student/lectures' },
       { label: '특강', href: '/dashboard/student/special-lectures' },
       { label: '장비 대여', href: '/dashboard/student/equipment-rental' },

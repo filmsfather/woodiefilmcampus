@@ -1,7 +1,15 @@
 import { z } from 'zod'
 
 export const WORKBOOK_SUBJECTS = ['연출', '작법', '연구', '통합', '한예종', '사전과제'] as const
-export const WORKBOOK_TYPES = ['srs', 'pdf', 'writing', 'film', 'lecture', 'image', 'essay'] as const
+export const WORKBOOK_TYPES = ['srs', 'pdf', 'writing', 'film', 'lecture', 'image', 'essay', 'worksheet'] as const
+
+// 모의 면접 복기/모의 작문 오답노트처럼 시스템이 자동 생성한 문제집은
+// 공유 문제집 목록과 과제 출제 선택지에서 감춘다.
+export const WORKBOOK_ORIGINS = ['manual', 'interview_review', 'writing_review'] as const
+export type WorkbookOrigin = (typeof WORKBOOK_ORIGINS)[number]
+export const MANUAL_WORKBOOK_ORIGIN: WorkbookOrigin = 'manual'
+export const INTERVIEW_REVIEW_WORKBOOK_ORIGIN: WorkbookOrigin = 'interview_review'
+export const WRITING_REVIEW_WORKBOOK_ORIGIN: WorkbookOrigin = 'writing_review'
 
 export const WORKBOOK_TITLES: Record<(typeof WORKBOOK_TYPES)[number], string> = {
   srs: 'SRS 반복 학습',
@@ -11,6 +19,7 @@ export const WORKBOOK_TITLES: Record<(typeof WORKBOOK_TYPES)[number], string> = 
   lecture: '인터넷 강의형',
   image: '이미지 제출형',
   essay: '에세이형',
+  worksheet: '워크시트',
 }
 
 export const WORKBOOK_TYPE_DESCRIPTIONS: Record<(typeof WORKBOOK_TYPES)[number], string> = {
@@ -21,6 +30,7 @@ export const WORKBOOK_TYPE_DESCRIPTIONS: Record<(typeof WORKBOOK_TYPES)[number],
   lecture: '강의 시청 후 요약 제출',
   image: '각 질문에 사진을 업로드하여 제출',
   essay: '에세이 주제를 출제하고 학생이 PDF로 제출',
+  worksheet: '작성한 워크시트를 사진으로 촬영해 제출',
 }
 
 const optionalTrimmedString = z
@@ -154,6 +164,12 @@ const essaySettingsSchema = z
   })
   .default({ topic: '' })
 
+const worksheetSettingsSchema = z
+  .object({
+    instructions: optionalTrimmedString,
+  })
+  .default({ instructions: '' })
+
 export const workbookFormSchema = z
   .object({
     title: requiredTrimmedString
@@ -172,6 +188,7 @@ export const workbookFormSchema = z
     lectureSettings: lectureSettingsSchema,
     imageSettings: imageSettingsSchema,
     essaySettings: essaySettingsSchema,
+    worksheetSettings: worksheetSettingsSchema,
     items: z.array(workbookItemSchema).min(1, { message: '문항을 최소 1개 이상 추가해주세요.' }),
   })
   .superRefine((values, ctx) => {
@@ -301,6 +318,7 @@ export const workbookMetadataFormSchema = z.object({
   lectureSettings: lectureSettingsSchema,
   imageSettings: imageSettingsSchema,
   essaySettings: essaySettingsSchema,
+  worksheetSettings: worksheetSettingsSchema,
 })
 
 export type WorkbookMetadataFormValues = z.input<typeof workbookMetadataFormSchema>
@@ -362,6 +380,9 @@ export interface NormalizedWorkbookPayload {
     }
     essay?: {
       topic?: string
+    }
+    worksheet?: {
+      instructions?: string
     }
   }
   items: Array<{
@@ -475,6 +496,13 @@ export function buildNormalizedWorkbookPayload(
       const topic = normalizeString(values.essaySettings?.topic)
       if (topic) {
         config.essay = { topic }
+      }
+      break
+    }
+    case 'worksheet': {
+      const instructions = normalizeString(values.worksheetSettings?.instructions)
+      if (instructions) {
+        config.worksheet = { instructions }
       }
       break
     }
@@ -628,6 +656,13 @@ export function buildWorkbookMetadataPayload(values: WorkbookMetadataFormValues)
       const topic = normalizeString(values.essaySettings?.topic)
       if (topic) {
         config.essay = { topic }
+      }
+      break
+    }
+    case 'worksheet': {
+      const instructions = normalizeString(values.worksheetSettings?.instructions)
+      if (instructions) {
+        config.worksheet = { instructions }
       }
       break
     }

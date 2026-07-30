@@ -325,6 +325,36 @@ export async function fetchTeacherDirectory(): Promise<Record<string, TeacherPro
   }, {})
 }
 
+/**
+ * teacher_payroll_runs.meta 에 저장된 조정 내역을 도메인 타입으로 되돌린다.
+ */
+export function normalizeAdjustments(value: unknown): PayrollAdjustmentInput[] {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const results: PayrollAdjustmentInput[] = []
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') {
+      continue
+    }
+    const record = entry as Record<string, unknown>
+    const label = typeof record.label === 'string' ? record.label : null
+    if (!label) {
+      continue
+    }
+    const rawAmount = record.amount
+    const amount = typeof rawAmount === 'number' ? rawAmount : Number.parseFloat(String(rawAmount))
+    if (Number.isNaN(amount)) {
+      continue
+    }
+    results.push({ label, amount, isDeduction: Boolean(record.isDeduction) })
+  }
+
+  return results
+}
+
 export async function computeTeacherPayroll(
   teacher: TeacherProfileSummary,
   startDate: Date,

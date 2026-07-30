@@ -19,24 +19,32 @@ function formatDateTime(value: string) {
 }
 
 export default async function PrincipalExamsPage() {
-  await requireAuthForDashboard('principal')
+  const { profile } = await requireAuthForDashboard(['principal', 'teacher'])
+  const canManage = profile?.role === 'principal'
 
   const [exams, sessions] = await Promise.all([fetchExamSummaries(), fetchExamSessionSummaries()])
 
   return (
     <section className="space-y-6">
-      <DashboardBackLink fallbackHref="/dashboard/principal" label="원장 대시보드로 돌아가기" />
+      <DashboardBackLink
+        fallbackHref={canManage ? '/dashboard/principal' : '/dashboard/teacher'}
+        label={canManage ? '원장 대시보드로 돌아가기' : '교사용 허브로 돌아가기'}
+      />
 
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">시험 출제</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">{canManage ? '시험 출제' : '시험 열람'}</h1>
           <p className="text-sm text-slate-600">
-            시험 세트를 만들어 저장해 두고, 반을 선택해 출제하세요. 저장된 세트는 언제든 다시 출제할 수 있습니다.
+            {canManage
+              ? '시험 세트를 만들어 저장해 두고, 반을 선택해 출제하세요. 저장된 세트는 언제든 다시 출제할 수 있습니다.'
+              : '열람 전용입니다. 시험 세트와 응시 현황을 확인할 수 있고, 출제와 판정은 원장 계정에서 진행됩니다.'}
           </p>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/principal/exams/new">새 시험 세트 만들기</Link>
-        </Button>
+        {canManage && (
+          <Button asChild>
+            <Link href="/dashboard/principal/exams/new">새 시험 세트 만들기</Link>
+          </Button>
+        )}
       </header>
 
       <Card className="border-slate-200 shadow-sm">
@@ -67,10 +75,18 @@ export default async function PrincipalExamsPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button asChild size="sm">
-                    <Link href={`/dashboard/principal/exams/${exam.id}`}>출제하기</Link>
-                  </Button>
-                  <ExamListActions examId={exam.id} canDelete={exam.sessionCount === 0} />
+                  {canManage ? (
+                    <>
+                      <Button asChild size="sm">
+                        <Link href={`/dashboard/principal/exams/${exam.id}`}>출제하기</Link>
+                      </Button>
+                      <ExamListActions examId={exam.id} canDelete={exam.sessionCount === 0} />
+                    </>
+                  ) : (
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/dashboard/principal/exams/${exam.id}`}>문항 보기</Link>
+                    </Button>
+                  )}
                 </div>
               </div>
             ))
@@ -81,7 +97,11 @@ export default async function PrincipalExamsPage() {
       <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg text-slate-900">출제된 회차</CardTitle>
-          <CardDescription>반별 응시 현황을 확인하고 pass / non-pass를 판별하세요.</CardDescription>
+          <CardDescription>
+            {canManage
+              ? '반별 응시 현황을 확인하고 pass / non-pass를 판별하세요.'
+              : '반별 응시 현황과 pass / non-pass 판정 결과를 확인할 수 있습니다.'}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {sessions.length === 0 ? (

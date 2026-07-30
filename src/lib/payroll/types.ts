@@ -141,3 +141,15 @@ export interface PayrollWithAck extends TeacherPayrollRun {
   acknowledgement: TeacherPayrollAcknowledgement | null
   items: TeacherPayrollRunItem[]
 }
+
+export type PayrollStatementResult =
+  | { success: false; error: string }
+  | {
+      success: true
+      breakdown: PayrollCalculationBreakdown
+      payrollProfile: TeacherPayrollProfile
+      periodLabel: string
+      teacherName: string | null
+      /** 선택한 기간에 지급 완료된 정산이 없으면 null. */
+      paidAt: string | null
+    }

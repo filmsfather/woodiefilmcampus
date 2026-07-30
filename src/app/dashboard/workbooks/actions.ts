@@ -73,6 +73,11 @@ const workbookConfigSchema = z.object({
       topic: z.string().optional(),
     })
     .optional(),
+  worksheet: z
+    .object({
+      instructions: z.string().optional(),
+    })
+    .optional(),
 })
 
 const MAX_ASSET_FILE_SIZE = 20 * 1024 * 1024 // 20MB, 버킷 제한과 동일하게 유지
@@ -284,6 +289,10 @@ export async function createWorkbook(input: CreateWorkbookInput) {
 
     if (payload.config.essay?.topic) {
       workbookConfig.essay = payload.config.essay
+    }
+
+    if (payload.config.worksheet?.instructions) {
+      workbookConfig.worksheet = payload.config.worksheet
     }
 
     const { data: workbook, error: workbookError } = await supabase
@@ -565,6 +574,11 @@ export async function updateWorkbook(input: UpdateWorkbookInput) {
     case 'essay':
       if (payload.config.essay?.topic) {
         workbookConfig.essay = payload.config.essay
+      }
+      break
+    case 'worksheet':
+      if (payload.config.worksheet?.instructions) {
+        workbookConfig.worksheet = payload.config.worksheet
       }
       break
     default:

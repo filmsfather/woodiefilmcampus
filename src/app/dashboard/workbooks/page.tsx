@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
-import { WORKBOOK_SUBJECTS, WORKBOOK_TITLES, WORKBOOK_TYPES } from '@/lib/validation/workbook'
+import { MANUAL_WORKBOOK_ORIGIN, WORKBOOK_SUBJECTS, WORKBOOK_TITLES, WORKBOOK_TYPES } from '@/lib/validation/workbook'
 import WorkbookFilters from '@/components/dashboard/workbooks/WorkbookFilters'
 
 interface WorkbookListItem {
@@ -46,6 +46,7 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
   const { data: authorRows } = await supabase
     .from('workbooks')
     .select('teacher:profiles!workbooks_teacher_id_fkey(id, name)')
+    .eq('origin', MANUAL_WORKBOOK_ORIGIN)
 
   const authorMap = new Map<string, string>()
   for (const row of authorRows ?? []) {
@@ -62,6 +63,7 @@ export default async function WorkbookListPage(props: { searchParams: Promise<Re
        teacher:profiles!workbooks_teacher_id_fkey(id, name, email),
        workbook_items(count)`
     )
+    .eq('origin', MANUAL_WORKBOOK_ORIGIN)
 
   if (subjectFilter.length > 0) {
     queryBuilder = queryBuilder.in('subject', subjectFilter)

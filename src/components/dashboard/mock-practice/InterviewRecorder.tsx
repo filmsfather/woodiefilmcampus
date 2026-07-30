@@ -74,9 +74,16 @@ interface InterviewRecorderProps {
   sessionId: string
   studentName: string
   uploaderId: string
+  mode?: 'create' | 'retake'
 }
 
-export function InterviewRecorder({ attemptId, sessionId, studentName, uploaderId }: InterviewRecorderProps) {
+export function InterviewRecorder({
+  attemptId,
+  sessionId,
+  studentName,
+  uploaderId,
+  mode = 'create',
+}: InterviewRecorderProps) {
   const router = useRouter()
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -159,6 +166,7 @@ export function InterviewRecorder({ attemptId, sessionId, studentName, uploaderI
 
         const result = await completeInterviewRecordingAction({
           attemptId,
+          mode,
           video: {
             bucket: INTERVIEW_RECORDINGS_BUCKET,
             path: uploaded.path,
@@ -181,7 +189,7 @@ export function InterviewRecorder({ attemptId, sessionId, studentName, uploaderI
         setPhase('ready')
       }
     },
-    [attemptId, router, sessionId, uploaderId]
+    [attemptId, mode, router, sessionId, uploaderId]
   )
 
   const handleStartRecording = () => {
@@ -255,10 +263,12 @@ export function InterviewRecorder({ attemptId, sessionId, studentName, uploaderI
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-slate-900">
           <Video className="h-4 w-4" />
-          {studentName} 학생 모의 면접 녹화
+          {studentName} 학생 모의 면접 {mode === 'retake' ? '다시 녹화' : '녹화'}
         </CardTitle>
         <p className="text-xs text-slate-500">
-          480p / 15fps / 0.5Mbps로 녹화됩니다. 녹화를 종료하면 영상이 업로드되고 복기 과제가 자동 생성됩니다.
+          {mode === 'retake'
+            ? '480p / 15fps / 0.5Mbps로 녹화됩니다. 녹화를 종료하면 기존 영상이 삭제되고 새 영상으로 교체됩니다. 복기 과제와 학생이 작성한 답변은 그대로 유지됩니다.'
+            : '480p / 15fps / 0.5Mbps로 녹화됩니다. 녹화를 종료하면 영상이 업로드되고 복기 과제가 자동 생성됩니다.'}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -283,7 +293,7 @@ export function InterviewRecorder({ attemptId, sessionId, studentName, uploaderI
           {phase === 'uploading' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950/80 text-sm text-slate-200">
               <Loader2 className="h-8 w-8 animate-spin" />
-              <p>영상 업로드 및 복기 과제 생성 중...</p>
+              <p>{mode === 'retake' ? '영상 업로드 및 교체 중...' : '영상 업로드 및 복기 과제 생성 중...'}</p>
             </div>
           )}
         </div>

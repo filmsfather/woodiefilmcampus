@@ -13,8 +13,10 @@ export const metadata: Metadata = {
 
 export default async function InterviewRecordPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ sessionId: string; attemptId: string }>
+  searchParams: Promise<{ retake?: string }>
 }) {
   const { profile } = await requireAuthForDashboard(['teacher', 'manager'])
 
@@ -23,6 +25,7 @@ export default async function InterviewRecordPage({
   }
 
   const { sessionId, attemptId } = await params
+  const { retake } = await searchParams
   const detail = await fetchInterviewSessionDetail(sessionId)
 
   if (!detail) {
@@ -35,21 +38,26 @@ export default async function InterviewRecordPage({
     notFound()
   }
 
-  if (row.status === 'task_created') {
-    redirect(`/dashboard/teacher/mock-practice/interview/sessions/${sessionId}`)
+  const sessionPath = `/dashboard/teacher/mock-practice/interview/sessions/${sessionId}`
+  const isRetake = retake === '1' && row.status === 'task_created'
+
+  if (row.status === 'task_created' && !isRetake) {
+    redirect(sessionPath)
+  }
+
+  if (isRetake && detail.session.status === 'closed') {
+    redirect(sessionPath)
   }
 
   return (
     <section className="space-y-6">
       <div className="space-y-3">
-        <DashboardBackLink
-          fallbackHref={`/dashboard/teacher/mock-practice/interview/sessions/${sessionId}`}
-          label="회차 현황으로 돌아가기"
-        />
+        <DashboardBackLink fallbackHref={sessionPath} label="회차 현황으로 돌아가기" />
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">{detail.set.title}</h1>
           <p className="text-sm text-slate-600">
-            {row.studentName} 학생{row.className ? ` (${row.className})` : ''}의 모의 면접을 녹화합니다.
+            {row.studentName} 학생{row.className ? ` (${row.className})` : ''}의 모의 면접을{' '}
+            {isRetake ? '다시 녹화합니다.' : '녹화합니다.'}
           </p>
         </div>
       </div>
@@ -60,6 +68,7 @@ export default async function InterviewRecordPage({
           sessionId={sessionId}
           studentName={row.studentName}
           uploaderId={profile.id}
+          mode={isRetake ? 'retake' : 'create'}
         />
 
         <Card className="border-slate-200">

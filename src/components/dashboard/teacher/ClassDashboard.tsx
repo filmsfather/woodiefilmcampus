@@ -31,6 +31,7 @@ const TYPE_LABELS: Record<string, string> = {
   lecture: '인터넷 강의',
   image: '이미지 제출',
   essay: '에세이',
+  worksheet: '워크시트',
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -677,6 +678,7 @@ interface WorkbookConfigShape {
   lecture?: { youtubeUrl?: string; instructions?: string }
   image?: { instructions?: string }
   essay?: { topic?: string }
+  worksheet?: { instructions?: string }
 }
 
 function AssignmentContentSection({
@@ -869,6 +871,13 @@ function renderConfigGuideline(type: string, config: WorkbookConfigShape) {
         <div>
           <p className="font-medium text-slate-700">이미지 제출 안내</p>
           <p className="mt-0.5 whitespace-pre-line text-slate-600">{config.image.instructions}</p>
+        </div>
+      ) : null
+    case 'worksheet':
+      return config.worksheet?.instructions ? (
+        <div>
+          <p className="font-medium text-slate-700">워크시트 제출 안내</p>
+          <p className="mt-0.5 whitespace-pre-line text-slate-600">{config.worksheet.instructions}</p>
         </div>
       ) : null
     case 'lecture':

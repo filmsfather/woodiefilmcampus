@@ -120,6 +120,12 @@ const DONE_ACTIONS: DashboardActionItem[] = [
     variant: 'outline',
   },
   {
+    label: '워크시트 보드',
+    href: '/dashboard/student/worksheet',
+    description: '친구들이 제출한 영화연구 워크시트와 우수작을 모아 보세요.',
+    variant: 'outline',
+  },
+  {
     label: '우디쌤 인터넷강의 시청',
     href: '/dashboard/student/lectures',
     description: '선생님이 올려주신 인터넷 강의를 시청하며 학습합니다.',

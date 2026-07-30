@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { getAuthContext } from '@/lib/auth'
 import { syncAtelierPostForPdfSubmission } from '@/lib/atelier-posts'
 import { syncEssayPostForSubmission } from '@/lib/essay-posts'
+import { syncWorksheetPostForStudentTask } from '@/lib/worksheet-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
@@ -19,6 +20,15 @@ type UploadedFilePayload = {
   size: number
   mimeType: string
   originalName: string
+}
+
+function revalidateWorksheetBoards(isWorksheet: boolean) {
+  if (!isWorksheet) {
+    return
+  }
+
+  revalidatePath('/dashboard/teacher/worksheet')
+  revalidatePath('/dashboard/student/worksheet')
 }
 
 function sanitizeSubmissionFileName(name: string) {
@@ -1454,6 +1464,10 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
     return { success: false as const, error: '문항 정보가 올바르지 않습니다.' }
   }
 
+  const workbookType = await resolveWorkbookTypeForStudentTask(supabase, payload.studentTaskId)
+  const isWorksheet = workbookType === 'worksheet'
+  const submissionType = isWorksheet ? 'worksheet' : 'image'
+
   const now = new Date().toISOString()
   const createdMediaAssetIds: string[] = []
 
@@ -1505,7 +1519,7 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
         .insert({
           student_task_id: payload.studentTaskId,
           item_id: payload.workbookItemId,
-          submission_type: 'image',
+          submission_type: submissionType,
           content: submissionContent,
         })
         .select('id')
@@ -1521,7 +1535,7 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
       const { error: updateSubmissionError } = await supabase
         .from('task_submissions')
         .update({
-          submission_type: 'image',
+          submission_type: submissionType,
           content: submissionContent,
           updated_at: now,
         })
@@ -1592,9 +1606,17 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
     // Refresh task status
     await refreshStudentTaskStatus(supabase, payload.studentTaskId)
 
+    if (isWorksheet) {
+      await syncWorksheetPostForStudentTask({
+        studentTaskId: payload.studentTaskId,
+        studentId: profile.id,
+      })
+    }
+
     revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
     revalidatePath('/dashboard/student/photo-diary')
+    revalidateWorksheetBoards(isWorksheet)
 
     return { success: true as const }
   } catch (error) {
@@ -1686,6 +1708,10 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
     return { success: false as const, error: '문항 정보가 올바르지 않습니다.' }
   }
 
+  const workbookType = await resolveWorkbookTypeForStudentTask(supabase, payload.studentTaskId)
+  const isWorksheet = workbookType === 'worksheet'
+  const submissionType = isWorksheet ? 'worksheet' : 'image'
+
   const now = new Date().toISOString()
   const createdMediaAssetIds: string[] = []
 
@@ -1739,7 +1765,7 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
         .insert({
           student_task_id: payload.studentTaskId,
           item_id: payload.workbookItemId,
-          submission_type: 'image',
+          submission_type: submissionType,
           content: submissionContent,
         })
         .select('id')
@@ -1836,9 +1862,17 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
     // 과제 상태 갱신
     await refreshStudentTaskStatus(supabase, payload.studentTaskId)
 
+    if (isWorksheet) {
+      await syncWorksheetPostForStudentTask({
+        studentTaskId: payload.studentTaskId,
+        studentId: profile.id,
+      })
+    }
+
     revalidatePath('/dashboard/student/tasks')
     revalidatePath(`/dashboard/student/tasks/${payload.studentTaskId}`)
     revalidatePath('/dashboard/student/photo-diary')
+    revalidateWorksheetBoards(isWorksheet)
 
     return { success: true as const }
   } catch (error) {

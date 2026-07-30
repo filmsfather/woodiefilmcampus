@@ -15,11 +15,15 @@ import {
   fetchTeacherDirectory,
   loadPayrollRunDetails,
   loadPayrollRuns,
+  normalizeAdjustments,
   upsertPayrollRun,
   type PayrollComputationResult,
 } from '@/lib/payroll/queries'
+import { mergeBreakdowns } from '@/lib/payroll/calculate'
 import type {
   PayrollAdjustmentInput,
+  PayrollCalculationBreakdown,
+  PayrollStatementResult,
   TeacherPayrollAcknowledgement,
   TeacherPayrollRun,
   TeacherPayrollRunItem,
@@ -249,6 +253,134 @@ ${input.messageAppend.trim()}`
     success: true,
     message: messagePreview,
     breakdown: computation.breakdown,
+  }
+}
+
+const MAX_STATEMENT_MONTHS = 24
+
+const monthTokenSchema = z.string().regex(/^\d{4}-\d{2}$/u, '월 형식이 올바르지 않습니다.')
+
+const statementSchema = z
+  .object({
+    teacherId: z.string().uuid('선생님 ID가 올바르지 않습니다.'),
+    startMonth: monthTokenSchema,
+    endMonth: monthTokenSchema,
+  })
+  // 월 토큰이 zero-padded 라 사전순 비교가 곧 시간순 비교다.
+  .refine((value) => value.startMonth <= value.endMonth, {
+    message: '시작 월은 종료 월보다 뒤일 수 없습니다.',
+    path: ['endMonth'],
+  })
+  .refine((value) => countMonths(value.startMonth, value.endMonth) <= MAX_STATEMENT_MONTHS, {
+    message: `정산 기간은 최대 ${MAX_STATEMENT_MONTHS}개월까지 선택할 수 있습니다.`,
+    path: ['endMonth'],
+  })
+
+function countMonths(startMonth: string, endMonth: string): number {
+  const [startYear, startMonthPart] = startMonth.split('-').map(Number)
+  const [endYear, endMonthPart] = endMonth.split('-').map(Number)
+  return (endYear - startYear) * 12 + (endMonthPart - startMonthPart) + 1
+}
+
+function enumerateMonthTokens(startMonth: string, endMonth: string): string[] {
+  const [startYear, startMonthPart] = startMonth.split('-').map(Number)
+  const total = countMonths(startMonth, endMonth)
+  const tokens: string[] = []
+
+  for (let offset = 0; offset < total; offset += 1) {
+    const cursor = new Date(Date.UTC(startYear, startMonthPart - 1 + offset, 1))
+    tokens.push(`${cursor.getUTCFullYear()}-${`${cursor.getUTCMonth() + 1}`.padStart(2, '0')}`)
+  }
+
+  return tokens
+}
+
+/**
+ * 급여명세서 발급을 위해 지정한 기간의 급여를 계산한다.
+ * 보험료·주휴수당이 월/주 단위로 산정되므로 월별로 계산한 뒤 합산한다.
+ */
+export async function loadPayrollStatement(input: unknown): Promise<PayrollStatementResult> {
+  const { profile } = await getAuthContext()
+
+  if (!profile || profile.role !== 'principal') {
+    return { success: false, error: '급여명세서를 발급할 권한이 없습니다.' }
+  }
+
+  const parsed = statementSchema.safeParse(input)
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0]
+    return { success: false, error: firstIssue?.message ?? '입력한 정보를 다시 확인해주세요.' }
+  }
+
+  const { teacherId, startMonth, endMonth } = parsed.data
+
+  const teacherDirectory = await fetchTeacherDirectory()
+  const teacher = teacherDirectory[teacherId]
+
+  if (!teacher) {
+    return { success: false, error: '선택한 선생님 정보를 찾을 수 없습니다.' }
+  }
+
+  const payrollProfiles = await fetchTeacherPayrollProfiles([teacherId])
+  const payrollProfile = payrollProfiles[teacherId]
+
+  if (!payrollProfile) {
+    return { success: false, error: '선생님 급여 프로필이 설정되지 않았습니다.' }
+  }
+
+  const monthTokens = enumerateMonthTokens(startMonth, endMonth)
+  const monthlyBreakdowns: PayrollCalculationBreakdown[] = []
+  const monthLabels: string[] = []
+  let latestPaidAt: string | null = null
+
+  for (const token of monthTokens) {
+    const monthRange = resolveMonthRange(token)
+    const periodStart = toDateFromToken(monthRange.startDate)
+    const periodEndExclusive = toDateFromToken(monthRange.endExclusiveDate)
+    const periodEnd = new Date(periodEndExclusive.getTime() - 24 * 60 * 60 * 1000)
+
+    const workLogsMap = await fetchApprovedWorkLogsByTeacher(
+      monthRange.startDate,
+      monthRange.endExclusiveDate,
+      [teacherId]
+    )
+    const workLogs = workLogsMap[teacherId] ?? []
+
+    // 실제 저장된 정산 내역(인센티브 등)을 반영해야 화면 금액과 명세서가 일치한다.
+    const runs = await loadPayrollRuns(monthRange.startDate, monthRange.endExclusiveDate, [teacherId])
+    const latestRun = runs
+      .filter((run) => run.teacherId === teacherId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0]
+
+    const adjustments = normalizeAdjustments((latestRun?.meta as Record<string, unknown> | undefined)?.adjustments)
+
+    const computation = await computeTeacherPayroll(teacher, periodStart, periodEnd, workLogs, adjustments)
+
+    if (!computation) {
+      return { success: false, error: '급여 계산에 필요한 정보가 부족합니다.' }
+    }
+
+    monthlyBreakdowns.push(computation.breakdown)
+    monthLabels.push(monthRange.label)
+
+    if (latestRun?.status === 'paid') {
+      if (!latestPaidAt || latestRun.updatedAt.localeCompare(latestPaidAt) > 0) {
+        latestPaidAt = latestRun.updatedAt
+      }
+    }
+  }
+
+  const periodLabel =
+    monthLabels.length > 1 ? `${monthLabels[0]} ~ ${monthLabels[monthLabels.length - 1]}` : monthLabels[0]
+
+  return {
+    success: true,
+    breakdown: mergeBreakdowns(monthlyBreakdowns),
+    payrollProfile,
+    periodLabel,
+    teacherName: teacher.name ?? teacher.email ?? null,
+    paidAt: latestPaidAt,
   }
 }
 

@@ -117,6 +117,58 @@ export function calculatePayroll(input: PayrollCalculationInput): PayrollCalcula
   }
 }
 
+/**
+ * 여러 달의 정산 결과를 하나로 합친다.
+ * 4대보험료·국민연금은 월 단위로, 주휴수당은 주 단위로 산정되므로
+ * 기간 전체를 한 번에 계산하지 않고 월별 결과를 받아 누적해야 금액이 맞다.
+ */
+export function mergeBreakdowns(breakdowns: PayrollCalculationBreakdown[]): PayrollCalculationBreakdown {
+  const adjustments: PayrollAdjustmentInput[] = []
+  const weeklySummaries: WeeklyWorkSummary[] = []
+  const deductionTotals = new Map<string, number>()
+
+  let totalWorkHours = 0
+  let hourlyTotal = 0
+  let weeklyHolidayAllowance = 0
+  let baseSalaryTotal = 0
+  let grossPay = 0
+  let deductionsTotal = 0
+  let netPay = 0
+
+  for (const breakdown of breakdowns) {
+    totalWorkHours += breakdown.totalWorkHours
+    hourlyTotal += breakdown.hourlyTotal
+    weeklyHolidayAllowance += breakdown.weeklyHolidayAllowance
+    baseSalaryTotal += breakdown.baseSalaryTotal
+    grossPay += breakdown.grossPay
+    deductionsTotal += breakdown.deductionsTotal
+    netPay += breakdown.netPay
+
+    adjustments.push(...breakdown.adjustments)
+    weeklySummaries.push(...breakdown.weeklySummaries)
+
+    for (const detail of breakdown.deductionDetails) {
+      deductionTotals.set(detail.label, (deductionTotals.get(detail.label) ?? 0) + detail.amount)
+    }
+  }
+
+  return {
+    totalWorkHours: roundCurrency(totalWorkHours),
+    hourlyTotal: roundCurrency(hourlyTotal),
+    weeklyHolidayAllowance: roundCurrency(weeklyHolidayAllowance),
+    baseSalaryTotal: roundCurrency(baseSalaryTotal),
+    adjustments,
+    grossPay: roundCurrency(grossPay),
+    deductionDetails: Array.from(deductionTotals, ([label, amount]) => ({
+      label,
+      amount: roundCurrency(amount),
+    })),
+    deductionsTotal: roundCurrency(deductionsTotal),
+    netPay: roundCurrency(netPay),
+    weeklySummaries,
+  }
+}
+
 function toWeekIndex(date: Date): number {
   const temp = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
   const firstMondayOffset = ((temp.getUTCDay() + 6) % 7)

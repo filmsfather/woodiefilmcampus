@@ -42,9 +42,11 @@ interface CustomReviewItem {
 interface SessionAttemptsTableProps {
   rows: SessionAttemptRow[]
   questions: ExamQuestion[]
+  /** false면 답안 열람만 가능한 읽기 전용 표로 동작한다. */
+  canEvaluate?: boolean
 }
 
-export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTableProps) {
+export function SessionAttemptsTable({ rows, questions, canEvaluate = true }: SessionAttemptsTableProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -208,22 +210,26 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
                           <Button variant="outline" size="sm" onClick={() => setAnswerRow(row)}>
                             답안 보기
                           </Button>
-                          <Button
-                            size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700"
-                            disabled={isPending}
-                            onClick={() => handlePass(row)}
-                          >
-                            PASS
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            disabled={isPending}
-                            onClick={() => openNonpassDialog(row)}
-                          >
-                            NON-PASS
-                          </Button>
+                          {canEvaluate && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="bg-emerald-600 hover:bg-emerald-700"
+                                disabled={isPending}
+                                onClick={() => handlePass(row)}
+                              >
+                                PASS
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                disabled={isPending}
+                                onClick={() => openNonpassDialog(row)}
+                              >
+                                NON-PASS
+                              </Button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -240,7 +246,9 @@ export function SessionAttemptsTable({ rows, questions }: SessionAttemptsTablePr
         <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{answerRow?.studentName} 답안</DialogTitle>
-            <DialogDescription>제출된 답안을 확인하고 판정하세요.</DialogDescription>
+            <DialogDescription>
+              {canEvaluate ? '제출된 답안을 확인하고 판정하세요.' : '제출된 답안을 확인할 수 있습니다.'}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {questions.map((question, index) => {

@@ -180,6 +180,7 @@ const TYPE_LABELS: Record<string, string> = {
   lecture: '인터넷 강의',
   image: '이미지 제출',
   essay: '에세이',
+  worksheet: '워크시트',
 }
 
 const STATUS_BADGE_VARIANT: Record<string, 'outline' | 'secondary' | 'default' | 'destructive'> = {
@@ -415,7 +416,7 @@ export function AssignmentEvaluationPanel({
         />
       )}
 
-      {assignment.type === 'image' && (
+      {(assignment.type === 'image' || assignment.type === 'worksheet') && (
         <ImageReviewPanel
           assignment={assignment}
           classLookup={classLookup}

@@ -117,6 +117,7 @@ const stepFieldMap: Record<(typeof steps)[number]['id'], string[]> = {
     'lectureSettings.instructions',
     'imageSettings.instructions',
     'essaySettings.topic',
+    'worksheetSettings.instructions',
   ],
   items: ['items'],
   review: [],
@@ -178,6 +179,9 @@ const defaultValues: WorkbookFormValues = {
   },
   essaySettings: {
     topic: '',
+  },
+  worksheetSettings: {
+    instructions: '',
   },
   items: [createEmptyItem(true)],
 }
@@ -988,6 +992,34 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             />
           </div>
         )
+      case 'worksheet':
+        return (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-slate-900">워크시트 옵션</h3>
+              <p className="text-xs text-slate-500">
+                학생이 작성한 워크시트를 사진으로 촬영해 제출합니다. 문항당 최대 5장, 각 3MB까지 업로드 가능하며 제출물은 워크시트 게시판에 모입니다.
+              </p>
+            </div>
+            <FormField
+              control={form.control}
+              name="worksheetSettings.instructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>제출 안내</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="예: 워크시트 각 페이지를 밝은 곳에서 정면으로 촬영해 순서대로 업로드해주세요."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )
       default:
         return null
     }
@@ -1068,6 +1100,15 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             <p className="font-medium text-slate-900">에세이 주제</p>
             <p className="whitespace-pre-line text-sm text-slate-700">
               {normalizedPreview.config.essay.topic}
+            </p>
+          </div>
+        ) : null
+      case 'worksheet':
+        return normalizedPreview.config.worksheet?.instructions ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="font-medium text-slate-900">제출 안내</p>
+            <p className="whitespace-pre-line text-sm text-slate-700">
+              {normalizedPreview.config.worksheet.instructions}
             </p>
           </div>
         ) : null

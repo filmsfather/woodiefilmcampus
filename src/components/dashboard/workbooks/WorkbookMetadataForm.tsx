@@ -326,6 +326,29 @@ export default function WorkbookMetadataForm({ workbookId, defaultValues, teache
             />
           </div>
         )
+      case 'worksheet':
+        return (
+          <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <h3 className="text-sm font-semibold text-slate-900">워크시트 옵션</h3>
+            <FormField
+              control={form.control}
+              name="worksheetSettings.instructions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>제출 안내</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      rows={3}
+                      placeholder="예: 워크시트 각 페이지를 밝은 곳에서 정면으로 촬영해 순서대로 업로드해주세요."
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
+        )
       default:
         return null
     }

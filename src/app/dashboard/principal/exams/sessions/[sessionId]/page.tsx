@@ -20,7 +20,8 @@ function formatDateTime(value: string) {
 export default async function ExamSessionDetailPage(props: {
   params: Promise<{ sessionId: string }>
 }) {
-  await requireAuthForDashboard('principal')
+  const { profile } = await requireAuthForDashboard(['principal', 'teacher'])
+  const canManage = profile?.role === 'principal'
 
   const { sessionId } = await props.params
   const detail = await fetchExamSessionDetail(sessionId)
@@ -57,18 +58,20 @@ export default async function ExamSessionDetailPage(props: {
             {session.pendingEvaluationCount}명
           </p>
         </div>
-        {session.status === 'open' && <SessionCloseButton sessionId={session.id} />}
+        {canManage && session.status === 'open' && <SessionCloseButton sessionId={session.id} />}
       </header>
 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader>
           <CardTitle className="text-lg text-slate-900">응시 현황</CardTitle>
           <CardDescription>
-            제출된 답안을 확인하고 PASS / NON-PASS를 판별하세요. NON-PASS 처리 시 오답노트 과제가 배정됩니다.
+            {canManage
+              ? '제출된 답안을 확인하고 PASS / NON-PASS를 판별하세요. NON-PASS 처리 시 오답노트 과제가 배정됩니다.'
+              : '열람 전용입니다. 제출된 답안과 판정 결과를 확인할 수 있고, PASS / NON-PASS 판별은 원장 계정에서 진행됩니다.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <SessionAttemptsTable rows={rows} questions={exam.questions} />
+          <SessionAttemptsTable rows={rows} questions={exam.questions} canEvaluate={canManage} />
         </CardContent>
       </Card>
     </section>

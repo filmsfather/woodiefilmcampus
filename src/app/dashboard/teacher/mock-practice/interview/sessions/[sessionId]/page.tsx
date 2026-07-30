@@ -160,7 +160,12 @@ export default async function InterviewSessionPage({
                   </div>
                 </div>
                 {row.status === 'task_created' && (
-                  <InterviewAttemptReviewPanel row={row} sheet={sheetOverviews[row.studentId] ?? null} />
+                  <InterviewAttemptReviewPanel
+                    row={row}
+                    sheet={sheetOverviews[row.studentId] ?? null}
+                    sessionId={session.id}
+                    sessionStatus={session.status}
+                  />
                 )}
               </div>
             ))

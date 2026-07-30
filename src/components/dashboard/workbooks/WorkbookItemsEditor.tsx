@@ -80,7 +80,7 @@ export interface WorkbookItemsEditorItem {
 
 interface WorkbookItemsEditorProps {
   workbookId: string
-  workbookType: 'srs' | 'pdf' | 'writing' | 'film' | 'lecture' | 'image' | 'essay'
+  workbookType: 'srs' | 'pdf' | 'writing' | 'film' | 'lecture' | 'image' | 'essay' | 'worksheet'
   allowMultipleCorrect: boolean
   items: WorkbookItemsEditorItem[]
 }

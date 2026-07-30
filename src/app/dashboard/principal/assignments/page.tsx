@@ -1,6 +1,7 @@
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import DateUtil from '@/lib/date-util'
+import { MANUAL_WORKBOOK_ORIGIN } from '@/lib/validation/workbook'
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { PrincipalAssignmentGrid } from '@/components/dashboard/principal/assignments/PrincipalAssignmentGrid'
 import { PeriodNavigator } from '@/components/dashboard/principal/assignments/PeriodNavigator'
@@ -322,6 +323,7 @@ export default async function PrincipalAssignmentsPage({
     .from('workbooks')
     .select('id, title, subject, type, week_label, workbook_items(count)')
     .eq('subject', '통합')
+    .eq('origin', MANUAL_WORKBOOK_ORIGIN)
     .order('updated_at', { ascending: false })
     .limit(100)
 

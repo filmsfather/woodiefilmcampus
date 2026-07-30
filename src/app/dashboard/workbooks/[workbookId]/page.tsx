@@ -312,6 +312,14 @@ export default async function WorkbookDetailPage(props: WorkbookDetailPageProps)
               </p>
             </div>
           )}
+          {workbook.type === 'worksheet' && (
+            <div>
+              <p className="font-medium text-slate-800">워크시트 제출 안내</p>
+              <p className="whitespace-pre-line">
+                {workbook.config?.worksheet?.instructions ?? '제출 안내가 설정되지 않았습니다.'}
+              </p>
+            </div>
+          )}
           {(workbook.type === 'pdf' && !workbook.config?.pdf?.instructions) && (
             <p className="text-xs text-slate-500">제출 안내가 설정되지 않았습니다.</p>
           )}

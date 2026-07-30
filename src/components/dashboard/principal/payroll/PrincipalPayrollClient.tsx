@@ -1,16 +1,19 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 
 import { completePayrollPayment, requestPayrollConfirmation, savePayrollDraft } from '@/app/dashboard/principal/payroll/actions'
-import { generatePayrollPdf, generatePayrollStatementPdf } from '@/lib/payroll/pdf'
+import { generatePayrollPdf } from '@/lib/payroll/pdf'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { ExternalSubstituteModal } from '@/components/dashboard/principal/payroll/ExternalSubstituteModal'
+import {
+  PayrollDocumentDialog,
+  type PayrollDocumentMode,
+} from '@/components/dashboard/principal/payroll/PayrollDocumentDialog'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -465,9 +468,6 @@ function TeacherPayrollCard({
   const [isPending, startTransition] = useTransition()
   const [isPreviewing, startPreviewTransition] = useTransition()
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
-  const [isGeneratingStatement, setIsGeneratingStatement] = useState(false)
-  const [isNameDialogOpen, setIsNameDialogOpen] = useState(false)
-  const nameInputRef = useRef<HTMLInputElement>(null)
 
   const { teacher, payrollProfile, breakdown, run, acknowledgement, messagePreview, adjustments, requestNote } = entry
   const status = statusBadge(run, acknowledgement)
@@ -583,29 +583,6 @@ function TeacherPayrollCard({
     })
   }
 
-  const openNameDialog = () => {
-    setIsNameDialogOpen(true)
-  }
-
-  const handleStatementConfirm = async () => {
-    if (!run) return
-    const realName = nameInputRef.current?.value?.trim()
-    if (!realName) return
-    setIsNameDialogOpen(false)
-    setIsGeneratingStatement(true)
-    try {
-      await generatePayrollStatementPdf({
-        teacherName: realName,
-        monthLabel,
-        payrollProfile,
-        breakdown: currentBreakdown,
-        paidAt: run.updatedAt,
-      })
-    } finally {
-      setIsGeneratingStatement(false)
-    }
-  }
-
   const handleCompletePayment = () => {
     if (!run) return
     if (!confirm('정말로 지급 완료 처리하시겠습니까?')) return
@@ -636,7 +613,6 @@ function TeacherPayrollCard({
   }
 
   return (
-  <>
     <Card className="border-slate-200 shadow-sm">
       <CardHeader>
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -646,17 +622,6 @@ function TeacherPayrollCard({
                 {teacher.name ?? teacher.email ?? '이름 미등록'}
               </CardTitle>
               <Badge variant={status.variant}>{status.label}</Badge>
-              {run?.status === 'paid' && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isGeneratingStatement}
-                  onClick={openNameDialog}
-                >
-                  {isGeneratingStatement ? '생성 중…' : '지급명세서 다운로드'}
-                </Button>
-              )}
             </div>
             <CardDescription className="space-y-1 text-sm">
               <p>{teacher.email ?? '이메일 미등록'}</p>
@@ -841,27 +806,6 @@ function TeacherPayrollCard({
         {monthLabel} 정산 기준 · 데이터는 승인된 근무일지에 기반합니다.
       </CardFooter>
     </Card>
-    <Dialog open={isNameDialogOpen} onOpenChange={setIsNameDialogOpen}>
-      <DialogContent className="sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle>지급명세서 실명 입력</DialogTitle>
-          <DialogDescription>
-            지급명세서에 기재할 실명을 입력해주세요.
-          </DialogDescription>
-        </DialogHeader>
-        <Input
-          ref={nameInputRef}
-          defaultValue={teacher.name ?? ''}
-          placeholder="실명 입력"
-          onKeyDown={(e) => { if (e.key === 'Enter') handleStatementConfirm() }}
-        />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsNameDialogOpen(false)}>취소</Button>
-          <Button onClick={handleStatementConfirm}>다운로드</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  </>
   )
 }
 
@@ -882,6 +826,7 @@ export function PrincipalPayrollClient({
   const [isExternalModalOpen, setExternalModalOpen] = useState(false)
   const [activeTeacherTab, setActiveTeacherTab] = useState<string | null>(null)
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false)
+  const [documentMode, setDocumentMode] = useState<PayrollDocumentMode | null>(null)
 
   // 정렬된 순서에 맞게 탭도 정렬
   const sortedTeachers = useMemo(() => {
@@ -1080,17 +1025,25 @@ export function PrincipalPayrollClient({
 
         {summaryRows.length > 0 && (
           <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-medium text-slate-900">정산 요약</h2>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={isGeneratingPdf}
-                onClick={handleDownloadPdf}
-              >
-                {isGeneratingPdf ? "생성 중…" : "PDF 다운로드"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={isGeneratingPdf}
+                  onClick={handleDownloadPdf}
+                >
+                  {isGeneratingPdf ? "생성 중…" : "PDF 다운로드"}
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setDocumentMode('statement')}>
+                  급여명세서
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setDocumentMode('certificate')}>
+                  재직증명서
+                </Button>
+              </div>
             </div>
             <PayrollSummaryTable rows={summaryRows} sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
           </section>
@@ -1158,6 +1111,13 @@ export function PrincipalPayrollClient({
         open={isExternalModalOpen}
         onOpenChange={setExternalModalOpen}
         monthToken={monthToken}
+      />
+      <PayrollDocumentDialog
+        mode={documentMode}
+        onClose={() => setDocumentMode(null)}
+        teacherOptions={teacherOptions}
+        defaultTeacherId={selectedTeacherId ?? activeTeacher?.teacher.id ?? null}
+        defaultMonthToken={monthToken}
       />
     </>
   )

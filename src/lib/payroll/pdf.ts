@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas-pro"
 
+import { ORGANIZATION } from "./constants"
 import type { PayrollCalculationBreakdown, TeacherPayrollProfile } from "./types"
 
 interface PayrollPdfEntry {
@@ -234,19 +235,34 @@ export async function generatePayrollPdf(
 
 interface PayrollStatementInput {
   teacherName: string
-  monthLabel: string
+  periodLabel: string
   payrollProfile: TeacherPayrollProfile
   breakdown: PayrollCalculationBreakdown
   paidAt: string
+  issueDate: string
 }
 
 function formatDate(iso: string): string {
   const date = new Date(iso)
-  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(date)
+  // 'YYYY-MM-DD' 입력은 UTC 자정으로 해석되므로 KST 기준으로 고정해 하루 밀림을 막는다.
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).format(date)
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
 }
 
 function buildStatementHtml(input: PayrollStatementInput): string {
-  const { teacherName, monthLabel, payrollProfile, breakdown, paidAt } = input
+  const { teacherName, periodLabel, payrollProfile, breakdown, paidAt, issueDate } = input
 
   const contractLabel =
     payrollProfile.contractType === "employee"
@@ -347,8 +363,6 @@ function buildStatementHtml(input: PayrollStatementInput): string {
           .join("")
       : `<tr><td style="${tdStyle}" colspan="2">공제 항목 없음</td></tr>`
 
-  const today = formatDate(new Date().toISOString())
-
   const infoCell = `
     padding: 5px 0;
     font-size: 11px;
@@ -359,15 +373,15 @@ function buildStatementHtml(input: PayrollStatementInput): string {
   return `
     <div style="font-family: ${font}; padding: 40px 48px; background: white; width: 560px; box-sizing: border-box;">
       <div style="text-align: center; margin-bottom: 28px;">
-        <p style="margin: 0 0 2px 0; font-size: 12px; color: #64748b;">우디필름 영화학원</p>
+        <p style="margin: 0 0 2px 0; font-size: 12px; color: #64748b;">${ORGANIZATION.name}</p>
         <h1 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: 4px;">지급명세서</h1>
-        <p style="margin: 0; font-size: 11px; color: #64748b;">${monthLabel}</p>
+        <p style="margin: 0; font-size: 11px; color: #64748b;">${periodLabel}</p>
       </div>
 
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
         <tr>
           <td style="${infoLabel}">성명</td>
-          <td style="${infoValue}">${teacherName}</td>
+          <td style="${infoValue}">${escapeHtml(teacherName)}</td>
           <td style="${infoLabel}">계약 형태</td>
           <td style="${infoValue}">${contractLabel}</td>
         </tr>
@@ -420,9 +434,10 @@ function buildStatementHtml(input: PayrollStatementInput): string {
 
       <div style="margin-top: 36px; display: flex; justify-content: flex-end; align-items: flex-end; gap: 20px;">
         <div style="text-align: right; font-size: 11px; color: #334155; line-height: 1.8;">
-          <p style="margin: 0;">발행일: ${today}</p>
-          <p style="margin: 0;">사업장: 우디필름 영화학원</p>
-          <p style="margin: 0;">대표자: 김우신</p>
+          <p style="margin: 0;">발행일: ${formatDate(issueDate)}</p>
+          <p style="margin: 0;">사업장: ${ORGANIZATION.name}</p>
+          <p style="margin: 0;">사업자등록번호: ${ORGANIZATION.businessNumber}</p>
+          <p style="margin: 0;">대표자: ${ORGANIZATION.representative}</p>
         </div>
         <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
           <span style="font-size: 9px; color: #94a3b8;">(인)</span>
@@ -431,7 +446,7 @@ function buildStatementHtml(input: PayrollStatementInput): string {
       </div>
 
       <p style="margin-top: 24px; font-size: 9px; color: #94a3b8; text-align: center;">
-        본 명세서는 ${monthLabel} 승인된 근무일지를 기반으로 산출되었습니다.
+        본 명세서는 ${periodLabel} 승인된 근무일지를 기반으로 산출되었습니다.
       </p>
     </div>
   `
@@ -439,6 +454,124 @@ function buildStatementHtml(input: PayrollStatementInput): string {
 
 export async function generatePayrollStatementPdf(input: PayrollStatementInput): Promise<void> {
   const html = buildStatementHtml(input)
-  const safeName = `${input.teacherName}_${input.monthLabel}`.replace(/\s+/g, "_")
+  const safeName = `${input.teacherName}_${input.periodLabel}`.replace(/\s+/g, "_")
   await renderHtmlToPdf(html, `지급명세서_${safeName}.pdf`)
+}
+
+export interface EmploymentCertificateInput {
+  teacherName: string
+  birthDate: string
+  address: string
+  position: string
+  employmentStart: string
+  /** 재직 중이면 null. 값이 있으면 퇴사일로 표기한다. */
+  employmentEnd: string | null
+  duties: string
+  purpose: string
+  issueDate: string
+}
+
+function buildEmploymentCertificateHtml(input: EmploymentCertificateInput): string {
+  const { teacherName, birthDate, address, position, employmentStart, employmentEnd, duties, purpose, issueDate } =
+    input
+
+  const font = "-apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
+
+  const rowLabel = `
+    padding: 11px 14px;
+    width: 110px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #334155;
+    text-align: center;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+  `
+  const rowValue = `
+    padding: 11px 14px;
+    font-size: 12px;
+    color: #0f172a;
+    text-align: left;
+    border: 1px solid #cbd5e1;
+  `
+
+  const employmentPeriod = employmentEnd
+    ? `${formatDate(employmentStart)} ~ ${formatDate(employmentEnd)}`
+    : `${formatDate(employmentStart)} ~ 현재 (재직 중)`
+
+  // 입력하지 않은 선택 항목은 빈 칸을 남기지 않도록 행 자체를 생략한다.
+  const section = (title: string, rows: Array<{ label: string; value: string }>) => {
+    const filled = rows.filter((row) => row.value.length > 0)
+
+    if (filled.length === 0) {
+      return ""
+    }
+
+    return `
+    <h3 style="margin: 0 0 8px 0; font-size: 13px; font-weight: 700; color: #0f172a;">${title}</h3>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 22px;">
+      ${filled
+        .map(
+          (row) => `
+        <tr>
+          <td style="${rowLabel}">${row.label}</td>
+          <td style="${rowValue}">${row.value}</td>
+        </tr>`
+        )
+        .join("")}
+    </table>
+  `
+  }
+
+  return `
+    <div style="font-family: ${font}; padding: 48px 52px; background: white; width: 600px; box-sizing: border-box;">
+      <h1 style="margin: 0 0 40px 0; font-size: 26px; font-weight: 800; color: #0f172a; letter-spacing: 12px; text-align: center;">
+        재직증명서
+      </h1>
+
+      ${section("인적사항", [
+        { label: "성 명", value: escapeHtml(teacherName) },
+        { label: "생년월일", value: formatDate(birthDate) },
+        { label: "주 소", value: escapeHtml(address) },
+      ])}
+
+      ${section("재직사항", [
+        { label: "사업장명", value: ORGANIZATION.name },
+        { label: "직 위", value: escapeHtml(position) },
+        { label: "담당업무", value: escapeHtml(duties) },
+        { label: "재직기간", value: employmentPeriod },
+      ])}
+
+      ${section("용 도", [{ label: "용 도", value: escapeHtml(purpose) }])}
+
+      <p style="margin: 36px 0 40px 0; font-size: 13px; color: #0f172a; text-align: center; line-height: 1.9;">
+        위와 같이 재직하고 있음을 증명합니다.
+      </p>
+
+      <p style="margin: 0 0 32px 0; font-size: 13px; color: #0f172a; text-align: center;">${formatDate(issueDate)}</p>
+
+      <div style="border-top: 1px solid #cbd5e1; padding-top: 20px; font-size: 11px; color: #334155; line-height: 1.9;">
+        <p style="margin: 0;">상 호: ${ORGANIZATION.name}</p>
+        <p style="margin: 0;">사업자등록번호: ${ORGANIZATION.businessNumber}</p>
+        <p style="margin: 0;">소 재 지: ${ORGANIZATION.address}</p>
+        <p style="margin: 0;">업태 / 종목: ${ORGANIZATION.businessType} / ${ORGANIZATION.businessItem}</p>
+      </div>
+
+      <div style="margin-top: 28px; display: flex; justify-content: flex-end; align-items: center; gap: 16px;">
+        <span style="font-size: 15px; font-weight: 700; color: #0f172a;">
+          대표자 ${ORGANIZATION.representative}
+        </span>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0;">
+          <span style="font-size: 9px; color: #94a3b8;">(인)</span>
+          <div style="width: 60px; height: 60px; border: 1px dashed #cbd5e1; border-radius: 4px;"></div>
+        </div>
+      </div>
+    </div>
+  `
+}
+
+export async function generateEmploymentCertificatePdf(input: EmploymentCertificateInput): Promise<void> {
+  const html = buildEmploymentCertificateHtml(input)
+  const safeName = input.teacherName.replace(/\s+/g, "_")
+  await renderHtmlToPdf(html, `재직증명서_${safeName}.pdf`)
 }

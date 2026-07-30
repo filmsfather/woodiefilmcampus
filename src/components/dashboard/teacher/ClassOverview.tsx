@@ -11,6 +11,7 @@ const TYPE_LABELS: Record<string, string> = {
   film: '영화감상',
   lecture: '강의',
   image: '이미지',
+  worksheet: '워크시트',
 }
 
 export interface ClassAssignmentListItem {

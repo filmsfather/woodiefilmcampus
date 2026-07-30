@@ -26,12 +26,13 @@ function formatDateTime(value: string) {
 }
 
 export default async function ExamDetailPage(props: { params: Promise<{ examId: string }> }) {
-  await requireAuthForDashboard('principal')
+  const { profile } = await requireAuthForDashboard(['principal', 'teacher'])
+  const canManage = profile?.role === 'principal'
 
   const { examId } = await props.params
   const [exam, classOptions, reviewTasks] = await Promise.all([
     fetchExamDetail(examId),
-    fetchClassOptionsForExam(),
+    canManage ? fetchClassOptionsForExam() : Promise.resolve([]),
     fetchPrincipalReviewTasks(examId),
   ])
 
@@ -52,22 +53,24 @@ export default async function ExamDetailPage(props: { params: Promise<{ examId: 
           {exam.description && <p className="text-sm text-slate-600 whitespace-pre-wrap">{exam.description}</p>}
           <p className="text-xs text-slate-400">{formatDateTime(exam.createdAt)} 생성</p>
         </div>
-        {exam.sessions.length === 0 && (
+        {canManage && exam.sessions.length === 0 && (
           <Button asChild variant="outline" size="sm">
             <Link href={`/dashboard/principal/exams/${exam.id}/edit`}>세트 수정</Link>
           </Button>
         )}
       </header>
 
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg text-slate-900">출제하기</CardTitle>
-          <CardDescription>대상 반 또는 개별 학생과 제한시간, 응시 기간을 지정해 이 시험을 출제합니다.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ExamSessionCreateForm examId={exam.id} classOptions={classOptions} />
-        </CardContent>
-      </Card>
+      {canManage && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg text-slate-900">출제하기</CardTitle>
+            <CardDescription>대상 반 또는 개별 학생과 제한시간, 응시 기간을 지정해 이 시험을 출제합니다.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ExamSessionCreateForm examId={exam.id} classOptions={classOptions} />
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-slate-200 shadow-sm">
         <CardHeader>
@@ -164,7 +167,9 @@ export default async function ExamDetailPage(props: { params: Promise<{ examId: 
         <CardHeader>
           <CardTitle className="text-lg text-slate-900">오답노트 확인</CardTitle>
           <CardDescription>
-            이 시험에 배정된 오답노트를 확인하고 문항별 부분 통과 또는 전체 통과를 결정하세요.
+            {canManage
+              ? '이 시험에 배정된 오답노트를 확인하고 문항별 부분 통과 또는 전체 통과를 결정하세요.'
+              : '이 시험에 배정된 오답노트와 문항별 판정 결과를 확인할 수 있습니다.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

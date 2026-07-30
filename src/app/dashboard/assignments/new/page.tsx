@@ -5,6 +5,7 @@ import AssignmentForm from '@/components/dashboard/assignments/AssignmentForm'
 import DateUtil from '@/lib/date-util'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
+import { MANUAL_WORKBOOK_ORIGIN } from '@/lib/validation/workbook'
 import type {
   AssignmentClassSummary,
   AssignmentStudentSummary,
@@ -106,6 +107,7 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
     .select(
       'id, title, subject, type, week_label, tags, updated_at, workbook_items(count), author_id, teacher_id, profiles!workbooks_author_id_fkey(id, name), teacher:profiles!workbooks_teacher_id_fkey(id, name)'
     )
+    .eq('origin', MANUAL_WORKBOOK_ORIGIN)
     .order('updated_at', { ascending: false })
 
   if (workbookError) {
