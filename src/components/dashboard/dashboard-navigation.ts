@@ -109,6 +109,7 @@ const managerSections: NavigationSection[] = [
     title: '특강 관리',
     items: [
       { label: '특강 게시판', href: '/dashboard/manager/special-lectures' },
+      { label: '특강 신청 관리', href: '/dashboard/manager/special-lectures/requests' },
     ],
   },
   {

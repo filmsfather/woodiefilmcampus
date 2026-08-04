@@ -9,16 +9,22 @@ export {
   SPECIAL_LECTURE_MANAGE_ROLES,
   SPECIAL_LECTURE_AUDIENCE_MODES,
   SPECIAL_LECTURE_AUDIENCE_LABELS,
+  SPECIAL_LECTURE_REQUEST_STATUSES,
+  SPECIAL_LECTURE_REQUEST_STATUS_LABELS,
   isSpecialLectureManageRole,
   isSpecialLectureAudienceMode,
+  isSpecialLectureRequestStatus,
   type SpecialLectureManageRole,
   type SpecialLectureAudienceMode,
+  type SpecialLectureRequestStatus,
 } from '@/lib/special-lectures-shared'
 
 import {
   SPECIAL_LECTURE_VIDEOS_BUCKET,
   SPECIAL_LECTURE_SIGNED_URL_TTL_SECONDS,
+  isSpecialLectureRequestStatus,
   type SpecialLectureAudienceMode,
+  type SpecialLectureRequestStatus,
 } from '@/lib/special-lectures-shared'
 
 export interface SpecialLectureVideoAsset {
@@ -37,6 +43,7 @@ export interface SpecialLecture {
   created_by: string
   created_at: string
   updated_at: string
+  applications_open: boolean
   video_asset_id: string | null
   video_asset: SpecialLectureVideoAsset | null
 }
@@ -48,6 +55,7 @@ interface SpecialLectureRow {
   created_by: string
   created_at: string
   updated_at: string
+  applications_open: boolean | null
   video_asset_id: string | null
   video_asset:
     | {
@@ -99,6 +107,7 @@ function normalizeRow(row: SpecialLectureRow | null | undefined): SpecialLecture
     created_by: String(row.created_by),
     created_at: row.created_at,
     updated_at: row.updated_at,
+    applications_open: row.applications_open ?? false,
     video_asset_id: row.video_asset_id ? String(row.video_asset_id) : null,
     video_asset: video,
   }
@@ -111,6 +120,7 @@ const SPECIAL_LECTURE_SELECT = `
   created_by,
   created_at,
   updated_at,
+  applications_open,
   video_asset_id,
   video_asset:media_assets(id, bucket, path, mime_type, size, metadata)
 `
@@ -301,6 +311,259 @@ export async function fetchSpecialLectureActiveGrantSummary(
       current.latestExpiresAt = row.expires_at
     }
     result.set(id, current)
+  }
+
+  return result
+}
+
+// ----- 신청(Request) 모델 -------------------------------------------------
+
+export interface SpecialLectureRequest {
+  id: string
+  specialLectureId: string
+  lectureTitle: string
+  studentId: string
+  studentName: string | null
+  studentEmail: string | null
+  classNames: string[]
+  status: SpecialLectureRequestStatus
+  studentNote: string | null
+  rejectReason: string | null
+  grantId: string | null
+  grantExpiresAt: string | null
+  grantRevokedAt: string | null
+  decidedAt: string | null
+  decidedByName: string | null
+  createdAt: string
+}
+
+export interface SpecialLectureMyRequest {
+  id: string
+  status: SpecialLectureRequestStatus
+  rejectReason: string | null
+  createdAt: string
+}
+
+type ProfileRelation = { id: string; name: string | null; email: string | null }
+
+interface SpecialLectureRequestRow {
+  id: string
+  special_lecture_id: string
+  student_id: string
+  status: string
+  student_note: string | null
+  reject_reason: string | null
+  grant_id: string | null
+  decided_at: string | null
+  created_at: string
+  lecture: { id: string; title: string } | Array<{ id: string; title: string }> | null
+  student: ProfileRelation | ProfileRelation[] | null
+  decider: ProfileRelation | ProfileRelation[] | null
+  grant:
+    | { id: string; expires_at: string; revoked_at: string | null }
+    | Array<{ id: string; expires_at: string; revoked_at: string | null }>
+    | null
+}
+
+const SPECIAL_LECTURE_REQUEST_SELECT = `
+  id,
+  special_lecture_id,
+  student_id,
+  status,
+  student_note,
+  reject_reason,
+  grant_id,
+  decided_at,
+  created_at,
+  lecture:special_lectures!special_lecture_requests_special_lecture_id_fkey(id, title),
+  student:profiles!special_lecture_requests_student_id_fkey(id, name, email),
+  decider:profiles!special_lecture_requests_decided_by_fkey(id, name, email),
+  grant:special_lecture_grants!special_lecture_requests_grant_id_fkey(id, expires_at, revoked_at)
+`
+
+function firstRelation<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null
+  return Array.isArray(value) ? value[0] ?? null : value
+}
+
+function toRequestStatus(value: string | null | undefined): SpecialLectureRequestStatus {
+  return isSpecialLectureRequestStatus(value) ? value : 'requested'
+}
+
+async function fetchClassNamesByStudent(
+  supabase: SupabaseClient,
+  studentIds: string[]
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>()
+  if (studentIds.length === 0) return result
+
+  const { data: links, error: linkError } = await supabase
+    .from('class_students')
+    .select('class_id, student_id')
+    .in('student_id', studentIds)
+
+  if (linkError) {
+    console.error('[special-lectures] failed to load class_students for requests', linkError)
+    return result
+  }
+
+  const linkRows = (links ?? []) as Array<{ class_id: string; student_id: string }>
+  const classIds = Array.from(new Set(linkRows.map((row) => String(row.class_id))))
+  if (classIds.length === 0) return result
+
+  const { data: classes, error: classError } = await supabase
+    .from('classes')
+    .select('id, name')
+    .in('id', classIds)
+
+  if (classError) {
+    console.error('[special-lectures] failed to load classes for requests', classError)
+    return result
+  }
+
+  const classNameById = new Map<string, string>()
+  for (const klass of (classes ?? []) as Array<{ id: string; name: string }>) {
+    classNameById.set(String(klass.id), klass.name)
+  }
+
+  for (const row of linkRows) {
+    const className = classNameById.get(String(row.class_id))
+    if (!className) continue
+    const studentId = String(row.student_id)
+    const list = result.get(studentId) ?? []
+    list.push(className)
+    result.set(studentId, list)
+  }
+
+  return result
+}
+
+export async function fetchSpecialLectureRequests(
+  supabase: SupabaseClient,
+  options: { lectureId?: string; statuses?: SpecialLectureRequestStatus[] } = {}
+): Promise<SpecialLectureRequest[]> {
+  let query = supabase
+    .from('special_lecture_requests')
+    .select(SPECIAL_LECTURE_REQUEST_SELECT)
+    .order('created_at', { ascending: false })
+
+  if (options.lectureId) {
+    query = query.eq('special_lecture_id', options.lectureId)
+  }
+  if (options.statuses && options.statuses.length > 0) {
+    query = query.in('status', options.statuses)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('[special-lectures] failed to fetch requests', error)
+    return []
+  }
+
+  const rows = (data ?? []) as unknown as SpecialLectureRequestRow[]
+  if (rows.length === 0) {
+    return []
+  }
+
+  const classNamesByStudent = await fetchClassNamesByStudent(
+    supabase,
+    Array.from(new Set(rows.map((row) => String(row.student_id))))
+  )
+
+  return rows.map((row) => {
+    const lecture = firstRelation(row.lecture)
+    const student = firstRelation(row.student)
+    const decider = firstRelation(row.decider)
+    const grant = firstRelation(row.grant)
+
+    return {
+      id: String(row.id),
+      specialLectureId: String(row.special_lecture_id),
+      lectureTitle: lecture?.title ?? '알 수 없는 특강',
+      studentId: String(row.student_id),
+      studentName: student?.name ?? null,
+      studentEmail: student?.email ?? null,
+      classNames: classNamesByStudent.get(String(row.student_id)) ?? [],
+      status: toRequestStatus(row.status),
+      studentNote: row.student_note,
+      rejectReason: row.reject_reason,
+      grantId: row.grant_id ? String(row.grant_id) : null,
+      grantExpiresAt: grant?.expires_at ?? null,
+      grantRevokedAt: grant?.revoked_at ?? null,
+      decidedAt: row.decided_at,
+      decidedByName: decider?.name ?? decider?.email ?? null,
+      createdAt: row.created_at,
+    }
+  })
+}
+
+export async function fetchMySpecialLectureRequests(
+  supabase: SupabaseClient,
+  studentId: string
+): Promise<Map<string, SpecialLectureMyRequest>> {
+  const result = new Map<string, SpecialLectureMyRequest>()
+  if (!studentId) return result
+
+  const { data, error } = await supabase
+    .from('special_lecture_requests')
+    .select('id, special_lecture_id, status, reject_reason, created_at')
+    .eq('student_id', studentId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[special-lectures] failed to fetch my requests', error)
+    return result
+  }
+
+  const rows = (data ?? []) as Array<{
+    id: string
+    special_lecture_id: string
+    status: string
+    reject_reason: string | null
+    created_at: string
+  }>
+
+  // created_at 내림차순이므로 특강별 첫 행이 가장 최근 신청이다.
+  for (const row of rows) {
+    const lectureId = String(row.special_lecture_id)
+    if (result.has(lectureId)) continue
+    result.set(lectureId, {
+      id: String(row.id),
+      status: toRequestStatus(row.status),
+      rejectReason: row.reject_reason,
+      createdAt: row.created_at,
+    })
+  }
+
+  return result
+}
+
+export async function fetchSpecialLecturePendingRequestCounts(
+  supabase: SupabaseClient,
+  lectureIds: string[]
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>()
+  if (lectureIds.length === 0) return result
+
+  for (const id of lectureIds) {
+    result.set(id, 0)
+  }
+
+  const { data, error } = await supabase
+    .from('special_lecture_requests')
+    .select('special_lecture_id')
+    .in('special_lecture_id', lectureIds)
+    .eq('status', 'requested')
+
+  if (error) {
+    console.error('[special-lectures] failed to fetch pending request counts', error)
+    return result
+  }
+
+  for (const row of (data ?? []) as Array<{ special_lecture_id: string }>) {
+    const id = String(row.special_lecture_id)
+    result.set(id, (result.get(id) ?? 0) + 1)
   }
 
   return result

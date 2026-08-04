@@ -2,8 +2,10 @@ import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { SpecialLecturePlayer } from '@/components/dashboard/special-lectures/SpecialLecturePlayer'
+import { StudentSpecialLectureRequestButton } from '@/components/dashboard/special-lectures/StudentSpecialLectureRequestButton'
 import { requireAuthForDashboard } from '@/lib/auth'
 import {
+  fetchMySpecialLectureRequests,
   getSignedSpecialLectureVideoUrl,
   getSpecialLecture,
 } from '@/lib/special-lectures'
@@ -14,20 +16,24 @@ interface PageProps {
 }
 
 export default async function StudentSpecialLectureDetailPage({ params }: PageProps) {
-  await requireAuthForDashboard('student')
+  const { profile } = await requireAuthForDashboard('student')
 
   const { id } = await params
   const supabase = await createServerSupabase()
 
   const lecture = await getSpecialLecture(supabase, id).catch(() => null)
-  // RLS의 can_view_special_lecture가 grant 유효성을 검증하므로
-  // 만료/해지 상태에서는 lecture가 null로 반환됩니다.
+  // 신청 접수 중이거나 내 신청 이력이 있는 특강은 제목·설명까지만 조회됩니다.
+  // 시청 권한이 없으면 RLS가 video_asset을 내려주지 않습니다.
   if (!lecture) {
     notFound()
   }
 
   const videoPath = lecture.video_asset?.path ?? null
   const videoUrl = videoPath ? await getSignedSpecialLectureVideoUrl(supabase, videoPath) : null
+
+  const myRequest = videoUrl
+    ? undefined
+    : (await fetchMySpecialLectureRequests(supabase, profile?.id ?? '')).get(lecture.id)
 
   return (
     <section className="space-y-6">
@@ -52,8 +58,38 @@ export default async function StudentSpecialLectureDetailPage({ params }: PagePr
         />
       ) : (
         <div className="overflow-hidden rounded-xl bg-black shadow-lg">
-          <div className="flex aspect-video w-full items-center justify-center text-white">
-            <p>영상이 아직 등록되지 않았습니다.</p>
+          <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 px-6 text-center text-white">
+            {myRequest?.status === 'requested' ? (
+              <>
+                <p>승인 대기 중입니다.</p>
+                <p className="text-sm text-white/70">
+                  특강비 확인 후 실장님이 영상을 열어주면 바로 시청할 수 있습니다.
+                </p>
+              </>
+            ) : myRequest?.status === 'rejected' ? (
+              <>
+                <p>신청이 반려되었습니다.</p>
+                {myRequest.rejectReason ? (
+                  <p className="text-sm text-white/70">{myRequest.rejectReason}</p>
+                ) : null}
+              </>
+            ) : myRequest?.status === 'approved' ? (
+              <>
+                <p>공개 기간이 종료되었습니다.</p>
+                <p className="text-sm text-white/70">다시 시청하려면 실장님께 문의해주세요.</p>
+              </>
+            ) : lecture.applications_open ? (
+              <>
+                <p>신청 후 시청할 수 있습니다.</p>
+                <StudentSpecialLectureRequestButton
+                  lectureId={lecture.id}
+                  mode="request"
+                  size="default"
+                />
+              </>
+            ) : (
+              <p>아직 시청할 수 없는 특강입니다.</p>
+            )}
           </div>
         </div>
       )}

@@ -18,6 +18,7 @@ import { redirect } from 'next/navigation'
 import {
   fetchSpecialLectureActiveGrantSummary,
   fetchSpecialLectureAudienceOptions,
+  fetchSpecialLecturePendingRequestCounts,
   fetchSpecialLectures,
 } from '@/lib/special-lectures'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -39,9 +40,14 @@ export default async function ManagerSpecialLecturesPage() {
     fetchSpecialLectures(supabase),
     fetchSpecialLectureAudienceOptions(supabase),
   ])
-  const grantSummary = await fetchSpecialLectureActiveGrantSummary(
-    supabase,
-    lectures.map((lecture) => lecture.id)
+  const lectureIds = lectures.map((lecture) => lecture.id)
+  const [grantSummary, pendingRequestCounts] = await Promise.all([
+    fetchSpecialLectureActiveGrantSummary(supabase, lectureIds),
+    fetchSpecialLecturePendingRequestCounts(supabase, lectureIds),
+  ])
+  const pendingRequestTotal = Array.from(pendingRequestCounts.values()).reduce(
+    (sum, count) => sum + count,
+    0
   )
 
   return (
@@ -58,9 +64,17 @@ export default async function ManagerSpecialLecturesPage() {
             </p>
           </div>
         </div>
-        <Button asChild>
-          <Link href="/dashboard/manager/special-lectures/new">새 특강 등록</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link href="/dashboard/manager/special-lectures/requests">
+              특강 신청 관리
+              {pendingRequestTotal > 0 ? ` (${pendingRequestTotal})` : ''}
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/dashboard/manager/special-lectures/new">새 특강 등록</Link>
+          </Button>
+        </div>
       </div>
 
       {lectures.length === 0 ? (
@@ -85,6 +99,7 @@ export default async function ManagerSpecialLecturesPage() {
               latestExpiresAt: null,
             }
             const hasVideo = Boolean(lecture.video_asset)
+            const pendingRequestCount = pendingRequestCounts.get(lecture.id) ?? 0
 
             return (
               <Card key={lecture.id} className="flex flex-col border-slate-200 shadow-sm">
@@ -116,6 +131,16 @@ export default async function ManagerSpecialLecturesPage() {
                     <p className="line-clamp-2 text-sm text-slate-600">{lecture.description}</p>
                   ) : null}
                   <div className="flex flex-wrap gap-2 text-xs">
+                    {lecture.applications_open ? (
+                      <Badge variant="outline" className="border-blue-300 bg-blue-50 text-blue-700">
+                        신청 접수 중
+                      </Badge>
+                    ) : null}
+                    {pendingRequestCount > 0 ? (
+                      <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
+                        신청 대기 {pendingRequestCount}건
+                      </Badge>
+                    ) : null}
                     {summary.latestExpiresAt ? (
                       <Badge variant="outline" className="border-slate-300 text-slate-600">
                         가장 늦은 만료 {formatKoreanDate(summary.latestExpiresAt)}

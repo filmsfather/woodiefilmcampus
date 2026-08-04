@@ -39,3 +39,28 @@ export const SPECIAL_LECTURE_AUDIENCE_LABELS: Record<SpecialLectureAudienceMode,
   class: '특정 반',
   student: '특정 학생',
 }
+
+export const SPECIAL_LECTURE_REQUEST_STATUSES = [
+  'requested',
+  'approved',
+  'rejected',
+  'cancelled',
+] as const
+
+export type SpecialLectureRequestStatus = (typeof SPECIAL_LECTURE_REQUEST_STATUSES)[number]
+
+export function isSpecialLectureRequestStatus(
+  value: string | null | undefined
+): value is SpecialLectureRequestStatus {
+  if (!value) {
+    return false
+  }
+  return (SPECIAL_LECTURE_REQUEST_STATUSES as readonly string[]).includes(value)
+}
+
+export const SPECIAL_LECTURE_REQUEST_STATUS_LABELS: Record<SpecialLectureRequestStatus, string> = {
+  requested: '승인 대기',
+  approved: '승인됨',
+  rejected: '반려됨',
+  cancelled: '취소됨',
+}

@@ -215,6 +215,23 @@ export function SpecialLectureForm({
         />
       </div>
 
+      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <label className="flex items-start gap-2 text-sm text-slate-800">
+          <input
+            type="checkbox"
+            name="applications_open"
+            defaultChecked={lecture?.applications_open ?? false}
+            disabled={isPending}
+            className="mt-0.5 size-4 rounded border-slate-300 text-slate-600 focus:ring-slate-400"
+          />
+          <span className="font-medium">신청 접수 중</span>
+        </label>
+        <p className="text-xs text-slate-500">
+          켜두면 학생 특강 목록에 제목과 설명이 노출되어 신청할 수 있습니다. 영상은 신청을 승인한
+          학생에게만 열립니다.
+        </p>
+      </div>
+
       <Card className="border-slate-200">
         <CardHeader className="space-y-1">
           <CardTitle className="text-base text-slate-900">영상 파일</CardTitle>
@@ -286,7 +303,8 @@ export function SpecialLectureForm({
 
       <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
         등록 후 특강 목록의 <span className="font-semibold">영상 공개</span> 버튼으로 시청 가능한
-        학생과 공개 기간을 지정할 수 있습니다.
+        학생과 공개 기간을 지정하거나, <span className="font-semibold">특강 신청 관리</span>에서
+        학생 신청을 하나씩 열어줄 수 있습니다.
       </div>
 
       <div className="flex justify-end gap-2">

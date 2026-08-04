@@ -51,9 +51,14 @@ const QUICK_LINK_SECTIONS: ManagerQuickLinkSection[] = [
   },
   {
     title: '특강 관리',
-    description: '영상을 업로드하고 시청 가능한 학생을 직접 지정하세요.',
+    description: '영상을 업로드하고 학생 신청을 확인해 시청 권한을 열어주세요.',
     actions: [
       { label: '특강 게시판', href: '/dashboard/manager/special-lectures' },
+      {
+        label: '특강 신청 관리',
+        href: '/dashboard/manager/special-lectures/requests',
+        variant: 'outline',
+      },
       { label: '새 특강 등록', href: '/dashboard/manager/special-lectures/new', variant: 'outline' },
     ],
   },
