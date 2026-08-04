@@ -26,6 +26,8 @@ import {
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
   SPECIAL_LECTURE_MAX_GRANT_HOURS,
   SPECIAL_LECTURE_REQUEST_STATUS_LABELS,
+  parseLocalDatetimeInputValue,
+  toLocalDatetimeInputValue,
   type SpecialLectureRequest,
 } from '@/lib/special-lectures'
 
@@ -46,6 +48,10 @@ const dateFormatter = new Intl.DateTimeFormat('ko', {
   timeStyle: 'short',
 })
 
+function formatWindow(startsAt: string, expiresAt: string) {
+  return `${dateFormatter.format(new Date(startsAt))} ~ ${dateFormatter.format(new Date(expiresAt))}`
+}
+
 function studentDisplayName(request: SpecialLectureRequest) {
   return request.studentName ?? request.studentEmail ?? '이름 없음'
 }
@@ -57,15 +63,24 @@ function statusBadgeVariant(status: SpecialLectureRequest['status']) {
 }
 
 function describeGrant(request: SpecialLectureRequest) {
-  if (!request.grantExpiresAt) return null
+  if (!request.grantStartsAt || !request.grantExpiresAt) return null
+
+  const windowLabel = formatWindow(request.grantStartsAt, request.grantExpiresAt)
+
   if (request.grantRevokedAt) {
-    return `공개 해지됨 (${dateFormatter.format(new Date(request.grantRevokedAt))})`
+    return `공개 해지됨 · ${windowLabel}`
   }
+
+  const startsAt = new Date(request.grantStartsAt)
   const expiresAt = new Date(request.grantExpiresAt)
+
   if (expiresAt.getTime() <= Date.now()) {
-    return `공개 만료됨 (${dateFormatter.format(expiresAt)})`
+    return `공개 종료됨 · ${windowLabel}`
   }
-  return `${dateFormatter.format(expiresAt)}까지 공개`
+  if (startsAt.getTime() > Date.now()) {
+    return `공개 예정 · ${windowLabel}`
+  }
+  return `공개 중 · ${windowLabel}`
 }
 
 export function SpecialLectureRequestList({ requests }: SpecialLectureRequestListProps) {
@@ -144,27 +159,90 @@ interface DialogProps {
   request: SpecialLectureRequest
 }
 
+function defaultWindow() {
+  const now = new Date()
+  return {
+    startsAt: toLocalDatetimeInputValue(now),
+    expiresAt: toLocalDatetimeInputValue(
+      new Date(now.getTime() + SPECIAL_LECTURE_DEFAULT_GRANT_HOURS * 60 * 60 * 1000)
+    ),
+  }
+}
+
 function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [hours, setHours] = useState<number>(SPECIAL_LECTURE_DEFAULT_GRANT_HOURS)
+  const [startsAt, setStartsAt] = useState<string>(() => defaultWindow().startsAt)
+  const [expiresAt, setExpiresAt] = useState<string>(() => defaultWindow().expiresAt)
 
-  const expiresPreviewLabel = (() => {
-    if (!Number.isFinite(hours) || hours <= 0) return null
-    return dateFormatter.format(new Date(Date.now() + hours * 60 * 60 * 1000))
+  const resetWindow = () => {
+    const next = defaultWindow()
+    setStartsAt(next.startsAt)
+    setExpiresAt(next.expiresAt)
+  }
+
+  const applyPreset = (hours: number) => {
+    const base = parseLocalDatetimeInputValue(startsAt) ?? new Date()
+    setExpiresAt(toLocalDatetimeInputValue(new Date(base.getTime() + hours * 60 * 60 * 1000)))
+  }
+
+  const startsDate = parseLocalDatetimeInputValue(startsAt)
+  const expiresDate = parseLocalDatetimeInputValue(expiresAt)
+  const durationLabel = (() => {
+    if (!startsDate || !expiresDate) return null
+    const diffMs = expiresDate.getTime() - startsDate.getTime()
+    if (diffMs <= 0) return null
+    const totalMinutes = Math.floor(diffMs / (60 * 1000))
+    const days = Math.floor(totalMinutes / (60 * 24))
+    const hours = Math.floor((totalMinutes - days * 60 * 24) / 60)
+    const minutes = totalMinutes - days * 60 * 24 - hours * 60
+    const parts: string[] = []
+    if (days > 0) parts.push(`${days}일`)
+    if (hours > 0) parts.push(`${hours}시간`)
+    if (minutes > 0 && days === 0) parts.push(`${minutes}분`)
+    return parts.length > 0 ? parts.join(' ') : null
   })()
 
   const handleSubmit = () => {
     setError(null)
+
+    if (!startsDate) {
+      setError('공개 시작 시각을 입력해주세요.')
+      return
+    }
+    if (!expiresDate) {
+      setError('공개 종료 시각을 입력해주세요.')
+      return
+    }
+    if (expiresDate.getTime() <= startsDate.getTime()) {
+      setError('공개 종료 시각은 시작 시각보다 이후여야 합니다.')
+      return
+    }
+    if (expiresDate.getTime() <= Date.now()) {
+      setError('공개 종료 시각은 현재 시각보다 이후여야 합니다.')
+      return
+    }
+    if (
+      expiresDate.getTime() - startsDate.getTime() >
+      SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
+    ) {
+      setError('공개 기간은 최대 30일까지 설정할 수 있습니다.')
+      return
+    }
+
     startTransition(async () => {
-      const result = await approveSpecialLectureRequestAction(request.id, hours)
+      const result = await approveSpecialLectureRequestAction(
+        request.id,
+        startsDate.toISOString(),
+        expiresDate.toISOString()
+      )
       if (result?.error) {
         setError(result.error)
         return
       }
       onOpenChange(false)
-      setHours(SPECIAL_LECTURE_DEFAULT_GRANT_HOURS)
+      resetWindow()
       router.refresh()
     })
   }
@@ -183,8 +261,9 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
           <DialogTitle>영상 열어주기</DialogTitle>
           <DialogDescription className="text-sm text-slate-600">
             <span className="font-medium text-slate-800">{studentDisplayName(request)}</span> 학생에게{' '}
-            <span className="font-medium text-slate-800">{request.lectureTitle}</span> 영상을
-            공개합니다. 공개 기간이 지나면 자동으로 비공개로 전환됩니다.
+            <span className="font-medium text-slate-800">{request.lectureTitle}</span> 영상을 공개할
+            기간을 지정하세요. 시작 전에는 보이지 않고, 종료 시각이 지나면 자동으로 비공개로
+            전환됩니다.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,46 +274,60 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
             </Alert>
           ) : null}
 
-          <div className="space-y-2">
-            <Label htmlFor={`approve-hours-${request.id}`}>공개 기간 (시간)</Label>
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`approve-starts-${request.id}`}>공개 시작</Label>
               <Input
-                id={`approve-hours-${request.id}`}
-                type="number"
-                min={1}
-                max={SPECIAL_LECTURE_MAX_GRANT_HOURS}
-                step={1}
-                value={Number.isFinite(hours) && hours > 0 ? hours : ''}
-                onChange={(event) => {
-                  const next = Number(event.target.value)
-                  if (Number.isFinite(next) && next > 0) {
-                    setHours(Math.min(next, SPECIAL_LECTURE_MAX_GRANT_HOURS))
-                  } else {
-                    setHours(0)
-                  }
-                }}
+                id={`approve-starts-${request.id}`}
+                type="datetime-local"
+                value={startsAt}
+                onChange={(event) => setStartsAt(event.target.value)}
                 disabled={isPending}
-                className="w-32"
               />
-              <span className="text-xs text-slate-500">기본 24시간, 최대 30일</span>
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`approve-expires-${request.id}`}>공개 종료</Label>
+              <Input
+                id={`approve-expires-${request.id}`}
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(event) => setExpiresAt(event.target.value)}
+                disabled={isPending}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs text-slate-500">
+              시작 시각 기준으로 종료 시각을 빠르게 채웁니다.
+            </p>
             <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setStartsAt(toLocalDatetimeInputValue(new Date()))}
+                disabled={isPending}
+              >
+                지금 시작
+              </Button>
               {QUICK_PRESETS.map((preset) => (
                 <Button
                   key={preset.hours}
                   type="button"
-                  variant={hours === preset.hours ? 'default' : 'outline'}
+                  variant="outline"
                   size="sm"
-                  onClick={() => setHours(preset.hours)}
+                  onClick={() => applyPreset(preset.hours)}
                   disabled={isPending}
                 >
-                  {preset.label}
+                  +{preset.label}
                 </Button>
               ))}
             </div>
-            {expiresPreviewLabel ? (
+            {durationLabel ? (
               <p className="text-xs text-slate-600">
-                만료 예정: <span className="font-medium text-slate-800">{expiresPreviewLabel}</span>
+                공개 기간: <span className="font-medium text-slate-800">{durationLabel}</span>
+                {startsDate && startsDate.getTime() > Date.now() ? ' · 예약 공개' : ''}
               </p>
             ) : null}
           </div>
@@ -249,7 +342,7 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
           >
             취소
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={isPending || hours <= 0}>
+          <Button type="button" onClick={handleSubmit} disabled={isPending}>
             {isPending ? (
               <span className="flex items-center justify-center gap-2">
                 <LoadingSpinner />

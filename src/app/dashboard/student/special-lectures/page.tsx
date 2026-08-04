@@ -7,8 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { requireAuthForDashboard } from '@/lib/auth'
 import {
   fetchMySpecialLectureRequests,
+  fetchSpecialLectureAccessWindows,
   fetchSpecialLectures,
   type SpecialLecture,
+  type SpecialLectureAccessWindow,
   type SpecialLectureMyRequest,
 } from '@/lib/special-lectures'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
@@ -18,8 +20,16 @@ function formatKoreanDate(iso: string) {
   return new Intl.DateTimeFormat('ko', { dateStyle: 'medium' }).format(new Date(iso))
 }
 
+function formatKoreanDateTime(iso: string) {
+  if (!iso) return ''
+  return new Intl.DateTimeFormat('ko', { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(iso)
+  )
+}
+
 type CardState =
-  | { kind: 'watchable' }
+  | { kind: 'watchable'; expiresAt: string | null }
+  | { kind: 'scheduled'; startsAt: string; expiresAt: string }
   | { kind: 'pending'; requestId: string }
   | { kind: 'rejected'; reason: string | null }
   | { kind: 'closed' }
@@ -28,11 +38,21 @@ type CardState =
 
 function resolveCardState(
   lecture: SpecialLecture,
-  request: SpecialLectureMyRequest | undefined
+  request: SpecialLectureMyRequest | undefined,
+  accessWindow: SpecialLectureAccessWindow | undefined
 ): CardState {
   // RLS가 시청 권한이 없는 학생에게는 영상 정보를 내려주지 않는다.
   if (lecture.video_asset) {
-    return { kind: 'watchable' }
+    return { kind: 'watchable', expiresAt: accessWindow?.expiresAt ?? null }
+  }
+
+  // 승인은 되었지만 아직 공개 시작 전인 경우
+  if (accessWindow && new Date(accessWindow.startsAt).getTime() > Date.now()) {
+    return {
+      kind: 'scheduled',
+      startsAt: accessWindow.startsAt,
+      expiresAt: accessWindow.expiresAt,
+    }
   }
 
   if (request?.status === 'requested') {
@@ -60,9 +80,10 @@ export default async function StudentSpecialLecturesPage() {
   const supabase = await createServerSupabase()
   // RLS의 can_view_special_lecture가 유효 grant 기준으로 시청 권한을 판정하고,
   // 신청 접수 중인 특강은 제목·설명만 목록에 노출됩니다.
-  const [lectures, myRequests] = await Promise.all([
+  const [lectures, myRequests, accessWindows] = await Promise.all([
     fetchSpecialLectures(supabase),
     fetchMySpecialLectureRequests(supabase, profile?.id ?? ''),
+    fetchSpecialLectureAccessWindows(supabase, profile?.id ?? ''),
   ])
 
   return (
@@ -89,7 +110,11 @@ export default async function StudentSpecialLecturesPage() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {lectures.map((lecture) => {
-            const state = resolveCardState(lecture, myRequests.get(lecture.id))
+            const state = resolveCardState(
+              lecture,
+              myRequests.get(lecture.id),
+              accessWindows.get(lecture.id)
+            )
             const isWatchable = state.kind === 'watchable'
 
             const card = (
@@ -116,8 +141,10 @@ export default async function StudentSpecialLecturesPage() {
                         </svg>
                       </div>
                     ) : (
-                      <span className="rounded-full bg-white/15 px-3 py-1 text-xs text-white/80">
-                        승인 후 시청할 수 있습니다
+                      <span className="rounded-full bg-white/15 px-3 py-1 text-center text-xs text-white/80">
+                        {state.kind === 'scheduled'
+                          ? `${formatKoreanDateTime(state.startsAt)}부터 시청 가능`
+                          : '승인 후 시청할 수 있습니다'}
                       </span>
                     )}
                   </div>
@@ -143,6 +170,17 @@ export default async function StudentSpecialLecturesPage() {
                   </p>
                   {state.kind === 'rejected' && state.reason ? (
                     <p className="text-xs text-rose-600">반려 사유: {state.reason}</p>
+                  ) : null}
+                  {state.kind === 'watchable' && state.expiresAt ? (
+                    <p className="text-xs text-slate-500">
+                      {formatKoreanDateTime(state.expiresAt)}까지 시청할 수 있습니다.
+                    </p>
+                  ) : null}
+                  {state.kind === 'scheduled' ? (
+                    <p className="text-xs text-slate-600">
+                      공개 기간 {formatKoreanDateTime(state.startsAt)} ~{' '}
+                      {formatKoreanDateTime(state.expiresAt)}
+                    </p>
                   ) : null}
                   {state.kind === 'closed' ? (
                     <p className="text-xs text-slate-500">
@@ -189,6 +227,12 @@ function StateBadge({ state }: { state: CardState }) {
   switch (state.kind) {
     case 'watchable':
       return <Badge variant="default">시청 가능</Badge>
+    case 'scheduled':
+      return (
+        <Badge variant="outline" className="border-emerald-300 text-emerald-700">
+          공개 예정
+        </Badge>
+      )
     case 'pending':
       return <Badge variant="secondary">승인 대기</Badge>
     case 'rejected':

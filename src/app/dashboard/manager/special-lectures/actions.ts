@@ -452,6 +452,7 @@ async function insertGrant(
   params: {
     lectureId: string
     audienceMode: SpecialLectureAudienceMode
+    startsAt?: string
     expiresAt: string
     createdBy: string
     classIds?: string[]
@@ -466,6 +467,7 @@ async function insertGrant(
     .insert({
       special_lecture_id: params.lectureId,
       audience_mode: params.audienceMode,
+      starts_at: params.startsAt ?? new Date().toISOString(),
       expires_at: params.expiresAt,
       created_by: params.createdBy,
     })
@@ -610,7 +612,8 @@ export async function revokeSpecialLectureGrantAction(
 
 export async function extendSpecialLectureGrantAction(
   grantId: string,
-  expiresAtIso: string
+  expiresAtIso: string,
+  startsAtIso?: string
 ): Promise<GrantActionResult> {
   const profile = await ensureManagerProfile()
   if (!profile) {
@@ -622,10 +625,27 @@ export async function extendSpecialLectureGrantAction(
 
   const expiresDate = new Date(expiresAtIso)
   if (Number.isNaN(expiresDate.getTime())) {
-    return { error: '만료 시각이 올바르지 않습니다.' }
+    return { error: '공개 종료 시각이 올바르지 않습니다.' }
   }
   if (expiresDate.getTime() <= Date.now()) {
-    return { error: '만료 시각은 현재 시각보다 이후여야 합니다.' }
+    return { error: '공개 종료 시각은 현재 시각보다 이후여야 합니다.' }
+  }
+
+  let startsDate: Date | null = null
+  if (startsAtIso) {
+    startsDate = new Date(startsAtIso)
+    if (Number.isNaN(startsDate.getTime())) {
+      return { error: '공개 시작 시각이 올바르지 않습니다.' }
+    }
+    if (expiresDate.getTime() <= startsDate.getTime()) {
+      return { error: '공개 종료 시각은 시작 시각보다 이후여야 합니다.' }
+    }
+    if (
+      expiresDate.getTime() - startsDate.getTime() >
+      SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
+    ) {
+      return { error: '공개 기간은 최대 30일까지 설정할 수 있습니다.' }
+    }
   }
 
   const supabase = await createServerSupabase()
@@ -641,9 +661,17 @@ export async function extendSpecialLectureGrantAction(
     return { error: '공개 정보를 불러오지 못했습니다.' }
   }
 
+  const updates: Record<string, unknown> = {
+    expires_at: expiresDate.toISOString(),
+    revoked_at: null,
+  }
+  if (startsDate) {
+    updates.starts_at = startsDate.toISOString()
+  }
+
   const { error: updateError } = await supabase
     .from('special_lecture_grants')
-    .update({ expires_at: expiresDate.toISOString(), revoked_at: null })
+    .update(updates)
     .eq('id', grantId)
 
   if (updateError) {
@@ -659,7 +687,8 @@ export async function extendSpecialLectureGrantAction(
 
 export async function approveSpecialLectureRequestAction(
   requestId: string,
-  expiresHours: number
+  startsAtIso: string,
+  expiresAtIso: string
 ): Promise<RequestActionResult> {
   const profile = await ensureManagerProfile()
   if (!profile) {
@@ -669,12 +698,30 @@ export async function approveSpecialLectureRequestAction(
     return { error: '신청 정보를 확인할 수 없습니다.' }
   }
 
-  const hours = Number(expiresHours)
-  if (!Number.isFinite(hours) || hours <= 0) {
-    return { error: '공개 기간을 확인해주세요.' }
+  const startsDate = new Date(startsAtIso)
+  const expiresDate = new Date(expiresAtIso)
+
+  if (Number.isNaN(startsDate.getTime())) {
+    return { error: '공개 시작 시각이 올바르지 않습니다.' }
   }
-  const boundedHours = Math.min(hours, SPECIAL_LECTURE_MAX_GRANT_HOURS)
-  const expiresAt = new Date(Date.now() + boundedHours * 60 * 60 * 1000).toISOString()
+  if (Number.isNaN(expiresDate.getTime())) {
+    return { error: '공개 종료 시각이 올바르지 않습니다.' }
+  }
+  if (expiresDate.getTime() <= startsDate.getTime()) {
+    return { error: '공개 종료 시각은 시작 시각보다 이후여야 합니다.' }
+  }
+  if (expiresDate.getTime() <= Date.now()) {
+    return { error: '공개 종료 시각은 현재 시각보다 이후여야 합니다.' }
+  }
+  if (
+    expiresDate.getTime() - startsDate.getTime() >
+    SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
+  ) {
+    return { error: '공개 기간은 최대 30일까지 설정할 수 있습니다.' }
+  }
+
+  const startsAt = startsDate.toISOString()
+  const expiresAt = expiresDate.toISOString()
 
   const supabase = await createServerSupabase()
 
@@ -700,6 +747,7 @@ export async function approveSpecialLectureRequestAction(
     grantId = await insertGrant(supabase, {
       lectureId,
       audienceMode: 'student',
+      startsAt,
       expiresAt,
       createdBy: profile.id,
       studentIds: [String(request.student_id)],

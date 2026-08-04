@@ -14,6 +14,8 @@ export {
   isSpecialLectureManageRole,
   isSpecialLectureAudienceMode,
   isSpecialLectureRequestStatus,
+  toLocalDatetimeInputValue,
+  parseLocalDatetimeInputValue,
   type SpecialLectureManageRole,
   type SpecialLectureAudienceMode,
   type SpecialLectureRequestStatus,
@@ -182,6 +184,7 @@ export interface SpecialLectureGrant {
   id: string
   specialLectureId: string
   audienceMode: SpecialLectureAudienceMode
+  startsAt: string
   expiresAt: string
   revokedAt: string | null
   createdAt: string
@@ -192,13 +195,16 @@ export interface SpecialLectureGrant {
 
 export interface SpecialLectureActiveGrantSummary {
   activeGrantCount: number
+  scheduledGrantCount: number
   latestExpiresAt: string | null
+  nextStartsAt: string | null
 }
 
 interface SpecialLectureGrantRow {
   id: string
   special_lecture_id: string
   audience_mode: string
+  starts_at: string
   expires_at: string
   revoked_at: string | null
   created_at: string
@@ -218,7 +224,9 @@ export async function fetchSpecialLectureGrants(
 ): Promise<SpecialLectureGrant[]> {
   const { data, error } = await supabase
     .from('special_lecture_grants')
-    .select('id, special_lecture_id, audience_mode, expires_at, revoked_at, created_at, created_by')
+    .select(
+      'id, special_lecture_id, audience_mode, starts_at, expires_at, revoked_at, created_at, created_by'
+    )
     .eq('special_lecture_id', lectureId)
     .order('created_at', { ascending: false })
 
@@ -270,6 +278,7 @@ export async function fetchSpecialLectureGrants(
     id: String(row.id),
     specialLectureId: String(row.special_lecture_id),
     audienceMode: toAudienceMode(row.audience_mode),
+    startsAt: row.starts_at,
     expiresAt: row.expires_at,
     revokedAt: row.revoked_at ?? null,
     createdAt: row.created_at,
@@ -286,14 +295,21 @@ export async function fetchSpecialLectureActiveGrantSummary(
   const result = new Map<string, SpecialLectureActiveGrantSummary>()
   if (lectureIds.length === 0) return result
 
+  const emptySummary = (): SpecialLectureActiveGrantSummary => ({
+    activeGrantCount: 0,
+    scheduledGrantCount: 0,
+    latestExpiresAt: null,
+    nextStartsAt: null,
+  })
+
   for (const id of lectureIds) {
-    result.set(id, { activeGrantCount: 0, latestExpiresAt: null })
+    result.set(id, emptySummary())
   }
 
   const nowIso = new Date().toISOString()
   const { data, error } = await supabase
     .from('special_lecture_grants')
-    .select('special_lecture_id, expires_at')
+    .select('special_lecture_id, starts_at, expires_at')
     .in('special_lecture_id', lectureIds)
     .is('revoked_at', null)
     .gt('expires_at', nowIso)
@@ -303,14 +319,68 @@ export async function fetchSpecialLectureActiveGrantSummary(
     return result
   }
 
-  for (const row of (data ?? []) as Array<{ special_lecture_id: string; expires_at: string }>) {
+  const rows = (data ?? []) as Array<{
+    special_lecture_id: string
+    starts_at: string
+    expires_at: string
+  }>
+
+  for (const row of rows) {
     const id = String(row.special_lecture_id)
-    const current = result.get(id) ?? { activeGrantCount: 0, latestExpiresAt: null }
-    current.activeGrantCount += 1
+    const current = result.get(id) ?? emptySummary()
+
+    if (row.starts_at > nowIso) {
+      current.scheduledGrantCount += 1
+      if (!current.nextStartsAt || row.starts_at < current.nextStartsAt) {
+        current.nextStartsAt = row.starts_at
+      }
+    } else {
+      current.activeGrantCount += 1
+    }
+
     if (!current.latestExpiresAt || row.expires_at > current.latestExpiresAt) {
       current.latestExpiresAt = row.expires_at
     }
     result.set(id, current)
+  }
+
+  return result
+}
+
+export interface SpecialLectureAccessWindow {
+  startsAt: string
+  expiresAt: string
+}
+
+/**
+ * 학생 본인에게 적용되는 공개 구간을 특강별로 1건씩 조회합니다.
+ * 학생은 grant 테이블을 직접 읽을 수 없어 security definer 함수를 사용합니다.
+ */
+export async function fetchSpecialLectureAccessWindows(
+  supabase: SupabaseClient,
+  studentId: string
+): Promise<Map<string, SpecialLectureAccessWindow>> {
+  const result = new Map<string, SpecialLectureAccessWindow>()
+  if (!studentId) return result
+
+  const { data, error } = await supabase.rpc('special_lecture_access_windows', { uid: studentId })
+
+  if (error) {
+    console.error('[special-lectures] failed to fetch access windows', error)
+    return result
+  }
+
+  const rows = (data ?? []) as Array<{
+    special_lecture_id: string
+    starts_at: string
+    expires_at: string
+  }>
+
+  for (const row of rows) {
+    result.set(String(row.special_lecture_id), {
+      startsAt: row.starts_at,
+      expiresAt: row.expires_at,
+    })
   }
 
   return result
@@ -330,6 +400,7 @@ export interface SpecialLectureRequest {
   studentNote: string | null
   rejectReason: string | null
   grantId: string | null
+  grantStartsAt: string | null
   grantExpiresAt: string | null
   grantRevokedAt: string | null
   decidedAt: string | null
@@ -360,8 +431,8 @@ interface SpecialLectureRequestRow {
   student: ProfileRelation | ProfileRelation[] | null
   decider: ProfileRelation | ProfileRelation[] | null
   grant:
-    | { id: string; expires_at: string; revoked_at: string | null }
-    | Array<{ id: string; expires_at: string; revoked_at: string | null }>
+    | { id: string; starts_at: string; expires_at: string; revoked_at: string | null }
+    | Array<{ id: string; starts_at: string; expires_at: string; revoked_at: string | null }>
     | null
 }
 
@@ -378,7 +449,7 @@ const SPECIAL_LECTURE_REQUEST_SELECT = `
   lecture:special_lectures!special_lecture_requests_special_lecture_id_fkey(id, title),
   student:profiles!special_lecture_requests_student_id_fkey(id, name, email),
   decider:profiles!special_lecture_requests_decided_by_fkey(id, name, email),
-  grant:special_lecture_grants!special_lecture_requests_grant_id_fkey(id, expires_at, revoked_at)
+  grant:special_lecture_grants!special_lecture_requests_grant_id_fkey(id, starts_at, expires_at, revoked_at)
 `
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
@@ -489,6 +560,7 @@ export async function fetchSpecialLectureRequests(
       studentNote: row.student_note,
       rejectReason: row.reject_reason,
       grantId: row.grant_id ? String(row.grant_id) : null,
+      grantStartsAt: grant?.starts_at ?? null,
       grantExpiresAt: grant?.expires_at ?? null,
       grantRevokedAt: grant?.revoked_at ?? null,
       decidedAt: row.decided_at,

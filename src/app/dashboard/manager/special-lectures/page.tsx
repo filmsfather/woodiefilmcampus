@@ -96,7 +96,9 @@ export default async function ManagerSpecialLecturesPage() {
           {lectures.map((lecture) => {
             const summary = grantSummary.get(lecture.id) ?? {
               activeGrantCount: 0,
+              scheduledGrantCount: 0,
               latestExpiresAt: null,
+              nextStartsAt: null,
             }
             const hasVideo = Boolean(lecture.video_asset)
             const pendingRequestCount = pendingRequestCounts.get(lecture.id) ?? 0
@@ -116,7 +118,9 @@ export default async function ManagerSpecialLecturesPage() {
                     <Badge variant={summary.activeGrantCount > 0 ? 'default' : 'secondary'}>
                       {summary.activeGrantCount > 0
                         ? `공개 중 ${summary.activeGrantCount}건`
-                        : '공개 없음'}
+                        : summary.scheduledGrantCount > 0
+                          ? `공개 예정 ${summary.scheduledGrantCount}건`
+                          : '공개 없음'}
                     </Badge>
                   </div>
                   <CardDescription className="text-xs text-slate-500">
@@ -141,9 +145,14 @@ export default async function ManagerSpecialLecturesPage() {
                         신청 대기 {pendingRequestCount}건
                       </Badge>
                     ) : null}
+                    {summary.nextStartsAt ? (
+                      <Badge variant="outline" className="border-slate-300 text-slate-600">
+                        다음 공개 시작 {formatKoreanDate(summary.nextStartsAt)}
+                      </Badge>
+                    ) : null}
                     {summary.latestExpiresAt ? (
                       <Badge variant="outline" className="border-slate-300 text-slate-600">
-                        가장 늦은 만료 {formatKoreanDate(summary.latestExpiresAt)}
+                        가장 늦은 종료 {formatKoreanDate(summary.latestExpiresAt)}
                       </Badge>
                     ) : null}
                     {hasVideo ? (

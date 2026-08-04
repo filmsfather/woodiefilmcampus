@@ -6,6 +6,7 @@ import { StudentSpecialLectureRequestButton } from '@/components/dashboard/speci
 import { requireAuthForDashboard } from '@/lib/auth'
 import {
   fetchMySpecialLectureRequests,
+  fetchSpecialLectureAccessWindows,
   getSignedSpecialLectureVideoUrl,
   getSpecialLecture,
 } from '@/lib/special-lectures'
@@ -13,6 +14,12 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 interface PageProps {
   params: Promise<{ id: string }>
+}
+
+function formatKoreanDateTime(iso: string) {
+  return new Intl.DateTimeFormat('ko', { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(iso)
+  )
 }
 
 export default async function StudentSpecialLectureDetailPage({ params }: PageProps) {
@@ -31,9 +38,19 @@ export default async function StudentSpecialLectureDetailPage({ params }: PagePr
   const videoPath = lecture.video_asset?.path ?? null
   const videoUrl = videoPath ? await getSignedSpecialLectureVideoUrl(supabase, videoPath) : null
 
-  const myRequest = videoUrl
-    ? undefined
-    : (await fetchMySpecialLectureRequests(supabase, profile?.id ?? '')).get(lecture.id)
+  const [myRequest, accessWindow] = videoUrl
+    ? [undefined, undefined]
+    : await Promise.all([
+        fetchMySpecialLectureRequests(supabase, profile?.id ?? '').then((map) =>
+          map.get(lecture.id)
+        ),
+        fetchSpecialLectureAccessWindows(supabase, profile?.id ?? '').then((map) =>
+          map.get(lecture.id)
+        ),
+      ])
+
+  const scheduledWindow =
+    accessWindow && new Date(accessWindow.startsAt).getTime() > Date.now() ? accessWindow : null
 
   return (
     <section className="space-y-6">
@@ -59,7 +76,15 @@ export default async function StudentSpecialLectureDetailPage({ params }: PagePr
       ) : (
         <div className="overflow-hidden rounded-xl bg-black shadow-lg">
           <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 px-6 text-center text-white">
-            {myRequest?.status === 'requested' ? (
+            {scheduledWindow ? (
+              <>
+                <p>{formatKoreanDateTime(scheduledWindow.startsAt)}부터 시청할 수 있습니다.</p>
+                <p className="text-sm text-white/70">
+                  공개 기간 {formatKoreanDateTime(scheduledWindow.startsAt)} ~{' '}
+                  {formatKoreanDateTime(scheduledWindow.expiresAt)}
+                </p>
+              </>
+            ) : myRequest?.status === 'requested' ? (
               <>
                 <p>승인 대기 중입니다.</p>
                 <p className="text-sm text-white/70">

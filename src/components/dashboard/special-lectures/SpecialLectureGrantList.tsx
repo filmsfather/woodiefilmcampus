@@ -32,6 +32,8 @@ import {
   SPECIAL_LECTURE_AUDIENCE_LABELS,
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
   SPECIAL_LECTURE_MAX_GRANT_HOURS,
+  parseLocalDatetimeInputValue,
+  toLocalDatetimeInputValue,
   type SpecialLectureGrant,
 } from '@/lib/special-lectures'
 
@@ -41,7 +43,7 @@ interface SpecialLectureGrantListProps {
   studentNameById: Record<string, string>
 }
 
-type GrantStatus = 'active' | 'revoked' | 'expired'
+type GrantStatus = 'active' | 'scheduled' | 'revoked' | 'expired'
 
 const dateFormatter = new Intl.DateTimeFormat('ko', {
   dateStyle: 'medium',
@@ -51,6 +53,7 @@ const dateFormatter = new Intl.DateTimeFormat('ko', {
 function deriveStatus(grant: SpecialLectureGrant): GrantStatus {
   if (grant.revokedAt) return 'revoked'
   if (new Date(grant.expiresAt).getTime() <= Date.now()) return 'expired'
+  if (new Date(grant.startsAt).getTime() > Date.now()) return 'scheduled'
   return 'active'
 }
 
@@ -58,11 +61,29 @@ function statusLabel(status: GrantStatus) {
   switch (status) {
     case 'active':
       return '공개 중'
+    case 'scheduled':
+      return '공개 예정'
     case 'expired':
       return '만료됨'
     case 'revoked':
       return '해지됨'
   }
+}
+
+function formatWindow(grant: SpecialLectureGrant) {
+  return `${dateFormatter.format(new Date(grant.startsAt))} ~ ${dateFormatter.format(new Date(grant.expiresAt))}`
+}
+
+function formatStartsIn(startsAt: string) {
+  const diffMs = new Date(startsAt).getTime() - Date.now()
+  if (diffMs <= 0) return null
+  const totalMinutes = Math.floor(diffMs / (60 * 1000))
+  const days = Math.floor(totalMinutes / (60 * 24))
+  const hours = Math.floor((totalMinutes - days * 60 * 24) / 60)
+  const minutes = totalMinutes - days * 60 * 24 - hours * 60
+  if (days > 0) return `${days}일 ${hours}시간 후 시작`
+  if (hours > 0) return `${hours}시간 ${minutes}분 후 시작`
+  return `${minutes}분 후 시작`
 }
 
 function formatRemaining(expiresAt: string) {
@@ -77,11 +98,6 @@ function formatRemaining(expiresAt: string) {
   return `${minutes}분 남음`
 }
 
-function toLocalDatetimeInputValue(date: Date) {
-  const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
-}
-
 export function SpecialLectureGrantList({
   grants,
   classNameById,
@@ -91,8 +107,9 @@ export function SpecialLectureGrantList({
     const score = (grant: SpecialLectureGrant) => {
       const status = deriveStatus(grant)
       if (status === 'active') return 0
-      if (status === 'expired') return 1
-      return 2
+      if (status === 'scheduled') return 1
+      if (status === 'expired') return 2
+      return 3
     }
     return [...grants].sort((a, b) => {
       const diff = score(a) - score(b)
@@ -172,14 +189,19 @@ function GrantCard({ grant, classNameById, studentNameById }: GrantCardProps) {
           <span className="text-xs text-slate-500">
             {status === 'active'
               ? formatRemaining(grant.expiresAt)
-              : `만료 ${dateFormatter.format(new Date(grant.expiresAt))}`}
+              : status === 'scheduled'
+                ? formatStartsIn(grant.startsAt)
+                : `종료 ${dateFormatter.format(new Date(grant.expiresAt))}`}
           </span>
         </div>
-        <CardDescription className="text-xs text-slate-500">
-          공개 일시 {dateFormatter.format(new Date(grant.createdAt))}
-          {grant.revokedAt
-            ? ` · 해지 ${dateFormatter.format(new Date(grant.revokedAt))}`
-            : ''}
+        <CardDescription className="space-y-0.5 text-xs text-slate-500">
+          <span className="block text-slate-700">공개 구간 {formatWindow(grant)}</span>
+          <span className="block">
+            등록 {dateFormatter.format(new Date(grant.createdAt))}
+            {grant.revokedAt
+              ? ` · 해지 ${dateFormatter.format(new Date(grant.revokedAt))}`
+              : ''}
+          </span>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
@@ -223,7 +245,7 @@ function GrantCard({ grant, classNameById, studentNameById }: GrantCardProps) {
           </div>
         )}
 
-        {status === 'active' ? (
+        {status === 'active' || status === 'scheduled' ? (
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"
@@ -232,7 +254,7 @@ function GrantCard({ grant, classNameById, studentNameById }: GrantCardProps) {
               onClick={() => setExtendOpen(true)}
               disabled={isPending}
             >
-              만료 시각 변경
+              공개 구간 변경
             </Button>
             <Button
               type="button"
@@ -253,7 +275,7 @@ function GrantCard({ grant, classNameById, studentNameById }: GrantCardProps) {
           </div>
         ) : null}
 
-        {status !== 'active' ? (
+        {status === 'expired' || status === 'revoked' ? (
           <div>
             <Button
               type="button"
@@ -262,7 +284,7 @@ function GrantCard({ grant, classNameById, studentNameById }: GrantCardProps) {
               onClick={() => setExtendOpen(true)}
               disabled={isPending}
             >
-              다시 공개 (만료 시각 설정)
+              다시 공개 (구간 설정)
             </Button>
           </div>
         ) : null}
@@ -287,6 +309,9 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [startsValue, setStartsValue] = useState<string>(() =>
+    toLocalDatetimeInputValue(new Date(grant.startsAt))
+  )
   const [value, setValue] = useState<string>(() => {
     const base = new Date(grant.expiresAt)
     const next = base.getTime() > Date.now()
@@ -296,33 +321,47 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
   })
 
   const handleQuickAdd = (hours: number) => {
-    const next = new Date(Date.now() + hours * 60 * 60 * 1000)
-    setValue(toLocalDatetimeInputValue(next))
+    const base = parseLocalDatetimeInputValue(startsValue) ?? new Date()
+    const anchor = base.getTime() > Date.now() ? base : new Date()
+    setValue(toLocalDatetimeInputValue(new Date(anchor.getTime() + hours * 60 * 60 * 1000)))
   }
 
   const handleSubmit = () => {
     setError(null)
-    if (!value) {
-      setError('만료 시각을 입력해주세요.')
+
+    const startsParsed = parseLocalDatetimeInputValue(startsValue)
+    if (!startsParsed) {
+      setError('공개 시작 시각을 입력해주세요.')
       return
     }
-    const parsed = new Date(value)
-    if (Number.isNaN(parsed.getTime())) {
-      setError('만료 시각이 올바르지 않습니다.')
+
+    const parsed = parseLocalDatetimeInputValue(value)
+    if (!parsed) {
+      setError('공개 종료 시각을 입력해주세요.')
+      return
+    }
+    if (parsed.getTime() <= startsParsed.getTime()) {
+      setError('공개 종료 시각은 시작 시각보다 이후여야 합니다.')
       return
     }
     if (parsed.getTime() <= Date.now()) {
-      setError('만료 시각은 현재 시각보다 이후여야 합니다.')
+      setError('공개 종료 시각은 현재 시각보다 이후여야 합니다.')
       return
     }
-    const maxAllowed = Date.now() + SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
-    if (parsed.getTime() > maxAllowed) {
-      setError('만료 시각은 최대 30일 이내로 설정해주세요.')
+    if (
+      parsed.getTime() - startsParsed.getTime() >
+      SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
+    ) {
+      setError('공개 기간은 최대 30일까지 설정할 수 있습니다.')
       return
     }
 
     startTransition(async () => {
-      const result = await extendSpecialLectureGrantAction(grant.id, parsed.toISOString())
+      const result = await extendSpecialLectureGrantAction(
+        grant.id,
+        parsed.toISOString(),
+        startsParsed.toISOString()
+      )
       if (result?.error) {
         setError(result.error)
         return
@@ -343,9 +382,9 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>만료 시각 변경</DialogTitle>
+          <DialogTitle>공개 구간 변경</DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
-            저장하면 해지 상태도 함께 해제되어 다시 공개됩니다.
+            저장하면 해지 상태도 함께 해제되어 지정한 구간에 다시 공개됩니다.
           </DialogDescription>
         </DialogHeader>
 
@@ -356,18 +395,39 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
             </Alert>
           ) : null}
 
-          <div className="space-y-2">
-            <Label htmlFor={`expires-input-${grant.id}`}>만료 시각</Label>
-            <Input
-              id={`expires-input-${grant.id}`}
-              type="datetime-local"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              disabled={isPending}
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor={`starts-input-${grant.id}`}>공개 시작</Label>
+              <Input
+                id={`starts-input-${grant.id}`}
+                type="datetime-local"
+                value={startsValue}
+                onChange={(event) => setStartsValue(event.target.value)}
+                disabled={isPending}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`expires-input-${grant.id}`}>공개 종료</Label>
+              <Input
+                id={`expires-input-${grant.id}`}
+                type="datetime-local"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                disabled={isPending}
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setStartsValue(toLocalDatetimeInputValue(new Date()))}
+              disabled={isPending}
+            >
+              지금 시작
+            </Button>
             {[1, 6, 24, 24 * 3, 24 * 7].map((preset) => (
               <Button
                 key={preset}
@@ -377,7 +437,7 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
                 onClick={() => handleQuickAdd(preset)}
                 disabled={isPending}
               >
-                지금 + {preset >= 24 ? `${preset / 24}일` : `${preset}시간`}
+                +{preset >= 24 ? `${preset / 24}일` : `${preset}시간`}
               </Button>
             ))}
           </div>

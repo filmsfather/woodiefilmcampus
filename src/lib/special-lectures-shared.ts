@@ -64,3 +64,16 @@ export const SPECIAL_LECTURE_REQUEST_STATUS_LABELS: Record<SpecialLectureRequest
   rejected: '반려됨',
   cancelled: '취소됨',
 }
+
+/** datetime-local 입력에 넣을 수 있는 로컬 시각 문자열(YYYY-MM-DDTHH:mm)로 변환합니다. */
+export function toLocalDatetimeInputValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** datetime-local 입력값을 Date로 변환합니다. 형식이 잘못되면 null을 반환합니다. */
+export function parseLocalDatetimeInputValue(value: string): Date | null {
+  if (!value) return null
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
