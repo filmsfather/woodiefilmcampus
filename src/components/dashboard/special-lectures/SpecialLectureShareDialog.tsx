@@ -25,6 +25,7 @@ import {
 import { createSpecialLectureGrantAction } from '@/app/dashboard/manager/special-lectures/actions'
 import {
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
+  SPECIAL_LECTURE_GRANT_PRESETS,
   SPECIAL_LECTURE_MAX_GRANT_HOURS,
 } from '@/lib/special-lectures'
 
@@ -36,14 +37,6 @@ interface SpecialLectureShareDialogProps {
   triggerLabel?: string
   triggerDisabled?: boolean
 }
-
-const QUICK_PRESETS: Array<{ label: string; hours: number }> = [
-  { label: '1시간', hours: 1 },
-  { label: '6시간', hours: 6 },
-  { label: '하루', hours: 24 },
-  { label: '3일', hours: 24 * 3 },
-  { label: '7일', hours: 24 * 7 },
-]
 
 export function SpecialLectureShareDialog({
   lectureId,
@@ -152,7 +145,7 @@ export function SpecialLectureShareDialog({
               <span className="text-xs text-slate-500">시간 (기본 24시간, 최대 30일)</span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {QUICK_PRESETS.map((preset) => (
+              {SPECIAL_LECTURE_GRANT_PRESETS.map((preset) => (
                 <Button
                   key={preset.hours}
                   type="button"

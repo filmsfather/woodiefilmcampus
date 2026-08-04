@@ -24,6 +24,7 @@ import {
 } from '@/app/dashboard/manager/special-lectures/actions'
 import {
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
+  SPECIAL_LECTURE_GRANT_PRESETS,
   SPECIAL_LECTURE_MAX_GRANT_HOURS,
   SPECIAL_LECTURE_REQUEST_STATUS_LABELS,
   parseLocalDatetimeInputValue,
@@ -34,14 +35,6 @@ import {
 interface SpecialLectureRequestListProps {
   requests: SpecialLectureRequest[]
 }
-
-const QUICK_PRESETS: Array<{ label: string; hours: number }> = [
-  { label: '1시간', hours: 1 },
-  { label: '6시간', hours: 6 },
-  { label: '하루', hours: 24 },
-  { label: '3일', hours: 24 * 3 },
-  { label: '7일', hours: 24 * 7 },
-]
 
 const dateFormatter = new Intl.DateTimeFormat('ko', {
   dateStyle: 'medium',
@@ -311,7 +304,7 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
               >
                 지금 시작
               </Button>
-              {QUICK_PRESETS.map((preset) => (
+              {SPECIAL_LECTURE_GRANT_PRESETS.map((preset) => (
                 <Button
                   key={preset.hours}
                   type="button"

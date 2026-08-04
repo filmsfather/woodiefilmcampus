@@ -31,6 +31,7 @@ import {
 import {
   SPECIAL_LECTURE_AUDIENCE_LABELS,
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
+  SPECIAL_LECTURE_GRANT_PRESETS,
   SPECIAL_LECTURE_MAX_GRANT_HOURS,
   parseLocalDatetimeInputValue,
   toLocalDatetimeInputValue,
@@ -428,16 +429,16 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
             >
               지금 시작
             </Button>
-            {[1, 6, 24, 24 * 3, 24 * 7].map((preset) => (
+            {SPECIAL_LECTURE_GRANT_PRESETS.map((preset) => (
               <Button
-                key={preset}
+                key={preset.hours}
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => handleQuickAdd(preset)}
+                onClick={() => handleQuickAdd(preset.hours)}
                 disabled={isPending}
               >
-                +{preset >= 24 ? `${preset / 24}일` : `${preset}시간`}
+                +{preset.label}
               </Button>
             ))}
           </div>

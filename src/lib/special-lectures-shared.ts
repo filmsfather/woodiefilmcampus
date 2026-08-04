@@ -8,6 +8,16 @@ export const SPECIAL_LECTURE_DEFAULT_GRANT_HOURS = 24
 
 export const SPECIAL_LECTURE_MAX_GRANT_HOURS = 24 * 30 // 최대 30일
 
+/** 공개 기간을 빠르게 지정할 때 쓰는 프리셋. 공개/승인/구간 변경 다이얼로그가 공유합니다. */
+export const SPECIAL_LECTURE_GRANT_PRESETS: ReadonlyArray<{ label: string; hours: number }> = [
+  { label: '2시간', hours: 2 },
+  { label: '3시간', hours: 3 },
+  { label: '6시간', hours: 6 },
+  { label: '12시간', hours: 12 },
+  { label: '하루', hours: 24 },
+  { label: '2일', hours: 24 * 2 },
+]
+
 export const SPECIAL_LECTURE_MANAGE_ROLES = ['manager', 'principal'] as const
 
 export type SpecialLectureManageRole = (typeof SPECIAL_LECTURE_MANAGE_ROLES)[number]
