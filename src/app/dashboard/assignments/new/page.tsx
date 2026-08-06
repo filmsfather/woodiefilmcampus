@@ -79,7 +79,11 @@ type RecentAssignmentRow = {
 function compareStudents(a: AssignmentStudentSummary, b: AssignmentStudentSummary) {
   const left = (a.name ?? a.email ?? '').toLowerCase()
   const right = (b.name ?? b.email ?? '').toLowerCase()
-  return left.localeCompare(right, 'ko')
+  const byName = left.localeCompare(right, 'ko')
+  if (byName !== 0) {
+    return byName
+  }
+  return (a.className ?? '').localeCompare(b.className ?? '', 'ko')
 }
 
 function compareClasses(a: AssignmentClassSummary, b: AssignmentClassSummary) {
@@ -231,7 +235,8 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
     }
   }
 
-  const studentMap = new Map<string, AssignmentStudentSummary>()
+  const studentMemberships: AssignmentStudentSummary[] = []
+  const seenMemberships = new Set<string>()
   const classStudentsMap = new Map<string, AssignmentStudentSummary[]>()
 
   for (const row of classStudentRows) {
@@ -261,6 +266,13 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
     if (!studentId) {
       continue
     }
+
+    const membershipKey = `${row.class_id}:${studentId}`
+    if (seenMemberships.has(membershipKey)) {
+      continue
+    }
+    seenMemberships.add(membershipKey)
+
     const summary: AssignmentStudentSummary = {
       id: studentId,
       name: profileRecord.name,
@@ -273,9 +285,7 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
     existing.push(summary)
     classStudentsMap.set(row.class_id, existing)
 
-    if (!studentMap.has(summary.id)) {
-      studentMap.set(summary.id, summary)
-    }
+    studentMemberships.push(summary)
   }
 
   const classSummaries: AssignmentClassSummary[] = Array.from(classIdSet)
@@ -292,7 +302,7 @@ export default async function AssignmentCreatePage(props: { searchParams: Promis
     })
     .sort(compareClasses)
 
-  const students = Array.from(studentMap.values()).sort(compareStudents)
+  const students = studentMemberships.slice().sort(compareStudents)
 
   const preselectedWorkbookIds = _preselectedWorkbookId && workbookSummaries.some((w) => w.id === _preselectedWorkbookId)
     ? [_preselectedWorkbookId]

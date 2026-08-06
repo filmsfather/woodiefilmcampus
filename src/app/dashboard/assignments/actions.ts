@@ -48,6 +48,10 @@ const createAssignmentInputSchema = z
     comment: z.string().max(500).nullable().optional().transform((value) => value?.trim() || null),
     targetClassIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
     targetStudentIds: z.array(uuidSchema).optional().transform((value) => [...new Set(value ?? [])]),
+    // 개별 출제에서 교사가 어떤 반을 통해 학생을 골랐는지. 여러 반에 등록된 학생의 소속 반이 임의로 정해지지 않도록 한다.
+    targetStudentClassIds: z
+      .array(z.object({ studentId: uuidSchema, classId: uuidSchema }))
+      .optional(),
   })
   .superRefine((value, ctx) => {
     const classCount = value.targetClassIds?.length ?? 0
@@ -109,7 +113,15 @@ export async function createAssignment(input: CreateAssignmentInput) {
     return { error: '입력 값을 확인해주세요.' }
   }
 
-  const { workbookId, dueAt, publishedAt, comment, targetClassIds = [], targetStudentIds = [] } = parsedInput
+  const {
+    workbookId,
+    dueAt,
+    publishedAt,
+    comment,
+    targetClassIds = [],
+    targetStudentIds = [],
+    targetStudentClassIds = [],
+  } = parsedInput
 
   const supabase = await createServerSupabase()
   const { profile } = await getAuthContext()
@@ -256,15 +268,26 @@ export async function createAssignment(input: CreateAssignmentInput) {
       return { error: '선택한 학생 중 담당 반에 속하지 않은 학생이 있습니다.' }
     }
 
+    const requestedClassByStudent = new Map(
+      targetStudentClassIds.map(({ studentId, classId }) => [studentId, classId])
+    )
+
     const studentIdsForTasks = new Set<string>()
     studentsFromClasses.forEach((studentId) => studentIdsForTasks.add(studentId))
     targetStudentIds.forEach((studentId) => {
       studentIdsForTasks.add(studentId)
-      if (!studentClassAssignments.has(studentId)) {
-        const inferredClassId = resolveAccessibleClassForStudent(studentId)
-        if (inferredClassId) {
-          studentClassAssignments.set(studentId, inferredClassId)
-        }
+      if (studentClassAssignments.has(studentId)) {
+        return
+      }
+
+      const requestedClassId = requestedClassByStudent.get(studentId)
+      const resolvedClassId =
+        requestedClassId && studentsByClass.get(requestedClassId)?.has(studentId)
+          ? requestedClassId
+          : resolveAccessibleClassForStudent(studentId)
+
+      if (resolvedClassId) {
+        studentClassAssignments.set(studentId, resolvedClassId)
       }
     })
 

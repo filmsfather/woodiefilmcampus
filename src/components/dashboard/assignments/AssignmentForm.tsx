@@ -178,6 +178,8 @@ export function AssignmentForm({
   const [workbookTypeFilter, setWorkbookTypeFilter] = useState<'all' | string>('all')
   const [workbookAuthorFilter, setWorkbookAuthorFilter] = useState<'all' | string>('all')
   const [studentClassFilter, setStudentClassFilter] = useState<string>('')
+  // 개별 출제에서 학생을 어떤 반에서 골랐는지 기억해 배정 시 소속 반으로 함께 전달한다.
+  const [studentClassChoices, setStudentClassChoices] = useState<Record<string, string>>({})
   const [targetMode, setTargetMode] = useState<'class' | 'student'>('class')
   const [submitState, setSubmitState] = useState<'idle' | 'success' | 'scheduled' | 'error'>('idle')
   const [serverError, setServerError] = useState<string | null>(null)
@@ -244,8 +246,36 @@ export function AssignmentForm({
     if (!studentClassFilter) {
       return []
     }
-    return students.filter((student) => student.classId === studentClassFilter)
-  }, [studentClassFilter, students])
+    return classesById.get(studentClassFilter)?.students ?? []
+  }, [studentClassFilter, classesById])
+
+  // 여러 반에 중복 등록된 학생도 소속 반을 모두 모아 보여주기 위한 조회용 맵
+  const studentDirectory = useMemo(() => {
+    const directory = new Map<
+      string,
+      { name: string | null; email: string | null; classNames: string[] }
+    >()
+
+    const register = (student: AssignmentStudentSummary) => {
+      const entry = directory.get(student.id)
+      if (!entry) {
+        directory.set(student.id, {
+          name: student.name,
+          email: student.email,
+          classNames: student.className ? [student.className] : [],
+        })
+        return
+      }
+      if (student.className && !entry.classNames.includes(student.className)) {
+        entry.classNames.push(student.className)
+      }
+    }
+
+    classes.forEach((classItem) => classItem.students.forEach(register))
+    students.forEach(register)
+
+    return directory
+  }, [classes, students])
 
   const handleToggleWorkbook = (workbookId: string) => {
     form.setValue(
@@ -267,14 +297,26 @@ export function AssignmentForm({
     )
   }
 
-  const handleToggleStudent = (studentId: string) => {
+  const handleToggleStudent = (studentId: string, classId?: string) => {
+    const isSelected = selectedStudentIds.includes(studentId)
+
     form.setValue(
       'targetStudentIds',
-      selectedStudentIds.includes(studentId)
+      isSelected
         ? selectedStudentIds.filter((id) => id !== studentId)
         : [...selectedStudentIds, studentId],
       { shouldDirty: true }
     )
+
+    setStudentClassChoices((previous) => {
+      const next = { ...previous }
+      if (isSelected) {
+        delete next[studentId]
+      } else if (classId) {
+        next[studentId] = classId
+      }
+      return next
+    })
   }
 
   const onSubmit: SubmitHandler<AssignmentFormValues> = (values) => {
@@ -283,6 +325,10 @@ export function AssignmentForm({
 
     const payloadPublishedAt = values.publishedAt ? new Date(values.publishedAt).toISOString() : null
     const payloadDueAt = values.dueAt ? new Date(values.dueAt).toISOString() : null
+    const payloadStudentClassIds = values.targetStudentIds.flatMap((studentId) => {
+      const classId = studentClassChoices[studentId]
+      return classId ? [{ studentId, classId }] : []
+    })
 
     startTransition(async () => {
       const results = await Promise.all(
@@ -294,6 +340,7 @@ export function AssignmentForm({
             comment: values.comment ?? null,
             targetClassIds: values.targetClassIds,
             targetStudentIds: values.targetStudentIds,
+            targetStudentClassIds: payloadStudentClassIds,
           })
         )
       )
@@ -316,6 +363,7 @@ export function AssignmentForm({
         dueAt: defaultDueAt,
       })
       setStudentClassFilter('')
+      setStudentClassChoices({})
       setWorkbookSubjectFilter('')
       setWorkbookTypeFilter('all')
       setWorkbookAuthorFilter('all')
@@ -486,7 +534,7 @@ export function AssignmentForm({
                       value=""
                       onValueChange={(value) => {
                         if (value && !selectedStudentIds.includes(value)) {
-                          handleToggleStudent(value)
+                          handleToggleStudent(value, studentClassFilter)
                         }
                       }}
                       disabled={!studentClassFilter}
@@ -516,18 +564,26 @@ export function AssignmentForm({
                   {selectedStudentIds.length > 0 ? (
                     <div className="space-y-2">
                       {selectedStudentIds.map((studentId) => {
-                        const student = students.find((s) => s.id === studentId)
+                        const student = studentDirectory.get(studentId)
                         if (!student) return null
+                        const chosenClassName = studentClassChoices[studentId]
+                          ? classesById.get(studentClassChoices[studentId])?.name ?? null
+                          : null
                         return (
                           <div
                             key={studentId}
                             className="flex items-center justify-between rounded-lg border border-primary bg-primary/5 p-3 text-sm"
                           >
                             <div className="space-y-1">
-                              <p className="font-medium text-slate-900">{student.name ?? '이름 미등록'}</p>
+                              <p className="font-medium text-slate-900">
+                                {student.name ?? student.email ?? '이름 미등록'}
+                              </p>
                               <p className="text-xs text-slate-500">
                                 <Users className="mr-1 inline size-3" />
-                                {student.className ?? '반 정보 없음'}
+                                {chosenClassName ??
+                                  (student.classNames.length > 0
+                                    ? student.classNames.join(', ')
+                                    : '반 정보 없음')}
                               </p>
                             </div>
                             <Button

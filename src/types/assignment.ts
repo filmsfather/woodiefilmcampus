@@ -14,6 +14,7 @@ export interface AssignmentWorkbookSummary {
   teacherName: string | null
 }
 
+/** 학생-반 소속 단위 레코드. 한 학생이 여러 반에 속하면 반별로 항목이 생긴다. */
 export interface AssignmentStudentSummary {
   id: string
   name: string | null
