@@ -79,6 +79,15 @@ const managerSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'manager-practice-feedback',
+    title: '입시 모의실기',
+    items: [
+      { label: '슬롯 개설', href: '/dashboard/manager/practice-feedback/slots' },
+      { label: '예약 보드', href: '/dashboard/manager/practice-feedback/board' },
+      { label: '예약 현황', href: '/dashboard/manager/practice-feedback/bookings' },
+    ],
+  },
+  {
     id: 'manager-classes',
     title: '반 관리',
     items: [
@@ -171,6 +180,16 @@ const teacherSections: NavigationSection[] = [
     ],
   },
   {
+    id: 'teacher-practice-feedback',
+    title: '입시 1:1 피드백',
+    items: [
+      { label: '오늘 진행 일정', href: '/dashboard/teacher/practice-feedback/today' },
+      { label: '예약 보드', href: '/dashboard/teacher/practice-feedback/board' },
+      { label: '학생별 이력', href: '/dashboard/teacher/practice-feedback/students' },
+      { label: '문제 은행', href: '/dashboard/teacher/mock-practice/problems' },
+    ],
+  },
+  {
     id: 'teacher-assignments',
     title: '과제 관리',
     items: [
@@ -220,6 +239,7 @@ const studentSections: NavigationSection[] = [
       { label: '이번주 문제집 풀기', href: '/dashboard/student/tasks' },
       { label: '모의 면접', href: '/dashboard/student/interviews' },
       { label: '모의 작문', href: '/dashboard/student/writing' },
+      { label: '입시 모의실기 1:1', href: '/dashboard/student/practice-feedback' },
       { label: '내 면접지', href: '/dashboard/student/interview-sheet' },
       { label: '공지사항 게시판', href: '/dashboard/student/notices' },
       { label: '가치분석 게시판', href: '/dashboard/value-analysis' },
@@ -233,6 +253,7 @@ const studentSections: NavigationSection[] = [
     title: '해냈던 일',
     items: [
       { label: '지난달 학습 일지', href: '/dashboard/student/learning-journal' },
+      { label: '모의실기 기록', href: '/dashboard/student/practice-feedback/archive' },
       { label: '영화 감상 일지', href: '/dashboard/student/film-notes' },
       { label: '시네필 챌린지 보드', href: '/dashboard/sticker-board' },
       { label: '작품 아틀리에', href: '/dashboard/student/atelier' },

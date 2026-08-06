@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ClipboardList, PenLine, Video } from 'lucide-react'
+import { CalendarClock, ClipboardList, Library, PenLine, Video } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { Button } from '@/components/ui/button'
@@ -28,6 +28,47 @@ export default async function MockPracticePage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        <Card className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+              <Library className="h-5 w-5" />
+              입시 모의실기 문제 은행
+            </CardTitle>
+            <CardDescription className="text-sm text-slate-500">
+              대학별로 작법형/면접형 연습문제를 쌓아둡니다. 1:1 피드백 예약 시 학생마다 아직 안 푼 문제가 순서대로
+              자동 배정됩니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button asChild className="w-full">
+              <Link href="/dashboard/teacher/mock-practice/problems">문제 은행 관리</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/dashboard/teacher/mock-practice/problems/new">문제 추가</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
+          <CardHeader className="space-y-2">
+            <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
+              <CalendarClock className="h-5 w-5" />
+              입시 1:1 피드백
+            </CardTitle>
+            <CardDescription className="text-sm text-slate-500">
+              15분 단위 슬롯에 학생을 배정하고, 제출된 원고나 면접 답안을 보며 그 자리에서 피드백과 채점을 남깁니다.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button asChild className="w-full">
+              <Link href="/dashboard/teacher/practice-feedback/today">오늘 진행 일정</Link>
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/dashboard/teacher/practice-feedback/board">예약 보드</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="border-slate-200 shadow-sm transition hover:-translate-y-1 hover:shadow-md">
           <CardHeader className="space-y-2">
             <CardTitle className="flex items-center gap-2 text-lg text-slate-900">
