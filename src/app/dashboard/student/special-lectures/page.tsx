@@ -30,7 +30,7 @@ function formatKoreanDateTime(iso: string) {
 type CardState =
   | { kind: 'watchable'; expiresAt: string | null }
   | { kind: 'scheduled'; startsAt: string; expiresAt: string }
-  | { kind: 'pending'; requestId: string }
+  | { kind: 'pending' }
   | { kind: 'rejected'; reason: string | null }
   | { kind: 'closed' }
   | { kind: 'open' }
@@ -56,7 +56,7 @@ function resolveCardState(
   }
 
   if (request?.status === 'requested') {
-    return { kind: 'pending', requestId: request.id }
+    return { kind: 'pending' }
   }
 
   if (request?.status === 'rejected') {
@@ -168,6 +168,11 @@ export default async function StudentSpecialLecturesPage() {
                   <p className="line-clamp-2 text-sm text-slate-600">
                     {lecture.description ?? '설명 없음'}
                   </p>
+                  {state.kind === 'pending' ? (
+                    <p className="text-xs text-slate-500">
+                      신청 후에는 취소할 수 없습니다. 변경이 필요하면 실장님께 문의해주세요.
+                    </p>
+                  ) : null}
                   {state.kind === 'rejected' && state.reason ? (
                     <p className="text-xs text-rose-600">반려 사유: {state.reason}</p>
                   ) : null}
@@ -206,13 +211,6 @@ export default async function StudentSpecialLecturesPage() {
 
                 {state.kind === 'open' ? (
                   <StudentSpecialLectureRequestButton lectureId={lecture.id} mode="request" />
-                ) : null}
-                {state.kind === 'pending' ? (
-                  <StudentSpecialLectureRequestButton
-                    lectureId={lecture.id}
-                    requestId={state.requestId}
-                    mode="cancel"
-                  />
                 ) : null}
               </div>
             )
