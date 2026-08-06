@@ -22,6 +22,7 @@ import type { StudentTaskDetail, StudentTaskItemDetail, StudentTaskSubmissionAss
 interface ImageTaskRunnerProps {
   task: StudentTaskDetail
   instructions?: string | null
+  maxImages?: number
 }
 
 type PendingUpload = {
@@ -63,11 +64,13 @@ function ImageItemPanel({
   item,
   index,
   studentTaskId,
+  maxImages,
   onComplete,
 }: {
   item: StudentTaskItemDetail
   index: number
   studentTaskId: string
+  maxImages: number
   onComplete: () => void
 }) {
   const router = useRouter()
@@ -180,13 +183,13 @@ function ImageItemPanel({
     const currentCount = state.isEditing
       ? visibleExistingAssets.length + state.pendingUploads.length
       : state.pendingUploads.length + existingAssets.length
-    const remainingSlots = MAX_IMAGES_PER_QUESTION - currentCount
+    const remainingSlots = maxImages - currentCount
 
     if (remainingSlots <= 0) {
       setState((prev) => ({
         ...prev,
         isUploading: false,
-        errorMessage: `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`,
+        errorMessage: `최대 ${maxImages}장까지 업로드할 수 있습니다.`,
       }))
       event.target.value = ''
       return
@@ -387,8 +390,8 @@ function ImageItemPanel({
           </div>
           <span className="text-xs text-slate-500">
             {state.isEditing
-              ? `${visibleExistingAssets.length + state.pendingUploads.length} / ${MAX_IMAGES_PER_QUESTION}장`
-              : `${state.pendingUploads.length + existingAssets.length} / ${MAX_IMAGES_PER_QUESTION}장`}
+              ? `${visibleExistingAssets.length + state.pendingUploads.length} / ${maxImages}장`
+              : `${state.pendingUploads.length + existingAssets.length} / ${maxImages}장`}
           </span>
         </div>
       </CardHeader>
@@ -548,7 +551,7 @@ function ImageItemPanel({
                 {state.isUploading ? '업로드 중...' : '클릭하여 이미지 선택'}
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                최대 {MAX_IMAGES_PER_QUESTION}장, 각 {MAX_DISPLAY_SIZE_MB}MB (초과 시 자동 압축)
+                최대 {maxImages}장, 각 {MAX_DISPLAY_SIZE_MB}MB (초과 시 자동 압축)
               </p>
             </div>
 
@@ -650,7 +653,11 @@ function ImageItemPanel({
   )
 }
 
-export function ImageTaskRunner({ task, instructions }: ImageTaskRunnerProps) {
+export function ImageTaskRunner({
+  task,
+  instructions,
+  maxImages = MAX_IMAGES_PER_QUESTION,
+}: ImageTaskRunnerProps) {
   const [completedCount, setCompletedCount] = useState(() =>
     task.items.filter((item) => Boolean(item.completedAt)).length
   )
@@ -667,7 +674,7 @@ export function ImageTaskRunner({ task, instructions }: ImageTaskRunnerProps) {
       {/* Instructions */}
       <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
         <p className="text-base font-medium text-slate-900">이미지를 업로드해주세요</p>
-        <p className="mt-1">각 질문에 대해 최대 {MAX_IMAGES_PER_QUESTION}장, 각 {MAX_DISPLAY_SIZE_MB}MB까지 제출할 수 있습니다.</p>
+        <p className="mt-1">각 질문에 대해 최대 {maxImages}장, 각 {MAX_DISPLAY_SIZE_MB}MB까지 제출할 수 있습니다.</p>
         <p className="mt-1 text-xs text-slate-500">{MAX_DISPLAY_SIZE_MB}MB를 초과하는 이미지는 자동으로 압축됩니다.</p>
         {instructions && <p className="mt-2 whitespace-pre-line">{instructions}</p>}
       </div>
@@ -689,6 +696,7 @@ export function ImageTaskRunner({ task, instructions }: ImageTaskRunnerProps) {
             item={item}
             index={index}
             studentTaskId={task.id}
+            maxImages={maxImages}
             onComplete={handleItemComplete}
           />
         ))}

@@ -4,7 +4,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import type { FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, Eye, EyeOff, Loader2, Plus, Sparkles, Star, Trash2, Trophy } from 'lucide-react'
+import { Download, Eye, EyeOff, ImageIcon, Loader2, Plus, Sparkles, Star, Trash2, Trophy } from 'lucide-react'
 
 import type { WorksheetPhoto, WorksheetPostListItem } from '@/lib/worksheet-posts'
 import type { WorksheetExcellentMonth, WorksheetPostExcellenceEntry } from '@/lib/worksheet-excellent'
@@ -392,24 +392,18 @@ export function WorksheetPostList({
                   </div>
                 </header>
 
-                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                  {item.photos.map((photo, index) => (
-                    <button
-                      key={photo.id}
-                      type="button"
-                      onClick={() => setPhotoView({ post: item, photoIndex: index })}
-                      className="group relative aspect-square overflow-hidden rounded-md bg-slate-100 transition-transform hover:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-1"
-                      title={photo.filename}
-                    >
-                      <img
-                        src={photo.url}
-                        alt={`${item.studentName} 워크시트 ${index + 1}`}
-                        className="h-full w-full object-cover transition-opacity group-hover:opacity-90"
-                        loading="lazy"
-                      />
-                    </button>
-                  ))}
-                </div>
+                {item.photos.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center gap-1"
+                    onClick={() => setPhotoView({ post: item, photoIndex: 0 })}
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                    <span>사진 {item.photos.length}장 보기</span>
+                  </Button>
+                ) : null}
 
                 <footer className="flex flex-wrap gap-2">
                   {!isTeacherView && isOwner ? (

@@ -16,6 +16,7 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchInterviewVideoForTask } from '@/lib/interviews'
 import { fetchStudentTaskDetail } from '@/lib/student-tasks'
+import { MAX_IMAGES_PER_WORKSHEET_QUESTION } from '@/lib/storage/limits'
 import { WORKBOOK_TITLES, WORKBOOK_TYPE_DESCRIPTIONS } from '@/lib/validation/workbook'
 import { submitSrsAnswer } from '@/app/dashboard/student/tasks/actions'
 import { FilmTaskRunner } from '@/components/dashboard/student/tasks/FilmTaskRunner'
@@ -275,6 +276,7 @@ export default async function StudentTaskDetailPage({ params }: { params: Promis
           instructions={
             (workbookConfig as { worksheet?: { instructions?: string | null } }).worksheet?.instructions ?? null
           }
+          maxImages={MAX_IMAGES_PER_WORKSHEET_QUESTION}
         />
       )
       break

@@ -998,7 +998,7 @@ export default function WorkbookWizard({ teacherId, teachers = [], userRole = 't
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-slate-900">워크시트 옵션</h3>
               <p className="text-xs text-slate-500">
-                학생이 작성한 워크시트를 사진으로 촬영해 제출합니다. 문항당 최대 5장, 각 3MB까지 업로드 가능하며 제출물은 워크시트 게시판에 모입니다.
+                학생이 작성한 워크시트를 사진으로 촬영해 제출합니다. 문항당 최대 10장, 각 3MB까지 업로드 가능하며 제출물은 워크시트 게시판에 모입니다.
               </p>
             </div>
             <FormField

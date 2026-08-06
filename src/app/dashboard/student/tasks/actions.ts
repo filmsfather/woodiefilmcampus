@@ -11,7 +11,12 @@ import { syncWorksheetPostForStudentTask } from '@/lib/worksheet-posts'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
-import { MAX_PDF_FILE_SIZE, MAX_IMAGE_FILE_SIZE, MAX_IMAGES_PER_QUESTION } from '@/lib/storage/limits'
+import {
+  MAX_PDF_FILE_SIZE,
+  MAX_IMAGE_FILE_SIZE,
+  MAX_IMAGES_PER_WORKSHEET_QUESTION,
+  resolveMaxImagesPerQuestion,
+} from '@/lib/storage/limits'
 import { evaluateWritingSubmission, GradingCriteria } from '@/lib/gemini'
 
 type UploadedFilePayload = {
@@ -1388,7 +1393,10 @@ const imageResponsesSchema = z.object({
   studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
   studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
   workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
-  uploads: z.array(imageUploadPayloadSchema).min(1, '최소 1장의 이미지를 업로드해주세요.').max(MAX_IMAGES_PER_QUESTION, `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`),
+  uploads: z
+    .array(imageUploadPayloadSchema)
+    .min(1, '최소 1장의 이미지를 업로드해주세요.')
+    .max(MAX_IMAGES_PER_WORKSHEET_QUESTION, `최대 ${MAX_IMAGES_PER_WORKSHEET_QUESTION}장까지 업로드할 수 있습니다.`),
   description: z.string().max(2000, '설명은 최대 2000자까지 작성할 수 있습니다.').optional(),
 })
 
@@ -1396,7 +1404,10 @@ const updateImageSubmissionSchema = z.object({
   studentTaskId: z.string().uuid('유효한 과제 ID가 아닙니다.'),
   studentTaskItemId: z.string().uuid('유효한 문항 ID가 아닙니다.'),
   workbookItemId: z.string().uuid('유효한 문제 ID가 아닙니다.'),
-  uploads: z.array(imageUploadPayloadSchema).max(MAX_IMAGES_PER_QUESTION, `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.`).default([]),
+  uploads: z
+    .array(imageUploadPayloadSchema)
+    .max(MAX_IMAGES_PER_WORKSHEET_QUESTION, `최대 ${MAX_IMAGES_PER_WORKSHEET_QUESTION}장까지 업로드할 수 있습니다.`)
+    .default([]),
   removedAssetIds: z.array(z.string().uuid()).default([]),
   description: z.string().max(2000, '설명은 최대 2000자까지 작성할 수 있습니다.').optional(),
 })
@@ -1467,6 +1478,11 @@ export async function submitImageResponses(input: z.infer<typeof imageResponsesS
   const workbookType = await resolveWorkbookTypeForStudentTask(supabase, payload.studentTaskId)
   const isWorksheet = workbookType === 'worksheet'
   const submissionType = isWorksheet ? 'worksheet' : 'image'
+  const maxImages = resolveMaxImagesPerQuestion(workbookType)
+
+  if (payload.uploads.length > maxImages) {
+    return { success: false as const, error: `최대 ${maxImages}장까지 업로드할 수 있습니다.` }
+  }
 
   const now = new Date().toISOString()
   const createdMediaAssetIds: string[] = []
@@ -1711,6 +1727,7 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
   const workbookType = await resolveWorkbookTypeForStudentTask(supabase, payload.studentTaskId)
   const isWorksheet = workbookType === 'worksheet'
   const submissionType = isWorksheet ? 'worksheet' : 'image'
+  const maxImages = resolveMaxImagesPerQuestion(workbookType)
 
   const now = new Date().toISOString()
   const createdMediaAssetIds: string[] = []
@@ -1751,8 +1768,8 @@ export async function updateImageSubmission(input: z.infer<typeof updateImageSub
       return { success: false as const, error: '최소 1장의 이미지가 필요합니다.' }
     }
 
-    if (finalImageCount > MAX_IMAGES_PER_QUESTION) {
-      return { success: false as const, error: `최대 ${MAX_IMAGES_PER_QUESTION}장까지 업로드할 수 있습니다.` }
+    if (finalImageCount > maxImages) {
+      return { success: false as const, error: `최대 ${maxImages}장까지 업로드할 수 있습니다.` }
     }
 
     // submission content: 사용자 입력 설명 또는 기본값
