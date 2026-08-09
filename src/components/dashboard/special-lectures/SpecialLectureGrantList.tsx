@@ -21,9 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
+import { GrantWindowFields } from '@/components/dashboard/special-lectures/GrantWindowFields'
 import {
   extendSpecialLectureGrantAction,
   revokeSpecialLectureGrantAction,
@@ -31,10 +30,9 @@ import {
 import {
   SPECIAL_LECTURE_AUDIENCE_LABELS,
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
-  SPECIAL_LECTURE_GRANT_PRESETS,
-  SPECIAL_LECTURE_MAX_GRANT_HOURS,
   parseLocalDatetimeInputValue,
   toLocalDatetimeInputValue,
+  validateSpecialLectureGrantWindow,
   type SpecialLectureGrant,
 } from '@/lib/special-lectures'
 
@@ -321,47 +319,23 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
     return toLocalDatetimeInputValue(next)
   })
 
-  const handleQuickAdd = (hours: number) => {
-    const base = parseLocalDatetimeInputValue(startsValue) ?? new Date()
-    const anchor = base.getTime() > Date.now() ? base : new Date()
-    setValue(toLocalDatetimeInputValue(new Date(anchor.getTime() + hours * 60 * 60 * 1000)))
-  }
-
   const handleSubmit = () => {
     setError(null)
 
-    const startsParsed = parseLocalDatetimeInputValue(startsValue)
-    if (!startsParsed) {
-      setError('공개 시작 시각을 입력해주세요.')
-      return
-    }
-
-    const parsed = parseLocalDatetimeInputValue(value)
-    if (!parsed) {
-      setError('공개 종료 시각을 입력해주세요.')
-      return
-    }
-    if (parsed.getTime() <= startsParsed.getTime()) {
-      setError('공개 종료 시각은 시작 시각보다 이후여야 합니다.')
-      return
-    }
-    if (parsed.getTime() <= Date.now()) {
-      setError('공개 종료 시각은 현재 시각보다 이후여야 합니다.')
-      return
-    }
-    if (
-      parsed.getTime() - startsParsed.getTime() >
-      SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
-    ) {
-      setError('공개 기간은 최대 30일까지 설정할 수 있습니다.')
+    const grantWindow = validateSpecialLectureGrantWindow(
+      parseLocalDatetimeInputValue(startsValue),
+      parseLocalDatetimeInputValue(value)
+    )
+    if (!grantWindow.ok) {
+      setError(grantWindow.error)
       return
     }
 
     startTransition(async () => {
       const result = await extendSpecialLectureGrantAction(
         grant.id,
-        parsed.toISOString(),
-        startsParsed.toISOString()
+        grantWindow.expiresAt.toISOString(),
+        grantWindow.startsAt.toISOString()
       )
       if (result?.error) {
         setError(result.error)
@@ -396,52 +370,14 @@ function ExtendGrantDialog({ open, onOpenChange, grant }: ExtendGrantDialogProps
             </Alert>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor={`starts-input-${grant.id}`}>공개 시작</Label>
-              <Input
-                id={`starts-input-${grant.id}`}
-                type="datetime-local"
-                value={startsValue}
-                onChange={(event) => setStartsValue(event.target.value)}
-                disabled={isPending}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`expires-input-${grant.id}`}>공개 종료</Label>
-              <Input
-                id={`expires-input-${grant.id}`}
-                type="datetime-local"
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                disabled={isPending}
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setStartsValue(toLocalDatetimeInputValue(new Date()))}
-              disabled={isPending}
-            >
-              지금 시작
-            </Button>
-            {SPECIAL_LECTURE_GRANT_PRESETS.map((preset) => (
-              <Button
-                key={preset.hours}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => handleQuickAdd(preset.hours)}
-                disabled={isPending}
-              >
-                +{preset.label}
-              </Button>
-            ))}
-          </div>
+          <GrantWindowFields
+            idPrefix={`extend-${grant.id}`}
+            startsAt={startsValue}
+            expiresAt={value}
+            onStartsAtChange={setStartsValue}
+            onExpiresAtChange={setValue}
+            disabled={isPending}
+          />
         </div>
 
         <DialogFooter>

@@ -14,19 +14,18 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import {
   AudienceSelector,
   type AudienceClassOption,
   type AudienceStudentOption,
 } from '@/components/dashboard/special-lectures/AudienceSelector'
+import { GrantWindowFields } from '@/components/dashboard/special-lectures/GrantWindowFields'
 import { createSpecialLectureGrantAction } from '@/app/dashboard/manager/special-lectures/actions'
 import {
-  SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
-  SPECIAL_LECTURE_GRANT_PRESETS,
-  SPECIAL_LECTURE_MAX_GRANT_HOURS,
+  defaultSpecialLectureGrantWindow,
+  parseLocalDatetimeInputValue,
+  validateSpecialLectureGrantWindow,
 } from '@/lib/special-lectures'
 
 interface SpecialLectureShareDialogProps {
@@ -50,15 +49,33 @@ export function SpecialLectureShareDialog({
   const [open, setOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [hours, setHours] = useState<number>(SPECIAL_LECTURE_DEFAULT_GRANT_HOURS)
+  const [initial] = useState(() => defaultSpecialLectureGrantWindow())
+  const [startsAt, setStartsAt] = useState<string>(initial.startsAt)
+  const [expiresAt, setExpiresAt] = useState<string>(initial.expiresAt)
+
+  const resetWindow = () => {
+    const next = defaultSpecialLectureGrantWindow()
+    setStartsAt(next.startsAt)
+    setExpiresAt(next.expiresAt)
+  }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
 
+    const grantWindow = validateSpecialLectureGrantWindow(
+      parseLocalDatetimeInputValue(startsAt),
+      parseLocalDatetimeInputValue(expiresAt)
+    )
+    if (!grantWindow.ok) {
+      setError(grantWindow.error)
+      return
+    }
+
     const form = event.currentTarget
     const formData = new FormData(form)
-    formData.set('expires_hours', String(hours))
+    formData.set('starts_at', grantWindow.startsAt.toISOString())
+    formData.set('expires_at', grantWindow.expiresAt.toISOString())
 
     startTransition(async () => {
       const result = await createSpecialLectureGrantAction(lectureId, formData)
@@ -68,26 +85,19 @@ export function SpecialLectureShareDialog({
       }
       if (result?.success) {
         setOpen(false)
-        setHours(SPECIAL_LECTURE_DEFAULT_GRANT_HOURS)
+        resetWindow()
         router.refresh()
       }
     })
   }
 
+  // 다이얼로그가 오래 떠 있어도 "지금 시작" 기본값이 낡지 않도록 열고 닫을 때마다 다시 계산한다.
   const handleOpenChange = (next: boolean) => {
     if (isPending) return
     setOpen(next)
-    if (!next) {
-      setError(null)
-      setHours(SPECIAL_LECTURE_DEFAULT_GRANT_HOURS)
-    }
+    setError(null)
+    resetWindow()
   }
-
-  const expiresPreviewLabel = (() => {
-    if (!Number.isFinite(hours) || hours <= 0) return null
-    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000)
-    return new Intl.DateTimeFormat('ko', { dateStyle: 'medium', timeStyle: 'short' }).format(expiresAt)
-  })()
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -101,7 +111,8 @@ export function SpecialLectureShareDialog({
           <DialogTitle>영상 공개</DialogTitle>
           <DialogDescription className="text-sm text-slate-600">
             <span className="font-medium text-slate-800">{lectureTitle}</span>
-            를(을) 시청할 학생을 선택하고 공개 기간을 설정하세요. 저장하면 즉시 반영됩니다.
+            를(을) 시청할 학생을 선택하고 공개 구간을 지정하세요. 시작 전에는 보이지 않고, 종료
+            시각이 지나면 자동으로 비공개로 전환됩니다.
           </DialogDescription>
         </DialogHeader>
 
@@ -119,51 +130,14 @@ export function SpecialLectureShareDialog({
             disabled={isPending}
           />
 
-          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <Label htmlFor="expires_hours" className="text-sm text-slate-800">
-              공개 기간 (시간)
-            </Label>
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                id="expires_hours"
-                type="number"
-                min={1}
-                max={SPECIAL_LECTURE_MAX_GRANT_HOURS}
-                step={1}
-                value={Number.isFinite(hours) ? hours : ''}
-                onChange={(event) => {
-                  const next = Number(event.target.value)
-                  if (Number.isFinite(next) && next > 0) {
-                    setHours(Math.min(next, SPECIAL_LECTURE_MAX_GRANT_HOURS))
-                  } else {
-                    setHours(0)
-                  }
-                }}
-                disabled={isPending}
-                className="w-32 bg-white"
-              />
-              <span className="text-xs text-slate-500">시간 (기본 24시간, 최대 30일)</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {SPECIAL_LECTURE_GRANT_PRESETS.map((preset) => (
-                <Button
-                  key={preset.hours}
-                  type="button"
-                  variant={hours === preset.hours ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setHours(preset.hours)}
-                  disabled={isPending}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
-            {expiresPreviewLabel ? (
-              <p className="text-xs text-slate-600">
-                만료 예정: <span className="font-medium text-slate-800">{expiresPreviewLabel}</span>
-              </p>
-            ) : null}
-          </div>
+          <GrantWindowFields
+            idPrefix={`share-${lectureId}`}
+            startsAt={startsAt}
+            expiresAt={expiresAt}
+            onStartsAtChange={setStartsAt}
+            onExpiresAtChange={setExpiresAt}
+            disabled={isPending}
+          />
 
           <DialogFooter>
             <Button
@@ -174,7 +148,7 @@ export function SpecialLectureShareDialog({
             >
               취소
             </Button>
-            <Button type="submit" disabled={isPending || hours <= 0}>
+            <Button type="submit" disabled={isPending}>
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
                   <LoadingSpinner />

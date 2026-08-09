@@ -8,9 +8,9 @@ import {
   SPECIAL_LECTURE_VIDEOS_BUCKET,
   SPECIAL_LECTURE_MAX_VIDEO_SIZE,
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
-  SPECIAL_LECTURE_MAX_GRANT_HOURS,
   type SpecialLectureAudienceMode,
   isSpecialLectureAudienceMode,
+  validateSpecialLectureGrantWindow,
 } from '@/lib/special-lectures'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 import type { UploadedObjectMeta } from '@/lib/storage-upload'
@@ -105,19 +105,53 @@ function parseAudienceMode(formData: FormData): SpecialLectureAudienceMode {
   return 'class'
 }
 
-function parseExpiresHours(formData: FormData): number {
-  const raw = formData.get('expires_hours')
-  if (typeof raw !== 'string' || raw.trim().length === 0) {
-    return SPECIAL_LECTURE_DEFAULT_GRANT_HOURS
+type GrantWindowValidation =
+  | { ok: false; error: string }
+  | { ok: true; startsAt: string; expiresAt: string }
+
+function validateGrantWindow(startsAtIso: string, expiresAtIso: string): GrantWindowValidation {
+  const startsDate = new Date(startsAtIso)
+  const expiresDate = new Date(expiresAtIso)
+
+  if (Number.isNaN(startsDate.getTime())) {
+    return { ok: false, error: '공개 시작 시각이 올바르지 않습니다.' }
   }
-  const parsed = Number(raw)
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return SPECIAL_LECTURE_DEFAULT_GRANT_HOURS
+  if (Number.isNaN(expiresDate.getTime())) {
+    return { ok: false, error: '공개 종료 시각이 올바르지 않습니다.' }
   }
-  if (parsed > SPECIAL_LECTURE_MAX_GRANT_HOURS) {
-    return SPECIAL_LECTURE_MAX_GRANT_HOURS
+
+  const grantWindow = validateSpecialLectureGrantWindow(startsDate, expiresDate)
+  if (!grantWindow.ok) {
+    return { ok: false, error: grantWindow.error }
   }
-  return parsed
+
+  return {
+    ok: true,
+    startsAt: grantWindow.startsAt.toISOString(),
+    expiresAt: grantWindow.expiresAt.toISOString(),
+  }
+}
+
+/** 공개 구간 폼 값을 검증합니다. 시각이 오지 않으면 "지금 ~ 기본 시간 후"로 처리합니다. */
+function parseGrantWindow(formData: FormData): GrantWindowValidation {
+  const startsAtRaw = formData.get('starts_at')
+  const expiresAtRaw = formData.get('expires_at')
+
+  if (typeof startsAtRaw !== 'string' && typeof expiresAtRaw !== 'string') {
+    const now = new Date()
+    return {
+      ok: true,
+      startsAt: now.toISOString(),
+      expiresAt: new Date(
+        now.getTime() + SPECIAL_LECTURE_DEFAULT_GRANT_HOURS * 60 * 60 * 1000
+      ).toISOString(),
+    }
+  }
+
+  return validateGrantWindow(
+    typeof startsAtRaw === 'string' ? startsAtRaw : '',
+    typeof expiresAtRaw === 'string' ? expiresAtRaw : ''
+  )
 }
 
 function parseApplicationsOpen(formData: FormData): boolean {
@@ -532,8 +566,10 @@ export async function createSpecialLectureGrantAction(
     return { error: '공개할 학생을 1명 이상 선택해주세요.' }
   }
 
-  const expiresHours = parseExpiresHours(formData)
-  const expiresAt = new Date(Date.now() + expiresHours * 60 * 60 * 1000).toISOString()
+  const grantWindow = parseGrantWindow(formData)
+  if (!grantWindow.ok) {
+    return { error: grantWindow.error }
+  }
 
   const supabase = await createServerSupabase()
 
@@ -552,7 +588,8 @@ export async function createSpecialLectureGrantAction(
     const grantId = await insertGrant(supabase, {
       lectureId,
       audienceMode,
-      expiresAt,
+      startsAt: grantWindow.startsAt,
+      expiresAt: grantWindow.expiresAt,
       createdBy: profile.id,
       classIds,
       studentIds,
@@ -633,19 +670,11 @@ export async function extendSpecialLectureGrantAction(
 
   let startsDate: Date | null = null
   if (startsAtIso) {
-    startsDate = new Date(startsAtIso)
-    if (Number.isNaN(startsDate.getTime())) {
-      return { error: '공개 시작 시각이 올바르지 않습니다.' }
+    const validation = validateGrantWindow(startsAtIso, expiresAtIso)
+    if (!validation.ok) {
+      return { error: validation.error }
     }
-    if (expiresDate.getTime() <= startsDate.getTime()) {
-      return { error: '공개 종료 시각은 시작 시각보다 이후여야 합니다.' }
-    }
-    if (
-      expiresDate.getTime() - startsDate.getTime() >
-      SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
-    ) {
-      return { error: '공개 기간은 최대 30일까지 설정할 수 있습니다.' }
-    }
+    startsDate = new Date(validation.startsAt)
   }
 
   const supabase = await createServerSupabase()
@@ -698,30 +727,12 @@ export async function approveSpecialLectureRequestAction(
     return { error: '신청 정보를 확인할 수 없습니다.' }
   }
 
-  const startsDate = new Date(startsAtIso)
-  const expiresDate = new Date(expiresAtIso)
-
-  if (Number.isNaN(startsDate.getTime())) {
-    return { error: '공개 시작 시각이 올바르지 않습니다.' }
-  }
-  if (Number.isNaN(expiresDate.getTime())) {
-    return { error: '공개 종료 시각이 올바르지 않습니다.' }
-  }
-  if (expiresDate.getTime() <= startsDate.getTime()) {
-    return { error: '공개 종료 시각은 시작 시각보다 이후여야 합니다.' }
-  }
-  if (expiresDate.getTime() <= Date.now()) {
-    return { error: '공개 종료 시각은 현재 시각보다 이후여야 합니다.' }
-  }
-  if (
-    expiresDate.getTime() - startsDate.getTime() >
-    SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
-  ) {
-    return { error: '공개 기간은 최대 30일까지 설정할 수 있습니다.' }
+  const validation = validateGrantWindow(startsAtIso, expiresAtIso)
+  if (!validation.ok) {
+    return { error: validation.error }
   }
 
-  const startsAt = startsDate.toISOString()
-  const expiresAt = expiresDate.toISOString()
+  const { startsAt, expiresAt } = validation
 
   const supabase = await createServerSupabase()
 
@@ -826,6 +837,195 @@ export async function rejectSpecialLectureRequestAction(
   if (updateError) {
     console.error('[special-lectures] failed to reject request', updateError)
     return { error: '신청을 반려하지 못했습니다.' }
+  }
+
+  revalidateAll(String(request.special_lecture_id))
+  return { success: true, requestId }
+}
+
+/** 반려·취소된 신청을 다시 승인해 새 공개 기간을 발급합니다. */
+export async function reopenSpecialLectureRequestAction(
+  requestId: string,
+  startsAtIso: string,
+  expiresAtIso: string
+): Promise<RequestActionResult> {
+  const profile = await ensureManagerProfile()
+  if (!profile) {
+    return { error: '신청을 다시 열어줄 권한이 없습니다.' }
+  }
+  if (!requestId) {
+    return { error: '신청 정보를 확인할 수 없습니다.' }
+  }
+
+  const validation = validateGrantWindow(startsAtIso, expiresAtIso)
+  if (!validation.ok) {
+    return { error: validation.error }
+  }
+
+  const { startsAt, expiresAt } = validation
+
+  const supabase = await createServerSupabase()
+
+  const { data: request, error: fetchError } = await supabase
+    .from('special_lecture_requests')
+    .select('id, special_lecture_id, student_id, status')
+    .eq('id', requestId)
+    .maybeSingle()
+
+  if (fetchError || !request) {
+    console.error('[special-lectures] failed to load request for reopen', fetchError)
+    return { error: '신청 정보를 불러오지 못했습니다.' }
+  }
+
+  if (request.status === 'requested') {
+    return { error: '아직 처리되지 않은 신청입니다. 열어주기를 사용해주세요.' }
+  }
+  if (request.status === 'approved') {
+    return { error: '이미 승인된 신청입니다. 공개 기간 수정을 사용해주세요.' }
+  }
+
+  const lectureId = String(request.special_lecture_id)
+  const studentId = String(request.student_id)
+  const previousStatus = String(request.status)
+
+  // (특강, 학생) 조합은 requested/approved 상태에서 유니크하므로 먼저 충돌을 걸러낸다.
+  const { data: openRequests, error: conflictError } = await supabase
+    .from('special_lecture_requests')
+    .select('id')
+    .eq('special_lecture_id', lectureId)
+    .eq('student_id', studentId)
+    .in('status', ['requested', 'approved'])
+    .limit(1)
+
+  if (conflictError) {
+    console.error('[special-lectures] failed to check request conflict', conflictError)
+    return { error: '신청 정보를 확인하지 못했습니다.' }
+  }
+
+  if ((openRequests ?? []).length > 0) {
+    return { error: '해당 학생의 새 신청이 이미 접수되어 있습니다. 그 신청을 처리해주세요.' }
+  }
+
+  let grantId: string
+  try {
+    grantId = await insertGrant(supabase, {
+      lectureId,
+      audienceMode: 'student',
+      startsAt,
+      expiresAt,
+      createdBy: profile.id,
+      studentIds: [studentId],
+    })
+  } catch (error) {
+    console.error('[special-lectures] failed to create grant for reopen', error)
+    return {
+      error: error instanceof Error ? error.message : '영상 공개 처리 중 문제가 발생했습니다.',
+    }
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('special_lecture_requests')
+    .update({
+      status: 'approved',
+      grant_id: grantId,
+      decided_by: profile.id,
+      decided_at: new Date().toISOString(),
+      reject_reason: null,
+    })
+    .eq('id', requestId)
+    .eq('status', previousStatus)
+    .select('id')
+
+  if (updateError || !updated || updated.length === 0) {
+    console.error('[special-lectures] failed to mark request reopened', updateError)
+    await supabase.from('special_lecture_grants').delete().eq('id', grantId)
+    return {
+      error: updateError
+        ? '신청 상태를 저장하지 못했습니다.'
+        : '신청 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요.',
+    }
+  }
+
+  revalidateAll(lectureId)
+  return { success: true, requestId }
+}
+
+/** 승인된 신청의 공개를 해지하고 반려 상태로 되돌립니다. */
+export async function revertSpecialLectureRequestToRejectedAction(
+  requestId: string,
+  reason: string
+): Promise<RequestActionResult> {
+  const profile = await ensureManagerProfile()
+  if (!profile) {
+    return { error: '신청을 반려할 권한이 없습니다.' }
+  }
+  if (!requestId) {
+    return { error: '신청 정보를 확인할 수 없습니다.' }
+  }
+
+  const trimmedReason = typeof reason === 'string' ? reason.trim() : ''
+
+  const supabase = await createServerSupabase()
+
+  const { data: request, error: fetchError } = await supabase
+    .from('special_lecture_requests')
+    .select('id, special_lecture_id, status, grant_id')
+    .eq('id', requestId)
+    .maybeSingle()
+
+  if (fetchError || !request) {
+    console.error('[special-lectures] failed to load request for revert', fetchError)
+    return { error: '신청 정보를 불러오지 못했습니다.' }
+  }
+
+  if (request.status !== 'approved') {
+    return { error: '승인된 신청만 반려로 되돌릴 수 있습니다.' }
+  }
+
+  const grantId = request.grant_id ? String(request.grant_id) : null
+  let revokedNow = false
+
+  if (grantId) {
+    const { data: revoked, error: revokeError } = await supabase
+      .from('special_lecture_grants')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', grantId)
+      .is('revoked_at', null)
+      .select('id')
+
+    if (revokeError) {
+      console.error('[special-lectures] failed to revoke grant for revert', revokeError)
+      return { error: '기존 공개를 해지하지 못했습니다.' }
+    }
+
+    revokedNow = (revoked ?? []).length > 0
+  }
+
+  const { data: updated, error: updateError } = await supabase
+    .from('special_lecture_requests')
+    .update({
+      status: 'rejected',
+      reject_reason: trimmedReason || null,
+      decided_by: profile.id,
+      decided_at: new Date().toISOString(),
+    })
+    .eq('id', requestId)
+    .eq('status', 'approved')
+    .select('id')
+
+  if (updateError || !updated || updated.length === 0) {
+    console.error('[special-lectures] failed to revert request to rejected', updateError)
+    if (grantId && revokedNow) {
+      await supabase
+        .from('special_lecture_grants')
+        .update({ revoked_at: null })
+        .eq('id', grantId)
+    }
+    return {
+      error: updateError
+        ? '신청을 반려하지 못했습니다.'
+        : '신청 상태가 이미 변경되었습니다. 새로고침 후 다시 시도해주세요.',
+    }
   }
 
   revalidateAll(String(request.special_lecture_id))

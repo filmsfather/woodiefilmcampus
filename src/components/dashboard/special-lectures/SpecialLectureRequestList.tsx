@@ -14,21 +14,24 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Textarea } from '@/components/ui/textarea'
+import { GrantWindowFields } from '@/components/dashboard/special-lectures/GrantWindowFields'
 import {
   approveSpecialLectureRequestAction,
+  extendSpecialLectureGrantAction,
   rejectSpecialLectureRequestAction,
+  reopenSpecialLectureRequestAction,
+  revertSpecialLectureRequestToRejectedAction,
 } from '@/app/dashboard/manager/special-lectures/actions'
 import {
   SPECIAL_LECTURE_DEFAULT_GRANT_HOURS,
-  SPECIAL_LECTURE_GRANT_PRESETS,
-  SPECIAL_LECTURE_MAX_GRANT_HOURS,
   SPECIAL_LECTURE_REQUEST_STATUS_LABELS,
+  defaultSpecialLectureGrantWindow,
   parseLocalDatetimeInputValue,
   toLocalDatetimeInputValue,
+  validateSpecialLectureGrantWindow,
   type SpecialLectureRequest,
 } from '@/lib/special-lectures'
 
@@ -91,11 +94,10 @@ export function SpecialLectureRequestList({ requests }: SpecialLectureRequestLis
 }
 
 function RequestRow({ request }: { request: SpecialLectureRequest }) {
-  const [approveOpen, setApproveOpen] = useState(false)
-  const [rejectOpen, setRejectOpen] = useState(false)
+  const [grantWindowMode, setGrantWindowMode] = useState<GrantWindowMode | null>(null)
+  const [rejectMode, setRejectMode] = useState<RejectMode | null>(null)
 
   const grantLabel = describeGrant(request)
-  const isPendingRequest = request.status === 'requested'
 
   return (
     <div className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -124,139 +126,192 @@ function RequestRow({ request }: { request: SpecialLectureRequest }) {
         ) : null}
       </div>
 
-      {isPendingRequest ? (
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <Button type="button" size="sm" onClick={() => setApproveOpen(true)}>
-            열어주기
-          </Button>
+      <div className="flex shrink-0 flex-wrap gap-2">
+        {request.status === 'requested' ? (
+          <>
+            <Button type="button" size="sm" onClick={() => setGrantWindowMode('approve')}>
+              열어주기
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRejectMode('reject')}
+            >
+              반려
+            </Button>
+          </>
+        ) : null}
+
+        {request.status === 'approved' ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setGrantWindowMode('edit')}
+            >
+              기간 수정
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setRejectMode('revert')}
+            >
+              반려로 변경
+            </Button>
+          </>
+        ) : null}
+
+        {request.status === 'rejected' || request.status === 'cancelled' ? (
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setRejectOpen(true)}
+            onClick={() => setGrantWindowMode('reopen')}
           >
-            반려
+            다시 열어주기
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
-      <ApproveDialog open={approveOpen} onOpenChange={setApproveOpen} request={request} />
-      <RejectDialog open={rejectOpen} onOpenChange={setRejectOpen} request={request} />
+      {grantWindowMode ? (
+        <GrantWindowDialog
+          mode={grantWindowMode}
+          request={request}
+          onClose={() => setGrantWindowMode(null)}
+        />
+      ) : null}
+      {rejectMode ? (
+        <RejectDialog mode={rejectMode} request={request} onClose={() => setRejectMode(null)} />
+      ) : null}
     </div>
   )
 }
 
-interface DialogProps {
-  open: boolean
-  onOpenChange: (next: boolean) => void
-  request: SpecialLectureRequest
+type GrantWindowMode = 'approve' | 'reopen' | 'edit'
+type RejectMode = 'reject' | 'revert'
+
+const GRANT_WINDOW_COPY: Record<GrantWindowMode, { title: string; submitLabel: string }> = {
+  approve: { title: '영상 열어주기', submitLabel: '공개하기' },
+  reopen: { title: '영상 다시 열어주기', submitLabel: '다시 공개하기' },
+  edit: { title: '공개 기간 수정', submitLabel: '기간 저장' },
 }
 
-function defaultWindow() {
-  const now = new Date()
+/** 기간 수정은 기존 공개 기간을 그대로 보여주되, 이미 지난 종료 시각은 기본값으로 되돌린다. */
+function initialWindow(mode: GrantWindowMode, request: SpecialLectureRequest) {
+  const fallback = defaultSpecialLectureGrantWindow()
+  if (mode !== 'edit' || !request.grantStartsAt) {
+    return fallback
+  }
+
+  const startsDate = new Date(request.grantStartsAt)
+  const expiresDate = request.grantExpiresAt ? new Date(request.grantExpiresAt) : null
+
+  if (Number.isNaN(startsDate.getTime())) {
+    return fallback
+  }
+
+  if (expiresDate && !Number.isNaN(expiresDate.getTime()) && expiresDate.getTime() > Date.now()) {
+    return {
+      startsAt: toLocalDatetimeInputValue(startsDate),
+      expiresAt: toLocalDatetimeInputValue(expiresDate),
+    }
+  }
+
+  const base = startsDate.getTime() > Date.now() ? startsDate : new Date()
   return {
-    startsAt: toLocalDatetimeInputValue(now),
+    startsAt: toLocalDatetimeInputValue(startsDate),
     expiresAt: toLocalDatetimeInputValue(
-      new Date(now.getTime() + SPECIAL_LECTURE_DEFAULT_GRANT_HOURS * 60 * 60 * 1000)
+      new Date(base.getTime() + SPECIAL_LECTURE_DEFAULT_GRANT_HOURS * 60 * 60 * 1000)
     ),
   }
 }
 
-function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
+function GrantWindowDialog({
+  mode,
+  request,
+  onClose,
+}: {
+  mode: GrantWindowMode
+  request: SpecialLectureRequest
+  onClose: () => void
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [startsAt, setStartsAt] = useState<string>(() => defaultWindow().startsAt)
-  const [expiresAt, setExpiresAt] = useState<string>(() => defaultWindow().expiresAt)
+  const [initial] = useState(() => initialWindow(mode, request))
+  const [startsAt, setStartsAt] = useState<string>(initial.startsAt)
+  const [expiresAt, setExpiresAt] = useState<string>(initial.expiresAt)
 
-  const resetWindow = () => {
-    const next = defaultWindow()
-    setStartsAt(next.startsAt)
-    setExpiresAt(next.expiresAt)
-  }
-
-  const applyPreset = (hours: number) => {
-    const base = parseLocalDatetimeInputValue(startsAt) ?? new Date()
-    setExpiresAt(toLocalDatetimeInputValue(new Date(base.getTime() + hours * 60 * 60 * 1000)))
-  }
-
-  const startsDate = parseLocalDatetimeInputValue(startsAt)
-  const expiresDate = parseLocalDatetimeInputValue(expiresAt)
-  const durationLabel = (() => {
-    if (!startsDate || !expiresDate) return null
-    const diffMs = expiresDate.getTime() - startsDate.getTime()
-    if (diffMs <= 0) return null
-    const totalMinutes = Math.floor(diffMs / (60 * 1000))
-    const days = Math.floor(totalMinutes / (60 * 24))
-    const hours = Math.floor((totalMinutes - days * 60 * 24) / 60)
-    const minutes = totalMinutes - days * 60 * 24 - hours * 60
-    const parts: string[] = []
-    if (days > 0) parts.push(`${days}일`)
-    if (hours > 0) parts.push(`${hours}시간`)
-    if (minutes > 0 && days === 0) parts.push(`${minutes}분`)
-    return parts.length > 0 ? parts.join(' ') : null
-  })()
+  const copy = GRANT_WINDOW_COPY[mode]
 
   const handleSubmit = () => {
     setError(null)
 
-    if (!startsDate) {
-      setError('공개 시작 시각을 입력해주세요.')
-      return
-    }
-    if (!expiresDate) {
-      setError('공개 종료 시각을 입력해주세요.')
-      return
-    }
-    if (expiresDate.getTime() <= startsDate.getTime()) {
-      setError('공개 종료 시각은 시작 시각보다 이후여야 합니다.')
-      return
-    }
-    if (expiresDate.getTime() <= Date.now()) {
-      setError('공개 종료 시각은 현재 시각보다 이후여야 합니다.')
-      return
-    }
-    if (
-      expiresDate.getTime() - startsDate.getTime() >
-      SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000
-    ) {
-      setError('공개 기간은 최대 30일까지 설정할 수 있습니다.')
+    const grantWindow = validateSpecialLectureGrantWindow(
+      parseLocalDatetimeInputValue(startsAt),
+      parseLocalDatetimeInputValue(expiresAt)
+    )
+    if (!grantWindow.ok) {
+      setError(grantWindow.error)
       return
     }
 
+    const startsAtIso = grantWindow.startsAt.toISOString()
+    const expiresAtIso = grantWindow.expiresAt.toISOString()
+    const grantId = request.grantId
+
+    if (mode === 'edit' && !grantId) {
+      setError('공개 정보를 찾을 수 없어 기간을 수정할 수 없습니다.')
+      return
+    }
+
+    const runAction = () => {
+      if (mode === 'edit' && grantId) {
+        return extendSpecialLectureGrantAction(grantId, expiresAtIso, startsAtIso)
+      }
+      if (mode === 'reopen') {
+        return reopenSpecialLectureRequestAction(request.id, startsAtIso, expiresAtIso)
+      }
+      return approveSpecialLectureRequestAction(request.id, startsAtIso, expiresAtIso)
+    }
+
     startTransition(async () => {
-      const result = await approveSpecialLectureRequestAction(
-        request.id,
-        startsDate.toISOString(),
-        expiresDate.toISOString()
-      )
+      const result = await runAction()
+
       if (result?.error) {
         setError(result.error)
         return
       }
-      onOpenChange(false)
-      resetWindow()
+      onClose()
       router.refresh()
     })
   }
 
   return (
     <Dialog
-      open={open}
+      open
       onOpenChange={(next) => {
-        if (isPending) return
-        onOpenChange(next)
-        if (!next) setError(null)
+        if (isPending || next) return
+        onClose()
       }}
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>영상 열어주기</DialogTitle>
+          <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription className="text-sm text-slate-600">
             <span className="font-medium text-slate-800">{studentDisplayName(request)}</span> 학생에게{' '}
             <span className="font-medium text-slate-800">{request.lectureTitle}</span> 영상을 공개할
             기간을 지정하세요. 시작 전에는 보이지 않고, 종료 시각이 지나면 자동으로 비공개로
             전환됩니다.
+            {mode === 'reopen'
+              ? ' 반려 사유는 지워지고 승인 상태로 바뀝니다.'
+              : ''}
+            {mode === 'edit'
+              ? ' 이미 해지되었거나 기간이 지난 공개도 다시 살아납니다.'
+              : ''}
           </DialogDescription>
         </DialogHeader>
 
@@ -267,72 +322,18 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
             </Alert>
           ) : null}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor={`approve-starts-${request.id}`}>공개 시작</Label>
-              <Input
-                id={`approve-starts-${request.id}`}
-                type="datetime-local"
-                value={startsAt}
-                onChange={(event) => setStartsAt(event.target.value)}
-                disabled={isPending}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`approve-expires-${request.id}`}>공개 종료</Label>
-              <Input
-                id={`approve-expires-${request.id}`}
-                type="datetime-local"
-                value={expiresAt}
-                onChange={(event) => setExpiresAt(event.target.value)}
-                disabled={isPending}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs text-slate-500">
-              시작 시각 기준으로 종료 시각을 빠르게 채웁니다.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setStartsAt(toLocalDatetimeInputValue(new Date()))}
-                disabled={isPending}
-              >
-                지금 시작
-              </Button>
-              {SPECIAL_LECTURE_GRANT_PRESETS.map((preset) => (
-                <Button
-                  key={preset.hours}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyPreset(preset.hours)}
-                  disabled={isPending}
-                >
-                  +{preset.label}
-                </Button>
-              ))}
-            </div>
-            {durationLabel ? (
-              <p className="text-xs text-slate-600">
-                공개 기간: <span className="font-medium text-slate-800">{durationLabel}</span>
-                {startsDate && startsDate.getTime() > Date.now() ? ' · 예약 공개' : ''}
-              </p>
-            ) : null}
-          </div>
+          <GrantWindowFields
+            idPrefix={`grant-${request.id}`}
+            startsAt={startsAt}
+            expiresAt={expiresAt}
+            onStartsAtChange={setStartsAt}
+            onExpiresAtChange={setExpiresAt}
+            disabled={isPending}
+          />
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             취소
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={isPending}>
@@ -342,7 +343,7 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
                 처리 중...
               </span>
             ) : (
-              '공개하기'
+              copy.submitLabel
             )}
           </Button>
         </DialogFooter>
@@ -351,40 +352,52 @@ function ApproveDialog({ open, onOpenChange, request }: DialogProps) {
   )
 }
 
-function RejectDialog({ open, onOpenChange, request }: DialogProps) {
+function RejectDialog({
+  mode,
+  request,
+  onClose,
+}: {
+  mode: RejectMode
+  request: SpecialLectureRequest
+  onClose: () => void
+}) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [reason, setReason] = useState('')
 
+  const isRevert = mode === 'revert'
+
   const handleSubmit = () => {
     setError(null)
     startTransition(async () => {
-      const result = await rejectSpecialLectureRequestAction(request.id, reason)
+      const result = isRevert
+        ? await revertSpecialLectureRequestToRejectedAction(request.id, reason)
+        : await rejectSpecialLectureRequestAction(request.id, reason)
       if (result?.error) {
         setError(result.error)
         return
       }
-      onOpenChange(false)
-      setReason('')
+      onClose()
       router.refresh()
     })
   }
 
   return (
     <Dialog
-      open={open}
+      open
       onOpenChange={(next) => {
-        if (isPending) return
-        onOpenChange(next)
-        if (!next) setError(null)
+        if (isPending || next) return
+        onClose()
       }}
     >
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>신청 반려</DialogTitle>
+          <DialogTitle>{isRevert ? '승인 취소 후 반려' : '신청 반려'}</DialogTitle>
           <DialogDescription className="text-sm text-slate-600">
-            반려 사유는 학생 화면에 그대로 표시됩니다.
+            {isRevert
+              ? '이미 공개된 영상이 즉시 비공개로 전환됩니다. 반려 사유는 학생 화면에 그대로 표시됩니다.'
+              : '반려 사유는 학생 화면에 그대로 표시됩니다.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -409,12 +422,7 @@ function RejectDialog({ open, onOpenChange, request }: DialogProps) {
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={isPending}
-          >
+          <Button type="button" variant="outline" onClick={onClose} disabled={isPending}>
             취소
           </Button>
           <Button type="button" variant="destructive" onClick={handleSubmit} disabled={isPending}>
@@ -423,6 +431,8 @@ function RejectDialog({ open, onOpenChange, request }: DialogProps) {
                 <LoadingSpinner />
                 처리 중...
               </span>
+            ) : isRevert ? (
+              '공개 해지하고 반려'
             ) : (
               '반려하기'
             )}

@@ -87,3 +87,65 @@ export function parseLocalDatetimeInputValue(value: string): Date | null {
   const parsed = new Date(value)
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
+
+/** 다이얼로그를 처음 열 때 채워 넣는 기본 공개 구간(지금 ~ 기본 시간 후). */
+export function defaultSpecialLectureGrantWindow(now: Date = new Date()) {
+  return {
+    startsAt: toLocalDatetimeInputValue(now),
+    expiresAt: toLocalDatetimeInputValue(
+      new Date(now.getTime() + SPECIAL_LECTURE_DEFAULT_GRANT_HOURS * 60 * 60 * 1000)
+    ),
+  }
+}
+
+export type SpecialLectureGrantWindowResult =
+  | { ok: false; error: string }
+  | { ok: true; startsAt: Date; expiresAt: Date }
+
+/**
+ * 공개 구간 규칙을 검증합니다.
+ * 클라이언트 다이얼로그와 서버 액션이 같은 규칙을 쓰도록 공유합니다.
+ */
+export function validateSpecialLectureGrantWindow(
+  startsAt: Date | null,
+  expiresAt: Date | null
+): SpecialLectureGrantWindowResult {
+  if (!startsAt) {
+    return { ok: false, error: '공개 시작 시각을 입력해주세요.' }
+  }
+  if (!expiresAt) {
+    return { ok: false, error: '공개 종료 시각을 입력해주세요.' }
+  }
+  if (expiresAt.getTime() <= startsAt.getTime()) {
+    return { ok: false, error: '공개 종료 시각은 시작 시각보다 이후여야 합니다.' }
+  }
+  if (expiresAt.getTime() <= Date.now()) {
+    return { ok: false, error: '공개 종료 시각은 현재 시각보다 이후여야 합니다.' }
+  }
+  if (expiresAt.getTime() - startsAt.getTime() > SPECIAL_LECTURE_MAX_GRANT_HOURS * 60 * 60 * 1000) {
+    return { ok: false, error: '공개 기간은 최대 30일까지 설정할 수 있습니다.' }
+  }
+  return { ok: true, startsAt, expiresAt }
+}
+
+/** "1일 2시간"처럼 공개 구간의 길이를 사람이 읽는 문자열로 만듭니다. */
+export function formatSpecialLectureGrantDuration(
+  startsAt: Date | null,
+  expiresAt: Date | null
+): string | null {
+  if (!startsAt || !expiresAt) return null
+  const diffMs = expiresAt.getTime() - startsAt.getTime()
+  if (diffMs <= 0) return null
+
+  const totalMinutes = Math.floor(diffMs / (60 * 1000))
+  const days = Math.floor(totalMinutes / (60 * 24))
+  const hours = Math.floor((totalMinutes - days * 60 * 24) / 60)
+  const minutes = totalMinutes - days * 60 * 24 - hours * 60
+
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days}일`)
+  if (hours > 0) parts.push(`${hours}시간`)
+  if (minutes > 0 && days === 0) parts.push(`${minutes}분`)
+
+  return parts.length > 0 ? parts.join(' ') : null
+}
