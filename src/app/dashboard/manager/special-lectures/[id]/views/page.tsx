@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/table'
 import { requireAuthForDashboard, resolveDashboardPath } from '@/lib/auth'
 import { ensureManagerProfile } from '@/lib/authz'
+import DateUtil from '@/lib/date-util'
 import {
   fetchSpecialLectureViewLog,
   getSpecialLecture,
@@ -30,11 +31,6 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 interface PageProps {
   params: Promise<{ id: string }>
 }
-
-const dateFormatter = new Intl.DateTimeFormat('ko', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
 
 const ROLE_LABELS: Record<string, string> = {
   principal: '원장',
@@ -139,7 +135,10 @@ export default async function SpecialLectureViewsPage({ params }: PageProps) {
                       </TableCell>
                       <TableCell>{roleLabel}</TableCell>
                       <TableCell className="text-sm text-slate-700">
-                        {dateFormatter.format(new Date(entry.viewedAt))}
+                        {DateUtil.formatForDisplay(entry.viewedAt, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">{entry.ip ?? '-'}</TableCell>
                       <TableCell className="hidden max-w-[280px] truncate text-xs text-slate-500 md:table-cell">

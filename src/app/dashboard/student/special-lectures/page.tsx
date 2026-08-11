@@ -5,6 +5,7 @@ import { StudentSpecialLectureRequestButton } from '@/components/dashboard/speci
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
+import DateUtil from '@/lib/date-util'
 import {
   fetchMySpecialLectureRequests,
   fetchSpecialLectureAccessWindows,
@@ -17,14 +18,12 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 function formatKoreanDate(iso: string) {
   if (!iso) return ''
-  return new Intl.DateTimeFormat('ko', { dateStyle: 'medium' }).format(new Date(iso))
+  return DateUtil.formatForDisplay(iso, { dateStyle: 'medium' })
 }
 
 function formatKoreanDateTime(iso: string) {
   if (!iso) return ''
-  return new Intl.DateTimeFormat('ko', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(iso)
-  )
+  return DateUtil.formatForDisplay(iso, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 type CardState =

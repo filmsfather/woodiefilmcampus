@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { GrantWindowFields } from '@/components/dashboard/special-lectures/GrantWindowFields'
+import DateUtil from '@/lib/date-util'
 import {
   extendSpecialLectureGrantAction,
   revokeSpecialLectureGrantAction,
@@ -44,10 +45,9 @@ interface SpecialLectureGrantListProps {
 
 type GrantStatus = 'active' | 'scheduled' | 'revoked' | 'expired'
 
-const dateFormatter = new Intl.DateTimeFormat('ko', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+function formatDateTime(iso: string) {
+  return DateUtil.formatForDisplay(iso, { dateStyle: 'medium', timeStyle: 'short' })
+}
 
 function deriveStatus(grant: SpecialLectureGrant): GrantStatus {
   if (grant.revokedAt) return 'revoked'
@@ -70,7 +70,7 @@ function statusLabel(status: GrantStatus) {
 }
 
 function formatWindow(grant: SpecialLectureGrant) {
-  return `${dateFormatter.format(new Date(grant.startsAt))} ~ ${dateFormatter.format(new Date(grant.expiresAt))}`
+  return `${formatDateTime(grant.startsAt)} ~ ${formatDateTime(grant.expiresAt)}`
 }
 
 function formatStartsIn(startsAt: string) {
@@ -190,16 +190,14 @@ function GrantCard({ grant, classNameById, studentNameById }: GrantCardProps) {
               ? formatRemaining(grant.expiresAt)
               : status === 'scheduled'
                 ? formatStartsIn(grant.startsAt)
-                : `종료 ${dateFormatter.format(new Date(grant.expiresAt))}`}
+                : `종료 ${formatDateTime(grant.expiresAt)}`}
           </span>
         </div>
         <CardDescription className="space-y-0.5 text-xs text-slate-500">
           <span className="block text-slate-700">공개 구간 {formatWindow(grant)}</span>
           <span className="block">
-            등록 {dateFormatter.format(new Date(grant.createdAt))}
-            {grant.revokedAt
-              ? ` · 해지 ${dateFormatter.format(new Date(grant.revokedAt))}`
-              : ''}
+            등록 {formatDateTime(grant.createdAt)}
+            {grant.revokedAt ? ` · 해지 ${formatDateTime(grant.revokedAt)}` : ''}
           </span>
         </CardDescription>
       </CardHeader>

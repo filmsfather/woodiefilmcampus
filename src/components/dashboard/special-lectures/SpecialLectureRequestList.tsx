@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { GrantWindowFields } from '@/components/dashboard/special-lectures/GrantWindowFields'
+import DateUtil from '@/lib/date-util'
 import {
   approveSpecialLectureRequestAction,
   extendSpecialLectureGrantAction,
@@ -39,13 +40,12 @@ interface SpecialLectureRequestListProps {
   requests: SpecialLectureRequest[]
 }
 
-const dateFormatter = new Intl.DateTimeFormat('ko', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+function formatDateTime(iso: string) {
+  return DateUtil.formatForDisplay(iso, { dateStyle: 'medium', timeStyle: 'short' })
+}
 
 function formatWindow(startsAt: string, expiresAt: string) {
-  return `${dateFormatter.format(new Date(startsAt))} ~ ${dateFormatter.format(new Date(expiresAt))}`
+  return `${formatDateTime(startsAt)} ~ ${formatDateTime(expiresAt)}`
 }
 
 function studentDisplayName(request: SpecialLectureRequest) {
@@ -114,10 +114,8 @@ function RequestRow({ request }: { request: SpecialLectureRequest }) {
           ))}
         </div>
         <p className="text-xs text-slate-500">
-          신청 {dateFormatter.format(new Date(request.createdAt))}
-          {request.decidedAt
-            ? ` · 처리 ${dateFormatter.format(new Date(request.decidedAt))}`
-            : ''}
+          신청 {formatDateTime(request.createdAt)}
+          {request.decidedAt ? ` · 처리 ${formatDateTime(request.decidedAt)}` : ''}
           {request.decidedByName ? ` · ${request.decidedByName}` : ''}
         </p>
         {grantLabel ? <p className="text-xs text-slate-600">{grantLabel}</p> : null}

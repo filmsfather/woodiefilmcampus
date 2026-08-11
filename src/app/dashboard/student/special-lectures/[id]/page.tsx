@@ -4,6 +4,7 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { SpecialLecturePlayer } from '@/components/dashboard/special-lectures/SpecialLecturePlayer'
 import { StudentSpecialLectureRequestButton } from '@/components/dashboard/special-lectures/StudentSpecialLectureRequestButton'
 import { requireAuthForDashboard } from '@/lib/auth'
+import DateUtil from '@/lib/date-util'
 import {
   fetchMySpecialLectureRequests,
   fetchSpecialLectureAccessWindows,
@@ -17,9 +18,7 @@ interface PageProps {
 }
 
 function formatKoreanDateTime(iso: string) {
-  return new Intl.DateTimeFormat('ko', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(iso)
-  )
+  return DateUtil.formatForDisplay(iso, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export default async function StudentSpecialLectureDetailPage({ params }: PageProps) {
@@ -62,7 +61,7 @@ export default async function StudentSpecialLectureDetailPage({ params }: PagePr
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">{lecture.title}</h1>
           <p className="text-sm text-slate-600">
-            {new Intl.DateTimeFormat('ko', { dateStyle: 'long' }).format(new Date(lecture.created_at))}
+            {DateUtil.formatForDisplay(lecture.created_at, { dateStyle: 'long' })}
           </p>
         </div>
       </div>

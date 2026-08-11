@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { ensureManagerProfile } from '@/lib/authz'
+import DateUtil from '@/lib/date-util'
 import { resolveDashboardPath } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import {
@@ -25,7 +26,7 @@ import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
 function formatKoreanDate(iso: string) {
   if (!iso) return ''
-  return new Intl.DateTimeFormat('ko', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso))
+  return DateUtil.formatForDisplay(iso, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 export default async function ManagerSpecialLecturesPage() {
