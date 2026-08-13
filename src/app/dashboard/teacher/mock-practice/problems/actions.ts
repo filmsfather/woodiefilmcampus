@@ -4,18 +4,21 @@ import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 
 import { getAuthContext } from '@/lib/auth'
+import { fetchPracticeProblemDetail } from '@/lib/practice/problems'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PRACTICE_ASSETS_BUCKET } from '@/lib/storage/buckets'
 import { sanitizeStorageFileName } from '@/lib/storage-upload'
 import {
   createPracticeProblemSchema,
   deletePracticeProblemSchema,
+  practiceProblemIdSchema,
   togglePracticeProblemSchema,
   updatePracticeProblemSchema,
   type CreatePracticeProblemInput,
   type UpdatePracticeProblemInput,
 } from '@/lib/validation/practice'
 import type { UserProfile } from '@/lib/supabase'
+import type { PracticeProblemDetail } from '@/types/practice'
 
 type ActionResult = {
   success?: boolean
@@ -298,6 +301,29 @@ export async function deletePracticeProblemAction(problemId: string): Promise<Ac
 
   revalidateProblems()
   return { success: true }
+}
+
+/** 목록에서 문제 내용을 확인하기 위한 지연 조회. 이미지 서명 URL 때문에 열 때마다 새로 발급한다. */
+export async function getPracticeProblemPreviewAction(problemId: string): Promise<{
+  problem?: PracticeProblemDetail
+  error?: string
+}> {
+  const profile = await ensureStaffProfile()
+  if (!profile) {
+    return { error: '모의실기 문제를 조회할 권한이 없습니다.' }
+  }
+
+  const parsed = practiceProblemIdSchema.safeParse({ problemId })
+  if (!parsed.success) {
+    return { error: '잘못된 요청입니다.' }
+  }
+
+  const problem = await fetchPracticeProblemDetail(parsed.data.problemId)
+  if (!problem) {
+    return { error: '문제를 찾을 수 없습니다.' }
+  }
+
+  return { problem }
 }
 
 export async function togglePracticeProblemAction(problemId: string, isActive: boolean): Promise<ActionResult> {

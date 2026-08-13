@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { PracticeProblemActions } from '@/components/dashboard/practice/PracticeProblemActions'
+import { PracticeProblemPreviewDialog } from '@/components/dashboard/practice/PracticeProblemPreviewDialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -162,6 +163,7 @@ export default async function PracticeProblemsPage({
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
+                        <PracticeProblemPreviewDialog problemId={problem.id} />
                         <Button asChild variant="outline" size="sm">
                           <Link href={`${BASE_PATH}/${problem.id}/edit`}>수정</Link>
                         </Button>

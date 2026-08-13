@@ -65,9 +65,11 @@ export const updatePracticeProblemSchema = createPracticeProblemSchema.extend({
   problemId: z.string().uuid(),
 })
 
-export const deletePracticeProblemSchema = z.object({
+export const practiceProblemIdSchema = z.object({
   problemId: z.string().uuid(),
 })
+
+export const deletePracticeProblemSchema = practiceProblemIdSchema
 
 export const togglePracticeProblemSchema = z.object({
   problemId: z.string().uuid(),
