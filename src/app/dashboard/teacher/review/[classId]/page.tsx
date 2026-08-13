@@ -148,6 +148,44 @@ export default async function TeacherClassReviewPage({
   }
 
   const thirtyDaysAgo = DateUtil.addDays(DateUtil.nowUTC(), -RECENT_DAYS)
+  const recentWindowIso = DateUtil.toISOString(thirtyDaysAgo)
+  // 마감일이 없는 과제는 생성일 기준으로 최근 여부를 판단한다
+  const recentAssignmentFilter = `due_at.gte.${recentWindowIso},and(due_at.is.null,created_at.gte.${recentWindowIso})`
+
+  // Query 0: 이 반에서 점검해야 할 과제 id 수집
+  // 반 단위 과제는 assignment_targets.class_id로, 개별(학생 지정) 과제는 class_id가 비어 있어
+  // student_tasks.class_id로만 반을 알 수 있으므로 두 경로를 모두 조회한다.
+  const [classTargetResult, classTaskResult] = await Promise.all([
+    supabase
+      .from('assignment_targets')
+      .select('assignment_id, assignments!inner(id)')
+      .eq('class_id', classId)
+      .or(recentAssignmentFilter, { referencedTable: 'assignments' }),
+    supabase
+      .from('student_tasks')
+      .select('assignment_id, assignments!inner(id)')
+      .eq('class_id', classId)
+      .or(recentAssignmentFilter, { referencedTable: 'assignments' }),
+  ])
+
+  if (classTargetResult.error) {
+    console.error('[teacher] class assignment target fetch error', classTargetResult.error)
+  }
+
+  if (classTaskResult.error) {
+    console.error('[teacher] class assignment task fetch error', classTaskResult.error)
+  }
+
+  const scopedAssignmentIds = Array.from(
+    new Set(
+      [
+        ...((classTargetResult.data ?? []) as Array<{ assignment_id: string | null }>),
+        ...((classTaskResult.data ?? []) as Array<{ assignment_id: string | null }>),
+      ]
+        .map((row) => row.assignment_id)
+        .filter((value): value is string => Boolean(value))
+    )
+  )
 
   // Query 1: 과제 메타 + workbook_items (한 번만 로드)
   const assignmentMetaQuery = supabase
@@ -162,7 +200,7 @@ export default async function TeacherClassReviewPage({
            workbook_item_choices(id, label, content, is_correct)
          )
        ),
-       assignment_targets!inner(class_id, classes(id, name)),
+       assignment_targets(class_id, classes(id, name)),
        print_requests(
          id,
          status,
@@ -183,11 +221,13 @@ export default async function TeacherClassReviewPage({
        )
       `
     )
-    .eq('assignment_targets.class_id', classId)
-    .order('due_at', { ascending: false })
-    .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
+    .in('id', scopedAssignmentIds)
+    .order('due_at', { ascending: false, nullsFirst: false })
 
-  const { data: assignmentMetaRows, error: assignmentMetaError } = await assignmentMetaQuery
+  const { data: assignmentMetaRows, error: assignmentMetaError } =
+    scopedAssignmentIds.length > 0
+      ? await assignmentMetaQuery
+      : { data: null, error: null }
 
   if (assignmentMetaError) {
     console.error('[teacher] class assignment meta fetch error', assignmentMetaError)
@@ -339,7 +379,17 @@ export default async function TeacherClassReviewPage({
   const filteredTransforms = transformResults
     .map(({ assignment, mediaAssets }) => {
       const filtered = filterAssignmentForClass(assignment, classInfo.id)
-      return filtered ? { assignment: filtered, mediaAssets } : null
+
+      if (!filtered) {
+        return null
+      }
+
+      // 개별 과제는 반 대상 행이 없어 배정 반 정보가 비어 있다
+      if (!filtered.classes.some((cls) => cls.id === classInfo.id)) {
+        filtered.classes = [...filtered.classes, { id: classInfo.id, name: classInfo.name }]
+      }
+
+      return { assignment: filtered, mediaAssets }
     })
     .filter((r): r is { assignment: AssignmentDetail; mediaAssets: Map<string, MediaAssetRecord> } => Boolean(r))
 

@@ -140,6 +140,9 @@ export default async function TeacherReviewOverviewPage() {
       .eq('teacher_id', profile.id)
 
   const thirtyDaysAgo = DateUtil.addDays(DateUtil.nowUTC(), -RECENT_DAYS)
+  const recentWindowIso = DateUtil.toISOString(thirtyDaysAgo)
+  // 마감일이 없는 과제는 생성일 기준으로 최근 여부를 판단한다
+  const recentAssignmentFilter = `due_at.gte.${recentWindowIso},and(due_at.is.null,created_at.gte.${recentWindowIso})`
 
   const assignmentQuery = supabase
     .from('assignments')
@@ -167,8 +170,8 @@ export default async function TeacherReviewOverviewPage() {
        )
       `
     )
-    .order('due_at', { ascending: false })
-    .gte('due_at', DateUtil.toISOString(thirtyDaysAgo))
+    .order('due_at', { ascending: false, nullsFirst: false })
+    .or(recentAssignmentFilter)
 
   // RLS(can_view_assignment)가 교사 반 기반 접근 제어를 처리하므로
   // 추가 assigned_by 필터 불필요
