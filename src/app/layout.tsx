@@ -21,6 +21,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "woodiefilmcampus",
   description: "Woodie Film Campus internal platform",
+  // 학습일지 등 원문이 그대로 전달되어야 하는 화면이 브라우저 자동 번역으로 변형되는 것을 막는다.
+  other: {
+    google: "notranslate",
+  },
 }
 
 export default function RootLayout({
@@ -33,7 +37,7 @@ export default function RootLayout({
   const serverNow = DateUtil.nowUTC().toISOString()
 
   return (
-    <html lang="en">
+    <html lang="ko" translate="no" className="notranslate">
       <body className={`${geistSans.variable} ${geistMono.variable} bg-slate-50 antialiased`}>
         <ClientClockInitializer serverNow={serverNow} />
         {children}
