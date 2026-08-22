@@ -56,6 +56,7 @@ export async function fetchStudentClassNames(studentIds: string[]): Promise<Map<
 type SlotRow = {
   id: string
   teacher_id: string
+  room_no: number | null
   slot_date: string
   start_time: string
   duration_minutes: number
@@ -181,7 +182,7 @@ export async function fetchPracticeDayBoard(
   let query = admin
     .from('practice_slots')
     .select(
-      `id, teacher_id, slot_date, start_time, duration_minutes, starts_at, status, free_booking_opens_at,
+      `id, teacher_id, room_no, slot_date, start_time, duration_minutes, starts_at, status, free_booking_opens_at,
        profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)`
     )
     .eq('slot_date', slotDate)
@@ -211,6 +212,7 @@ export async function fetchPracticeDayBoard(
       id: row.id,
       teacherId: row.teacher_id,
       teacherName,
+      roomNo: row.room_no,
       slotDate: row.slot_date,
       startTime: toTimeLabel(row.start_time),
       durationMinutes: row.duration_minutes,
@@ -241,7 +243,7 @@ export async function fetchPracticeSlotBlocks(
     .from('practice_slot_blocks')
     .select(
       `id, block_date, start_time, end_time, slot_minutes, free_booking_opens_at, notes,
-       practice_slot_block_teachers(teacher_id, profiles(id, name, email)),
+       practice_slot_block_teachers(teacher_id, room_no, break_time, profiles(id, name, email)),
        practice_slots(id)`
     )
     .gte('block_date', rangeStart)
@@ -265,6 +267,8 @@ export async function fetchPracticeSlotBlocks(
     practice_slot_block_teachers:
       | Array<{
           teacher_id: string
+          room_no: number | null
+          break_time: string | null
           profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
         }>
       | null
@@ -279,10 +283,17 @@ export async function fetchPracticeSlotBlocks(
     slotMinutes: row.slot_minutes,
     freeBookingOpensAt: row.free_booking_opens_at,
     notes: row.notes,
-    teacherNames: (row.practice_slot_block_teachers ?? []).map((entry) => {
-      const profile = firstOf(entry.profiles)
-      return profile?.name ?? profile?.email ?? '이름 없음'
-    }),
+    teachers: (row.practice_slot_block_teachers ?? [])
+      .map((entry) => {
+        const profile = firstOf(entry.profiles)
+        return {
+          teacherId: entry.teacher_id,
+          name: profile?.name ?? profile?.email ?? '이름 없음',
+          roomNo: entry.room_no,
+          breakTime: entry.break_time ? toTimeLabel(entry.break_time) : null,
+        }
+      })
+      .sort((a, b) => (a.roomNo ?? 99) - (b.roomNo ?? 99)),
     slotCount: row.practice_slots?.length ?? 0,
   }))
 }
@@ -394,7 +405,7 @@ export async function fetchFreeBookableSlots(): Promise<PracticeFreeSlotOption[]
   const { data, error } = await admin
     .from('practice_slots')
     .select(
-      `id, teacher_id, slot_date, start_time, starts_at, status, free_booking_opens_at,
+      `id, teacher_id, room_no, slot_date, start_time, starts_at, status, free_booking_opens_at,
        profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)`
     )
     .eq('status', 'open')
@@ -415,6 +426,7 @@ export async function fetchFreeBookableSlots(): Promise<PracticeFreeSlotOption[]
       id: row.id,
       teacherId: row.teacher_id,
       teacherName: teacher?.name ?? teacher?.email ?? '이름 없음',
+      roomNo: row.room_no,
       slotDate: row.slot_date,
       startTime: toTimeLabel(row.start_time),
       startsAt: row.starts_at,

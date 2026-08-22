@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { compressImageFile } from '@/lib/image-compress'
-import { formatKstDateTime, formatKstTime } from '@/lib/practice/shared'
+import { formatKstDateTime, formatKstTime, formatPracticeRoomLabel } from '@/lib/practice/shared'
 import { PRACTICE_SUBMISSIONS_BUCKET } from '@/lib/storage/buckets'
 import {
   buildPendingStoragePath,
@@ -81,8 +81,8 @@ export function PracticeAttemptRoom({ attempt }: { attempt: PracticeAttemptDetai
             <p className="text-lg font-semibold text-slate-900">아직 문제가 공개되지 않았습니다</p>
             <p className="text-sm text-slate-600">
               {formatKstDateTime(attempt.opensAt)}부터 문제를 볼 수 있습니다. 제한시간{' '}
-              {attempt.problem.timeLimitMinutes}분이 지나면 {formatKstTime(attempt.deadlineAt)}에{' '}
-              {attempt.teacherName} 선생님과 1:1 피드백을 진행합니다.
+              {attempt.problem.timeLimitMinutes}분이 지나면               {formatKstTime(attempt.deadlineAt)}에{' '}
+              {formatPracticeRoomLabel(attempt.roomNo)}에서 1:1 피드백을 진행합니다.
             </p>
           </div>
           <p className="font-mono text-2xl text-emerald-700">{formatDuration(opensAtMs - now)}</p>
@@ -102,7 +102,8 @@ export function PracticeAttemptRoom({ attempt }: { attempt: PracticeAttemptDetai
               {attempt.problem.timeLimitMinutes}분
             </p>
             <p className="text-xs text-slate-500">
-              제출 마감 {formatKstTime(attempt.deadlineAt)} · 이후 {attempt.teacherName} 선생님과 1:1 피드백
+              제출 마감 {formatKstTime(attempt.deadlineAt)} · 이후 {formatPracticeRoomLabel(attempt.roomNo)}에서 1:1
+              피드백
             </p>
           </div>
           {isSubmitted ? (
@@ -295,8 +296,8 @@ function WritingSubmissionPanel({
             )}
           </div>
           <p className="text-sm text-slate-600">
-            제출이 완료되었습니다. {formatKstTime(attempt.deadlineAt)}에 {attempt.teacherName} 선생님과 1:1 피드백을
-            진행합니다.
+            제출이 완료되었습니다. {formatKstTime(attempt.deadlineAt)}에 {formatPracticeRoomLabel(attempt.roomNo)}에서
+            1:1 피드백을 진행합니다.
           </p>
         </CardContent>
       </Card>
@@ -493,8 +494,8 @@ function InterviewAnswerPanel({
             </div>
           ))}
           <p className="text-sm text-slate-600">
-            제출이 완료되었습니다. {formatKstTime(attempt.deadlineAt)}에 {attempt.teacherName} 선생님과 5분 면접을
-            진행한 뒤 피드백을 받습니다.
+            제출이 완료되었습니다. {formatKstTime(attempt.deadlineAt)}에 {formatPracticeRoomLabel(attempt.roomNo)}에서
+            5분 면접을 진행한 뒤 피드백을 받습니다.
           </p>
         </CardContent>
       </Card>

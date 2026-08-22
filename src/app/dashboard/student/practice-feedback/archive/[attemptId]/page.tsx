@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchPracticeAttemptDetail } from '@/lib/practice/attempts'
-import { formatKstTime, formatSlotDateLabel } from '@/lib/practice/shared'
+import { formatKstTime, formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
 import { PRACTICE_TYPE_LABELS } from '@/types/practice'
 
 export const metadata: Metadata = {
@@ -47,7 +47,7 @@ export default async function StudentPracticeArchiveDetailPage({
             </Badge>
           </div>
           <p className="text-sm text-slate-600">
-            {formatSlotDateLabel(attempt.slotDate)} {attempt.startTime} · {attempt.teacherName} 선생님 ·{' '}
+            {formatSlotDateLabel(attempt.slotDate)} {attempt.startTime} · {formatPracticeRoomLabel(attempt.roomNo)} ·{' '}
             {attempt.problem.title}
           </p>
         </div>

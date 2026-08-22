@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatSlotDateLabel } from '@/lib/practice/shared'
+import { formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
 import type { PracticeFreeSlotOption, PracticeType, PracticeUniversityOption } from '@/types/practice'
 
 interface StudentFreeBookingProps {
@@ -172,7 +172,7 @@ export function StudentFreeBooking({ slots, universities, usedCycleLabels }: Stu
                         ].join(' ')}
                       >
                         <span className="font-mono">{slot.startTime}</span>
-                        <span className="text-xs text-slate-500">{slot.teacherName} 선생님</span>
+                        <span className="text-xs text-slate-500">{formatPracticeRoomLabel(slot.roomNo)}</span>
                       </button>
                     )
                   })}

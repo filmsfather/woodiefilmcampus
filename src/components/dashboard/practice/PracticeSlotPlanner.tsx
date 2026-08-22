@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react'
 
@@ -14,11 +14,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { buildCalendarCells, getMonthRange } from '@/lib/counseling'
-import { formatKstDateTime, formatSlotDateLabel } from '@/lib/practice/shared'
+import { buildSlotTimeLabels, formatKstDateTime, formatSlotDateLabel } from '@/lib/practice/shared'
+import { PRACTICE_ROOM_COUNT } from '@/lib/validation/practice'
 import type { PracticeSlotBlockSummary } from '@/types/practice'
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
+
+const ROOM_NUMBERS = Array.from({ length: PRACTICE_ROOM_COUNT }, (_, index) => index + 1)
+
+/** shadcn Select는 빈 문자열 value를 허용하지 않아 쉬는 시간 없음을 표현하는 센티널 */
+const NO_BREAK = 'none'
+
+interface TeacherSelection {
+  teacherId: string
+  roomNo: number
+  breakTime: string | null
+}
 
 interface PracticeSlotPlannerProps {
   year: number
@@ -44,11 +57,38 @@ export function PracticeSlotPlanner({
   const [startTime, setStartTime] = useState('12:00')
   const [endTime, setEndTime] = useState('16:00')
   const [slotMinutes, setSlotMinutes] = useState('15')
-  const [teacherIds, setTeacherIds] = useState<string[]>([])
+  const [teacherSelections, setTeacherSelections] = useState<TeacherSelection[]>([])
   const [freeBookingOpensAt, setFreeBookingOpensAt] = useState('')
   const [notes, setNotes] = useState('')
 
   const calendarCells = useMemo(() => buildCalendarCells(year, month), [year, month])
+
+  const teacherNameMap = useMemo(() => new Map(teachers.map((teacher) => [teacher.id, teacher.name])), [teachers])
+
+  /** 시작~종료/슬롯 길이에 따라 만들어질 시각 목록 (쉬는 시간 선택지) */
+  const timeLabelOptions = useMemo(() => {
+    const minutes = Number(slotMinutes)
+    if (!Number.isFinite(minutes) || minutes <= 0) {
+      return []
+    }
+    try {
+      return buildSlotTimeLabels(startTime, endTime, minutes)
+    } catch {
+      return []
+    }
+  }, [startTime, endTime, slotMinutes])
+
+  // 시간 범위가 바뀌어 선택지에서 사라진 쉬는 시간은 초기화한다.
+  useEffect(() => {
+    setTeacherSelections((prev) => {
+      if (prev.every((entry) => !entry.breakTime || timeLabelOptions.includes(entry.breakTime))) {
+        return prev
+      }
+      return prev.map((entry) =>
+        entry.breakTime && !timeLabelOptions.includes(entry.breakTime) ? { ...entry, breakTime: null } : entry
+      )
+    })
+  }, [timeLabelOptions])
 
   const blocksByDate = useMemo(() => {
     const map = new Map<string, PracticeSlotBlockSummary[]>()
@@ -62,20 +102,37 @@ export function PracticeSlotPlanner({
 
   const selectedBlocks = blocksByDate.get(selectedDate) ?? []
 
-  const estimatedSlotCount = useMemo(() => {
-    const parse = (label: string) => {
-      const match = label.match(/^(\d{1,2}):(\d{2})$/)
-      if (!match) return null
-      return Number(match[1]) * 60 + Number(match[2])
+  const estimatedSlotCount = timeLabelOptions.length * teacherSelections.length
+
+  const estimatedBreakCount = teacherSelections.filter(
+    (entry) => entry.breakTime && timeLabelOptions.includes(entry.breakTime)
+  ).length
+
+  const toggleTeacher = (teacherId: string, checked: boolean) => {
+    if (!checked) {
+      setTeacherSelections((prev) => prev.filter((entry) => entry.teacherId !== teacherId))
+      return
     }
-    const start = parse(startTime)
-    const end = parse(endTime)
-    const minutes = Number(slotMinutes)
-    if (start === null || end === null || !Number.isFinite(minutes) || minutes <= 0 || end <= start) {
-      return 0
+    if (teacherSelections.some((entry) => entry.teacherId === teacherId)) {
+      return
     }
-    return Math.floor((end - start) / minutes) * teacherIds.length
-  }, [startTime, endTime, slotMinutes, teacherIds.length])
+    if (teacherSelections.length >= PRACTICE_ROOM_COUNT) {
+      setFeedback({
+        type: 'error',
+        message: `고사장이 ${PRACTICE_ROOM_COUNT}개이므로 선생님은 최대 ${PRACTICE_ROOM_COUNT}명까지 선택할 수 있습니다.`,
+      })
+      return
+    }
+    const usedRooms = new Set(teacherSelections.map((entry) => entry.roomNo))
+    const nextRoom = ROOM_NUMBERS.find((room) => !usedRooms.has(room)) ?? 1
+    setTeacherSelections((prev) => [...prev, { teacherId, roomNo: nextRoom, breakTime: null }])
+  }
+
+  const updateSelection = (teacherId: string, patch: Partial<Omit<TeacherSelection, 'teacherId'>>) => {
+    setTeacherSelections((prev) =>
+      prev.map((entry) => (entry.teacherId === teacherId ? { ...entry, ...patch } : entry))
+    )
+  }
 
   const buildMonthHref = (offset: number) => {
     const base = new Date(Date.UTC(year, month - 1 + offset, 1))
@@ -92,7 +149,7 @@ export function PracticeSlotPlanner({
   const handleCreate = () => {
     setFeedback(null)
 
-    if (teacherIds.length === 0) {
+    if (teacherSelections.length === 0) {
       setFeedback({ type: 'error', message: '선생님을 1명 이상 선택해주세요.' })
       return
     }
@@ -103,7 +160,7 @@ export function PracticeSlotPlanner({
         startTime,
         endTime,
         slotMinutes: Number(slotMinutes),
-        teacherIds,
+        teachers: teacherSelections,
         freeBookingOpensAt: freeBookingOpensAt || null,
         notes: notes.trim() || null,
       })
@@ -117,7 +174,7 @@ export function PracticeSlotPlanner({
         type: 'success',
         message: `슬롯 ${result.createdCount ?? 0}개를 만들었습니다.`,
       })
-      setTeacherIds([])
+      setTeacherSelections([])
       setNotes('')
       router.refresh()
     })
@@ -264,13 +321,15 @@ export function PracticeSlotPlanner({
             </div>
 
             <div className="space-y-2">
-              <Label>선생님 ({teacherIds.length}명 선택)</Label>
+              <Label>
+                선생님 ({teacherSelections.length}명 선택 · 최대 {PRACTICE_ROOM_COUNT}명)
+              </Label>
               <div className="flex flex-wrap gap-2 rounded-md border border-slate-200 bg-slate-50 p-3">
                 {teachers.length === 0 ? (
                   <span className="text-xs text-slate-500">등록된 교직원이 없습니다.</span>
                 ) : (
                   teachers.map((teacher) => {
-                    const checked = teacherIds.includes(teacher.id)
+                    const checked = teacherSelections.some((entry) => entry.teacherId === teacher.id)
                     return (
                       <label
                         key={teacher.id}
@@ -284,13 +343,7 @@ export function PracticeSlotPlanner({
                         <Checkbox
                           checked={checked}
                           disabled={isPending}
-                          onChange={(event) =>
-                            setTeacherIds((prev) =>
-                              event.target.checked
-                                ? [...prev, teacher.id]
-                                : prev.filter((id) => id !== teacher.id)
-                            )
-                          }
+                          onChange={(event) => toggleTeacher(teacher.id, event.target.checked)}
                         />
                         {teacher.name}
                       </label>
@@ -301,24 +354,79 @@ export function PracticeSlotPlanner({
               <div className="flex gap-2">
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={isPending}
-                  onClick={() => setTeacherIds(teachers.map((teacher) => teacher.id))}
-                >
-                  전체 선택
-                </Button>
-                <Button
-                  type="button"
                   variant="ghost"
                   size="sm"
-                  disabled={isPending || teacherIds.length === 0}
-                  onClick={() => setTeacherIds([])}
+                  disabled={isPending || teacherSelections.length === 0}
+                  onClick={() => setTeacherSelections([])}
                 >
                   선택 해제
                 </Button>
               </div>
             </div>
+
+            {teacherSelections.length > 0 ? (
+              <div className="space-y-2">
+                <Label>고사장 · 쉬는 시간</Label>
+                <p className="text-xs text-slate-500">
+                  학생 화면에는 선생님 이름 대신 고사장 이름이 표시됩니다. 쉬는 시간을 지정하면 그 시각 슬롯은
+                  예약이 막힙니다.
+                </p>
+                <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3">
+                  {teacherSelections.map((selection) => {
+                    const usedRooms = new Set(
+                      teacherSelections
+                        .filter((entry) => entry.teacherId !== selection.teacherId)
+                        .map((entry) => entry.roomNo)
+                    )
+                    return (
+                      <div
+                        key={selection.teacherId}
+                        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2 last:border-b-0 last:pb-0"
+                      >
+                        <span className="min-w-[96px] flex-1 truncate text-sm font-medium text-slate-800">
+                          {teacherNameMap.get(selection.teacherId) ?? '이름 없음'}
+                        </span>
+                        <Select
+                          value={String(selection.roomNo)}
+                          onValueChange={(value) => updateSelection(selection.teacherId, { roomNo: Number(value) })}
+                          disabled={isPending}
+                        >
+                          <SelectTrigger className="w-[120px]" size="sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROOM_NUMBERS.map((room) => (
+                              <SelectItem key={room} value={String(room)} disabled={usedRooms.has(room)}>
+                                {room}고사장
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={selection.breakTime ?? NO_BREAK}
+                          onValueChange={(value) =>
+                            updateSelection(selection.teacherId, { breakTime: value === NO_BREAK ? null : value })
+                          }
+                          disabled={isPending}
+                        >
+                          <SelectTrigger className="w-[150px]" size="sm">
+                            <SelectValue placeholder="쉬는 시간" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NO_BREAK}>쉬는 시간 없음</SelectItem>
+                            {timeLabelOptions.map((label) => (
+                              <SelectItem key={label} value={label}>
+                                {label} 쉬기
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-2">
@@ -349,7 +457,10 @@ export function PracticeSlotPlanner({
             </div>
 
             <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-              <span>생성 예정 슬롯: {estimatedSlotCount}개</span>
+              <span>
+                생성 예정 슬롯: {estimatedSlotCount}개
+                {estimatedBreakCount > 0 ? ` (쉬는 시간 ${estimatedBreakCount}개 포함)` : ''}
+              </span>
               <Button size="sm" onClick={handleCreate} disabled={isPending || estimatedSlotCount === 0}>
                 {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 슬롯 만들기
@@ -390,7 +501,22 @@ export function PracticeSlotPlanner({
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-slate-500">선생님: {block.teacherNames.join(', ') || '없음'}</p>
+                    <p className="text-xs text-slate-500">
+                      선생님:{' '}
+                      {block.teachers.length > 0
+                        ? block.teachers
+                            .map((teacher) =>
+                              [
+                                teacher.name,
+                                teacher.roomNo ? `${teacher.roomNo}고사장` : null,
+                                teacher.breakTime ? `${teacher.breakTime} 휴식` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')
+                            )
+                            .join(', ')
+                        : '없음'}
+                    </p>
                     {block.notes ? <p className="text-xs text-slate-500">{block.notes}</p> : null}
                   </div>
                   <Button

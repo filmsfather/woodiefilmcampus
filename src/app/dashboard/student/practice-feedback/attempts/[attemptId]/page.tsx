@@ -5,7 +5,7 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { PracticeAttemptRoom } from '@/components/dashboard/practice/PracticeAttemptRoom'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchPracticeAttemptDetail } from '@/lib/practice/attempts'
-import { formatSlotDateLabel } from '@/lib/practice/shared'
+import { formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
 
 export const metadata: Metadata = {
   title: '모의실기 응시 | Woodie Film Campus',
@@ -33,7 +33,7 @@ export default async function StudentPracticeAttemptPage({
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-slate-900">{attempt.universityName} 모의실기</h1>
           <p className="text-sm text-slate-600">
-            {formatSlotDateLabel(attempt.slotDate)} {attempt.startTime} · {attempt.teacherName} 선생님
+            {formatSlotDateLabel(attempt.slotDate)} {attempt.startTime} · {formatPracticeRoomLabel(attempt.roomNo)}
           </p>
         </div>
       </div>

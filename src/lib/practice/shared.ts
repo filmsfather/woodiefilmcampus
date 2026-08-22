@@ -219,6 +219,11 @@ export function formatKstTime(value: string | null | undefined): string {
   }).format(new Date(parsed))
 }
 
+/** 학생 화면용 고사장 라벨. 과거 데이터(고사장 미배정)는 이름을 숨기고 미지정으로 표시한다. */
+export function formatPracticeRoomLabel(roomNo: number | null | undefined): string {
+  return roomNo ? `${roomNo}고사장` : '고사장 미지정'
+}
+
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 export function formatSlotDateLabel(dateIso: string): string {

@@ -106,7 +106,12 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
   const blockId = blockRow.id as string
 
   const { error: teacherError } = await admin.from('practice_slot_block_teachers').insert(
-    input.teacherIds.map((teacherId) => ({ block_id: blockId, teacher_id: teacherId }))
+    input.teachers.map((teacher) => ({
+      block_id: blockId,
+      teacher_id: teacher.teacherId,
+      room_no: teacher.roomNo,
+      break_time: teacher.breakTime ? toPgTime(teacher.breakTime) : null,
+    }))
   )
 
   if (teacherError) {
@@ -115,13 +120,15 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
     return { error: '선생님 배정에 실패했습니다.' }
   }
 
-  const slotRows = input.teacherIds.flatMap((teacherId) =>
+  const slotRows = input.teachers.flatMap((teacher) =>
     timeLabels.map((label) => ({
       block_id: blockId,
-      teacher_id: teacherId,
+      teacher_id: teacher.teacherId,
+      room_no: teacher.roomNo,
       slot_date: input.blockDate,
       start_time: toPgTime(label),
       duration_minutes: input.slotMinutes,
+      status: label === teacher.breakTime ? 'break' : 'open',
       free_booking_opens_at: freeBookingOpensAt,
       created_by: profile.id,
     }))
@@ -207,7 +214,7 @@ export async function updatePracticeSlotStatusAction(payload: unknown): Promise<
 
   const admin = createAdminClient()
 
-  if (parsed.data.status === 'closed') {
+  if (parsed.data.status === 'closed' || parsed.data.status === 'break') {
     const { count, error: countError } = await admin
       .from('practice_bookings')
       .select('id', { count: 'exact', head: true })
@@ -219,7 +226,7 @@ export async function updatePracticeSlotStatusAction(payload: unknown): Promise<
       return { error: '슬롯 상태를 확인하지 못했습니다.' }
     }
     if ((count ?? 0) > 0) {
-      return { error: '예약이 있는 슬롯은 닫을 수 없습니다.' }
+      return { error: '예약이 있는 슬롯은 닫거나 쉬는 시간으로 바꿀 수 없습니다.' }
     }
   }
 

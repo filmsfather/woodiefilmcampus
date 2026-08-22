@@ -219,6 +219,16 @@ export function PracticeBoardGrid({
                       )
                     }
 
+                    if (slot.status === 'break') {
+                      return (
+                        <td key={teacher.id} className="px-2 py-1.5 align-top">
+                          <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-600">
+                            쉬는 시간
+                          </div>
+                        </td>
+                      )
+                    }
+
                     const booking = slot.booking
 
                     if (!booking) {

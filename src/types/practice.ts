@@ -1,6 +1,6 @@
 export type PracticeType = 'writing' | 'interview'
 
-export type PracticeSlotStatus = 'open' | 'booked' | 'closed'
+export type PracticeSlotStatus = 'open' | 'booked' | 'closed' | 'break'
 
 export type PracticeBookingType = 'homeroom' | 'free'
 
@@ -90,6 +90,15 @@ export interface PracticeUniversityOption {
   interviewProblemCount: number
 }
 
+export interface PracticeSlotBlockTeacherSummary {
+  teacherId: string
+  name: string
+  /** 배정된 고사장 번호(1~7). 과거 데이터는 null일 수 있다. */
+  roomNo: number | null
+  /** 쉬는 시간 시작 시각(HH:MM) */
+  breakTime: string | null
+}
+
 export interface PracticeSlotBlockSummary {
   id: string
   blockDate: string
@@ -98,7 +107,7 @@ export interface PracticeSlotBlockSummary {
   slotMinutes: number
   freeBookingOpensAt: string | null
   notes: string | null
-  teacherNames: string[]
+  teachers: PracticeSlotBlockTeacherSummary[]
   slotCount: number
 }
 
@@ -126,6 +135,7 @@ export interface PracticeSlotView {
   id: string
   teacherId: string
   teacherName: string
+  roomNo: number | null
   slotDate: string
   startTime: string
   durationMinutes: number
@@ -185,6 +195,7 @@ export interface PracticeAttemptDetail {
   className: string | null
   teacherId: string
   teacherName: string
+  roomNo: number | null
   practiceType: PracticeType
   universityName: string
   problem: {
@@ -225,6 +236,7 @@ export interface PracticeStudentBookingRow {
   universityName: string
   problemTitle: string | null
   teacherName: string
+  roomNo: number | null
   slotDate: string
   startTime: string
   startsAt: string
@@ -253,6 +265,7 @@ export interface PracticeFreeSlotOption {
   id: string
   teacherId: string
   teacherName: string
+  roomNo: number | null
   slotDate: string
   startTime: string
   startsAt: string

@@ -38,7 +38,7 @@ const ATTEMPT_SELECT = `
   practice_bookings!inner(
     id, status, booking_type, university_id, slot_id,
     practice_slots(
-      id, slot_date, start_time, starts_at, teacher_id,
+      id, slot_date, start_time, starts_at, teacher_id, room_no,
       profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)
     )
   ),
@@ -77,6 +77,7 @@ type AttemptRow = {
               start_time: string
               starts_at: string
               teacher_id: string
+              room_no: number | null
               profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
             }
           | Array<{
@@ -85,6 +86,7 @@ type AttemptRow = {
               start_time: string
               starts_at: string
               teacher_id: string
+              room_no: number | null
               profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
             }>
           | null
@@ -241,6 +243,7 @@ export async function fetchPracticeAttemptDetail(attemptId: string): Promise<Pra
           start_time: string
           starts_at: string
           teacher_id: string
+          room_no: number | null
           profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
         }
       | Array<{
@@ -249,6 +252,7 @@ export async function fetchPracticeAttemptDetail(attemptId: string): Promise<Pra
           start_time: string
           starts_at: string
           teacher_id: string
+          room_no: number | null
           profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
         }>
       | null
@@ -288,6 +292,7 @@ export async function fetchPracticeAttemptDetail(attemptId: string): Promise<Pra
     className: classNames.get(row.student_id) ?? null,
     teacherId: slot?.teacher_id ?? '',
     teacherName: teacher?.name ?? teacher?.email ?? '이름 없음',
+    roomNo: slot?.room_no ?? null,
     practiceType: row.practice_type,
     universityName: resolveUniversityName(booking.university_id),
     problem: {
@@ -333,6 +338,7 @@ type BookingListRow = {
         slot_date: string
         start_time: string
         starts_at: string
+        room_no: number | null
         profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
       }
     | Array<{
@@ -340,6 +346,7 @@ type BookingListRow = {
         slot_date: string
         start_time: string
         starts_at: string
+        room_no: number | null
         profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
       }>
     | null
@@ -359,7 +366,7 @@ const BOOKING_LIST_SELECT = `
   profiles:profiles!practice_bookings_student_id_fkey(id, name, email),
   practice_problems(id, title),
   practice_slots(
-    id, slot_date, start_time, starts_at,
+    id, slot_date, start_time, starts_at, room_no,
     profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)
   ),
   practice_attempts(id, status, opens_at, deadline_at, submitted_at)
@@ -391,6 +398,7 @@ async function mapBookingRows(rows: BookingListRow[]): Promise<PracticeStudentBo
       universityName: resolveUniversityName(row.university_id),
       problemTitle: problem?.title ?? null,
       teacherName: teacher?.name ?? teacher?.email ?? '이름 없음',
+      roomNo: slot?.room_no ?? null,
       slotDate: slot?.slot_date ?? '',
       startTime: slot ? toTimeLabel(slot.start_time) : '',
       startsAt: slot?.starts_at ?? '',

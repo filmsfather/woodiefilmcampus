@@ -78,13 +78,29 @@ export const togglePracticeProblemSchema = z.object({
 
 // 슬롯 -------------------------------------------------------------------------------
 
+export const PRACTICE_ROOM_COUNT = 7
+
+export const practiceSlotBlockTeacherSchema = z.object({
+  teacherId: z.string().uuid(),
+  roomNo: z
+    .number()
+    .int()
+    .min(1, '고사장을 선택해주세요.')
+    .max(PRACTICE_ROOM_COUNT, `고사장은 1~${PRACTICE_ROOM_COUNT}고사장만 선택할 수 있습니다.`),
+  /** 쉬는 시간 시작 시각(HH:MM). 해당 시각 슬롯은 break 상태로 생성된다. */
+  breakTime: timeLabel.optional().nullable(),
+})
+
 export const createPracticeSlotBlockSchema = z
   .object({
     blockDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '날짜를 선택해주세요.'),
     startTime: timeLabel,
     endTime: timeLabel,
     slotMinutes: z.number().int().min(5).max(120).default(15),
-    teacherIds: z.array(z.string().uuid()).min(1, '선생님을 1명 이상 선택해주세요.').max(30),
+    teachers: z
+      .array(practiceSlotBlockTeacherSchema)
+      .min(1, '선생님을 1명 이상 선택해주세요.')
+      .max(PRACTICE_ROOM_COUNT, `고사장이 ${PRACTICE_ROOM_COUNT}개이므로 선생님은 최대 ${PRACTICE_ROOM_COUNT}명까지 선택할 수 있습니다.`),
     /** 자유 예약 공개 시각 (KST 기준 로컬 datetime 문자열, 비우면 자유 예약 불가) */
     freeBookingOpensAt: z.string().trim().max(40).optional().nullable(),
     notes: z.string().trim().max(500).optional().nullable(),
@@ -97,6 +113,34 @@ export const createPracticeSlotBlockSchema = z
         path: ['endTime'],
       })
     }
+
+    const teacherIds = value.teachers.map((teacher) => teacher.teacherId)
+    if (new Set(teacherIds).size !== teacherIds.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '같은 선생님이 중복 선택되었습니다.',
+        path: ['teachers'],
+      })
+    }
+
+    const roomNos = value.teachers.map((teacher) => teacher.roomNo)
+    if (new Set(roomNos).size !== roomNos.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: '같은 고사장에 두 명 이상의 선생님을 배정할 수 없습니다.',
+        path: ['teachers'],
+      })
+    }
+
+    for (const teacher of value.teachers) {
+      if (teacher.breakTime && (teacher.breakTime < value.startTime || teacher.breakTime >= value.endTime)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: '쉬는 시간은 근무 시간 범위 안에서 선택해주세요.',
+          path: ['teachers'],
+        })
+      }
+    }
   })
 
 export const deletePracticeSlotBlockSchema = z.object({
@@ -105,7 +149,7 @@ export const deletePracticeSlotBlockSchema = z.object({
 
 export const updatePracticeSlotStatusSchema = z.object({
   slotId: z.string().uuid(),
-  status: z.enum(['open', 'closed']),
+  status: z.enum(['open', 'closed', 'break']),
 })
 
 export const deletePracticeSlotSchema = z.object({

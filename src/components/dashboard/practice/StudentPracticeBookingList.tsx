@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatKstDateTime, formatKstTime, formatSlotDateLabel } from '@/lib/practice/shared'
+import { formatKstDateTime, formatKstTime, formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
 import {
   PRACTICE_ATTEMPT_STATUS_LABELS,
   PRACTICE_BOOKING_TYPE_LABELS,
@@ -76,7 +76,7 @@ export function StudentPracticeBookingList({
                     </Badge>
                   </div>
                   <p className="text-xs text-slate-500">
-                    {row.universityName} · {row.teacherName} 선생님
+                    {row.universityName} · {formatPracticeRoomLabel(row.roomNo)}
                   </p>
                   {row.opensAt ? (
                     <p className="text-xs text-slate-400">

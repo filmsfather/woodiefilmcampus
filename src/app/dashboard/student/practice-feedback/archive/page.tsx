@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchStudentPracticeBookings } from '@/lib/practice/attempts'
-import { formatKstTime, formatSlotDateLabel } from '@/lib/practice/shared'
+import { formatKstTime, formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
 import { PRACTICE_TYPE_LABELS, type PracticeType } from '@/types/practice'
 
 export const metadata: Metadata = {
@@ -82,7 +82,7 @@ export default async function StudentPracticeArchivePage({
                     {row.hasFeedback ? <Badge>피드백 완료</Badge> : null}
                   </div>
                   <p className="text-xs text-slate-500">
-                    {formatSlotDateLabel(row.slotDate)} {row.startTime} · {row.teacherName} 선생님 ·{' '}
+                    {formatSlotDateLabel(row.slotDate)} {row.startTime} · {formatPracticeRoomLabel(row.roomNo)} ·{' '}
                     {row.problemTitle ?? '문제 없음'}
                   </p>
                   {row.submittedAt ? (
