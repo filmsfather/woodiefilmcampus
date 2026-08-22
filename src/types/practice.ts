@@ -95,8 +95,8 @@ export interface PracticeSlotBlockTeacherSummary {
   name: string
   /** 배정된 고사장 번호(1~7). 과거 데이터는 null일 수 있다. */
   roomNo: number | null
-  /** 쉬는 시간 시작 시각(HH:MM) */
-  breakTime: string | null
+  /** 쉬는 시간 시작 시각(HH:MM) 목록 */
+  breakTimes: string[]
 }
 
 export interface PracticeSlotBlockSummary {

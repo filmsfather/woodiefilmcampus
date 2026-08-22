@@ -110,7 +110,7 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       block_id: blockId,
       teacher_id: teacher.teacherId,
       room_no: teacher.roomNo,
-      break_time: teacher.breakTime ? toPgTime(teacher.breakTime) : null,
+      break_times: teacher.breakTimes.map(toPgTime),
     }))
   )
 
@@ -128,7 +128,7 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       slot_date: input.blockDate,
       start_time: toPgTime(label),
       duration_minutes: input.slotMinutes,
-      status: label === teacher.breakTime ? 'break' : 'open',
+      status: teacher.breakTimes.includes(label) ? 'break' : 'open',
       free_booking_opens_at: freeBookingOpensAt,
       created_by: profile.id,
     }))

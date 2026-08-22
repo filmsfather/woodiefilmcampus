@@ -87,8 +87,8 @@ export const practiceSlotBlockTeacherSchema = z.object({
     .int()
     .min(1, '고사장을 선택해주세요.')
     .max(PRACTICE_ROOM_COUNT, `고사장은 1~${PRACTICE_ROOM_COUNT}고사장만 선택할 수 있습니다.`),
-  /** 쉬는 시간 시작 시각(HH:MM). 해당 시각 슬롯은 break 상태로 생성된다. */
-  breakTime: timeLabel.optional().nullable(),
+  /** 쉬는 시간 시작 시각(HH:MM) 목록. 해당 시각 슬롯들은 break 상태로 생성된다. */
+  breakTimes: z.array(timeLabel).max(60).default([]),
 })
 
 export const createPracticeSlotBlockSchema = z
@@ -133,7 +133,7 @@ export const createPracticeSlotBlockSchema = z
     }
 
     for (const teacher of value.teachers) {
-      if (teacher.breakTime && (teacher.breakTime < value.startTime || teacher.breakTime >= value.endTime)) {
+      if (teacher.breakTimes.some((breakTime) => breakTime < value.startTime || breakTime >= value.endTime)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: '쉬는 시간은 근무 시간 범위 안에서 선택해주세요.',

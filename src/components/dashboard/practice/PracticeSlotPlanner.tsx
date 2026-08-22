@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Trash2, X } from 'lucide-react'
 
 import {
   createPracticeSlotBlockAction,
@@ -24,13 +24,10 @@ const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
 const ROOM_NUMBERS = Array.from({ length: PRACTICE_ROOM_COUNT }, (_, index) => index + 1)
 
-/** shadcn Select는 빈 문자열 value를 허용하지 않아 쉬는 시간 없음을 표현하는 센티널 */
-const NO_BREAK = 'none'
-
 interface TeacherSelection {
   teacherId: string
   roomNo: number
-  breakTime: string | null
+  breakTimes: string[]
 }
 
 interface PracticeSlotPlannerProps {
@@ -78,15 +75,16 @@ export function PracticeSlotPlanner({
     }
   }, [startTime, endTime, slotMinutes])
 
-  // 시간 범위가 바뀌어 선택지에서 사라진 쉬는 시간은 초기화한다.
+  // 시간 범위가 바뀌어 선택지에서 사라진 쉬는 시간은 제거한다.
   useEffect(() => {
     setTeacherSelections((prev) => {
-      if (prev.every((entry) => !entry.breakTime || timeLabelOptions.includes(entry.breakTime))) {
+      if (prev.every((entry) => entry.breakTimes.every((breakTime) => timeLabelOptions.includes(breakTime)))) {
         return prev
       }
-      return prev.map((entry) =>
-        entry.breakTime && !timeLabelOptions.includes(entry.breakTime) ? { ...entry, breakTime: null } : entry
-      )
+      return prev.map((entry) => ({
+        ...entry,
+        breakTimes: entry.breakTimes.filter((breakTime) => timeLabelOptions.includes(breakTime)),
+      }))
     })
   }, [timeLabelOptions])
 
@@ -104,9 +102,10 @@ export function PracticeSlotPlanner({
 
   const estimatedSlotCount = timeLabelOptions.length * teacherSelections.length
 
-  const estimatedBreakCount = teacherSelections.filter(
-    (entry) => entry.breakTime && timeLabelOptions.includes(entry.breakTime)
-  ).length
+  const estimatedBreakCount = teacherSelections.reduce(
+    (sum, entry) => sum + entry.breakTimes.filter((breakTime) => timeLabelOptions.includes(breakTime)).length,
+    0
+  )
 
   const toggleTeacher = (teacherId: string, checked: boolean) => {
     if (!checked) {
@@ -125,7 +124,27 @@ export function PracticeSlotPlanner({
     }
     const usedRooms = new Set(teacherSelections.map((entry) => entry.roomNo))
     const nextRoom = ROOM_NUMBERS.find((room) => !usedRooms.has(room)) ?? 1
-    setTeacherSelections((prev) => [...prev, { teacherId, roomNo: nextRoom, breakTime: null }])
+    setTeacherSelections((prev) => [...prev, { teacherId, roomNo: nextRoom, breakTimes: [] }])
+  }
+
+  const addBreakTime = (teacherId: string, label: string) => {
+    setTeacherSelections((prev) =>
+      prev.map((entry) =>
+        entry.teacherId === teacherId && !entry.breakTimes.includes(label)
+          ? { ...entry, breakTimes: [...entry.breakTimes, label].sort() }
+          : entry
+      )
+    )
+  }
+
+  const removeBreakTime = (teacherId: string, label: string) => {
+    setTeacherSelections((prev) =>
+      prev.map((entry) =>
+        entry.teacherId === teacherId
+          ? { ...entry, breakTimes: entry.breakTimes.filter((breakTime) => breakTime !== label) }
+          : entry
+      )
+    )
   }
 
   const updateSelection = (teacherId: string, patch: Partial<Omit<TeacherSelection, 'teacherId'>>) => {
@@ -378,49 +397,69 @@ export function PracticeSlotPlanner({
                         .filter((entry) => entry.teacherId !== selection.teacherId)
                         .map((entry) => entry.roomNo)
                     )
+                    const remainingBreakOptions = timeLabelOptions.filter(
+                      (label) => !selection.breakTimes.includes(label)
+                    )
                     return (
                       <div
                         key={selection.teacherId}
-                        className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2 last:border-b-0 last:pb-0"
+                        className="space-y-1.5 border-b border-slate-100 pb-2 last:border-b-0 last:pb-0"
                       >
-                        <span className="min-w-[96px] flex-1 truncate text-sm font-medium text-slate-800">
-                          {teacherNameMap.get(selection.teacherId) ?? '이름 없음'}
-                        </span>
-                        <Select
-                          value={String(selection.roomNo)}
-                          onValueChange={(value) => updateSelection(selection.teacherId, { roomNo: Number(value) })}
-                          disabled={isPending}
-                        >
-                          <SelectTrigger className="w-[120px]" size="sm">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {ROOM_NUMBERS.map((room) => (
-                              <SelectItem key={room} value={String(room)} disabled={usedRooms.has(room)}>
-                                {room}고사장
-                              </SelectItem>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="min-w-[96px] flex-1 truncate text-sm font-medium text-slate-800">
+                            {teacherNameMap.get(selection.teacherId) ?? '이름 없음'}
+                          </span>
+                          <Select
+                            value={String(selection.roomNo)}
+                            onValueChange={(value) => updateSelection(selection.teacherId, { roomNo: Number(value) })}
+                            disabled={isPending}
+                          >
+                            <SelectTrigger className="w-[120px]" size="sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {ROOM_NUMBERS.map((room) => (
+                                <SelectItem key={room} value={String(room)} disabled={usedRooms.has(room)}>
+                                  {room}고사장
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value=""
+                            onValueChange={(value) => addBreakTime(selection.teacherId, value)}
+                            disabled={isPending || remainingBreakOptions.length === 0}
+                          >
+                            <SelectTrigger className="w-[150px]" size="sm">
+                              <SelectValue placeholder="쉬는 시간 추가" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {remainingBreakOptions.map((label) => (
+                                <SelectItem key={label} value={label}>
+                                  {label} 쉬기
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {selection.breakTimes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5">
+                            {selection.breakTimes.map((label) => (
+                              <Badge key={label} variant="secondary" className="gap-1 pr-1 font-mono text-[11px]">
+                                {label} 휴식
+                                <button
+                                  type="button"
+                                  disabled={isPending}
+                                  onClick={() => removeBreakTime(selection.teacherId, label)}
+                                  className="rounded-full p-0.5 hover:bg-slate-300/60"
+                                  aria-label={`${label} 쉬는 시간 삭제`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </Badge>
                             ))}
-                          </SelectContent>
-                        </Select>
-                        <Select
-                          value={selection.breakTime ?? NO_BREAK}
-                          onValueChange={(value) =>
-                            updateSelection(selection.teacherId, { breakTime: value === NO_BREAK ? null : value })
-                          }
-                          disabled={isPending}
-                        >
-                          <SelectTrigger className="w-[150px]" size="sm">
-                            <SelectValue placeholder="쉬는 시간" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value={NO_BREAK}>쉬는 시간 없음</SelectItem>
-                            {timeLabelOptions.map((label) => (
-                              <SelectItem key={label} value={label}>
-                                {label} 쉬기
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          </div>
+                        ) : null}
                       </div>
                     )
                   })}
@@ -509,7 +548,7 @@ export function PracticeSlotPlanner({
                               [
                                 teacher.name,
                                 teacher.roomNo ? `${teacher.roomNo}고사장` : null,
-                                teacher.breakTime ? `${teacher.breakTime} 휴식` : null,
+                                teacher.breakTimes.length > 0 ? `${teacher.breakTimes.join('·')} 휴식` : null,
                               ]
                                 .filter(Boolean)
                                 .join(' · ')

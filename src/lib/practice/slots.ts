@@ -243,7 +243,7 @@ export async function fetchPracticeSlotBlocks(
     .from('practice_slot_blocks')
     .select(
       `id, block_date, start_time, end_time, slot_minutes, free_booking_opens_at, notes,
-       practice_slot_block_teachers(teacher_id, room_no, break_time, profiles(id, name, email)),
+       practice_slot_block_teachers(teacher_id, room_no, break_times, profiles(id, name, email)),
        practice_slots(id)`
     )
     .gte('block_date', rangeStart)
@@ -268,7 +268,7 @@ export async function fetchPracticeSlotBlocks(
       | Array<{
           teacher_id: string
           room_no: number | null
-          break_time: string | null
+          break_times: string[] | null
           profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
         }>
       | null
@@ -290,7 +290,7 @@ export async function fetchPracticeSlotBlocks(
           teacherId: entry.teacher_id,
           name: profile?.name ?? profile?.email ?? '이름 없음',
           roomNo: entry.room_no,
-          breakTime: entry.break_time ? toTimeLabel(entry.break_time) : null,
+          breakTimes: (entry.break_times ?? []).map(toTimeLabel).sort(),
         }
       })
       .sort((a, b) => (a.roomNo ?? 99) - (b.roomNo ?? 99)),
