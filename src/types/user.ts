@@ -13,6 +13,7 @@ export interface UserProfile {
   academic_record?: string | null
   photo_url?: string | null
   class_id?: string
+  is_external_teacher?: boolean
   created_at: string
   updated_at: string
 }

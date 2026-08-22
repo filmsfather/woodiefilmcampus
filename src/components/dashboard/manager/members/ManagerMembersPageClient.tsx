@@ -45,6 +45,9 @@ import {
 
 type MemberRole = 'student' | 'teacher' | 'manager' | 'principal'
 
+// 외부쌤은 DB상 role='teacher' + isExternalTeacher=true인 구성원을 의미한다.
+type MemberRoleOption = 'student' | 'teacher' | 'external_teacher'
+
 type ClassSummary = {
   id: string
   name: string
@@ -69,6 +72,7 @@ type ManagerMemberSummary = {
   name: string | null
   email: string
   role: MemberRole
+  isExternalTeacher: boolean
   studentPhone: string | null
   parentPhone: string | null
   academicRecord: string | null
@@ -104,7 +108,7 @@ type EditState = {
   academicRecord: string
 }
 
-type MembersFilter = 'all' | MemberRole | 'unassigned'
+type MembersFilter = 'all' | MemberRole | 'external_teacher' | 'unassigned'
 
 type InactiveStatus = 'withdrawn' | 'graduated'
 
@@ -117,6 +121,7 @@ const roleFilterOptions: Array<{ label: string; value: MembersFilter }> = [
   { label: '전체', value: 'all' },
   { label: '학생', value: 'student' },
   { label: '교사', value: 'teacher' },
+  { label: '외부쌤', value: 'external_teacher' },
   { label: '매니저', value: 'manager' },
   { label: '미배정 학생', value: 'unassigned' },
 ]
@@ -126,6 +131,30 @@ const roleLabelMap: Record<MemberRole, string> = {
   teacher: '교사',
   manager: '매니저',
   principal: '원장',
+}
+
+const roleOptionLabelMap: Record<MemberRoleOption, string> = {
+  student: '학생',
+  teacher: '교사',
+  external_teacher: '외부쌤',
+}
+
+function getEffectiveRole(member: ManagerMemberSummary): MemberRole | 'external_teacher' {
+  return member.role === 'teacher' && member.isExternalTeacher ? 'external_teacher' : member.role
+}
+
+function getMemberRoleLabel(member: ManagerMemberSummary) {
+  return member.isExternalTeacher ? '외부쌤' : roleLabelMap[member.role]
+}
+
+function matchesRoleFilter(member: ManagerMemberSummary, filter: MembersFilter) {
+  if (filter === 'all') {
+    return true
+  }
+  if (filter === 'unassigned') {
+    return member.role === 'student' && member.classAssignments.length === 0
+  }
+  return getEffectiveRole(member) === filter
 }
 
 const inactiveStatusOptions: Array<{ value: InactiveStatus; label: string; description: string }> = [
@@ -229,14 +258,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
     const normalizedSearch = search.trim().toLowerCase()
 
     return members.filter((member) => {
-      const roleMatches =
-        filter === 'all'
-          ? true
-          : filter === 'unassigned'
-            ? member.role === 'student' && member.classAssignments.length === 0
-            : member.role === filter
-
-      if (!roleMatches) {
+      if (!matchesRoleFilter(member, filter)) {
         return false
       }
 
@@ -460,8 +482,8 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
     })
   }
 
-  const handleChangeRole = (member: ManagerMemberSummary, newRole: 'student' | 'teacher') => {
-    if (member.role === newRole) {
+  const handleChangeRole = (member: ManagerMemberSummary, newRole: MemberRoleOption) => {
+    if (getEffectiveRole(member) === newRole) {
       return
     }
 
@@ -481,10 +503,9 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
         return
       }
 
-      const roleLabel = newRole === 'student' ? '학생' : '교사'
       setStatusMessage({
         type: 'success',
-        text: `${member.name ?? member.email} 님의 역할을 ${roleLabel}(으)로 변경했습니다.`,
+        text: `${member.name ?? member.email} 님의 역할을 ${roleOptionLabelMap[newRole]}(으)로 변경했습니다.`,
       })
       router.refresh()
     })
@@ -614,14 +635,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
               {option.label}
               {option.value !== 'all' && (
                 <Badge variant="secondary" className="ml-2 text-xs font-normal">
-                  {(() => {
-                    if (option.value === 'unassigned') {
-                      return members.filter(
-                        (member) => member.role === 'student' && member.classAssignments.length === 0
-                      ).length
-                    }
-                    return members.filter((member) => member.role === option.value).length
-                  })()}
+                  {members.filter((member) => matchesRoleFilter(member, option.value)).length}
                 </Badge>
               )}
             </Button>
@@ -755,7 +769,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                                   </span>
                                 ) : (
                                   <>
-                                    {roleLabelMap[member.role]}
+                                    {getMemberRoleLabel(member)}
                                     <svg
                                       xmlns="http://www.w3.org/2000/svg"
                                       width="12"
@@ -776,24 +790,20 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start">
-                            <DropdownMenuItem
-                              onClick={() => handleChangeRole(member, 'student')}
-                              disabled={member.role === 'student'}
-                              className={member.role === 'student' ? 'bg-slate-100' : ''}
-                            >
-                              학생으로 변경
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleChangeRole(member, 'teacher')}
-                              disabled={member.role === 'teacher'}
-                              className={member.role === 'teacher' ? 'bg-slate-100' : ''}
-                            >
-                              교사로 변경
-                            </DropdownMenuItem>
+                            {(['student', 'teacher', 'external_teacher'] as const).map((option) => (
+                              <DropdownMenuItem
+                                key={option}
+                                onClick={() => handleChangeRole(member, option)}
+                                disabled={getEffectiveRole(member) === option}
+                                className={getEffectiveRole(member) === option ? 'bg-slate-100' : ''}
+                              >
+                                {roleOptionLabelMap[option]}(으)로 변경
+                              </DropdownMenuItem>
+                            ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       ) : (
-                        <Badge variant="outline">{roleLabelMap[member.role]}</Badge>
+                        <Badge variant="outline">{getMemberRoleLabel(member)}</Badge>
                       )}
                     </TableCell>
                     <TableCell>
@@ -926,7 +936,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
             <SheetTitle>반 배정 관리</SheetTitle>
             {assignmentState && (
               <SheetDescription>
-                {assignmentState.target.name ?? assignmentState.target.email} · {roleLabelMap[assignmentState.target.role]}
+                {assignmentState.target.name ?? assignmentState.target.email} · {getMemberRoleLabel(assignmentState.target)}
               </SheetDescription>
             )}
           </SheetHeader>
@@ -1010,7 +1020,7 @@ export function ManagerMembersPageClient({ initialData }: ManagerMembersPageClie
             <SheetTitle>퇴원 · 졸업 처리</SheetTitle>
             {inactiveState && (
               <SheetDescription>
-                {inactiveState.member.name ?? inactiveState.member.email} · {roleLabelMap[inactiveState.member.role]}
+                {inactiveState.member.name ?? inactiveState.member.email} · {getMemberRoleLabel(inactiveState.member)}
               </SheetDescription>
             )}
           </SheetHeader>

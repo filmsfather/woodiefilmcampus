@@ -331,9 +331,10 @@ export async function transitionMemberToInactive(input: TransitionMemberStatusIn
   }
 }
 
+// external_teacher는 DB상 role='teacher' + is_external_teacher=true로 저장된다.
 const updateMemberRoleSchema = z.object({
   memberId: z.string().uuid('사용자 ID가 올바르지 않습니다.'),
-  newRole: z.enum(['student', 'teacher']),
+  newRole: z.enum(['student', 'teacher', 'external_teacher']),
 })
 
 type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>
@@ -358,7 +359,7 @@ export async function updateMemberRole(input: UpdateMemberRoleInput) {
     // 대상 사용자 정보 조회
     const { data: targetProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, role, status')
+      .select('id, role, status, is_external_teacher')
       .eq('id', parsed.data.memberId)
       .maybeSingle()
 
@@ -376,29 +377,41 @@ export async function updateMemberRole(input: UpdateMemberRoleInput) {
       return { error: '매니저나 원장의 역할은 변경할 수 없습니다.' }
     }
 
+    const nextRole = parsed.data.newRole === 'student' ? 'student' : 'teacher'
+    const nextIsExternal = parsed.data.newRole === 'external_teacher'
+    const currentEffectiveRole =
+      targetProfile.role === 'teacher' && targetProfile.is_external_teacher
+        ? 'external_teacher'
+        : targetProfile.role
+
     // 동일 역할로 변경 시도
-    if (targetProfile.role === parsed.data.newRole) {
+    if (currentEffectiveRole === parsed.data.newRole) {
       return { error: '이미 해당 역할입니다.' }
     }
 
-    // 기존 역할에 따라 반 배정 삭제
-    if (targetProfile.role === 'student') {
-      const { error: deleteStudentsError } = await supabase
-        .from('class_students')
-        .delete()
-        .eq('student_id', targetProfile.id)
+    // 학생 ↔ 교사처럼 기본 role이 바뀔 때만 반 배정을 정리한다.
+    // (교사 ↔ 외부쌤 전환은 담당 반을 유지)
+    const baseRoleChanged = targetProfile.role !== nextRole
 
-      if (deleteStudentsError) {
-        console.error('[manager] updateMemberRole delete class_students error', deleteStudentsError)
-      }
-    } else if (targetProfile.role === 'teacher') {
-      const { error: deleteTeachersError } = await supabase
-        .from('class_teachers')
-        .delete()
-        .eq('teacher_id', targetProfile.id)
+    if (baseRoleChanged) {
+      if (targetProfile.role === 'student') {
+        const { error: deleteStudentsError } = await supabase
+          .from('class_students')
+          .delete()
+          .eq('student_id', targetProfile.id)
 
-      if (deleteTeachersError) {
-        console.error('[manager] updateMemberRole delete class_teachers error', deleteTeachersError)
+        if (deleteStudentsError) {
+          console.error('[manager] updateMemberRole delete class_students error', deleteStudentsError)
+        }
+      } else if (targetProfile.role === 'teacher') {
+        const { error: deleteTeachersError } = await supabase
+          .from('class_teachers')
+          .delete()
+          .eq('teacher_id', targetProfile.id)
+
+        if (deleteTeachersError) {
+          console.error('[manager] updateMemberRole delete class_teachers error', deleteTeachersError)
+        }
       }
     }
 
@@ -406,8 +419,9 @@ export async function updateMemberRole(input: UpdateMemberRoleInput) {
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        role: parsed.data.newRole,
-        class_id: null, // 역할 변경 시 대표 반 초기화
+        role: nextRole,
+        is_external_teacher: nextIsExternal,
+        ...(baseRoleChanged ? { class_id: null } : {}), // 기본 role 변경 시 대표 반 초기화
         updated_at: new Date().toISOString(),
       })
       .eq('id', targetProfile.id)

@@ -26,6 +26,7 @@ interface ManagerMemberSummary {
   name: string | null
   email: string
   role: UserRole
+  isExternalTeacher: boolean
   studentPhone: string | null
   parentPhone: string | null
   academicRecord: string | null
@@ -73,7 +74,7 @@ export default async function ManagerMembersPage() {
   const [{ data: profileRows, error: profileError }, { data: classRows, error: classError }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, email, role, name, student_phone, parent_phone, academic_record, photo_url, created_at, updated_at, status')
+      .select('id, email, role, is_external_teacher, name, student_phone, parent_phone, academic_record, photo_url, created_at, updated_at, status')
       .eq('status', 'approved')
       .order('name', { ascending: true, nullsFirst: false })
       .order('created_at', { ascending: true }),
@@ -189,6 +190,7 @@ export default async function ManagerMembersPage() {
       name: row.name ?? null,
       email: row.email,
       role: row.role,
+      isExternalTeacher: row.role === 'teacher' && !!row.is_external_teacher,
       studentPhone: row.student_phone ?? null,
       parentPhone: row.parent_phone ?? null,
       academicRecord: row.academic_record ?? null,

@@ -19,6 +19,7 @@ export interface UserProfile {
   parent_phone?: string | null
   academic_record?: string | null
   class_id?: string
+  is_external_teacher?: boolean
   created_at: string
   updated_at: string
 }

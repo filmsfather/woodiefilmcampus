@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Menu } from 'lucide-react'
 
 import { DashboardSidebar } from '@/components/dashboard/DashboardSidebar'
-import { ROLE_LABELS } from '@/components/dashboard/dashboard-navigation'
+import { EXTERNAL_TEACHER_LABEL, ROLE_LABELS } from '@/components/dashboard/dashboard-navigation'
 import type { UserProfile } from '@/lib/supabase'
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
@@ -21,7 +21,8 @@ interface DashboardShellProps {
 export function DashboardShell({ profile, children }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  const roleLabel = ROLE_LABELS[profile.role]
+  const isExternalTeacher = profile.role === 'teacher' && !!profile.is_external_teacher
+  const roleLabel = isExternalTeacher ? EXTERNAL_TEACHER_LABEL : ROLE_LABELS[profile.role]
 
   // Radix UI의 ID 생성이 서버/클라이언트에서 다르게 되어 hydration mismatch 발생
   // 클라이언트 마운트 후에만 Sheet을 렌더링하여 해결
@@ -36,6 +37,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
         <aside className="hidden w-72 border-r border-slate-200 lg:block print:hidden">
           <DashboardSidebar
             role={profile.role}
+            isExternalTeacher={isExternalTeacher}
             profileName={profile.name}
             email={profile.email}
             className="h-full"
@@ -60,6 +62,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
                       </SheetHeader>
                       <DashboardSidebar
                         role={profile.role}
+                        isExternalTeacher={isExternalTeacher}
                         profileName={profile.name}
                         email={profile.email}
                         onNavigate={() => setMobileNavOpen(false)}

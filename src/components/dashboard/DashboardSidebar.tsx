@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client'
 import { SignOutButton } from '@/components/dashboard/SignOutButton'
 import { ChangePasswordDialog } from '@/components/dashboard/ChangePasswordDialog'
 import {
+  EXTERNAL_TEACHER_LABEL,
   getNavigationSections,
   getSectionsByViewRole,
   ROLE_LABELS,
@@ -22,6 +23,7 @@ import {
 
 interface DashboardSidebarProps {
   role: UserRole
+  isExternalTeacher?: boolean
   profileName?: string | null
   email?: string | null
   onNavigate?: () => void
@@ -32,6 +34,7 @@ const VIEW_AS_ROLES: ViewAsRole[] = ['principal', 'manager', 'teacher', 'student
 
 export function DashboardSidebar({
   role,
+  isExternalTeacher = false,
   profileName,
   email,
   onNavigate,
@@ -40,7 +43,7 @@ export function DashboardSidebar({
   const pathname = usePathname()
   const supabase = createClient()
   const displayName = profileName ?? email ?? '계정'
-  const roleLabel = ROLE_LABELS[role]
+  const roleLabel = role === 'teacher' && isExternalTeacher ? EXTERNAL_TEACHER_LABEL : ROLE_LABELS[role]
 
   // Principal인 경우 탭으로 역할별 메뉴 선택
   const isPrincipal = role === 'principal'
@@ -63,7 +66,7 @@ export function DashboardSidebar({
 
   const sections = isPrincipal
     ? getSectionsByViewRole(viewAs)
-    : getNavigationSections(role)
+    : getNavigationSections(role, isExternalTeacher)
 
   const [hasLinkedSocial, setHasLinkedSocial] = useState<boolean | null>(null)
   const [hasEmailProvider, setHasEmailProvider] = useState(false)

@@ -19,6 +19,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   student: '학생',
 }
 
+export const EXTERNAL_TEACHER_LABEL = '외부쌤'
+
 const principalCoreSections: NavigationSection[] = [
   {
     id: 'principal-home',
@@ -266,6 +268,26 @@ const studentSections: NavigationSection[] = [
   },
 ]
 
+// 외부쌤: role은 teacher지만 사이드바에는 아래 메뉴만 노출한다.
+const externalTeacherSections: NavigationSection[] = [
+  {
+    id: 'external-teacher-practice-feedback',
+    title: '입시 1:1 피드백',
+    items: [
+      { label: '오늘 진행 일정', href: '/dashboard/teacher/practice-feedback/today' },
+      { label: '예약 보드', href: '/dashboard/teacher/practice-feedback/board' },
+    ],
+  },
+  {
+    id: 'external-teacher-work',
+    title: '근무 관리',
+    items: [
+      { label: '근무일지 작성', href: '/dashboard/teacher/work-journal' },
+      { label: '공지사항', href: '/dashboard/teacher/notices' },
+    ],
+  },
+]
+
 const principalExtendedSections: NavigationSection[] = [
   ...principalCoreSections,
   {
@@ -313,7 +335,10 @@ const roleNavigation: Record<UserRole, NavigationSection[]> = {
   student: studentSections,
 }
 
-export function getNavigationSections(role: UserRole): NavigationSection[] {
+export function getNavigationSections(role: UserRole, isExternalTeacher = false): NavigationSection[] {
+  if (role === 'teacher' && isExternalTeacher) {
+    return externalTeacherSections
+  }
   return roleNavigation[role]
 }
 
