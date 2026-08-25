@@ -101,8 +101,6 @@ export const createPracticeSlotBlockSchema = z
       .array(practiceSlotBlockTeacherSchema)
       .min(1, '선생님을 1명 이상 선택해주세요.')
       .max(PRACTICE_ROOM_COUNT, `고사장이 ${PRACTICE_ROOM_COUNT}개이므로 선생님은 최대 ${PRACTICE_ROOM_COUNT}명까지 선택할 수 있습니다.`),
-    /** 자유 예약 공개 시각 (KST 기준 로컬 datetime 문자열, 비우면 자유 예약 불가) */
-    freeBookingOpensAt: z.string().trim().max(40).optional().nullable(),
     notes: z.string().trim().max(500).optional().nullable(),
   })
   .superRefine((value, ctx) => {

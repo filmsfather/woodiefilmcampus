@@ -105,7 +105,10 @@ export interface PracticeSlotBlockSummary {
   startTime: string
   endTime: string
   slotMinutes: number
+  /** 1차 예약 오픈 시각 */
   freeBookingOpensAt: string | null
+  /** 2차 예약 오픈 시각. 이후 일일 한도가 3타임으로 늘어난다. */
+  phase2OpensAt: string | null
   notes: string | null
   teachers: PracticeSlotBlockTeacherSummary[]
   slotCount: number
@@ -142,6 +145,7 @@ export interface PracticeSlotView {
   startsAt: string
   status: PracticeSlotStatus
   freeBookingOpensAt: string | null
+  phase2OpensAt: string | null
   booking: PracticeSlotBooking | null
 }
 
@@ -269,4 +273,6 @@ export interface PracticeFreeSlotOption {
   slotDate: string
   startTime: string
   startsAt: string
+  /** 2차 예약 오픈 시각. 이 시각 전후로 일일 예약 한도가 달라진다. */
+  phase2OpensAt: string | null
 }

@@ -6,7 +6,7 @@ import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   buildSlotTimeLabels,
-  kstLocalInputToUtcIso,
+  getPhaseOpenTimes,
   toPgTime,
 } from '@/lib/practice/shared'
 import {
@@ -74,12 +74,12 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
     return { error: '선택한 시간 범위에 만들 수 있는 슬롯이 없습니다.' }
   }
 
-  const freeBookingOpensAt = input.freeBookingOpensAt
-    ? kstLocalInputToUtcIso(input.freeBookingOpensAt)
-    : null
-
-  if (input.freeBookingOpensAt && !freeBookingOpensAt) {
-    return { error: '자유 예약 공개 시각 형식이 올바르지 않습니다.' }
+  // 오픈 시각은 블록 날짜가 속한 주 기준으로 계산한다. 같은 주 블록은 같은 시각에 함께 열린다.
+  let phaseOpenTimes: { phase1OpensAt: string; phase2OpensAt: string }
+  try {
+    phaseOpenTimes = getPhaseOpenTimes(input.blockDate)
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : '날짜가 올바르지 않습니다.' }
   }
 
   const admin = createAdminClient()
@@ -91,7 +91,8 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       start_time: toPgTime(input.startTime),
       end_time: toPgTime(input.endTime),
       slot_minutes: input.slotMinutes,
-      free_booking_opens_at: freeBookingOpensAt,
+      free_booking_opens_at: phaseOpenTimes.phase1OpensAt,
+      phase2_opens_at: phaseOpenTimes.phase2OpensAt,
       notes: input.notes ?? null,
       created_by: profile.id,
     })
@@ -129,7 +130,8 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       start_time: toPgTime(label),
       duration_minutes: input.slotMinutes,
       status: teacher.breakTimes.includes(label) ? 'break' : 'open',
-      free_booking_opens_at: freeBookingOpensAt,
+      free_booking_opens_at: phaseOpenTimes.phase1OpensAt,
+      phase2_opens_at: phaseOpenTimes.phase2OpensAt,
       created_by: profile.id,
     }))
   )

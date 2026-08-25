@@ -60,7 +60,7 @@ export async function assignPracticeBookingAction(payload: unknown): Promise<Act
   return { success: true, attemptId: result.attemptId }
 }
 
-/** 학생이 공개된 빈 슬롯을 직접 예약한다. 주 1회 쿼터는 DB index가 보장한다. */
+/** 학생이 공개된 빈 슬롯을 직접 예약한다. 단계/일일 한도 판정은 DB 함수가 최종적으로 보장한다. */
 export async function createFreePracticeBookingAction(payload: unknown): Promise<ActionResult> {
   const { profile } = await getAuthContext()
   if (!profile || profile.role !== 'student') {
@@ -88,7 +88,7 @@ export async function createFreePracticeBookingAction(payload: unknown): Promise
   const slotRow = slot as { free_booking_opens_at: string | null; starts_at: string; status: string }
 
   if (!slotRow.free_booking_opens_at || slotRow.free_booking_opens_at > nowIso) {
-    return { error: '아직 자유 예약이 열리지 않은 슬롯입니다.' }
+    return { error: '아직 1차 예약이 열리지 않은 슬롯입니다.' }
   }
   if (slotRow.starts_at <= nowIso) {
     return { error: '이미 지난 시간입니다.' }

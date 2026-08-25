@@ -1,5 +1,4 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getBookingCycle } from '@/lib/practice/shared'
 import type { PracticeBookingType, PracticeType } from '@/types/practice'
 
 export type PracticeBookingErrorCode =
@@ -7,7 +6,8 @@ export type PracticeBookingErrorCode =
   | 'SLOT_UNAVAILABLE'
   | 'SLOT_TAKEN'
   | 'PROBLEM_EXHAUSTED'
-  | 'FREE_QUOTA_EXCEEDED'
+  | 'PHASE_NOT_OPEN'
+  | 'DAILY_QUOTA_EXCEEDED'
   | 'ALREADY_BOOKED'
   | 'BOOKING_NOT_FOUND'
   | 'NOT_CANCELABLE'
@@ -19,7 +19,8 @@ const ERROR_MESSAGES: Record<PracticeBookingErrorCode, string> = {
   SLOT_UNAVAILABLE: '예약할 수 없는 슬롯입니다.',
   SLOT_TAKEN: '방금 다른 예약이 확정된 슬롯입니다. 다른 시간을 선택해주세요.',
   PROBLEM_EXHAUSTED: '이 대학의 문제를 모두 응시했습니다. 선생님께 문제 추가를 요청해주세요.',
-  FREE_QUOTA_EXCEEDED: '이번 주 자유 예약을 이미 사용했습니다.',
+  PHASE_NOT_OPEN: '아직 예약이 열리지 않았습니다.',
+  DAILY_QUOTA_EXCEEDED: '해당 날짜의 예약 가능 횟수를 모두 사용했습니다.',
   ALREADY_BOOKED: '같은 시간에 이미 다른 예약이 있습니다.',
   BOOKING_NOT_FOUND: '예약을 찾을 수 없습니다.',
   NOT_CANCELABLE: '이미 취소되었거나 종료된 예약입니다.',
@@ -34,8 +35,8 @@ export function describePracticeBookingError(code: string): string {
 type RpcResult = { ok: boolean; error?: string; bookingId?: string; attemptId?: string; problemId?: string }
 
 /**
- * 예약 생성. 슬롯 잠금 -> 문제 배정 -> 예약/응시 insert가 DB 함수 안에서 원자적으로 일어난다.
- * booking_cycle은 슬롯 날짜(KST) 기준 ISO 주차로, 자유 예약 주 1회 쿼터의 기준이 된다.
+ * 예약 생성. 슬롯 잠금 -> 단계/일일 한도 확인 -> 문제 배정 -> 예약/응시 insert가
+ * DB 함수 안에서 원자적으로 일어난다. booking_cycle에는 슬롯 날짜(KST)를 기록한다.
  */
 export async function createPracticeBooking(params: {
   slotId: string
@@ -57,7 +58,7 @@ export async function createPracticeBooking(params: {
     return { success: false, error: ERROR_MESSAGES.SLOT_NOT_FOUND }
   }
 
-  const bookingCycle = getBookingCycle((slot as { slot_date: string }).slot_date)
+  const bookingCycle = (slot as { slot_date: string }).slot_date
 
   const { data, error } = await admin.rpc('create_practice_booking', {
     p_slot_id: params.slotId,

@@ -16,7 +16,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { buildCalendarCells, getMonthRange } from '@/lib/counseling'
-import { buildSlotTimeLabels, formatKstDateTime, formatSlotDateLabel } from '@/lib/practice/shared'
+import {
+  buildSlotTimeLabels,
+  formatKstDateTime,
+  formatSlotDateLabel,
+  getPhaseOpenTimes,
+} from '@/lib/practice/shared'
 import { PRACTICE_ROOM_COUNT } from '@/lib/validation/practice'
 import type { PracticeSlotBlockSummary } from '@/types/practice'
 
@@ -55,7 +60,6 @@ export function PracticeSlotPlanner({
   const [endTime, setEndTime] = useState('16:00')
   const [slotMinutes, setSlotMinutes] = useState('15')
   const [teacherSelections, setTeacherSelections] = useState<TeacherSelection[]>([])
-  const [freeBookingOpensAt, setFreeBookingOpensAt] = useState('')
   const [notes, setNotes] = useState('')
 
   const calendarCells = useMemo(() => buildCalendarCells(year, month), [year, month])
@@ -99,6 +103,15 @@ export function PracticeSlotPlanner({
   }, [blocks])
 
   const selectedBlocks = blocksByDate.get(selectedDate) ?? []
+
+  // 오픈 시각은 선택한 날짜가 속한 주 기준으로 자동 계산된다.
+  const phaseOpenTimes = useMemo(() => {
+    try {
+      return getPhaseOpenTimes(selectedDate)
+    } catch {
+      return null
+    }
+  }, [selectedDate])
 
   const estimatedSlotCount = timeLabelOptions.length * teacherSelections.length
 
@@ -180,7 +193,6 @@ export function PracticeSlotPlanner({
         endTime,
         slotMinutes: Number(slotMinutes),
         teachers: teacherSelections,
-        freeBookingOpensAt: freeBookingOpensAt || null,
         notes: notes.trim() || null,
       })
 
@@ -467,32 +479,40 @@ export function PracticeSlotPlanner({
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="practice-block-free">자유 예약 공개 시각</Label>
-                <Input
-                  id="practice-block-free"
-                  type="datetime-local"
-                  value={freeBookingOpensAt}
-                  onChange={(event) => setFreeBookingOpensAt(event.target.value)}
-                  disabled={isPending}
-                />
-                <p className="text-xs text-slate-500">
-                  비워두면 담임 배정만 가능합니다. 예: 전주 금요일 21:00으로 설정하면 그 시각부터 학생이 빈 슬롯을
-                  직접 예약할 수 있습니다.
-                </p>
+            <div className="space-y-2">
+              <Label>학생 예약 오픈 시각</Label>
+              <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                {phaseOpenTimes ? (
+                  <>
+                    <p>
+                      <span className="font-medium text-slate-800">1차</span>{' '}
+                      {formatKstDateTime(phaseOpenTimes.phase1OpensAt)} · 하루 1타임
+                    </p>
+                    <p>
+                      <span className="font-medium text-slate-800">2차</span>{' '}
+                      {formatKstDateTime(phaseOpenTimes.phase2OpensAt)} · 하루 3타임(누적)
+                    </p>
+                    <p className="text-slate-500">
+                      선택한 날짜가 속한 주 기준으로 자동 계산됩니다. 같은 주의 월~금 블록은 같은 시각에 함께
+                      열립니다. 1차 오픈 전에도 선생님 배정은 가능합니다.
+                    </p>
+                  </>
+                ) : (
+                  <p>날짜를 선택하면 오픈 시각이 표시됩니다.</p>
+                )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="practice-block-notes">메모</Label>
-                <Input
-                  id="practice-block-notes"
-                  value={notes}
-                  onChange={(event) => setNotes(event.target.value)}
-                  placeholder="예: 오후 1부"
-                  maxLength={500}
-                  disabled={isPending}
-                />
-              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="practice-block-notes">메모</Label>
+              <Input
+                id="practice-block-notes"
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="예: 오후 1부"
+                maxLength={500}
+                disabled={isPending}
+              />
             </div>
 
             <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
@@ -532,13 +552,18 @@ export function PracticeSlotPlanner({
                       <Badge variant="outline">슬롯 {block.slotCount}개</Badge>
                       {block.freeBookingOpensAt ? (
                         <Badge variant="outline" className="text-emerald-700">
-                          자유 예약 {formatKstDateTime(block.freeBookingOpensAt)}
+                          1차 {formatKstDateTime(block.freeBookingOpensAt)}
                         </Badge>
                       ) : (
                         <Badge variant="outline" className="text-slate-500">
                           담임 배정 전용
                         </Badge>
                       )}
+                      {block.phase2OpensAt ? (
+                        <Badge variant="outline" className="text-emerald-700">
+                          2차 {formatKstDateTime(block.phase2OpensAt)}
+                        </Badge>
+                      ) : null}
                     </div>
                     <p className="text-xs text-slate-500">
                       선생님:{' '}

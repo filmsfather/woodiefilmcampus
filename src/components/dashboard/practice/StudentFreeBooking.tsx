@@ -10,18 +10,41 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
+import {
+  PRACTICE_PHASE2_DAILY_LIMIT,
+  formatKstDateTime,
+  formatPracticeRoomLabel,
+  formatSlotDateLabel,
+  getPracticeDailyLimit,
+  getWeekStartDate,
+} from '@/lib/practice/shared'
 import type { PracticeFreeSlotOption, PracticeType, PracticeUniversityOption } from '@/types/practice'
 
 interface StudentFreeBookingProps {
-  /** 쿼터를 이미 쓴 주의 슬롯은 서버에서 제외하고 넘어온다. */
   slots: PracticeFreeSlotOption[]
   universities: PracticeUniversityOption[]
-  /** 이미 자유 예약을 사용한 주차 라벨 */
-  usedCycleLabels: string[]
+  /** 날짜(YYYY-MM-DD) -> 이미 확보한 예약 수. 담임 배정도 포함된다. */
+  dailyCounts: Record<string, number>
+  /** 서버 기준 현재 시각. SSR/hydration 결과를 맞추기 위해 주입한다. */
+  nowIso: string
 }
 
-export function StudentFreeBooking({ slots, universities, usedCycleLabels }: StudentFreeBookingProps) {
+interface DateGroup {
+  date: string
+  slots: PracticeFreeSlotOption[]
+  used: number
+  remaining: number
+}
+
+interface WeekGroup {
+  weekStart: string
+  phase2OpensAt: string | null
+  limit: number
+  isPhase2: boolean
+  dates: DateGroup[]
+}
+
+export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }: StudentFreeBookingProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -30,15 +53,50 @@ export function StudentFreeBooking({ slots, universities, usedCycleLabels }: Stu
   const [practiceType, setPracticeType] = useState<PracticeType>('writing')
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null)
 
-  const slotsByDate = useMemo(() => {
-    const map = new Map<string, PracticeFreeSlotOption[]>()
+  // 오픈 시각은 주 단위로 정해지므로 주 -> 날짜 -> 슬롯 순으로 묶는다.
+  const weekGroups = useMemo<WeekGroup[]>(() => {
+    const now = new Date(nowIso)
+    const byWeek = new Map<string, Map<string, PracticeFreeSlotOption[]>>()
+
     for (const slot of slots) {
-      const list = map.get(slot.slotDate) ?? []
+      const weekStart = getWeekStartDate(slot.slotDate)
+      const byDate = byWeek.get(weekStart) ?? new Map<string, PracticeFreeSlotOption[]>()
+      const list = byDate.get(slot.slotDate) ?? []
       list.push(slot)
-      map.set(slot.slotDate, list)
+      byDate.set(slot.slotDate, list)
+      byWeek.set(weekStart, byDate)
     }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]))
-  }, [slots])
+
+    return Array.from(byWeek.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([weekStart, byDate]) => {
+        const phase2OpensAt =
+          Array.from(byDate.values())
+            .flat()
+            .find((slot) => slot.phase2OpensAt)?.phase2OpensAt ?? null
+        const limit = getPracticeDailyLimit(phase2OpensAt, now)
+
+        const dates = Array.from(byDate.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([date, dateSlots]) => {
+            const used = dailyCounts[date] ?? 0
+            return {
+              date,
+              slots: [...dateSlots].sort((a, b) => a.startTime.localeCompare(b.startTime)),
+              used,
+              remaining: Math.max(0, limit - used),
+            }
+          })
+
+        return {
+          weekStart,
+          phase2OpensAt,
+          limit,
+          isPhase2: limit >= PRACTICE_PHASE2_DAILY_LIMIT,
+          dates,
+        }
+      })
+  }, [slots, dailyCounts, nowIso])
 
   const availableProblemCount = useMemo(() => {
     const university = universities.find((entry) => entry.id === universityId)
@@ -77,12 +135,6 @@ export function StudentFreeBooking({ slots, universities, usedCycleLabels }: Stu
 
   return (
     <div className="space-y-4">
-      {usedCycleLabels.length > 0 ? (
-        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {usedCycleLabels.join(', ')} 주차는 자유 예약을 이미 사용해 목록에서 제외했습니다.
-        </div>
-      ) : null}
-
       {feedback ? (
         <div
           className={[
@@ -146,48 +198,84 @@ export function StudentFreeBooking({ slots, universities, usedCycleLabels }: Stu
         <CardHeader className="pb-3">
           <CardTitle className="text-base text-slate-900">예약 가능한 시간</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {slotsByDate.length === 0 ? (
+        <CardContent className="space-y-6">
+          {weekGroups.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">
-              지금 예약할 수 있는 빈 슬롯이 없습니다. 자유 예약 공개 시각 이후에 다시 확인해주세요.
+              지금 예약할 수 있는 빈 슬롯이 없습니다. 1차 예약 오픈 시각 이후에 다시 확인해주세요.
             </p>
           ) : (
-            slotsByDate.map(([date, dateSlots]) => (
-              <div key={date} className="space-y-2">
-                <p className="text-sm font-medium text-slate-700">{formatSlotDateLabel(date)}</p>
-                <div className="flex flex-wrap gap-2">
-                  {dateSlots.map((slot) => {
-                    const isSelected = selectedSlotId === slot.id
-                    return (
-                      <button
-                        key={slot.id}
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => setSelectedSlotId(slot.id)}
-                        className={[
-                          'flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition',
-                          isSelected
-                            ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
-                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
-                        ].join(' ')}
-                      >
-                        <span className="font-mono">{slot.startTime}</span>
-                        <span className="text-xs text-slate-500">{formatPracticeRoomLabel(slot.roomNo)}</span>
-                      </button>
-                    )
-                  })}
+            weekGroups.map((week) => (
+              <div key={week.weekStart} className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+                  <Badge variant={week.isPhase2 ? 'default' : 'secondary'}>
+                    {week.isPhase2 ? '2차' : '1차'} 예약 · 하루 {week.limit}타임
+                  </Badge>
+                  <span className="text-sm font-medium text-slate-700">
+                    {formatSlotDateLabel(week.dates[0]?.date ?? week.weekStart)} 주
+                  </span>
+                  {!week.isPhase2 && week.phase2OpensAt ? (
+                    <span className="text-xs text-slate-500">
+                      2차 오픈 {formatKstDateTime(week.phase2OpensAt)} · 이후 하루{' '}
+                      {PRACTICE_PHASE2_DAILY_LIMIT}타임까지
+                    </span>
+                  ) : null}
                 </div>
+
+                {week.dates.map((group) => {
+                  const isFull = group.remaining === 0
+                  return (
+                    <div key={group.date} className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-slate-700">{formatSlotDateLabel(group.date)}</p>
+                        {isFull ? (
+                          <Badge variant="outline" className="text-amber-700">
+                            예약 {group.used}/{week.limit} · 한도 도달
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-slate-500">
+                            예약 {group.used}/{week.limit} · {group.remaining}타임 가능
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {group.slots.map((slot) => {
+                          const isSelected = selectedSlotId === slot.id
+                          return (
+                            <button
+                              key={slot.id}
+                              type="button"
+                              disabled={isPending || isFull}
+                              onClick={() => setSelectedSlotId(slot.id)}
+                              className={[
+                                'flex flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition',
+                                isFull
+                                  ? 'cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400'
+                                  : isSelected
+                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
+                                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300',
+                              ].join(' ')}
+                            >
+                              <span className="font-mono">{slot.startTime}</span>
+                              <span className="text-xs text-slate-500">
+                                {formatPracticeRoomLabel(slot.roomNo)}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             ))
           )}
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-        <div className="flex items-center gap-2 text-sm text-slate-600">
-          <Badge variant="outline">주 1회</Badge>
-          <span>자유 예약은 한 주에 한 번만 가능합니다.</span>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+        <p className="text-sm text-slate-600">
+          선착순이며, 하루 한도는 담임 선생님이 배정한 예약까지 함께 계산됩니다.
+        </p>
         <Button
           type="button"
           disabled={isPending || !selectedSlotId || !universityId || availableProblemCount === 0}

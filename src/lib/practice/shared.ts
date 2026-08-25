@@ -138,54 +138,59 @@ export function kstToUtc(dateIso: string, timeLabel: string): Date {
   return new Date(base + (minutes - KST_OFFSET_MINUTES) * 60_000)
 }
 
-/** datetime-local 입력값("2026-08-07T21:00")을 KST로 해석해 UTC ISO로 변환 */
-export function kstLocalInputToUtcIso(value: string): string | null {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-  const match = trimmed.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/)
-  if (!match) {
-    return null
-  }
-  return kstToUtc(match[1], match[2]).toISOString()
+// 예약 단계 -------------------------------------------------------------------------
+// 오픈 시각은 슬롯이 속한 주 단위로 정해진다. 같은 주의 월~금 슬롯은 같은 시각에 함께 열린다.
+//   1차: 2주 전 금요일 20:00 KST - 하루 1타임
+//   2차: 직전주 금요일 20:00 KST - 하루 3타임(누적)
+
+export const PRACTICE_PHASE_OPEN_TIME = '20:00'
+export const PRACTICE_PHASE1_DAILY_LIMIT = 1
+export const PRACTICE_PHASE2_DAILY_LIMIT = 3
+
+const DAY_MS = 86_400_000
+
+/** 슬롯 날짜가 속한 주의 월요일 날짜(YYYY-MM-DD). 주 단위 그룹핑 키로 쓴다. */
+export function getWeekStartDate(dateIso: string): string {
+  return getWeekMonday(dateIso).toISOString().slice(0, 10)
 }
 
-/** UTC ISO를 datetime-local 입력값(KST)으로 되돌린다 */
-export function utcIsoToKstLocalInput(value: string | null): string {
-  if (!value) {
-    return ''
-  }
-  const parsed = Date.parse(value)
-  if (Number.isNaN(parsed)) {
-    return ''
-  }
-  const shifted = new Date(parsed + KST_OFFSET_MINUTES * 60_000)
-  return shifted.toISOString().slice(0, 16)
-}
-
-/**
- * 자유 예약 쿼터 기준 주차 라벨. ISO 8601 주차(월요일 시작)를 쓴다.
- * 슬롯 날짜(KST) 기준이므로 "이번 주에 자유 예약 1회"가 직관적으로 맞는다.
- */
-export function getBookingCycle(dateIso: string): string {
+/** 슬롯 날짜가 속한 주의 월요일(KST 달력 기준) */
+function getWeekMonday(dateIso: string): Date {
   const date = new Date(`${dateIso}T00:00:00Z`)
   if (Number.isNaN(date.getTime())) {
     throw new Error('잘못된 날짜 형식입니다.')
   }
+  const dayOffset = (date.getUTCDay() + 6) % 7
+  return new Date(date.getTime() - dayOffset * DAY_MS)
+}
 
-  // ISO 주차: 목요일이 속한 해가 그 주의 연도
-  const target = new Date(date.getTime())
-  const dayOfWeek = (target.getUTCDay() + 6) % 7
-  target.setUTCDate(target.getUTCDate() - dayOfWeek + 3)
+/** 슬롯 날짜 -> 1차/2차 예약 오픈 시각(UTC ISO) */
+export function getPhaseOpenTimes(dateIso: string): { phase1OpensAt: string; phase2OpensAt: string } {
+  const monday = getWeekMonday(dateIso)
+  const toDateIso = (value: Date) => value.toISOString().slice(0, 10)
 
-  const isoYear = target.getUTCFullYear()
-  const firstThursday = new Date(Date.UTC(isoYear, 0, 4))
-  const firstDayOfWeek = (firstThursday.getUTCDay() + 6) % 7
-  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstDayOfWeek + 3)
+  return {
+    phase1OpensAt: kstToUtc(
+      toDateIso(new Date(monday.getTime() - 10 * DAY_MS)),
+      PRACTICE_PHASE_OPEN_TIME
+    ).toISOString(),
+    phase2OpensAt: kstToUtc(
+      toDateIso(new Date(monday.getTime() - 3 * DAY_MS)),
+      PRACTICE_PHASE_OPEN_TIME
+    ).toISOString(),
+  }
+}
 
-  const week = 1 + Math.round((target.getTime() - firstThursday.getTime()) / (7 * 86_400_000))
-  return `${isoYear}-W${week.toString().padStart(2, '0')}`
+/** 2차 오픈 전이면 하루 1타임, 이후면 하루 3타임(누적) */
+export function getPracticeDailyLimit(phase2OpensAt: string | null | undefined, now: Date = new Date()): number {
+  if (!phase2OpensAt) {
+    return PRACTICE_PHASE1_DAILY_LIMIT
+  }
+  const parsed = Date.parse(phase2OpensAt)
+  if (Number.isNaN(parsed)) {
+    return PRACTICE_PHASE1_DAILY_LIMIT
+  }
+  return parsed <= now.getTime() ? PRACTICE_PHASE2_DAILY_LIMIT : PRACTICE_PHASE1_DAILY_LIMIT
 }
 
 export function formatKstDateTime(value: string | null | undefined): string {
