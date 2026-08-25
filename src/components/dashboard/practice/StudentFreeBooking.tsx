@@ -18,7 +18,12 @@ import {
   getPracticeDailyLimit,
   getWeekStartDate,
 } from '@/lib/practice/shared'
-import type { PracticeFreeSlotOption, PracticeType, PracticeUniversityOption } from '@/types/practice'
+import {
+  PRACTICE_TYPE_LABELS,
+  type PracticeFreeSlotOption,
+  type PracticeType,
+  type PracticeUniversityOption,
+} from '@/types/practice'
 
 interface StudentFreeBookingProps {
   slots: PracticeFreeSlotOption[]
@@ -27,6 +32,14 @@ interface StudentFreeBookingProps {
   dailyCounts: Record<string, number>
   /** 서버 기준 현재 시각. SSR/hydration 결과를 맞추기 위해 주입한다. */
   nowIso: string
+}
+
+/** 대학마다 문제가 준비된 유형이 정해져 있어, 대학+유형을 한 항목으로 합쳐 고른다. */
+interface TargetOption {
+  key: string
+  universityId: string
+  practiceType: PracticeType
+  label: string
 }
 
 interface DateGroup {
@@ -50,9 +63,35 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  const [universityId, setUniversityId] = useState('')
-  const [practiceType, setPracticeType] = useState<PracticeType>('writing')
+  const [targetKey, setTargetKey] = useState('')
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null)
+
+  const targetOptions = useMemo<TargetOption[]>(
+    () =>
+      universities.flatMap((university) =>
+        (['writing', 'interview'] as PracticeType[])
+          .filter((type) =>
+            type === 'writing' ? university.writingProblemCount > 0 : university.interviewProblemCount > 0
+          )
+          .map((type) => ({
+            key: `${university.id}:${type}`,
+            universityId: university.id,
+            practiceType: type,
+            label: `${university.name} · ${PRACTICE_TYPE_LABELS[type]}`,
+          }))
+      ),
+    [universities]
+  )
+
+  const target = useMemo(
+    () => targetOptions.find((option) => option.key === targetKey) ?? null,
+    [targetOptions, targetKey]
+  )
+
+  const selectedSlot = useMemo(
+    () => slots.find((slot) => slot.id === selectedSlotId) ?? null,
+    [slots, selectedSlotId]
+  )
 
   // 오픈 시각은 주 단위로 정해지므로 주 -> 날짜 -> 슬롯 순으로 묶는다.
   const weekGroups = useMemo<WeekGroup[]>(() => {
@@ -99,18 +138,12 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
       })
   }, [slots, dailyCounts, nowIso])
 
-  const availableProblemCount = useMemo(() => {
-    const university = universities.find((entry) => entry.id === universityId)
-    if (!university) return null
-    return practiceType === 'writing' ? university.writingProblemCount : university.interviewProblemCount
-  }, [universities, universityId, practiceType])
-
   const handleBook = () => {
     if (!selectedSlotId) {
       setFeedback({ type: 'error', message: '시간을 선택해주세요.' })
       return
     }
-    if (!universityId) {
+    if (!target) {
       setFeedback({ type: 'error', message: '대학을 선택해주세요.' })
       return
     }
@@ -119,8 +152,8 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
     startTransition(async () => {
       const result = await createFreePracticeBookingAction({
         slotId: selectedSlotId,
-        universityId,
-        practiceType,
+        universityId: target.universityId,
+        practiceType: target.practiceType,
       })
 
       if (result.error) {
@@ -153,45 +186,25 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
         <CardHeader className="pb-3">
           <CardTitle className="text-base text-slate-900">어떤 모의실기를 볼까요?</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>대학</Label>
-            <Select value={universityId} onValueChange={setUniversityId} disabled={isPending}>
-              <SelectTrigger>
-                <SelectValue placeholder="대학을 선택하세요" />
-              </SelectTrigger>
-              <SelectContent>
-                {universities.map((university) => (
-                  <SelectItem key={university.id} value={university.id}>
-                    {university.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>유형</Label>
-            <Select
-              value={practiceType}
-              onValueChange={(value) => setPracticeType(value as PracticeType)}
-              disabled={isPending}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="writing">작법형 (원고지 손글씨 제출)</SelectItem>
-                <SelectItem value="interview">면접형 (타자 답안 + 면접)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {availableProblemCount !== null ? (
-            <p className={availableProblemCount === 0 ? 'text-xs text-red-600' : 'text-xs text-slate-500'}>
-              {availableProblemCount === 0
-                ? '이 대학/유형에 준비된 문제가 없습니다. 다른 대학을 선택해주세요.'
-                : '문제는 예약 시 자동으로 배정됩니다. 예약 시각에서 제한시간을 뺀 시점부터 문제를 볼 수 있습니다.'}
-            </p>
-          ) : null}
+        <CardContent className="space-y-2">
+          <Label htmlFor="practice-target">대학</Label>
+          <Select value={targetKey} onValueChange={setTargetKey} disabled={isPending}>
+            <SelectTrigger id="practice-target" className="w-full sm:w-72">
+              <SelectValue placeholder="대학을 선택하세요" />
+            </SelectTrigger>
+            <SelectContent>
+              {targetOptions.map((option) => (
+                <SelectItem key={option.key} value={option.key}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-slate-500">
+            {target
+              ? '문제는 예약 시 자동으로 배정됩니다. 예약 시각에서 제한시간을 뺀 시점부터 문제를 볼 수 있습니다.'
+              : '대학마다 준비된 실기 유형이 정해져 있어, 대학을 고르면 유형도 함께 정해집니다.'}
+          </p>
         </CardContent>
       </Card>
 
@@ -279,14 +292,15 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-        <p className="text-sm text-slate-600">
-          선착순이며, 하루 한도는 담임 선생님이 배정한 예약까지 함께 계산됩니다.
-        </p>
-        <Button
-          type="button"
-          disabled={isPending || !selectedSlotId || !universityId || availableProblemCount === 0}
-          onClick={handleBook}
-        >
+        {target && selectedSlot ? (
+          <p className="text-sm text-slate-700">
+            <span className="font-medium">{target.label}</span> · {formatSlotDateLabel(selectedSlot.slotDate)}{' '}
+            {selectedSlot.startTime} · {formatPracticeRoomLabel(selectedSlot.roomNo)}
+          </p>
+        ) : (
+          <p className="text-sm text-slate-500">대학과 시간을 모두 선택하면 예약할 수 있습니다.</p>
+        )}
+        <Button type="button" disabled={isPending || !selectedSlotId || !target} onClick={handleBook}>
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           예약하기
         </Button>

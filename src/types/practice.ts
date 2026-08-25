@@ -268,6 +268,15 @@ export interface PracticeStudentHistory {
 }
 
 /** 학생 자유 예약 화면의 빈 슬롯 */
+/** 다음으로 열리는 학생 자유 예약 창 (카운트다운용) */
+export interface PracticeBookingOpening {
+  /** 1차 = 2주 전 금요일, 2차 = 직전주 금요일 */
+  phase: 1 | 2
+  opensAt: string
+  /** 오픈 대상이 되는 주의 슬롯 날짜 */
+  slotDate: string
+}
+
 export interface PracticeFreeSlotOption {
   id: string
   teacherId: string

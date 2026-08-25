@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { buildDayTimeline, resolveUniversityName, toTimeLabel } from '@/lib/practice/shared'
 import type {
   PracticeAttemptStatus,
+  PracticeBookingOpening,
   PracticeBookingStatus,
   PracticeBookingType,
   PracticeDayBoard,
@@ -405,6 +406,51 @@ export async function fetchHomeroomStudentIds(teacherId: string): Promise<Set<st
   }
 
   return result
+}
+
+/**
+ * 아직 열리지 않은 예약 창 중 가장 이른 것.
+ * 1차(free_booking_opens_at)와 2차(phase2_opens_at)를 모두 후보로 두고 더 가까운 쪽을 고른다.
+ */
+export async function fetchNextPracticeBookingOpening(): Promise<PracticeBookingOpening | null> {
+  const admin = createAdminClient()
+  const nowIso = new Date().toISOString()
+
+  const pickEarliest = async (column: 'free_booking_opens_at' | 'phase2_opens_at') => {
+    const { data, error } = await admin
+      .from('practice_slots')
+      .select(`slot_date, ${column}`)
+      .eq('status', 'open')
+      .gt(column, nowIso)
+      .gt('starts_at', nowIso)
+      .order(column, { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (error) {
+      console.error('[practice] failed to fetch next opening', error)
+      return null
+    }
+
+    const row = data as unknown as Record<string, string | null> | null
+    const opensAt = row?.[column]
+    return row?.slot_date && opensAt ? { slotDate: row.slot_date, opensAt } : null
+  }
+
+  const [phase1, phase2] = await Promise.all([
+    pickEarliest('free_booking_opens_at'),
+    pickEarliest('phase2_opens_at'),
+  ])
+
+  const candidates: PracticeBookingOpening[] = []
+  if (phase1) {
+    candidates.push({ phase: 1, ...phase1 })
+  }
+  if (phase2) {
+    candidates.push({ phase: 2, ...phase2 })
+  }
+
+  return candidates.sort((a, b) => a.opensAt.localeCompare(b.opensAt))[0] ?? null
 }
 
 /** 학생 자유 예약 화면에 보여줄 빈 슬롯 */
