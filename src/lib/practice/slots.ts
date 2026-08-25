@@ -64,6 +64,7 @@ type SlotRow = {
   status: PracticeSlotStatus
   free_booking_opens_at: string | null
   phase2_opens_at: string | null
+  booking_closes_at: string | null
   profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
 }
 
@@ -184,7 +185,7 @@ export async function fetchPracticeDayBoard(
     .from('practice_slots')
     .select(
       `id, teacher_id, room_no, slot_date, start_time, duration_minutes, starts_at, status,
-       free_booking_opens_at, phase2_opens_at,
+       free_booking_opens_at, phase2_opens_at, booking_closes_at,
        profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)`
     )
     .eq('slot_date', slotDate)
@@ -222,6 +223,7 @@ export async function fetchPracticeDayBoard(
       status: row.status,
       freeBookingOpensAt: row.free_booking_opens_at,
       phase2OpensAt: row.phase2_opens_at,
+      bookingClosesAt: row.booking_closes_at,
       booking: bookings.get(row.id) ?? null,
     }
   })
@@ -245,7 +247,8 @@ export async function fetchPracticeSlotBlocks(
   const { data, error } = await admin
     .from('practice_slot_blocks')
     .select(
-      `id, block_date, start_time, end_time, slot_minutes, free_booking_opens_at, phase2_opens_at, notes,
+      `id, block_date, start_time, end_time, slot_minutes,
+       free_booking_opens_at, phase2_opens_at, booking_closes_at, notes,
        practice_slot_block_teachers(teacher_id, room_no, break_times, profiles(id, name, email)),
        practice_slots(id)`
     )
@@ -267,6 +270,7 @@ export async function fetchPracticeSlotBlocks(
     slot_minutes: number
     free_booking_opens_at: string | null
     phase2_opens_at: string | null
+    booking_closes_at: string | null
     notes: string | null
     practice_slot_block_teachers:
       | Array<{
@@ -287,6 +291,7 @@ export async function fetchPracticeSlotBlocks(
     slotMinutes: row.slot_minutes,
     freeBookingOpensAt: row.free_booking_opens_at,
     phase2OpensAt: row.phase2_opens_at,
+    bookingClosesAt: row.booking_closes_at,
     notes: row.notes,
     teachers: (row.practice_slot_block_teachers ?? [])
       .map((entry) => {
@@ -411,13 +416,15 @@ export async function fetchFreeBookableSlots(): Promise<PracticeFreeSlotOption[]
     .from('practice_slots')
     .select(
       `id, teacher_id, room_no, slot_date, start_time, starts_at, status,
-       free_booking_opens_at, phase2_opens_at,
+       free_booking_opens_at, phase2_opens_at, booking_closes_at,
        profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)`
     )
     .eq('status', 'open')
     .not('free_booking_opens_at', 'is', null)
     .lte('free_booking_opens_at', nowIso)
     .gt('starts_at', nowIso)
+    // 마감된 주는 학생이 더 이상 예약할 수 없다.
+    .or(`booking_closes_at.is.null,booking_closes_at.gt.${nowIso}`)
     .order('starts_at', { ascending: true })
     .limit(500)
 
@@ -437,6 +444,7 @@ export async function fetchFreeBookableSlots(): Promise<PracticeFreeSlotOption[]
       startTime: toTimeLabel(row.start_time),
       startsAt: row.starts_at,
       phase2OpensAt: row.phase2_opens_at,
+      bookingClosesAt: row.booking_closes_at,
     }
   })
 }

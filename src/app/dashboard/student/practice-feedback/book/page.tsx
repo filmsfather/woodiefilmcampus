@@ -64,9 +64,10 @@ export default async function StudentPracticeBookPage() {
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold text-slate-900">모의실기 자유 예약</h1>
           <p className="text-sm text-slate-600">
-            1차 예약은 2주 전 금요일 저녁 8시에, 2차 예약은 직전주 금요일 저녁 8시에 열립니다. 1차에는 하루{' '}
-            {PRACTICE_PHASE1_DAILY_LIMIT}타임, 2차부터는 하루 {PRACTICE_PHASE2_DAILY_LIMIT}타임까지 선착순으로
-            예약할 수 있습니다. 대학과 유형을 고르면 아직 풀지 않은 문제가 자동으로 배정됩니다.
+            1차 예약은 2주 전 금요일 저녁 8시에, 2차 예약은 직전주 금요일 저녁 8시에 열리고, 직전 일요일 자정에
+            마감됩니다. 1차에는 하루 {PRACTICE_PHASE1_DAILY_LIMIT}타임, 2차부터는 하루{' '}
+            {PRACTICE_PHASE2_DAILY_LIMIT}타임까지 선착순으로 예약할 수 있습니다. 마감 후 변경이 필요하면 선생님께
+            문의해주세요. 대학과 유형을 고르면 아직 풀지 않은 문제가 자동으로 배정됩니다.
           </p>
         </div>
       </div>

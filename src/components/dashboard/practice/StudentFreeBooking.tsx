@@ -39,6 +39,7 @@ interface DateGroup {
 interface WeekGroup {
   weekStart: string
   phase2OpensAt: string | null
+  closesAt: string | null
   limit: number
   isPhase2: boolean
   dates: DateGroup[]
@@ -70,10 +71,9 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
     return Array.from(byWeek.entries())
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([weekStart, byDate]) => {
-        const phase2OpensAt =
-          Array.from(byDate.values())
-            .flat()
-            .find((slot) => slot.phase2OpensAt)?.phase2OpensAt ?? null
+        const weekSlots = Array.from(byDate.values()).flat()
+        const phase2OpensAt = weekSlots.find((slot) => slot.phase2OpensAt)?.phase2OpensAt ?? null
+        const closesAt = weekSlots.find((slot) => slot.bookingClosesAt)?.bookingClosesAt ?? null
         const limit = getPracticeDailyLimit(phase2OpensAt, now)
 
         const dates = Array.from(byDate.entries())
@@ -91,6 +91,7 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
         return {
           weekStart,
           phase2OpensAt,
+          closesAt,
           limit,
           isPhase2: limit >= PRACTICE_PHASE2_DAILY_LIMIT,
           dates,
@@ -217,6 +218,11 @@ export function StudentFreeBooking({ slots, universities, dailyCounts, nowIso }:
                     <span className="text-xs text-slate-500">
                       2차 오픈 {formatKstDateTime(week.phase2OpensAt)} · 이후 하루{' '}
                       {PRACTICE_PHASE2_DAILY_LIMIT}타임까지
+                    </span>
+                  ) : null}
+                  {week.closesAt ? (
+                    <span className="text-xs text-amber-700">
+                      예약 마감 {formatKstDateTime(week.closesAt)}
                     </span>
                   ) : null}
                 </div>

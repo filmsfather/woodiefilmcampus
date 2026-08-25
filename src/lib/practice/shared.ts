@@ -138,12 +138,14 @@ export function kstToUtc(dateIso: string, timeLabel: string): Date {
   return new Date(base + (minutes - KST_OFFSET_MINUTES) * 60_000)
 }
 
-// 예약 단계 -------------------------------------------------------------------------
-// 오픈 시각은 슬롯이 속한 주 단위로 정해진다. 같은 주의 월~금 슬롯은 같은 시각에 함께 열린다.
-//   1차: 2주 전 금요일 20:00 KST - 하루 1타임
-//   2차: 직전주 금요일 20:00 KST - 하루 3타임(누적)
+// 예약 창 -----------------------------------------------------------------------------
+// 예약 창은 슬롯이 속한 주 단위로 정해진다. 같은 주의 슬롯은 같은 시각에 함께 열리고 닫힌다.
+//   1차: 2주 전 금요일 20:00 ~ 직전주 금요일 20:00 - 하루 1타임
+//   2차: 직전주 금요일 20:00 ~ 슬롯 주 월요일 00:00 - 하루 3타임(누적)
+// 마감(= 직전 일요일 자정) 이후에는 학생이 직접 예약/취소할 수 없고 교직원 배정만 가능하다.
 
 export const PRACTICE_PHASE_OPEN_TIME = '20:00'
+export const PRACTICE_BOOKING_CLOSE_TIME = '00:00'
 export const PRACTICE_PHASE1_DAILY_LIMIT = 1
 export const PRACTICE_PHASE2_DAILY_LIMIT = 3
 
@@ -164,10 +166,18 @@ function getWeekMonday(dateIso: string): Date {
   return new Date(date.getTime() - dayOffset * DAY_MS)
 }
 
-/** 슬롯 날짜 -> 1차/2차 예약 오픈 시각(UTC ISO) */
-export function getPhaseOpenTimes(dateIso: string): { phase1OpensAt: string; phase2OpensAt: string } {
+export interface PracticeBookingWindow {
+  phase1OpensAt: string
+  phase2OpensAt: string
+  /** 학생 자유 예약 마감. 슬롯 주 월요일 00:00 KST = 직전 일요일 자정 */
+  closesAt: string
+}
+
+/** 슬롯 날짜 -> 학생 자유 예약 창(1차/2차 오픈 + 마감) UTC ISO */
+export function getPracticeBookingWindow(dateIso: string): PracticeBookingWindow {
   const monday = getWeekMonday(dateIso)
   const toDateIso = (value: Date) => value.toISOString().slice(0, 10)
+  const mondayIso = toDateIso(monday)
 
   return {
     phase1OpensAt: kstToUtc(
@@ -178,7 +188,23 @@ export function getPhaseOpenTimes(dateIso: string): { phase1OpensAt: string; pha
       toDateIso(new Date(monday.getTime() - 3 * DAY_MS)),
       PRACTICE_PHASE_OPEN_TIME
     ).toISOString(),
+    closesAt: kstToUtc(mondayIso, PRACTICE_BOOKING_CLOSE_TIME).toISOString(),
   }
+}
+
+/** 학생이 직접 예약/취소할 수 있는 기간이 지났는지 */
+export function isPracticeBookingClosed(
+  closesAt: string | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!closesAt) {
+    return false
+  }
+  const parsed = Date.parse(closesAt)
+  if (Number.isNaN(parsed)) {
+    return false
+  }
+  return parsed <= now.getTime()
 }
 
 /** 2차 오픈 전이면 하루 1타임, 이후면 하루 3타임(누적) */

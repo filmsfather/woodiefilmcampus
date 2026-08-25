@@ -6,9 +6,10 @@ import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   buildSlotTimeLabels,
-  getPhaseOpenTimes,
+  getPracticeBookingWindow,
   toPgTime,
 } from '@/lib/practice/shared'
+import type { PracticeBookingWindow } from '@/lib/practice/shared'
 import {
   createPracticeSlotBlockSchema,
   deletePracticeSlotBlockSchema,
@@ -74,10 +75,10 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
     return { error: '선택한 시간 범위에 만들 수 있는 슬롯이 없습니다.' }
   }
 
-  // 오픈 시각은 블록 날짜가 속한 주 기준으로 계산한다. 같은 주 블록은 같은 시각에 함께 열린다.
-  let phaseOpenTimes: { phase1OpensAt: string; phase2OpensAt: string }
+  // 예약 창은 블록 날짜가 속한 주 기준으로 계산한다. 같은 주 블록은 함께 열리고 함께 닫힌다.
+  let bookingWindow: PracticeBookingWindow
   try {
-    phaseOpenTimes = getPhaseOpenTimes(input.blockDate)
+    bookingWindow = getPracticeBookingWindow(input.blockDate)
   } catch (error) {
     return { error: error instanceof Error ? error.message : '날짜가 올바르지 않습니다.' }
   }
@@ -91,8 +92,9 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       start_time: toPgTime(input.startTime),
       end_time: toPgTime(input.endTime),
       slot_minutes: input.slotMinutes,
-      free_booking_opens_at: phaseOpenTimes.phase1OpensAt,
-      phase2_opens_at: phaseOpenTimes.phase2OpensAt,
+      free_booking_opens_at: bookingWindow.phase1OpensAt,
+      phase2_opens_at: bookingWindow.phase2OpensAt,
+      booking_closes_at: bookingWindow.closesAt,
       notes: input.notes ?? null,
       created_by: profile.id,
     })
@@ -130,8 +132,9 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       start_time: toPgTime(label),
       duration_minutes: input.slotMinutes,
       status: teacher.breakTimes.includes(label) ? 'break' : 'open',
-      free_booking_opens_at: phaseOpenTimes.phase1OpensAt,
-      phase2_opens_at: phaseOpenTimes.phase2OpensAt,
+      free_booking_opens_at: bookingWindow.phase1OpensAt,
+      phase2_opens_at: bookingWindow.phase2OpensAt,
+      booking_closes_at: bookingWindow.closesAt,
       created_by: profile.id,
     }))
   )

@@ -20,7 +20,7 @@ import {
   buildSlotTimeLabels,
   formatKstDateTime,
   formatSlotDateLabel,
-  getPhaseOpenTimes,
+  getPracticeBookingWindow,
 } from '@/lib/practice/shared'
 import { PRACTICE_ROOM_COUNT } from '@/lib/validation/practice'
 import type { PracticeSlotBlockSummary } from '@/types/practice'
@@ -104,10 +104,10 @@ export function PracticeSlotPlanner({
 
   const selectedBlocks = blocksByDate.get(selectedDate) ?? []
 
-  // 오픈 시각은 선택한 날짜가 속한 주 기준으로 자동 계산된다.
-  const phaseOpenTimes = useMemo(() => {
+  // 예약 창은 선택한 날짜가 속한 주 기준으로 자동 계산된다.
+  const bookingWindow = useMemo(() => {
     try {
-      return getPhaseOpenTimes(selectedDate)
+      return getPracticeBookingWindow(selectedDate)
     } catch {
       return null
     }
@@ -480,25 +480,29 @@ export function PracticeSlotPlanner({
             ) : null}
 
             <div className="space-y-2">
-              <Label>학생 예약 오픈 시각</Label>
+              <Label>학생 예약 기간</Label>
               <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                {phaseOpenTimes ? (
+                {bookingWindow ? (
                   <>
                     <p>
                       <span className="font-medium text-slate-800">1차</span>{' '}
-                      {formatKstDateTime(phaseOpenTimes.phase1OpensAt)} · 하루 1타임
+                      {formatKstDateTime(bookingWindow.phase1OpensAt)} · 하루 1타임
                     </p>
                     <p>
                       <span className="font-medium text-slate-800">2차</span>{' '}
-                      {formatKstDateTime(phaseOpenTimes.phase2OpensAt)} · 하루 3타임(누적)
+                      {formatKstDateTime(bookingWindow.phase2OpensAt)} · 하루 3타임(누적)
+                    </p>
+                    <p>
+                      <span className="font-medium text-slate-800">마감</span>{' '}
+                      {formatKstDateTime(bookingWindow.closesAt)} (직전 일요일 자정)
                     </p>
                     <p className="text-slate-500">
-                      선택한 날짜가 속한 주 기준으로 자동 계산됩니다. 같은 주의 월~금 블록은 같은 시각에 함께
-                      열립니다. 1차 오픈 전에도 선생님 배정은 가능합니다.
+                      선택한 날짜가 속한 주 기준으로 자동 계산됩니다. 같은 주의 블록은 함께 열리고 함께 닫힙니다.
+                      마감 전후 모두 선생님 배정은 가능합니다.
                     </p>
                   </>
                 ) : (
-                  <p>날짜를 선택하면 오픈 시각이 표시됩니다.</p>
+                  <p>날짜를 선택하면 예약 기간이 표시됩니다.</p>
                 )}
               </div>
             </div>
@@ -562,6 +566,11 @@ export function PracticeSlotPlanner({
                       {block.phase2OpensAt ? (
                         <Badge variant="outline" className="text-emerald-700">
                           2차 {formatKstDateTime(block.phase2OpensAt)}
+                        </Badge>
+                      ) : null}
+                      {block.bookingClosesAt ? (
+                        <Badge variant="outline" className="text-amber-700">
+                          마감 {formatKstDateTime(block.bookingClosesAt)}
                         </Badge>
                       ) : null}
                     </div>

@@ -7,6 +7,7 @@ export type PracticeBookingErrorCode =
   | 'SLOT_TAKEN'
   | 'PROBLEM_EXHAUSTED'
   | 'PHASE_NOT_OPEN'
+  | 'BOOKING_CLOSED'
   | 'DAILY_QUOTA_EXCEEDED'
   | 'ALREADY_BOOKED'
   | 'BOOKING_NOT_FOUND'
@@ -20,6 +21,7 @@ const ERROR_MESSAGES: Record<PracticeBookingErrorCode, string> = {
   SLOT_TAKEN: '방금 다른 예약이 확정된 슬롯입니다. 다른 시간을 선택해주세요.',
   PROBLEM_EXHAUSTED: '이 대학의 문제를 모두 응시했습니다. 선생님께 문제 추가를 요청해주세요.',
   PHASE_NOT_OPEN: '아직 예약이 열리지 않았습니다.',
+  BOOKING_CLOSED: '예약이 마감된 주입니다. 변경이 필요하면 선생님께 문의해주세요.',
   DAILY_QUOTA_EXCEEDED: '해당 날짜의 예약 가능 횟수를 모두 사용했습니다.',
   ALREADY_BOOKED: '같은 시간에 이미 다른 예약이 있습니다.',
   BOOKING_NOT_FOUND: '예약을 찾을 수 없습니다.',

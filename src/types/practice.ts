@@ -109,6 +109,8 @@ export interface PracticeSlotBlockSummary {
   freeBookingOpensAt: string | null
   /** 2차 예약 오픈 시각. 이후 일일 한도가 3타임으로 늘어난다. */
   phase2OpensAt: string | null
+  /** 학생 자유 예약 마감 시각. 이후에는 교직원 배정만 가능하다. */
+  bookingClosesAt: string | null
   notes: string | null
   teachers: PracticeSlotBlockTeacherSummary[]
   slotCount: number
@@ -146,6 +148,7 @@ export interface PracticeSlotView {
   status: PracticeSlotStatus
   freeBookingOpensAt: string | null
   phase2OpensAt: string | null
+  bookingClosesAt: string | null
   booking: PracticeSlotBooking | null
 }
 
@@ -275,4 +278,6 @@ export interface PracticeFreeSlotOption {
   startsAt: string
   /** 2차 예약 오픈 시각. 이 시각 전후로 일일 예약 한도가 달라진다. */
   phase2OpensAt: string | null
+  /** 학생 자유 예약 마감 시각 */
+  bookingClosesAt: string | null
 }
