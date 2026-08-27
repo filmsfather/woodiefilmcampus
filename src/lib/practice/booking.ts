@@ -11,6 +11,7 @@ export type PracticeBookingErrorCode =
   | 'AUDIENCE_MISMATCH'
   | 'DAILY_QUOTA_EXCEEDED'
   | 'ALREADY_BOOKED'
+  | 'TIME_OVERLAP'
   | 'BOOKING_NOT_FOUND'
   | 'NOT_CANCELABLE'
   | 'ALREADY_SUBMITTED'
@@ -26,6 +27,7 @@ const ERROR_MESSAGES: Record<PracticeBookingErrorCode, string> = {
   AUDIENCE_MISMATCH: '소속 반이 예약할 수 없는 슬롯입니다. 예약 화면을 새로고침한 뒤 다시 시도해주세요.',
   DAILY_QUOTA_EXCEEDED: '해당 날짜의 예약 가능 횟수를 모두 사용했습니다.',
   ALREADY_BOOKED: '같은 시간에 이미 다른 예약이 있습니다.',
+  TIME_OVERLAP: '이미 예약된 실기·피드백 시간과 겹치는 슬롯입니다. 다른 시간을 선택해주세요.',
   BOOKING_NOT_FOUND: '예약을 찾을 수 없습니다.',
   NOT_CANCELABLE: '이미 취소되었거나 종료된 예약입니다.',
   ALREADY_SUBMITTED: '이미 제출된 예약은 취소할 수 없습니다.',
