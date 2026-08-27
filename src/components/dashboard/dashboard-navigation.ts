@@ -268,6 +268,16 @@ const studentSections: NavigationSection[] = [
   },
 ]
 
+// 온라인반 학생: 메뉴 구성은 동일하되 모의실기 1:1 탭이 "온라인 모의실기 1:1"로 표시된다.
+const onlineStudentSections: NavigationSection[] = studentSections.map((section) => ({
+  ...section,
+  items: section.items.map((item) =>
+    item.href === '/dashboard/student/practice-feedback'
+      ? { ...item, label: '온라인 모의실기 1:1' }
+      : { ...item }
+  ),
+}))
+
 // 외부쌤: role은 teacher지만 사이드바에는 아래 메뉴만 노출한다.
 const externalTeacherSections: NavigationSection[] = [
   {
@@ -335,9 +345,16 @@ const roleNavigation: Record<UserRole, NavigationSection[]> = {
   student: studentSections,
 }
 
-export function getNavigationSections(role: UserRole, isExternalTeacher = false): NavigationSection[] {
+export function getNavigationSections(
+  role: UserRole,
+  isExternalTeacher = false,
+  isOnlineStudent = false
+): NavigationSection[] {
   if (role === 'teacher' && isExternalTeacher) {
     return externalTeacherSections
+  }
+  if (role === 'student' && isOnlineStudent) {
+    return onlineStudentSections
   }
   return roleNavigation[role]
 }

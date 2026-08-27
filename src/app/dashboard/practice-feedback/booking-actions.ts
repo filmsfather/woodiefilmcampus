@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isOnlineStudent } from '@/lib/online-class'
 import { cancelPracticeBooking, createPracticeBooking } from '@/lib/practice/booking'
 import { isPracticeBookingClosed } from '@/lib/practice/shared'
 import {
@@ -78,7 +79,7 @@ export async function createFreePracticeBookingAction(payload: unknown): Promise
 
   const { data: slot, error: slotError } = await admin
     .from('practice_slots')
-    .select('id, free_booking_opens_at, booking_closes_at, starts_at, status')
+    .select('id, free_booking_opens_at, booking_closes_at, starts_at, status, audience')
     .eq('id', parsed.data.slotId)
     .maybeSingle()
 
@@ -91,6 +92,7 @@ export async function createFreePracticeBookingAction(payload: unknown): Promise
     booking_closes_at: string | null
     starts_at: string
     status: string
+    audience: 'regular' | 'online' | null
   }
 
   if (!slotRow.free_booking_opens_at || slotRow.free_booking_opens_at > nowIso) {
@@ -101,6 +103,16 @@ export async function createFreePracticeBookingAction(payload: unknown): Promise
   }
   if (slotRow.starts_at <= nowIso) {
     return { error: '이미 지난 시간입니다.' }
+  }
+
+  // 온라인반 학생은 온라인 전용 슬롯만, 일반 학생은 일반 슬롯만 예약할 수 있다.
+  const online = await isOnlineStudent(profile.id)
+  if ((slotRow.audience === 'online') !== online) {
+    return {
+      error: online
+        ? '온라인반 학생은 온라인 모의실기 슬롯만 예약할 수 있습니다.'
+        : '온라인반 전용 슬롯입니다. 일반 슬롯을 선택해주세요.',
+    }
   }
 
   const result = await createPracticeBooking({

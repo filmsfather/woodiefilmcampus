@@ -6,6 +6,7 @@ import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { StudentPracticeBookingList } from '@/components/dashboard/practice/StudentPracticeBookingList'
 import { Button } from '@/components/ui/button'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { isOnlineStudent } from '@/lib/online-class'
 import { fetchStudentPracticeBookings } from '@/lib/practice/attempts'
 
 export const metadata: Metadata = {
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
 export default async function StudentPracticeFeedbackPage() {
   const { profile } = await requireAuthForDashboard('student')
 
-  const rows = await fetchStudentPracticeBookings(profile!.id)
+  const [rows, online] = await Promise.all([
+    fetchStudentPracticeBookings(profile!.id),
+    isOnlineStudent(profile!.id),
+  ])
   const now = Date.now()
 
   const upcoming = rows
@@ -30,7 +34,9 @@ export default async function StudentPracticeFeedbackPage() {
         <DashboardBackLink fallbackHref="/dashboard/student" label="학생용 허브로 돌아가기" />
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-2">
-            <h1 className="text-2xl font-semibold text-slate-900">모의실기 1:1 피드백</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {online ? '온라인 모의실기 1:1 피드백' : '모의실기 1:1 피드백'}
+            </h1>
             <p className="text-sm text-slate-600">
               예약한 시간이 되기 전에 문제가 공개됩니다. 제한시간 안에 답안을 제출하면 바로 선생님과 1:1 피드백을
               진행합니다.

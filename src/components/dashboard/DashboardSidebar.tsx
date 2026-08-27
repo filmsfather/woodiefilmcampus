@@ -24,6 +24,7 @@ import {
 interface DashboardSidebarProps {
   role: UserRole
   isExternalTeacher?: boolean
+  isOnlineStudent?: boolean
   profileName?: string | null
   email?: string | null
   onNavigate?: () => void
@@ -35,6 +36,7 @@ const VIEW_AS_ROLES: ViewAsRole[] = ['principal', 'manager', 'teacher', 'student
 export function DashboardSidebar({
   role,
   isExternalTeacher = false,
+  isOnlineStudent = false,
   profileName,
   email,
   onNavigate,
@@ -66,7 +68,7 @@ export function DashboardSidebar({
 
   const sections = isPrincipal
     ? getSectionsByViewRole(viewAs)
-    : getNavigationSections(role, isExternalTeacher)
+    : getNavigationSections(role, isExternalTeacher, isOnlineStudent)
 
   const [hasLinkedSocial, setHasLinkedSocial] = useState<boolean | null>(null)
   const [hasEmailProvider, setHasEmailProvider] = useState(false)

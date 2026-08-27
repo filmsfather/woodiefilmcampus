@@ -32,6 +32,8 @@ const baseClassSchema = z.object({
   homeroomTeacherId: uuidField,
   teacherIds: teacherIdsField,
   studentIds: studentIdsField,
+  /** 온라인반 여부. 온라인반 학생은 온라인 전용 모의실기만 예약할 수 있다. */
+  isOnline: z.boolean().default(false),
 })
 
 export const createClassSchema = baseClassSchema

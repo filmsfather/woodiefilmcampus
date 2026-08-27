@@ -128,6 +128,22 @@ export function ClassEditor({
         </div>
 
         <div className="space-y-2">
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-900">
+            <input
+              type="checkbox"
+              name="isOnline"
+              defaultChecked={mode === 'edit' ? classData?.isOnline ?? false : false}
+              className="size-4 rounded border-slate-300 text-slate-600 focus:ring-slate-400"
+            />
+            온라인반
+          </label>
+          <p className="text-xs text-slate-500">
+            온라인반 학생에게는 온라인 전용 모의실기 슬롯만 보이고, 사이드바 메뉴가 &ldquo;온라인 모의실기 1:1&rdquo;로
+            표시됩니다.
+          </p>
+        </div>
+
+        <div className="space-y-2">
           <Label htmlFor="class-description">설명</Label>
           <textarea
             id="class-description"

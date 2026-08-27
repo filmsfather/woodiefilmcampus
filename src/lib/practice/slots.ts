@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { buildDayTimeline, resolveUniversityName, toTimeLabel } from '@/lib/practice/shared'
 import type {
   PracticeAttemptStatus,
+  PracticeAudience,
   PracticeBookingOpening,
   PracticeBookingStatus,
   PracticeBookingType,
@@ -66,6 +67,7 @@ type SlotRow = {
   free_booking_opens_at: string | null
   phase2_opens_at: string | null
   booking_closes_at: string | null
+  audience: PracticeAudience
   profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
 }
 
@@ -186,7 +188,7 @@ export async function fetchPracticeDayBoard(
     .from('practice_slots')
     .select(
       `id, teacher_id, room_no, slot_date, start_time, duration_minutes, starts_at, status,
-       free_booking_opens_at, phase2_opens_at, booking_closes_at,
+       free_booking_opens_at, phase2_opens_at, booking_closes_at, audience,
        profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)`
     )
     .eq('slot_date', slotDate)
@@ -225,6 +227,7 @@ export async function fetchPracticeDayBoard(
       freeBookingOpensAt: row.free_booking_opens_at,
       phase2OpensAt: row.phase2_opens_at,
       bookingClosesAt: row.booking_closes_at,
+      audience: row.audience ?? 'regular',
       booking: bookings.get(row.id) ?? null,
     }
   })
@@ -249,7 +252,7 @@ export async function fetchPracticeSlotBlocks(
     .from('practice_slot_blocks')
     .select(
       `id, block_date, start_time, end_time, slot_minutes,
-       free_booking_opens_at, phase2_opens_at, booking_closes_at, notes,
+       free_booking_opens_at, phase2_opens_at, booking_closes_at, audience, notes,
        practice_slot_block_teachers(teacher_id, room_no, break_times, profiles(id, name, email)),
        practice_slots(id)`
     )
@@ -272,6 +275,7 @@ export async function fetchPracticeSlotBlocks(
     free_booking_opens_at: string | null
     phase2_opens_at: string | null
     booking_closes_at: string | null
+    audience: PracticeAudience
     notes: string | null
     practice_slot_block_teachers:
       | Array<{
@@ -293,6 +297,7 @@ export async function fetchPracticeSlotBlocks(
     freeBookingOpensAt: row.free_booking_opens_at,
     phase2OpensAt: row.phase2_opens_at,
     bookingClosesAt: row.booking_closes_at,
+    audience: row.audience ?? 'regular',
     notes: row.notes,
     teachers: (row.practice_slot_block_teachers ?? [])
       .map((entry) => {
@@ -412,7 +417,9 @@ export async function fetchHomeroomStudentIds(teacherId: string): Promise<Set<st
  * 아직 열리지 않은 예약 창 중 가장 이른 것.
  * 1차(free_booking_opens_at)와 2차(phase2_opens_at)를 모두 후보로 두고 더 가까운 쪽을 고른다.
  */
-export async function fetchNextPracticeBookingOpening(): Promise<PracticeBookingOpening | null> {
+export async function fetchNextPracticeBookingOpening(
+  audience: PracticeAudience = 'regular'
+): Promise<PracticeBookingOpening | null> {
   const admin = createAdminClient()
   const nowIso = new Date().toISOString()
 
@@ -421,6 +428,7 @@ export async function fetchNextPracticeBookingOpening(): Promise<PracticeBooking
       .from('practice_slots')
       .select(`slot_date, ${column}`)
       .eq('status', 'open')
+      .eq('audience', audience)
       .gt(column, nowIso)
       .gt('starts_at', nowIso)
       .order(column, { ascending: true })
@@ -453,8 +461,10 @@ export async function fetchNextPracticeBookingOpening(): Promise<PracticeBooking
   return candidates.sort((a, b) => a.opensAt.localeCompare(b.opensAt))[0] ?? null
 }
 
-/** 학생 자유 예약 화면에 보여줄 빈 슬롯 */
-export async function fetchFreeBookableSlots(): Promise<PracticeFreeSlotOption[]> {
+/** 학생 자유 예약 화면에 보여줄 빈 슬롯. 소속(일반/온라인반)에 맞는 슬롯만 보여준다. */
+export async function fetchFreeBookableSlots(
+  audience: PracticeAudience = 'regular'
+): Promise<PracticeFreeSlotOption[]> {
   const admin = createAdminClient()
   const nowIso = new Date().toISOString()
 
@@ -462,10 +472,11 @@ export async function fetchFreeBookableSlots(): Promise<PracticeFreeSlotOption[]
     .from('practice_slots')
     .select(
       `id, teacher_id, room_no, slot_date, start_time, starts_at, status,
-       free_booking_opens_at, phase2_opens_at, booking_closes_at,
+       free_booking_opens_at, phase2_opens_at, booking_closes_at, audience,
        profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)`
     )
     .eq('status', 'open')
+    .eq('audience', audience)
     .not('free_booking_opens_at', 'is', null)
     .lte('free_booking_opens_at', nowIso)
     .gt('starts_at', nowIso)

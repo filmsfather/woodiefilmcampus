@@ -241,6 +241,9 @@ export function PracticeBoardGrid({
                             className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-slate-300 px-2 py-2 text-xs text-slate-400 transition hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:hover:border-slate-300 disabled:hover:bg-transparent disabled:hover:text-slate-400"
                           >
                             <Plus className="h-3 w-3" /> 배정
+                            {slot.audience === 'online' ? (
+                              <span className="text-[10px] text-sky-600">온라인</span>
+                            ) : null}
                           </button>
                         </td>
                       )
@@ -250,12 +253,19 @@ export function PracticeBoardGrid({
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-1">
                           <span className="truncate font-medium text-slate-900">{booking.studentName}</span>
-                          <Badge
-                            variant={booking.practiceType === 'writing' ? 'secondary' : 'outline'}
-                            className="shrink-0 text-[10px]"
-                          >
-                            {PRACTICE_TYPE_LABELS[booking.practiceType]}
-                          </Badge>
+                          <span className="flex shrink-0 items-center gap-1">
+                            {slot.audience === 'online' ? (
+                              <Badge variant="outline" className="border-sky-300 text-[10px] text-sky-700">
+                                온라인
+                              </Badge>
+                            ) : null}
+                            <Badge
+                              variant={booking.practiceType === 'writing' ? 'secondary' : 'outline'}
+                              className="text-[10px]"
+                            >
+                              {PRACTICE_TYPE_LABELS[booking.practiceType]}
+                            </Badge>
+                          </span>
                         </div>
                         <p className="truncate text-[11px] text-slate-500">{booking.universityName}</p>
                         {booking.attemptStatus ? (
@@ -305,7 +315,9 @@ export function PracticeBoardGrid({
             <DialogTitle>학생 배정</DialogTitle>
             <DialogDescription>
               {targetSlot
-                ? `${formatSlotDateLabel(targetSlot.slotDate)} ${targetSlot.startTime} · ${targetSlot.teacherName} 선생님`
+                ? `${formatSlotDateLabel(targetSlot.slotDate)} ${targetSlot.startTime} · ${targetSlot.teacherName} 선생님${
+                    targetSlot.audience === 'online' ? ' · 온라인반 전용 슬롯' : ''
+                  }`
                 : ''}
             </DialogDescription>
           </DialogHeader>

@@ -5,6 +5,7 @@ import { PracticeOpeningCountdown } from '@/components/dashboard/practice/Practi
 import { StudentFreeBooking } from '@/components/dashboard/practice/StudentFreeBooking'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { getTodayISOInKst } from '@/lib/counseling'
+import { isOnlineStudent } from '@/lib/online-class'
 import { fetchPracticeUniversityOptions } from '@/lib/practice/problems'
 import {
   PRACTICE_PHASE1_DAILY_LIMIT,
@@ -71,11 +72,14 @@ export default async function StudentPracticeBookPage() {
   const { profile } = await requireAuthForDashboard('student')
   const today = getTodayISOInKst()
 
+  const online = await isOnlineStudent(profile!.id)
+  const audience = online ? 'online' : 'regular'
+
   const [slots, universities, dailyCounts, nextOpening] = await Promise.all([
-    fetchFreeBookableSlots(),
+    fetchFreeBookableSlots(audience),
     fetchPracticeUniversityOptions(),
     fetchDailyBookingCounts(profile!.id, today),
-    fetchNextPracticeBookingOpening(),
+    fetchNextPracticeBookingOpening(audience),
   ])
   const nowIso = new Date().toISOString()
 
@@ -85,7 +89,9 @@ export default async function StudentPracticeBookPage() {
         <DashboardBackLink fallbackHref="/dashboard/student/practice-feedback" label="내 예약으로 돌아가기" />
         <div className="space-y-3">
           <div className="space-y-1">
-            <h1 className="text-2xl font-semibold text-slate-900">모의실기 자유 예약</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              {online ? '온라인 모의실기 자유 예약' : '모의실기 자유 예약'}
+            </h1>
             <p className="text-sm text-slate-600">모든 예약은 선착순이며, 예약 창은 주 단위로 열립니다.</p>
           </div>
 

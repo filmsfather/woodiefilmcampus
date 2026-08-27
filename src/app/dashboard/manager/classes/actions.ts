@@ -29,6 +29,7 @@ function parseCreatePayload(formData: FormData) {
     homeroomTeacherId: formData.get('homeroomTeacherId')?.toString() ?? '',
     teacherIds: collectIds(formData, 'teacherIds'),
     studentIds: collectIds(formData, 'studentIds'),
+    isOnline: formData.get('isOnline') != null,
   }
 
   const result = createClassSchema.safeParse(payload)
@@ -48,6 +49,7 @@ function parseUpdatePayload(formData: FormData) {
     homeroomTeacherId: formData.get('homeroomTeacherId')?.toString() ?? '',
     teacherIds: collectIds(formData, 'teacherIds'),
     studentIds: collectIds(formData, 'studentIds'),
+    isOnline: formData.get('isOnline') != null,
   }
 
   const result = updateClassSchema.safeParse(payload)
@@ -104,7 +106,7 @@ export async function createClassAction(_: ActionState, formData: FormData): Pro
   }
 
   const supabase = createAdminClient()
-  const { name, description, homeroomTeacherId, teacherIds, studentIds } = parsed.data
+  const { name, description, homeroomTeacherId, teacherIds, studentIds, isOnline } = parsed.data
 
   try {
     const { data: createdClass, error: createError } = await supabase
@@ -113,6 +115,7 @@ export async function createClassAction(_: ActionState, formData: FormData): Pro
         name,
         description,
         homeroom_teacher_id: homeroomTeacherId,
+        is_online: isOnline,
       })
       .select('id')
       .maybeSingle()
@@ -177,7 +180,7 @@ export async function updateClassAction(_: ActionState, formData: FormData): Pro
   }
 
   const supabase = createAdminClient()
-  const { classId, name, description, homeroomTeacherId, teacherIds, studentIds } = parsed.data
+  const { classId, name, description, homeroomTeacherId, teacherIds, studentIds, isOnline } = parsed.data
 
   try {
     const { error: updateError } = await supabase
@@ -186,6 +189,7 @@ export async function updateClassAction(_: ActionState, formData: FormData): Pro
         name,
         description,
         homeroom_teacher_id: homeroomTeacherId,
+        is_online: isOnline,
       })
       .eq('id', classId)
 

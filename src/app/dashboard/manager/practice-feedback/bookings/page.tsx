@@ -91,6 +91,11 @@ export default async function ManagerPracticeBookingsPage({
                         {PRACTICE_TYPE_LABELS[booking.practiceType]}
                       </Badge>
                       <Badge variant="outline">{PRACTICE_BOOKING_TYPE_LABELS[booking.bookingType]}</Badge>
+                      {slot.audience === 'online' ? (
+                        <Badge variant="outline" className="border-sky-300 text-sky-700">
+                          온라인반
+                        </Badge>
+                      ) : null}
                     </div>
                     <p className="text-xs text-slate-500">
                       {slot.teacherName} 선생님 · {booking.universityName} · {booking.problemTitle}

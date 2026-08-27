@@ -23,7 +23,11 @@ import {
   getPracticeBookingWindow,
 } from '@/lib/practice/shared'
 import { PRACTICE_ROOM_COUNT } from '@/lib/validation/practice'
-import type { PracticeSlotBlockSummary } from '@/types/practice'
+import {
+  PRACTICE_AUDIENCE_LABELS,
+  type PracticeAudience,
+  type PracticeSlotBlockSummary,
+} from '@/types/practice'
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -59,6 +63,7 @@ export function PracticeSlotPlanner({
   const [startTime, setStartTime] = useState('12:00')
   const [endTime, setEndTime] = useState('16:00')
   const [slotMinutes, setSlotMinutes] = useState('15')
+  const [audience, setAudience] = useState<PracticeAudience>('regular')
   const [teacherSelections, setTeacherSelections] = useState<TeacherSelection[]>([])
   const [notes, setNotes] = useState('')
 
@@ -192,6 +197,7 @@ export function PracticeSlotPlanner({
         startTime,
         endTime,
         slotMinutes: Number(slotMinutes),
+        audience,
         teachers: teacherSelections,
         notes: notes.trim() || null,
       })
@@ -349,6 +355,26 @@ export function PracticeSlotPlanner({
                   disabled={isPending}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="practice-block-audience">예약 대상</Label>
+              <Select
+                value={audience}
+                onValueChange={(value) => setAudience(value as PracticeAudience)}
+                disabled={isPending}
+              >
+                <SelectTrigger id="practice-block-audience" className="w-full sm:w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">일반 학생</SelectItem>
+                  <SelectItem value="online">온라인반 전용</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                온라인반 전용 슬롯은 온라인반 학생에게만 보이고, 일반 슬롯은 온라인반 학생에게 보이지 않습니다.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -554,6 +580,11 @@ export function PracticeSlotPlanner({
                       </span>
                       <Badge variant="secondary">{block.slotMinutes}분 단위</Badge>
                       <Badge variant="outline">슬롯 {block.slotCount}개</Badge>
+                      {block.audience === 'online' ? (
+                        <Badge variant="outline" className="border-sky-300 text-sky-700">
+                          {PRACTICE_AUDIENCE_LABELS.online} 전용
+                        </Badge>
+                      ) : null}
                       {block.freeBookingOpensAt ? (
                         <Badge variant="outline" className="text-emerald-700">
                           1차 {formatKstDateTime(block.freeBookingOpensAt)}

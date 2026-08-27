@@ -57,7 +57,7 @@ export default async function ManagerClassesPage(props: {
 
   const { data: classRowsData, error: classError } = await supabase
     .from('classes')
-    .select('id, name, description, homeroom_teacher_id, created_at, updated_at')
+    .select('id, name, description, homeroom_teacher_id, is_online, created_at, updated_at')
     .order('name', { ascending: true })
 
   if (classError) {
@@ -218,6 +218,7 @@ export default async function ManagerClassesPage(props: {
       name: row.name,
       description: row.description ?? null,
       homeroomTeacherId: row.homeroom_teacher_id ?? null,
+      isOnline: row.is_online ?? false,
       teachers,
       students,
       createdAt: row.created_at,

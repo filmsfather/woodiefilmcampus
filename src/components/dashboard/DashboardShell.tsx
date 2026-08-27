@@ -15,10 +15,12 @@ import { NavigationProgress } from '@/components/dashboard/NavigationProgress'
 
 interface DashboardShellProps {
   profile: UserProfile
+  /** 온라인반 학생 여부. 사이드바의 모의실기 메뉴 라벨이 달라진다. */
+  isOnlineStudent?: boolean
   children: ReactNode
 }
 
-export function DashboardShell({ profile, children }: DashboardShellProps) {
+export function DashboardShell({ profile, isOnlineStudent = false, children }: DashboardShellProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
   const isExternalTeacher = profile.role === 'teacher' && !!profile.is_external_teacher
@@ -38,6 +40,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
           <DashboardSidebar
             role={profile.role}
             isExternalTeacher={isExternalTeacher}
+            isOnlineStudent={isOnlineStudent}
             profileName={profile.name}
             email={profile.email}
             className="h-full"
@@ -63,6 +66,7 @@ export function DashboardShell({ profile, children }: DashboardShellProps) {
                       <DashboardSidebar
                         role={profile.role}
                         isExternalTeacher={isExternalTeacher}
+                        isOnlineStudent={isOnlineStudent}
                         profileName={profile.name}
                         email={profile.email}
                         onNavigate={() => setMobileNavOpen(false)}

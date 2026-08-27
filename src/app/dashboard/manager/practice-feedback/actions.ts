@@ -95,6 +95,7 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       free_booking_opens_at: bookingWindow.phase1OpensAt,
       phase2_opens_at: bookingWindow.phase2OpensAt,
       booking_closes_at: bookingWindow.closesAt,
+      audience: input.audience,
       notes: input.notes ?? null,
       created_by: profile.id,
     })
@@ -135,6 +136,7 @@ export async function createPracticeSlotBlockAction(payload: unknown): Promise<A
       free_booking_opens_at: bookingWindow.phase1OpensAt,
       phase2_opens_at: bookingWindow.phase2OpensAt,
       booking_closes_at: bookingWindow.closesAt,
+      audience: input.audience,
       created_by: profile.id,
     }))
   )

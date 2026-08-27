@@ -77,7 +77,14 @@ export function ClassesTable({ classes, onEdit, onDelete, deletingId }: ClassesT
           return (
             <TableRow key={classItem.id}>
               <TableCell className="align-top">
-                <div className="font-medium text-slate-900">{classItem.name}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-slate-900">{classItem.name}</span>
+                  {classItem.isOnline && (
+                    <Badge variant="outline" className="border-sky-300 text-sky-700">
+                      온라인반
+                    </Badge>
+                  )}
+                </div>
                 {classItem.description && (
                   <div className="mt-1 text-xs text-slate-500">
                     {summarizeDescription(classItem.description)}

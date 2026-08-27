@@ -97,6 +97,8 @@ export const createPracticeSlotBlockSchema = z
     startTime: timeLabel,
     endTime: timeLabel,
     slotMinutes: z.number().int().min(5).max(120).default(15),
+    /** 예약 대상. regular = 일반 학생, online = 온라인반 전용 */
+    audience: z.enum(['regular', 'online']).default('regular'),
     teachers: z
       .array(practiceSlotBlockTeacherSchema)
       .min(1, '선생님을 1명 이상 선택해주세요.')

@@ -4,6 +4,9 @@ export type PracticeSlotStatus = 'open' | 'booked' | 'closed' | 'break'
 
 export type PracticeBookingType = 'homeroom' | 'free'
 
+/** 슬롯 예약 대상. regular = 일반 학생, online = 온라인반 전용 */
+export type PracticeAudience = 'regular' | 'online'
+
 export type PracticeBookingStatus = 'reserved' | 'canceled' | 'completed' | 'no_show'
 
 export type PracticeAttemptStatus = 'scheduled' | 'open' | 'submitted' | 'feedback_done' | 'missed'
@@ -18,6 +21,11 @@ export const PRACTICE_TYPE_LABELS: Record<PracticeType, string> = {
 export const PRACTICE_BOOKING_TYPE_LABELS: Record<PracticeBookingType, string> = {
   homeroom: '담임 배정',
   free: '자유 예약',
+}
+
+export const PRACTICE_AUDIENCE_LABELS: Record<PracticeAudience, string> = {
+  regular: '일반',
+  online: '온라인반',
 }
 
 export const PRACTICE_ATTEMPT_STATUS_LABELS: Record<PracticeAttemptStatus, string> = {
@@ -111,6 +119,8 @@ export interface PracticeSlotBlockSummary {
   phase2OpensAt: string | null
   /** 학생 자유 예약 마감 시각. 이후에는 교직원 배정만 가능하다. */
   bookingClosesAt: string | null
+  /** 예약 대상 (일반 / 온라인반 전용) */
+  audience: PracticeAudience
   notes: string | null
   teachers: PracticeSlotBlockTeacherSummary[]
   slotCount: number
@@ -149,6 +159,8 @@ export interface PracticeSlotView {
   freeBookingOpensAt: string | null
   phase2OpensAt: string | null
   bookingClosesAt: string | null
+  /** 예약 대상 (일반 / 온라인반 전용) */
+  audience: PracticeAudience
   booking: PracticeSlotBooking | null
 }
 
