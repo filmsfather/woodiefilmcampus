@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  formatKstDateTime,
   formatKstTime,
   formatPracticeRoomLabel,
   formatSlotDateLabel,
@@ -17,6 +16,26 @@ import {
   PRACTICE_TYPE_LABELS,
   type PracticeStudentBookingRow,
 } from '@/types/practice'
+
+/** 응시 시작 전까지 등원해야 하는 여유 시간(분). 문자 안내 문구와 동일 기준. */
+const ARRIVAL_BUFFER_MINUTES = 10
+
+/** 등원·실기고사(제한시간)·1:1 피드백 시각을 한 줄 문구로 만든다. 문제 배정 전이면 null. */
+function describeTimeline(row: PracticeStudentBookingRow): string | null {
+  if (!row.opensAt || !row.deadlineAt) {
+    return null
+  }
+  const opens = Date.parse(row.opensAt)
+  const deadline = Date.parse(row.deadlineAt)
+  if (Number.isNaN(opens) || Number.isNaN(deadline)) {
+    return null
+  }
+
+  const arrivalLabel = formatKstTime(new Date(opens - ARRIVAL_BUFFER_MINUTES * 60_000).toISOString())
+  const limitMinutes = Math.max(0, Math.round((deadline - opens) / 60_000))
+
+  return `등원 ${arrivalLabel} · 실기고사 ${formatKstTime(row.opensAt)} ~ ${formatKstTime(row.deadlineAt)} (${limitMinutes}분) · 1:1 피드백 ${row.startTime}`
+}
 
 function describeState(row: PracticeStudentBookingRow, now: number) {
   if (row.bookingStatus === 'canceled') {
@@ -59,6 +78,7 @@ export function StudentPracticeBookingList({
         ) : (
           rows.map((row) => {
             const state = describeState(row, now)
+            const timeline = describeTimeline(row)
             const canEnter =
               row.attemptId &&
               row.bookingStatus !== 'canceled' &&
@@ -81,7 +101,8 @@ export function StudentPracticeBookingList({
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium text-slate-900">
-                      {formatSlotDateLabel(row.slotDate)} {row.startTime}
+                      {formatSlotDateLabel(row.slotDate)}
+                      {timeline ? '' : ` ${row.startTime}`}
                     </span>
                     <Badge variant={row.practiceType === 'writing' ? 'secondary' : 'outline'}>
                       {PRACTICE_TYPE_LABELS[row.practiceType]}
@@ -93,12 +114,7 @@ export function StudentPracticeBookingList({
                   <p className="text-xs text-slate-500">
                     {row.universityName} · {formatPracticeRoomLabel(row.roomNo)}
                   </p>
-                  {row.opensAt ? (
-                    <p className="text-xs text-slate-400">
-                      문제 공개 {formatKstDateTime(row.opensAt)} · 제출 마감{' '}
-                      {row.deadlineAt ? formatKstTime(row.deadlineAt) : '-'}
-                    </p>
-                  ) : null}
+                  {timeline ? <p className="text-xs text-slate-500">{timeline}</p> : null}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge
