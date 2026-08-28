@@ -266,6 +266,8 @@ export interface PracticeStudentBookingRow {
   bookingStatus: PracticeBookingStatus
   bookingType: PracticeBookingType
   hasFeedback: boolean
+  /** 학생 자유 예약/취소 마감 시각 */
+  bookingClosesAt: string | null
 }
 
 /** 교사용 학생별 누적 이력 */

@@ -1,9 +1,16 @@
 import Link from 'next/link'
 
+import { StudentBookingCancelButton } from '@/components/dashboard/practice/StudentBookingCancelButton'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatKstDateTime, formatKstTime, formatPracticeRoomLabel, formatSlotDateLabel } from '@/lib/practice/shared'
+import {
+  formatKstDateTime,
+  formatKstTime,
+  formatPracticeRoomLabel,
+  formatSlotDateLabel,
+  isPracticeBookingClosed,
+} from '@/lib/practice/shared'
 import {
   PRACTICE_ATTEMPT_STATUS_LABELS,
   PRACTICE_BOOKING_TYPE_LABELS,
@@ -57,6 +64,14 @@ export function StudentPracticeBookingList({
               row.bookingStatus !== 'canceled' &&
               row.opensAt &&
               Date.parse(row.opensAt) <= now
+            // 서버 액션의 취소 조건(본인 자유 예약 + 마감 전)과 동일하게 맞춘다.
+            const canCancel =
+              row.bookingType === 'free' &&
+              row.bookingStatus !== 'canceled' &&
+              !row.submittedAt &&
+              row.startsAt &&
+              Date.parse(row.startsAt) > now &&
+              !isPracticeBookingClosed(row.bookingClosesAt)
 
             return (
               <div
@@ -97,6 +112,12 @@ export function StudentPracticeBookingList({
                         {row.submittedAt ? '내 답안 보기' : '문제 풀기'}
                       </Link>
                     </Button>
+                  ) : null}
+                  {canCancel ? (
+                    <StudentBookingCancelButton
+                      bookingId={row.bookingId}
+                      summary={`${formatSlotDateLabel(row.slotDate)} ${row.startTime} · ${row.universityName} · ${PRACTICE_TYPE_LABELS[row.practiceType]}`}
+                    />
                   ) : null}
                 </div>
               </div>

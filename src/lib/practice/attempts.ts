@@ -339,6 +339,7 @@ type BookingListRow = {
         start_time: string
         starts_at: string
         room_no: number | null
+        booking_closes_at: string | null
         profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
       }
     | Array<{
@@ -347,6 +348,7 @@ type BookingListRow = {
         start_time: string
         starts_at: string
         room_no: number | null
+        booking_closes_at: string | null
         profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
       }>
     | null
@@ -366,7 +368,7 @@ const BOOKING_LIST_SELECT = `
   profiles:profiles!practice_bookings_student_id_fkey(id, name, email),
   practice_problems(id, title),
   practice_slots(
-    id, slot_date, start_time, starts_at, room_no,
+    id, slot_date, start_time, starts_at, room_no, booking_closes_at,
     profiles:profiles!practice_slots_teacher_id_fkey(id, name, email)
   ),
   practice_attempts(id, status, opens_at, deadline_at, submitted_at)
@@ -409,6 +411,7 @@ async function mapBookingRows(rows: BookingListRow[]): Promise<PracticeStudentBo
       bookingStatus: row.status,
       bookingType: row.booking_type,
       hasFeedback: attempt ? feedbackSet.has(attempt.id) : false,
+      bookingClosesAt: slot?.booking_closes_at ?? null,
     }
   })
 }
