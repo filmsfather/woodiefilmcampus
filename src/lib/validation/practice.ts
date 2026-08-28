@@ -147,6 +147,17 @@ export const deletePracticeSlotBlockSchema = z.object({
   blockId: z.string().uuid(),
 })
 
+export const swapPracticeBlockTeacherSchema = z
+  .object({
+    blockId: z.string().uuid(),
+    fromTeacherId: z.string().uuid('교체할 선생님을 선택해주세요.'),
+    toTeacherId: z.string().uuid('대타 선생님을 선택해주세요.'),
+  })
+  .refine((value) => value.fromTeacherId !== value.toTeacherId, {
+    message: '같은 선생님으로는 교체할 수 없습니다.',
+    path: ['toTeacherId'],
+  })
+
 export const updatePracticeSlotStatusSchema = z.object({
   slotId: z.string().uuid(),
   status: z.enum(['open', 'closed', 'break']),

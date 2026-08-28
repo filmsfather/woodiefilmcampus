@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, ChevronRight, Loader2, Trash2, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Repeat2, Trash2, X } from 'lucide-react'
 
 import {
   createPracticeSlotBlockAction,
   deletePracticeSlotBlockAction,
+  swapPracticeBlockTeacherAction,
 } from '@/app/dashboard/manager/practice-feedback/actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -66,6 +67,10 @@ export function PracticeSlotPlanner({
   const [audience, setAudience] = useState<PracticeAudience>('regular')
   const [teacherSelections, setTeacherSelections] = useState<TeacherSelection[]>([])
   const [notes, setNotes] = useState('')
+  /** 담당 교체 폼이 열린 블록과 선택값 */
+  const [swapForm, setSwapForm] = useState<{ blockId: string; fromTeacherId: string; toTeacherId: string } | null>(
+    null
+  )
 
   const calendarCells = useMemo(() => buildCalendarCells(year, month), [year, month])
 
@@ -230,6 +235,40 @@ export function PracticeSlotPlanner({
         return
       }
       setFeedback({ type: 'success', message: '근무 블록을 삭제했습니다.' })
+      router.refresh()
+    })
+  }
+
+  const handleSwapTeacher = () => {
+    if (!swapForm || !swapForm.fromTeacherId || !swapForm.toTeacherId) {
+      return
+    }
+
+    const fromName = teacherNameMap.get(swapForm.fromTeacherId) ?? '기존 선생님'
+    const toName = teacherNameMap.get(swapForm.toTeacherId) ?? '대타 선생님'
+
+    if (
+      !window.confirm(
+        `${fromName} 선생님의 이 블록 슬롯 전체(예약된 슬롯 포함)를 ${toName} 선생님에게 넘길까요?`
+      )
+    ) {
+      return
+    }
+
+    setFeedback(null)
+    startTransition(async () => {
+      const result = await swapPracticeBlockTeacherAction(swapForm)
+      if (result.error) {
+        setFeedback({ type: 'error', message: result.error })
+        return
+      }
+      setFeedback({
+        type: 'success',
+        message: `${toName} 선생님에게 슬롯 ${result.movedSlotCount ?? 0}개를 넘겼습니다.${
+          (result.movedBookingCount ?? 0) > 0 ? ` (예약 ${result.movedBookingCount}건 포함)` : ''
+        }`,
+      })
+      setSwapForm(null)
       router.refresh()
     })
   }
@@ -623,17 +662,109 @@ export function PracticeSlotPlanner({
                     </p>
                     {block.notes ? <p className="text-xs text-slate-500">{block.notes}</p> : null}
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-600 hover:text-red-700"
-                    disabled={isPending}
-                    onClick={() => handleDeleteBlock(block.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">블록 삭제</span>
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={isPending || block.teachers.length === 0}
+                      onClick={() =>
+                        setSwapForm((prev) =>
+                          prev?.blockId === block.id
+                            ? null
+                            : {
+                                blockId: block.id,
+                                fromTeacherId: block.teachers.length === 1 ? block.teachers[0].teacherId : '',
+                                toTeacherId: '',
+                              }
+                        )
+                      }
+                    >
+                      <Repeat2 className="h-4 w-4" />
+                      담당 교체
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-600 hover:text-red-700"
+                      disabled={isPending}
+                      onClick={() => handleDeleteBlock(block.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span className="sr-only">블록 삭제</span>
+                    </Button>
+                  </div>
+                  {swapForm?.blockId === block.id ? (
+                    <div className="w-full space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs text-slate-600">
+                        선택한 선생님의 이 블록 슬롯 전체가 대타 선생님에게 넘어갑니다. 예약된 슬롯도 함께
+                        이관되며, 고사장·쉬는 시간은 그대로 유지됩니다.
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Select
+                          value={swapForm.fromTeacherId}
+                          onValueChange={(value) =>
+                            setSwapForm((prev) => (prev ? { ...prev, fromTeacherId: value } : prev))
+                          }
+                          disabled={isPending}
+                        >
+                          <SelectTrigger className="w-[160px]" size="sm">
+                            <SelectValue placeholder="기존 선생님" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {block.teachers.map((teacher) => (
+                              <SelectItem key={teacher.teacherId} value={teacher.teacherId}>
+                                {teacher.name}
+                                {teacher.roomNo ? ` (${teacher.roomNo}고사장)` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <span className="text-sm text-slate-500">→</span>
+                        <Select
+                          value={swapForm.toTeacherId}
+                          onValueChange={(value) =>
+                            setSwapForm((prev) => (prev ? { ...prev, toTeacherId: value } : prev))
+                          }
+                          disabled={isPending}
+                        >
+                          <SelectTrigger className="w-[160px]" size="sm">
+                            <SelectValue placeholder="대타 선생님" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {teachers
+                              .filter(
+                                (teacher) => !block.teachers.some((entry) => entry.teacherId === teacher.id)
+                              )
+                              .map((teacher) => (
+                                <SelectItem key={teacher.id} value={teacher.id}>
+                                  {teacher.name}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={isPending || !swapForm.fromTeacherId || !swapForm.toTeacherId}
+                          onClick={handleSwapTeacher}
+                        >
+                          {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          교체
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={isPending}
+                          onClick={() => setSwapForm(null)}
+                        >
+                          취소
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ))
             )}

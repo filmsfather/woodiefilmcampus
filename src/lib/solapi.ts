@@ -31,6 +31,28 @@ interface SendEnrollmentConfirmationParams {
   desiredClassLabel: string
 }
 
+interface SendPracticeBookingConfirmationParams {
+  phoneNumber: string
+  studentName: string
+  universityName: string
+  practiceType: 'writing' | 'interview'
+  timeLimitMinutes: number
+  /** 응시 시작(문제 공개) 시각 ISO. 등원 기준이 된다. */
+  opensAt: string
+  /** 1:1 피드백(슬롯) 시작 시각 ISO */
+  startsAt: string
+  roomNo: number | null
+}
+
+interface SendPracticeBookingCancellationParams {
+  phoneNumber: string
+  studentName: string
+  universityName: string
+  practiceType: 'writing' | 'interview'
+  /** 취소된 예약의 피드백(슬롯) 시작 시각 ISO */
+  startsAt: string
+}
+
 
 let solapiService: SolapiMessageService | null = null
 let missingConfigLogged = false
@@ -110,7 +132,7 @@ export async function sendLearningJournalShareLinkSMS({
 
   const displayName = studentName?.trim() || '자녀'
   const messageLines = [
-    '[우디필름캠퍼스 학습일지 알림]',
+    '[우디쌤의 영화입시 학습일지 알림]',
     `${displayName} 학생의 학습일지가 공개되었습니다.`,
     `확인하기: ${safeShareUrl}`,
     '안전한 보관을 위해 링크를 외부에 공유하지 말아주세요.',
@@ -166,7 +188,7 @@ export async function sendUniversityReportShareLinkSMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원가능대학 리포트]',
+    '[우디쌤의 영화입시 지원가능대학 리포트]',
     `${displayName} 학생의 지원가능대학 컨설팅 리포트가 발행되었습니다.`,
     `확인하기: ${safeShareUrl}`,
     '링크에서 리포트를 확인하고 컨설팅 방향을 작성해 주세요.',
@@ -226,7 +248,7 @@ export async function sendUniversityWishReselectSMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원가능대학 리포트]',
+    '[우디쌤의 영화입시 지원가능대학 리포트]',
     `${displayName} 학생의 지원가능대학 분석 결과가 업데이트되었습니다.`,
     `확인하기: ${safeShareUrl}`,
     '링크에서 희망 대학을 다시 선택해 주세요.',
@@ -287,7 +309,7 @@ export async function sendUniversityConsultOpinionRequestSMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원가능대학 리포트]',
+    '[우디쌤의 영화입시 지원가능대학 리포트]',
     `${displayName} 학생, 컨설팅 진행을 위해 희망 대학 선택과 의견 작성이 필요합니다.`,
     `작성하기: ${safeShareUrl}`,
     '링크에서 희망 대학을 선택하고 의견을 남겨 주셔야 컨설팅을 진행할 수 있습니다.',
@@ -344,7 +366,7 @@ export async function sendUniversityRecommendationSMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원가능대학 리포트]',
+    '[우디쌤의 영화입시 지원가능대학 리포트]',
     `${displayName} 학생의 원장 추천 대학과 코멘트가 도착했습니다.`,
     `확인하기: ${safeShareUrl}`,
     '링크에서 추천 대학을 확인하고 동의 또는 의견을 남겨 주세요.',
@@ -404,7 +426,7 @@ export async function sendUniversityRecommendationReplySMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원가능대학 리포트]',
+    '[우디쌤의 영화입시 지원가능대학 리포트]',
     `${displayName} 학생의 의견에 원장 선생님이 답변을 남겼습니다.`,
     `확인하기: ${safeShareUrl}`,
     '링크에서 원장 선생님의 답변과 추천 대학을 확인해 주세요.',
@@ -463,7 +485,7 @@ export async function sendUniversityFinalConfirmationSMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원 대학 최종 확정]',
+    '[우디쌤의 영화입시 지원 대학 최종 확정]',
     `${displayName} 학생, 컨설팅을 마치고 지원할 대학과 수업 희망 요일을 확정할 차례입니다.`,
     `확정하기: ${safeShareUrl}`,
     '링크에서 수시 6장(일반대)·전문대/예대·한예종 지원 여부와 수업 희망 요일을 선택해 확정해 주세요.',
@@ -523,7 +545,7 @@ export async function sendUniversityPrincipalConfirmedSMS({
 
   const displayName = studentName?.trim() || '학생'
   const messageLines = [
-    '[우디필름캠퍼스 지원 대학 최종 확정]',
+    '[우디쌤의 영화입시 지원 대학 최종 확정]',
     `${displayName} 학생, 확정 기간이 지나 원장 선생님이 컨설팅 추천 대학으로 최종 확정했습니다.`,
     `확인·수정하기: ${safeShareUrl}`,
     '지원 대학이나 수업 희망 요일을 바꾸고 싶다면 링크에서 직접 수정 후 다시 확정해 주세요.',
@@ -601,7 +623,7 @@ export async function sendCounselingReservationConfirmationSMS({
   const slotLabel = formatCounselingDateTime(counselingDate, startTime)
 
   const messageLines = [
-    '[우디필름캠퍼스 상담 예약 안내]',
+    '[우디쌤의 영화입시 상담 예약 안내]',
     `${displayName}님, 상담 예약이 확정되었습니다.`,
     `• 상담일시: ${slotLabel}`,
     '• 상담장소: 서울 강남구 삼성로91길 36 J타워 8층',
@@ -618,6 +640,158 @@ export async function sendCounselingReservationConfirmationSMS({
     return true
   } catch (error) {
     console.error('[solapi] 상담 예약 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
+function formatPracticeDateTime(iso: string) {
+  try {
+    const base = new Date(iso)
+    const dateLabel = new Intl.DateTimeFormat('ko-KR', {
+      month: 'numeric',
+      day: 'numeric',
+      weekday: 'short',
+      timeZone: 'Asia/Seoul',
+    }).format(base)
+
+    const timeLabel = new Intl.DateTimeFormat('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Seoul',
+    }).format(base)
+
+    return `${dateLabel} ${timeLabel}`
+  } catch (error) {
+    console.warn('[solapi] 모의실기 시간 포맷 중 오류가 발생했습니다.', error)
+    return iso
+  }
+}
+
+const PRACTICE_TYPE_SMS_LABELS: Record<'writing' | 'interview', string> = {
+  writing: '작법형',
+  interview: '면접형',
+}
+
+const PRACTICE_FLOW_SMS_LABELS: Record<'writing' | 'interview', string> = {
+  writing: '등원 → 문제 응시(원고지 작성) → 사진 업로드 제출 → 1:1 피드백',
+  interview: '등원 → 문제 응시(답안 작성) → 제출 → 5분 면접 및 1:1 피드백',
+}
+
+/** 1:1 모의실기 예약 확정 안내. 학생·학부모에게 각각 발송한다. */
+export async function sendPracticeBookingConfirmationSMS({
+  phoneNumber,
+  studentName,
+  universityName,
+  practiceType,
+  timeLimitMinutes,
+  opensAt,
+  startsAt,
+  roomNo,
+}: SendPracticeBookingConfirmationParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 모의실기 예약 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 모의실기 예약 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const displayName = studentName.trim() || '학생'
+  const typeLabel = PRACTICE_TYPE_SMS_LABELS[practiceType]
+  const opensLabel = formatPracticeDateTime(opensAt)
+  const feedbackLabel = formatPracticeDateTime(startsAt)
+  const roomLabel = roomNo != null ? ` (${roomNo}고사장)` : ''
+
+  const messageLines = [
+    '[우디쌤의 영화입시 모의실기 예약 안내]',
+    `${displayName} 학생의 1:1 모의실기 예약이 확정되었습니다.`,
+    `• 대학/유형: ${universityName} · ${typeLabel} (제한시간 ${timeLimitMinutes}분)`,
+    `• 응시 시작: ${opensLabel} — 10분 전까지 등원해주세요`,
+    `• 1:1 피드백: ${feedbackLabel}${roomLabel}`,
+    `진행 순서: ${PRACTICE_FLOW_SMS_LABELS[practiceType]}`,
+    '변경·취소는 담임 선생님께 문의해주세요.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 모의실기 예약 문자 발송 중 오류가 발생했습니다.', error)
+    return false
+  }
+}
+
+/** 1:1 모의실기 예약 취소 안내. 학생·학부모에게 각각 발송한다. */
+export async function sendPracticeBookingCancellationSMS({
+  phoneNumber,
+  studentName,
+  universityName,
+  practiceType,
+  startsAt,
+}: SendPracticeBookingCancellationParams): Promise<boolean> {
+  const service = getSolapiService()
+
+  if (!service) {
+    return false
+  }
+
+  const sender = normalizePhoneNumber(process.env.SOLAPI_SENDER_NUMBER)
+
+  if (!sender) {
+    if (!missingConfigLogged) {
+      console.warn('[solapi] SOLAPI_SENDER_NUMBER가 올바르지 않아 모의실기 취소 문자 발송에 실패했습니다.')
+      missingConfigLogged = true
+    }
+    return false
+  }
+
+  const to = normalizePhoneNumber(phoneNumber)
+
+  if (!to) {
+    console.warn('[solapi] 연락처가 없거나 형식이 올바르지 않아 모의실기 취소 문자 발송을 건너뜁니다.', phoneNumber)
+    return false
+  }
+
+  const displayName = studentName.trim() || '학생'
+  const typeLabel = PRACTICE_TYPE_SMS_LABELS[practiceType]
+
+  const messageLines = [
+    '[우디쌤의 영화입시 모의실기 예약 취소 안내]',
+    `${displayName} 학생의 1:1 모의실기 예약이 취소되었습니다.`,
+    `• 취소된 예약: ${universityName} · ${typeLabel}`,
+    `• 일시: ${formatPracticeDateTime(startsAt)}`,
+    '재예약이나 문의는 담임 선생님께 부탁드립니다.',
+  ]
+
+  try {
+    await service.send({
+      to,
+      from: sender,
+      text: messageLines.join('\n'),
+    })
+    return true
+  } catch (error) {
+    console.error('[solapi] 모의실기 취소 문자 발송 중 오류가 발생했습니다.', error)
     return false
   }
 }
@@ -655,7 +829,7 @@ export async function sendEnrollmentApplicationConfirmationSMS({
   const classLabel = desiredClassLabel.trim() || '희망반'
 
   const messageLines = [
-    '[우디필름캠퍼스 등록 안내]',
+    '[우디쌤의 영화입시 등록 안내]',
     `${displayName} 학생 ${classLabel} 등록원서 접수가 완료되었습니다.`,
     '실장님 확인 후 수업 안내 문자를 드리겠습니다.',
     '수업 자료와 사전 과제는 WoodieCampus에서 제공됩니다. 학생 계정이 없다면 지금 가입해주세요: https://woodiecampus.com',

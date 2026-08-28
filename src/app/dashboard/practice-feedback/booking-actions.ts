@@ -6,6 +6,7 @@ import { getAuthContext } from '@/lib/auth'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { isOnlineStudent } from '@/lib/online-class'
 import { cancelPracticeBooking, createPracticeBooking } from '@/lib/practice/booking'
+import { notifyPracticeBookingCanceled, notifyPracticeBookingConfirmed } from '@/lib/practice/notifications'
 import { isPracticeBookingClosed } from '@/lib/practice/shared'
 import {
   cancelPracticeBookingSchema,
@@ -57,6 +58,8 @@ export async function assignPracticeBookingAction(payload: unknown): Promise<Act
   if (!result.success) {
     return { error: result.error }
   }
+
+  await notifyPracticeBookingConfirmed(result.bookingId)
 
   revalidateBookings()
   return { success: true, attemptId: result.attemptId }
@@ -128,6 +131,8 @@ export async function createFreePracticeBookingAction(payload: unknown): Promise
     return { error: result.error }
   }
 
+  await notifyPracticeBookingConfirmed(result.bookingId)
+
   revalidateBookings()
   return { success: true, attemptId: result.attemptId }
 }
@@ -184,6 +189,8 @@ export async function cancelPracticeBookingAction(payload: unknown): Promise<Act
   if (!result.success) {
     return { error: result.error }
   }
+
+  await notifyPracticeBookingCanceled(parsed.data.bookingId)
 
   revalidateBookings()
   return { success: true }

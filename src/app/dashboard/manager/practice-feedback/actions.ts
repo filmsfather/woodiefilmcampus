@@ -14,12 +14,19 @@ import {
   createPracticeSlotBlockSchema,
   deletePracticeSlotBlockSchema,
   deletePracticeSlotSchema,
+  swapPracticeBlockTeacherSchema,
   updatePracticeBookingStatusSchema,
   updatePracticeSlotStatusSchema,
 } from '@/lib/validation/practice'
 import type { UserProfile } from '@/lib/supabase'
 
-type ActionResult = { success?: true; error?: string; createdCount?: number }
+type ActionResult = {
+  success?: true
+  error?: string
+  createdCount?: number
+  movedSlotCount?: number
+  movedBookingCount?: number
+}
 
 const MANAGER_ROLES = new Set<UserProfile['role']>(['manager', 'principal'])
 
@@ -206,6 +213,70 @@ export async function deletePracticeSlotBlockAction(payload: unknown): Promise<A
 
   revalidatePractice()
   return { success: true }
+}
+
+/**
+ * 근무 블록의 담당 선생님 교체(대타).
+ * 해당 블록에서 그 선생님이 가진 슬롯 전체(예약 포함)를 대타 선생님에게 넘긴다.
+ */
+export async function swapPracticeBlockTeacherAction(payload: unknown): Promise<ActionResult> {
+  const profile = await ensureManager()
+  if (!profile) {
+    return { error: '권한이 없습니다.' }
+  }
+
+  const parsed = swapPracticeBlockTeacherSchema.safeParse(payload)
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? '잘못된 요청입니다.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data, error } = await admin.rpc('swap_practice_block_teacher', {
+    p_block_id: parsed.data.blockId,
+    p_from_teacher_id: parsed.data.fromTeacherId,
+    p_to_teacher_id: parsed.data.toTeacherId,
+  })
+
+  if (error) {
+    console.error('[practice] failed to swap block teacher', error)
+    return { error: '담당 선생님 교체에 실패했습니다.' }
+  }
+
+  const result = (data ?? {}) as {
+    ok?: boolean
+    error?: string
+    conflictDate?: string
+    conflictTime?: string
+    movedSlotCount?: number
+    movedBookingCount?: number
+  }
+
+  if (!result.ok) {
+    switch (result.error) {
+      case 'BLOCK_NOT_FOUND':
+        return { error: '근무 블록을 찾을 수 없습니다.' }
+      case 'SAME_TEACHER':
+        return { error: '같은 선생님으로는 교체할 수 없습니다.' }
+      case 'TEACHER_NOT_IN_BLOCK':
+        return { error: '이 블록에 배정되지 않은 선생님입니다.' }
+      case 'TEACHER_ALREADY_IN_BLOCK':
+        return { error: '대타 선생님이 이미 이 블록에 배정되어 있습니다.' }
+      case 'SLOT_TIME_CONFLICT':
+        return {
+          error: `대타 선생님이 ${result.conflictDate ?? ''} ${result.conflictTime ?? ''}에 이미 슬롯을 갖고 있어 교체할 수 없습니다.`,
+        }
+      default:
+        return { error: '담당 선생님 교체에 실패했습니다.' }
+    }
+  }
+
+  revalidatePractice()
+  return {
+    success: true,
+    movedSlotCount: result.movedSlotCount ?? 0,
+    movedBookingCount: result.movedBookingCount ?? 0,
+  }
 }
 
 export async function updatePracticeSlotStatusAction(payload: unknown): Promise<ActionResult> {
