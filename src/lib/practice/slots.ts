@@ -82,7 +82,15 @@ type BookingRow = {
   status: PracticeBookingStatus
   profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
   practice_problems: { id: string; title: string } | { id: string; title: string }[] | null
+  // booking_id가 unique라 PostgREST가 1:1로 판단해 단일 객체로 반환한다.
   practice_attempts:
+    | {
+        id: string
+        status: PracticeAttemptStatus
+        opens_at: string
+        deadline_at: string
+        submitted_at: string | null
+      }
     | Array<{
         id: string
         status: PracticeAttemptStatus
@@ -120,14 +128,14 @@ async function fetchBookingsBySlotIds(slotIds: string[]): Promise<Map<string, Pr
   const classNames = await fetchStudentClassNames(rows.map((row) => row.student_id))
 
   const attemptIds = rows
-    .map((row) => row.practice_attempts?.[0]?.id)
+    .map((row) => firstOf(row.practice_attempts)?.id)
     .filter((value): value is string => Boolean(value))
   const feedbackSet = await fetchFeedbackAttemptIds(attemptIds)
 
   for (const row of rows) {
     const student = firstOf(row.profiles)
     const problem = firstOf(row.practice_problems)
-    const attempt = row.practice_attempts?.[0] ?? null
+    const attempt = firstOf(row.practice_attempts)
 
     result.set(row.slot_id, {
       id: row.id,

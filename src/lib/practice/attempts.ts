@@ -352,7 +352,15 @@ type BookingListRow = {
         profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
       }>
     | null
+  // booking_id가 unique라 PostgREST가 1:1로 판단해 단일 객체로 반환한다.
   practice_attempts:
+    | {
+        id: string
+        status: PracticeAttemptStatus
+        opens_at: string
+        deadline_at: string
+        submitted_at: string | null
+      }
     | Array<{
         id: string
         status: PracticeAttemptStatus
@@ -376,7 +384,7 @@ const BOOKING_LIST_SELECT = `
 
 async function mapBookingRows(rows: BookingListRow[]): Promise<PracticeStudentBookingRow[]> {
   const attemptIds = rows
-    .map((row) => row.practice_attempts?.[0]?.id)
+    .map((row) => firstOf(row.practice_attempts)?.id)
     .filter((value): value is string => Boolean(value))
   const [feedbackSet, classNames] = await Promise.all([
     fetchFeedbackAttemptIds(attemptIds),
@@ -388,7 +396,7 @@ async function mapBookingRows(rows: BookingListRow[]): Promise<PracticeStudentBo
     const teacher = slot ? firstOf(slot.profiles) : null
     const problem = firstOf(row.practice_problems)
     const student = firstOf(row.profiles)
-    const attempt = row.practice_attempts?.[0] ?? null
+    const attempt = firstOf(row.practice_attempts)
 
     return {
       bookingId: row.id,
@@ -495,11 +503,11 @@ export async function fetchPracticeStudentsWithBookings(): Promise<
   const rows = (data ?? []) as unknown as Array<{
     student_id: string
     profiles: { id: string; name: string | null; email: string | null } | { id: string; name: string | null; email: string | null }[] | null
-    practice_attempts: Array<{ id: string }> | null
+    practice_attempts: { id: string } | Array<{ id: string }> | null
   }>
 
   const attemptIds = rows
-    .map((row) => row.practice_attempts?.[0]?.id)
+    .map((row) => firstOf(row.practice_attempts)?.id)
     .filter((value): value is string => Boolean(value))
   const [feedbackSet, classNames] = await Promise.all([
     fetchFeedbackAttemptIds(attemptIds),
@@ -521,7 +529,7 @@ export async function fetchPracticeStudentsWithBookings(): Promise<
       feedbackCount: 0,
     }
     entry.totalCount += 1
-    const attemptId = row.practice_attempts?.[0]?.id
+    const attemptId = firstOf(row.practice_attempts)?.id
     if (attemptId && feedbackSet.has(attemptId)) {
       entry.feedbackCount += 1
     }

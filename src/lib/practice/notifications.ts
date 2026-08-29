@@ -15,7 +15,11 @@ type BookingNotificationRow = {
     | { starts_at: string; room_no: number | null }
     | Array<{ starts_at: string; room_no: number | null }>
     | null
-  practice_attempts: Array<{ opens_at: string; deadline_at: string }> | null
+  // booking_id가 unique라 PostgREST가 1:1로 판단해 단일 객체로 반환한다.
+  practice_attempts:
+    | { opens_at: string; deadline_at: string }
+    | Array<{ opens_at: string; deadline_at: string }>
+    | null
   profiles:
     | { name: string | null; student_phone: string | null; parent_phone: string | null }
     | Array<{ name: string | null; student_phone: string | null; parent_phone: string | null }>
@@ -72,7 +76,7 @@ export async function notifyPracticeBookingConfirmed(bookingId: string): Promise
     }
 
     const slot = firstOf(row.practice_slots)
-    const attempt = row.practice_attempts?.[0] ?? null
+    const attempt = firstOf(row.practice_attempts)
 
     if (!slot || !attempt) {
       console.warn('[practice] 슬롯/응시 정보가 없어 예약 확정 문자를 건너뜁니다.', bookingId)
