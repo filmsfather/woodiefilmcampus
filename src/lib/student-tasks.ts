@@ -642,7 +642,7 @@ export async function fetchStudentTaskDetail(
             `id, position, prompt, answer_type, explanation, srs_settings,
              workbook_item_choices(id, label, content, is_correct),
              workbook_item_short_fields(id, label, answer, position),
-             workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size))`
+             workbook_item_media(id, position, media_assets(id, bucket, path, mime_type, size, metadata))`
           )
           .eq('workbook_id', assignmentSummary.workbook.id)
       : Promise.resolve({ data: null, error: null }),
@@ -688,8 +688,10 @@ export async function fetchStudentTaskDetail(
   const enrichedItems = (row.student_task_items ?? []).map((item) => {
     let workbookItem = pickFirst(item.item)
 
-    if (!workbookItem && workbookItemLookup && item.item_id && workbookItemLookup.has(item.item_id)) {
-      workbookItem = workbookItemLookup.get(item.item_id) ?? null
+    // 학생 권한으로는 RLS 때문에 workbook_item_media를 읽지 못하므로,
+    // admin 클라이언트로 조회한 문항 데이터(첨부 포함)를 우선 사용한다.
+    if (workbookItemLookup && item.item_id && workbookItemLookup.has(item.item_id)) {
+      workbookItem = workbookItemLookup.get(item.item_id) ?? workbookItem
     }
 
     const workbookItemId = (workbookItem as { id?: string } | null)?.id ?? null
