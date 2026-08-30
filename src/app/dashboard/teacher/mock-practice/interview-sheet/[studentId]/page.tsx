@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { InterviewSheetEditor } from '@/components/dashboard/mock-practice/InterviewSheetEditor'
+import { InterviewSheetPdfButton } from '@/components/dashboard/mock-practice/InterviewSheetPdfButton'
 import { requireAuthForDashboard } from '@/lib/auth'
 import {
   fetchInterviewSheetDetail,
@@ -63,12 +64,15 @@ export default async function InterviewSheetStudentPage({
           fallbackHref="/dashboard/teacher/mock-practice/interview-sheet"
           label="면접지 관리로 돌아가기"
         />
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold text-slate-900">{sheet.studentName} 학생의 면접지</h1>
-          <p className="text-sm text-slate-600">
-            질문 {sheet.items.length}개 · 답변 완료 {answeredCount}개 — 질문을 추가하거나 답변에 피드백을
-            남기세요.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold text-slate-900">{sheet.studentName} 학생의 면접지</h1>
+            <p className="text-sm text-slate-600">
+              질문 {sheet.items.length}개 · 답변 완료 {answeredCount}개 — 질문을 추가하거나 답변에 피드백을
+              남기세요.
+            </p>
+          </div>
+          <InterviewSheetPdfButton sheet={sheet} />
         </div>
       </div>
 

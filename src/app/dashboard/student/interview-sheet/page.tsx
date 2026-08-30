@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 
 import DashboardBackLink from '@/components/dashboard/DashboardBackLink'
 import { InterviewSheetEditor } from '@/components/dashboard/mock-practice/InterviewSheetEditor'
+import { InterviewSheetPdfButton } from '@/components/dashboard/mock-practice/InterviewSheetPdfButton'
 import { Card, CardContent } from '@/components/ui/card'
 import { requireAuthForDashboard } from '@/lib/auth'
 import { fetchInterviewSheetDetail, getOrCreateInterviewSheet } from '@/lib/interview-sheets'
@@ -44,10 +45,13 @@ export default async function StudentInterviewSheetPage() {
         </Card>
       ) : (
         <>
-          <p className="text-sm text-slate-600">
-            질문 <span className="font-semibold text-slate-900">{sheet.items.length}</span>개 · 답변 완료{' '}
-            <span className="font-semibold text-slate-900">{answeredCount}</span>개
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-600">
+              질문 <span className="font-semibold text-slate-900">{sheet.items.length}</span>개 · 답변 완료{' '}
+              <span className="font-semibold text-slate-900">{answeredCount}</span>개
+            </p>
+            <InterviewSheetPdfButton sheet={sheet} />
+          </div>
           <InterviewSheetEditor mode="student" sheet={sheet} viewerId={profile.id} />
         </>
       )}
