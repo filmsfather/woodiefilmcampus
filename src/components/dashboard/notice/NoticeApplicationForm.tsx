@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { LoadingSpinner } from '@/components/ui/loading-spinner'
-import { ApplicationConfig, ApplicationFormData, validateApplicationForm } from '@/lib/notice-application'
+import { ApplicationConfig, ApplicationFormData, formatApplicationValue, validateApplicationForm } from '@/lib/notice-application'
 import { applyNotice, cancelApplication } from '@/app/dashboard/teacher/notices/actions'
 
 interface NoticeApplicationFormProps {
@@ -37,6 +37,20 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
 
     const handleChange = (id: string, value: string | boolean | string[]) => {
         setFormData((prev) => ({ ...prev, [id]: value }))
+        setError(null)
+    }
+
+    const handleToggleOption = (id: string, option: string) => {
+        setFormData((prev) => {
+            const existing = prev[id]
+            const selected = Array.isArray(existing) ? existing : []
+            return {
+                ...prev,
+                [id]: selected.includes(option)
+                    ? selected.filter((item) => item !== option)
+                    : [...selected, option],
+            }
+        })
         setError(null)
     }
 
@@ -95,9 +109,7 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
                             <div key={field.id} className="space-y-1">
                                 <p className="text-xs font-medium text-slate-500">{field.label}</p>
                                 <p className="text-sm text-slate-900">
-                                    {field.type === 'checkbox'
-                                        ? formData[field.id] ? '예' : '아니오'
-                                        : String(formData[field.id] ?? '-')}
+                                    {formatApplicationValue(field.type, formData[field.id])}
                                 </p>
                             </div>
                         ))}
@@ -207,6 +219,38 @@ export function NoticeApplicationForm({ noticeId, config, initialData, isDeadlin
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                )}
+
+                                {field.type === 'multiselect' && (
+                                    <div className="space-y-2 rounded-md border border-slate-200 p-3">
+                                        {(field.options ?? []).length === 0 ? (
+                                            <p className="text-sm text-slate-500">선택지가 없습니다.</p>
+                                        ) : (
+                                            field.options?.map((option) => {
+                                                const optionId = `${field.id}-${option}`
+                                                const selected = formData[field.id]
+                                                const checked = Array.isArray(selected) && selected.includes(option)
+                                                return (
+                                                    <div key={option} className="flex items-center gap-2">
+                                                        <Checkbox
+                                                            id={optionId}
+                                                            className="shrink-0"
+                                                            checked={checked}
+                                                            onChange={() => handleToggleOption(field.id, option)}
+                                                            disabled={isPending}
+                                                        />
+                                                        <label
+                                                            htmlFor={optionId}
+                                                            className="text-sm text-slate-900 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                                        >
+                                                            {option}
+                                                        </label>
+                                                    </div>
+                                                )
+                                            })
+                                        )}
+                                        <p className="text-xs text-slate-500">여러 개를 선택할 수 있습니다.</p>
+                                    </div>
                                 )}
 
                                 {field.type === 'checkbox' && (

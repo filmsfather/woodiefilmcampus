@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { requireAuthForDashboard } from '@/lib/auth'
+import { formatApplicationValue } from '@/lib/notice-application'
 import { fetchNoticeApplications, fetchNoticeDetail } from '@/lib/notice-board'
 import { createClient as createServerSupabase } from '@/lib/supabase/server'
 
@@ -88,11 +89,7 @@ export default async function NoticeApplicationsPage({ params }: { params: Promi
                                         </TableCell>
                                         {config?.fields.map((field) => (
                                             <TableCell key={field.id}>
-                                                {field.type === 'checkbox'
-                                                    ? app.formData[field.id]
-                                                        ? '예'
-                                                        : '아니오'
-                                                    : String(app.formData[field.id] ?? '-')}
+                                                {formatApplicationValue(field.type, app.formData[field.id])}
                                             </TableCell>
                                         ))}
                                         <TableCell>

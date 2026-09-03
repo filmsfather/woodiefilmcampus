@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '../../../ui/switch'
-import { ApplicationConfig, ApplicationField, ApplicationFieldType } from '@/lib/notice-application'
+import { ApplicationConfig, ApplicationField, ApplicationFieldType, fieldHasOptions } from '@/lib/notice-application'
 
 interface ApplicationFormBuilderProps {
     config: ApplicationConfig | null
@@ -21,6 +21,7 @@ const FIELD_TYPES: Record<ApplicationFieldType, string> = {
     text: '단답형 텍스트',
     textarea: '장문형 텍스트',
     select: '선택형 (드롭다운)',
+    multiselect: '복수 선택 (여러 개 체크)',
     checkbox: '체크박스 (동의 등)',
 }
 
@@ -132,11 +133,15 @@ export function ApplicationFormBuilder({ config, onChange, disabled }: Applicati
                                             </Button>
                                         </div>
 
-                                        {field.type === 'select' && (
+                                        {fieldHasOptions(field.type) && (
                                             <Input
                                                 value={field.options?.join(', ') ?? ''}
                                                 onChange={(e) => handleOptionsChange(field.id, e.target.value)}
-                                                placeholder="옵션 입력 (쉼표로 구분, 예: S, M, L, XL)"
+                                                placeholder={
+                                                    field.type === 'multiselect'
+                                                        ? '옵션 입력 (쉼표로 구분, 예: 월, 수, 금) · 여러 개 선택 가능'
+                                                        : '옵션 입력 (쉼표로 구분, 예: S, M, L, XL)'
+                                                }
                                                 className="h-8 text-sm"
                                             />
                                         )}
