@@ -250,6 +250,41 @@ export function formatKstTime(value: string | null | undefined): string {
   }).format(new Date(parsed))
 }
 
+/** 응시 시작 전까지 등원해야 하는 여유 시간(분). 문자 안내 문구와 동일 기준. */
+export const PRACTICE_ARRIVAL_BUFFER_MINUTES = 10
+
+export interface PracticeTimeline {
+  /** 등원 시각 (HH:MM, KST) */
+  arrivalLabel: string
+  /** 실기고사 시작 시각 (HH:MM, KST) */
+  examStartLabel: string
+  /** 실기고사 마감 시각 (HH:MM, KST) */
+  examEndLabel: string
+  /** 실기 제한시간(분) */
+  limitMinutes: number
+}
+
+/** 등원·실기 시간을 attempt의 공개/마감 시각에서 계산한다. 문제 배정 전(값 없음)이면 null. */
+export function getPracticeTimeline(
+  opensAt: string | null | undefined,
+  deadlineAt: string | null | undefined
+): PracticeTimeline | null {
+  if (!opensAt || !deadlineAt) {
+    return null
+  }
+  const opens = Date.parse(opensAt)
+  const deadline = Date.parse(deadlineAt)
+  if (Number.isNaN(opens) || Number.isNaN(deadline)) {
+    return null
+  }
+  return {
+    arrivalLabel: formatKstTime(new Date(opens - PRACTICE_ARRIVAL_BUFFER_MINUTES * 60_000).toISOString()),
+    examStartLabel: formatKstTime(opensAt),
+    examEndLabel: formatKstTime(deadlineAt),
+    limitMinutes: Math.max(0, Math.round((deadline - opens) / 60_000)),
+  }
+}
+
 /** 학생 화면용 고사장 라벨. 과거 데이터(고사장 미배정)는 이름을 숨기고 미지정으로 표시한다. */
 export function formatPracticeRoomLabel(roomNo: number | null | undefined): string {
   return roomNo ? `${roomNo}고사장` : '고사장 미지정'

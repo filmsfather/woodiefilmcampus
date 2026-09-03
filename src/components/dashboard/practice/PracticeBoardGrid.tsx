@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Loader2, Plus, X } from 'lucide-react'
+import { FileDown, FileSpreadsheet, Loader2, Plus, X } from 'lucide-react'
 
 import {
   assignPracticeBookingAction,
@@ -11,7 +11,7 @@ import {
 } from '@/app/dashboard/practice-feedback/booking-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatSlotDateLabel } from '@/lib/practice/shared'
+import { exportPracticeBoardToPdf, exportPracticeBoardToXlsx } from '@/lib/practice/board-export'
+import { formatSlotDateLabel, getPracticeTimeline } from '@/lib/practice/shared'
 import {
   PRACTICE_ATTEMPT_STATUS_LABELS,
   PRACTICE_TYPE_LABELS,
@@ -53,6 +54,7 @@ export function PracticeBoardGrid({
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [targetSlot, setTargetSlot] = useState<PracticeSlotView | null>(null)
+  const [exporting, setExporting] = useState<'pdf' | 'xlsx' | null>(null)
 
   const [studentQuery, setStudentQuery] = useState('')
   const [studentId, setStudentId] = useState('')
@@ -147,6 +149,23 @@ export function PracticeBoardGrid({
     })
   }
 
+  const handleExport = async (format: 'pdf' | 'xlsx') => {
+    setExporting(format)
+    setFeedback(null)
+    try {
+      if (format === 'pdf') {
+        await exportPracticeBoardToPdf(board)
+      } else {
+        await exportPracticeBoardToXlsx(board)
+      }
+    } catch (error) {
+      console.error('[practice] board export failed', error)
+      setFeedback({ type: 'error', message: '파일을 만드는 중 문제가 발생했습니다. 다시 시도해주세요.' })
+    } finally {
+      setExporting(null)
+    }
+  }
+
   if (board.teachers.length === 0) {
     return (
       <Card className="border-dashed border-slate-300">
@@ -174,10 +193,40 @@ export function PracticeBoardGrid({
 
       <Card className="border-slate-200">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base text-slate-900">
+          <CardTitle className="self-center text-base text-slate-900">
             {formatSlotDateLabel(board.slotDate)} · 슬롯 {board.slots.length}개 · 예약{' '}
             {board.slots.filter((slot) => slot.booking).length}건
           </CardTitle>
+          <CardAction className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={exporting !== null}
+              onClick={() => handleExport('pdf')}
+            >
+              {exporting === 'pdf' ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="mr-1 h-4 w-4" />
+              )}
+              PDF 저장
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={exporting !== null}
+              onClick={() => handleExport('xlsx')}
+            >
+              {exporting === 'xlsx' ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-1 h-4 w-4" />
+              )}
+              엑셀 저장
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent className="overflow-x-auto p-0">
           <table className="w-full min-w-[720px] border-collapse text-sm">
@@ -230,6 +279,7 @@ export function PracticeBoardGrid({
                     }
 
                     const booking = slot.booking
+                    const timeline = booking ? getPracticeTimeline(booking.opensAt, booking.deadlineAt) : null
 
                     if (!booking) {
                       return (
@@ -268,6 +318,12 @@ export function PracticeBoardGrid({
                           </span>
                         </div>
                         <p className="truncate text-[11px] text-slate-500">{booking.universityName}</p>
+                        {timeline ? (
+                          <p className="text-[11px] text-slate-600">
+                            실기 <span className="font-medium text-slate-800">{timeline.limitMinutes}분</span> · 등원{' '}
+                            <span className="font-medium text-slate-800">{timeline.arrivalLabel}</span>
+                          </p>
+                        ) : null}
                         {booking.attemptStatus ? (
                           <p className="text-[11px] text-slate-400">
                             {PRACTICE_ATTEMPT_STATUS_LABELS[booking.attemptStatus]}

@@ -5,9 +5,9 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
-  formatKstTime,
   formatPracticeRoomLabel,
   formatSlotDateLabel,
+  getPracticeTimeline,
   isPracticeBookingClosed,
 } from '@/lib/practice/shared'
 import {
@@ -17,24 +17,13 @@ import {
   type PracticeStudentBookingRow,
 } from '@/types/practice'
 
-/** 응시 시작 전까지 등원해야 하는 여유 시간(분). 문자 안내 문구와 동일 기준. */
-const ARRIVAL_BUFFER_MINUTES = 10
-
 /** 등원·실기고사(제한시간)·1:1 피드백 시각을 한 줄 문구로 만든다. 문제 배정 전이면 null. */
 function describeTimeline(row: PracticeStudentBookingRow): string | null {
-  if (!row.opensAt || !row.deadlineAt) {
+  const timeline = getPracticeTimeline(row.opensAt, row.deadlineAt)
+  if (!timeline) {
     return null
   }
-  const opens = Date.parse(row.opensAt)
-  const deadline = Date.parse(row.deadlineAt)
-  if (Number.isNaN(opens) || Number.isNaN(deadline)) {
-    return null
-  }
-
-  const arrivalLabel = formatKstTime(new Date(opens - ARRIVAL_BUFFER_MINUTES * 60_000).toISOString())
-  const limitMinutes = Math.max(0, Math.round((deadline - opens) / 60_000))
-
-  return `등원 ${arrivalLabel} · 실기고사 ${formatKstTime(row.opensAt)} ~ ${formatKstTime(row.deadlineAt)} (${limitMinutes}분) · 1:1 피드백 ${row.startTime}`
+  return `등원 ${timeline.arrivalLabel} · 실기고사 ${timeline.examStartLabel} ~ ${timeline.examEndLabel} (${timeline.limitMinutes}분) · 1:1 피드백 ${row.startTime}`
 }
 
 function describeState(row: PracticeStudentBookingRow, now: number) {
